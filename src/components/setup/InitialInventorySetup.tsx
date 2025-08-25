@@ -124,7 +124,7 @@ const InitialInventorySetup = () => {
     );
   };
 
-  const updateNotes = (itemId: number, notes: string) => {
+  const updateNotes = (itemId: string, notes: string) => {
     setInitialStocks(prev => 
       prev.map(stock => 
         stock.ItemMasterID === itemId 

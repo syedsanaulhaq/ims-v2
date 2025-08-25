@@ -58,16 +58,55 @@ interface InventoryStats {
   };
 }
 
+interface TopMovingItem {
+  nomenclature: string;
+  total_issued: number;
+  total_returned: number;
+  current_quantity: number;
+}
+
+interface LowStockAlert {
+  nomenclature: string;
+  current_quantity: number;
+  reorder_level: number;
+  minimum_stock_level: number;
+  category_name: string;
+  unit: string;
+}
+
+interface StockItem {
+  nomenclature: string;
+  category_name: string;
+  total_quantity: number;
+  available_quantity: number;
+  reserved_quantity: number;
+  current_quantity: number;
+  unit: string;
+  stock_status: string;
+}
+
+interface MovementRecord {
+  nomenclature: string;
+  transaction_type: string;
+  movement_type: string;
+  quantity: number;
+  transaction_date: string;
+  movement_date: string;
+  office_name?: string;
+  reference_number?: string;
+  unit: string;
+}
+
 interface DashboardData {
   stats: InventoryStats;
-  top_moving_items: Record<string, unknown>[];
-  low_stock_alerts: Record<string, unknown>[];
+  top_moving_items: TopMovingItem[];
+  low_stock_alerts: LowStockAlert[];
 }
 
 const InventoryManagementDashboard = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [currentStock, setCurrentStock] = useState<Record<string, unknown>[]>([]);
-  const [movementHistory, setMovementHistory] = useState<Record<string, unknown>[]>([]);
+  const [currentStock, setCurrentStock] = useState<StockItem[]>([]);
+  const [movementHistory, setMovementHistory] = useState<MovementRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
