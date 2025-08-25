@@ -61,10 +61,8 @@ const contractTenderSchema = z.object({
   estimated_value: z.coerce.number().min(0, "Estimated value must be positive").optional(),
   
   // Date Fields (matching database exactly)
-  publish_date: z.date().optional(),
   publication_date: z.date().optional(),
   submission_date: z.date().optional(),
-  submission_deadline: z.date().optional(),
   opening_date: z.date().optional(),
   
   // Publication
@@ -210,14 +208,10 @@ export default function ContractTenderForm({
           (tender.wing_ids ? tender.wing_ids.split(',').filter(Boolean) : []),
         decIds: Array.isArray(tender.decIds) ? tender.decIds :
           (tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : []),        // Parse dates
-        publish_date: tender.publish_date ? new Date(tender.publish_date) : 
-                     (tender.publishDate ? new Date(tender.publishDate) : undefined),
         publication_date: tender.publication_date ? new Date(tender.publication_date) : 
                          (tender.publicationDate ? new Date(tender.publicationDate) : undefined),
         submission_date: tender.submission_date ? new Date(tender.submission_date) : 
                         (tender.submissionDate ? new Date(tender.submissionDate) : undefined),
-        submission_deadline: tender.submission_deadline ? new Date(tender.submission_deadline) : 
-                           (tender.submissionDeadline ? new Date(tender.submissionDeadline) : undefined),
         opening_date: tender.opening_date ? new Date(tender.opening_date) : 
                      (tender.openingDate ? new Date(tender.openingDate) : undefined),
       };
@@ -280,10 +274,8 @@ export default function ContractTenderForm({
         decIds: tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : [],
         
         // Parse dates
-        publish_date: tender.publish_date ? new Date(tender.publish_date) : undefined,
         publication_date: tender.publication_date ? new Date(tender.publication_date) : undefined,
         submission_date: tender.submission_date ? new Date(tender.submission_date) : undefined,
-        submission_deadline: tender.submission_deadline ? new Date(tender.submission_deadline) : undefined,
         opening_date: tender.opening_date ? new Date(tender.opening_date) : undefined,
       };
       
@@ -347,10 +339,8 @@ export default function ContractTenderForm({
           decIds: data.decIds || [], // Array format
           
           // Dates
-          publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
           publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
           submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
-          submission_deadline: data.submission_deadline ? data.submission_deadline.toISOString() : null,
           opening_date: data.opening_date ? data.opening_date.toISOString() : null,
           
           // Items
@@ -400,10 +390,8 @@ export default function ContractTenderForm({
       dec_ids: data.decIds?.join(',') || '',
       
       // Format dates as ISO strings for database
-      publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
       publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
       submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
-      submission_deadline: data.submission_deadline ? data.submission_deadline.toISOString() : null,
       opening_date: data.opening_date ? data.opening_date.toISOString() : null,
       
       // Items
@@ -701,53 +689,6 @@ export default function ContractTenderForm({
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 
-                {/* Publish Date */}
-                <FormField
-                  control={form.control}
-                  name="publish_date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Publish Date</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input
-                            placeholder="dd/mm/yyyy"
-                            value={formatDateForDisplay(field.value)}
-                            onChange={(e) => {
-                              const parsed = parseDateFromInput(e.target.value);
-                              field.onChange(parsed);
-                            }}
-                            className="flex-1"
-                          />
-                        </FormControl>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="shrink-0"
-                            >
-                              <CalendarIcon className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) =>
-                                date > new Date() || date < new Date("1900-01-01")
-                              }
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 {/* Publication Date */}
                 <FormField
                   control={form.control}
@@ -802,51 +743,6 @@ export default function ContractTenderForm({
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Submission Date</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input
-                            placeholder="dd/mm/yyyy"
-                            value={formatDateForDisplay(field.value)}
-                            onChange={(e) => {
-                              const parsed = parseDateFromInput(e.target.value);
-                              field.onChange(parsed);
-                            }}
-                            className="flex-1"
-                          />
-                        </FormControl>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="shrink-0"
-                            >
-                              <CalendarIcon className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => date < new Date("1900-01-01")}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Submission Deadline */}
-                <FormField
-                  control={form.control}
-                  name="submission_deadline"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Submission Deadline</FormLabel>
                       <div className="flex gap-2">
                         <FormControl>
                           <Input
