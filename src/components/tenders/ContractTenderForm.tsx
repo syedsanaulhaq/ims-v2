@@ -1,960 +1,448 @@
-import React, { useEffect, useState } from 'react';
-// (removed duplicate import)
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useNavigate, useParams } from 'react-router-dom';
+import { format } from 'date-fns';
+import { Calendar as CalendarIcon, Plus, Save, Upload, ArrowLeft } from 'lucide-react';
+
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileText, AlertCircle } from "lucide-react";
-import { CreateTenderRequest } from '@/types/tender';
-import BasicDetailsSection from './shared/BasicDetailsSection';
-import ItemMasterItemsSection from './shared/ItemMasterItemsSection';
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import VendorCombobox from "@/components/common/VendorCombobox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
 import VendorForm from "@/components/vendors/VendorForm";
-import { Plus } from "lucide-react";
+import { useOffices } from '@/hooks/useOffices';
 import { useVendors } from '@/hooks/useVendors';
-import { useVendorManagement } from '@/hooks/useFormCommon';
 import { useSession } from '@/contexts/SessionContext';
 
-// Unified schema for both Contract/Tender and Spot Purchase
-const contractTenderFormSchema = z.object({
-  tender_id: z.string().optional(), // Add tender_id for edit mode and DB
-  tender_spot_type: z.enum(['Contract/Tender', 'Spot Purchase'], { required_error: 'Type is required' }),
+const API_BASE_URL = 'http://localhost:3001';
+
+// Complete schema based on database structure
+const contractTenderSchema = z.object({
+  // Basic Information
+  tender_number: z.string().min(1, "Tender number is required"),
   title: z.string().min(1, "Title is required"),
-  referenceNumber: z.string().min(1, "Reference number is required"),
   description: z.string().optional(),
-  estimatedValue: z.coerce.number().min(0, "Estimated value must be positive"),
-  publishDate: z.date({ required_error: "Publish date is required" }),
-  submissionDate: z.date({ required_error: "Submission date is required" }),
-  openingDate: z.date({ required_error: "Opening date is required" }),
-  eligibilityCriteria: z.string().optional(),
-  officeIds: z.array(z.string()).min(1, "At least one office is required"),
-  wingIds: z.array(z.string()).min(1, "At least one wing is required"),
-  decIds: z.array(z.string()).optional(),
+  
+  // Type and Method
+  tender_spot_type: z.enum(['Contract/Tender', 'Spot Purchase'], { 
+    required_error: 'Tender type is required' 
+  }),
+  procurement_method: z.string().optional(),
+  
+  // Financial Information
+  estimated_value: z.coerce.number().min(0, "Estimated value must be positive").optional(),
+  
+  // Date Fields (matching database exactly)
+  publish_date: z.date().optional(),
+  publication_date: z.date().optional(),
+  submission_date: z.date().optional(),
+  submission_deadline: z.date().optional(),
+  opening_date: z.date().optional(),
+  
+  // Publication
+  publication_daily: z.string().optional(),
+  
+  // Criteria and Procedures
+  eligibility_criteria: z.string().optional(),
+  bidding_procedure: z.string().optional(),
+  
+  // Organizational (arrays that will be converted to comma-separated strings)
+  office_ids: z.array(z.string()).min(1, "At least one office is required"),
+  wing_ids: z.array(z.string()).min(1, "At least one wing is required"),
+  dec_ids: z.array(z.string()).optional(),
+  
+  // Vendor
+  vendor_id: z.string().optional(),
+  
+  // Items
   items: z.array(z.object({
-    itemMasterId: z.string().min(1, "Item is required"),
+    item_master_id: z.string().min(1, "Item is required"),
     nomenclature: z.string().min(1, "Nomenclature is required"),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
-    estimatedUnitPrice: z.coerce.number().min(0, "Unit price must be positive"),
+    estimated_unit_price: z.coerce.number().min(0, "Unit price must be positive"),
     specifications: z.string().optional(),
     remarks: z.string().optional(),
   })).min(1, "At least one item is required"),
-  vendor_id: z.string().optional(),
-  vendor_name: z.string().optional(),
-  rfpFile: z.any().optional(),
-  contractFile: z.any().optional(),
-  loiFile: z.any().optional(),
-  purchaseOrderFile: z.any().optional(),
-  notingFile: z.any().optional(),
-  advertisementDate: z.date().optional(),
-  publicationDailies: z.string().optional(),
-  procurementMethod: z.string().optional(),
-  biddingProcedure: z.string().optional(),
-  status: z.string().min(1, "Status is required"), // Main status field for finalization logic
-  tender_status: z.string().min(1, "Tender Status is required"), // for tender_status in DB
-}).refine((data) => {
-  // For Contract/Tender, biddingProcedure is required if procurementMethod is Open Competitive Bidding
-  if (data.tender_spot_type === 'Contract/Tender' && data.procurementMethod === 'Open Competitive Bidding' && !data.biddingProcedure) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Procedure Adopted is required for Open Competitive Bidding",
-  path: ["biddingProcedure"],
 });
 
-type ContractTenderFormValues = z.infer<typeof contractTenderFormSchema>;
+type ContractTenderFormData = z.infer<typeof contractTenderSchema>;
 
-interface ContractTenderFormProps {
-  onSubmit: (values: CreateTenderRequest) => void;
-  onCancel?: () => void;
-  isLoading?: boolean;
-  initialData?: Partial<CreateTenderRequest>;
+interface ItemMaster {
+  id: string;
+  nomenclature: string;
+  unit: string;
+  category_id: string;
+  specifications?: string;
 }
 
-const ContractTenderForm: React.FC<ContractTenderFormProps> = ({
-  onSubmit,
-  onCancel,
-  isLoading,
-  initialData
-}) => {
-  const { getCurrentUserId, getCurrentUserName } = useSession();
+interface Vendor {
+  id: string;
+  vendor_name: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+}
+
+export default function ContractTenderForm() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
+  const { user } = useSession();
   
-  // Check if record is finalized (status = "Finalized")
-  const isFinalized = initialData?.is_finalized === true;
-  const isReadOnly = isFinalized;
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [itemMasters, setItemMasters] = useState<ItemMaster[]>([]);
+  const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<any[]>([]);
   
-  // State to hold uploaded file paths, initialize from initialData if present
-  const [uploadedRfpPath, setUploadedRfpPath] = useState<string | undefined>(initialData?.rfp_file_path || undefined);
-  const [uploadedContractPath, setUploadedContractPath] = useState<string | undefined>(initialData?.contract_file_path || undefined);
-  const [uploadedLoiPath, setUploadedLoiPath] = useState<string | undefined>(initialData?.loi_file_path || undefined);
-  const [uploadedPoPath, setUploadedPoPath] = useState<string | undefined>(initialData?.po_file_path || undefined);
-  const [uploadedNotingPath, setUploadedNotingPath] = useState<string | undefined>(initialData?.noting_file_path || undefined);
-
-  // Keep uploaded file path state in sync with initialData (for edit mode)
-  useEffect(() => {
-    setUploadedRfpPath(initialData?.rfp_file_path || undefined);
-    setUploadedContractPath(initialData?.contract_file_path || undefined);
-    setUploadedLoiPath(initialData?.loi_file_path || undefined);
-    setUploadedPoPath(initialData?.po_file_path || undefined);
-    setUploadedNotingPath(initialData?.noting_file_path || undefined);
-  }, [initialData?.rfp_file_path, initialData?.contract_file_path, initialData?.loi_file_path, initialData?.po_file_path, initialData?.noting_file_path]);
-  // Vendor dialog state
-  const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
-  const [vendorFormLoading, setVendorFormLoading] = useState(false);
-  const [vendorFormError, setVendorFormError] = useState<string | null>(null);
-  // ...existing code...
-  const [hasAttemptedSubmit, setHasAttemptedSubmit] = React.useState(false);
-
-  // Ensure vendors is always an array
-  const safeVendors = []; // Array.isArray(vendors) ? vendors : [];
-
-  // Removed debug logging for vendors
-
-  // Always default to 'Tenders' unless explicitly set (for open form)
-  const form = useForm<ContractTenderFormValues>({
-    resolver: zodResolver(contractTenderFormSchema),
-    mode: "onBlur",
-    reValidateMode: "onChange",
+  // Use hooks
+  const { offices, wings, decs, loading: officesLoading } = useOffices();
+  const { vendors, loading: vendorsLoading, refetch: refetchVendors } = useVendors();
+  
+  const isEditMode = Boolean(id);
+  
+  const form = useForm<ContractTenderFormData>({
+    resolver: zodResolver(contractTenderSchema),
     defaultValues: {
-      tender_spot_type: typeof initialData?.tender_spot_type === 'string' && ['Contract/Tender', 'Spot Purchase'].includes(initialData.tender_spot_type)
-        ? initialData.tender_spot_type
-        : 'Contract/Tender',
-      title: initialData?.title || '',
-      referenceNumber: initialData?.referenceNumber || '',
-      description: initialData?.description || '',
-      estimatedValue: initialData?.estimatedValue || 0,
-      publishDate: initialData?.publishDate ? new Date(initialData.publishDate) : new Date(),
-      submissionDate: initialData?.submissionDate ? new Date(initialData.submissionDate) : new Date(),
-      openingDate: initialData?.openingDate ? new Date(initialData.openingDate) : new Date(),
-      eligibilityCriteria: initialData?.eligibilityCriteria || '',
-      officeIds: initialData?.officeIds || [],
-      wingIds: initialData?.wingIds || [],
-      decIds: initialData?.decIds || [],
-      items: initialData?.items?.map(item => ({
-        itemMasterId: item.itemMasterId || '',
-        nomenclature: item.nomenclature || '',
-        quantity: item.quantity || 1,
-        estimatedUnitPrice: item.estimatedUnitPrice || 0,
-        specifications: item.specifications || '',
-        remarks: item.remarks || '',
-      })) || [],
-      // Use vendor_id, status and tender_status directly from initialData (DB fields)
-      vendor_id: initialData?.vendor_id || '',
-      vendor_name: initialData?.vendor?.vendorName || '',
-      status: initialData?.status || 'Draft', // Main status field for finalization logic
-      tender_status: initialData?.tender_status || 'Draft', // Default to Draft for new tenders
-      tender_id: initialData?.tender_id ?? '',
-      rfpFile: undefined,
-      contractFile: undefined,
-      loiFile: undefined,
-      purchaseOrderFile: undefined,
-      notingFile: undefined,
-      advertisementDate: initialData?.advertisementDate ? new Date(initialData.advertisementDate) : new Date(),
-      publicationDailies: initialData?.publicationDailies || '',
-      procurementMethod: initialData?.procurementMethod || '',
-      biddingProcedure: initialData?.biddingProcedure || '',
+      tender_spot_type: 'Contract/Tender',
+      office_ids: [],
+      wing_ids: [],
+      dec_ids: [],
+      items: [],
+      estimated_value: 0,
     },
   });
 
-  // Clear biddingProcedure when procurement method changes away from "Open Competitive Bidding"
+  // Load item masters
   useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === 'procurementMethod' && value.procurementMethod !== 'Open Competitive Bidding') {
-        form.setValue('biddingProcedure', '');
-      }
-      // When switching between Contract/Tender and Spot Purchase, clear/hide fields as needed
-      if (name === 'tender_spot_type') {
-        if (value.tender_spot_type === 'Spot Purchase') {
-          form.setValue('rfpFile', undefined);
-          form.setValue('contractFile', undefined);
-          form.setValue('loiFile', undefined);
-          form.setValue('purchaseOrderFile', undefined);
-          form.setValue('advertisementDate', undefined);
-          form.setValue('publicationDailies', '');
-          form.setValue('procurementMethod', '');
-          form.setValue('biddingProcedure', '');
-          // form.setValue('tender_status', ''); // removed as tender_status is no longer in schema
-        }
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
-
-  // Reset form when initialData changes (e.g., switching from edit to add mode)
-  useEffect(() => {
-    const resetValues = {
-      tender_spot_type: typeof initialData?.tender_spot_type === 'string' && ['Contract/Tender', 'Spot Purchase'].includes(initialData.tender_spot_type)
-        ? initialData.tender_spot_type
-        : 'Contract/Tender',
-      title: initialData?.title || '',
-      referenceNumber: initialData?.referenceNumber || '',
-      description: initialData?.description || '',
-      estimatedValue: initialData?.estimatedValue || 0,
-      publishDate: initialData?.publishDate ? new Date(initialData.publishDate) : new Date(),
-      submissionDate: initialData?.submissionDate ? new Date(initialData.submissionDate) : new Date(),
-      openingDate: initialData?.openingDate ? new Date(initialData.openingDate) : new Date(),
-      eligibilityCriteria: initialData?.eligibilityCriteria || '',
-      officeIds: initialData?.officeIds || [],
-      wingIds: initialData?.wingIds || [],
-      decIds: initialData?.decIds || [],
-      items: initialData?.items?.map(item => ({
-        itemMasterId: item.itemMasterId || '',
-        nomenclature: item.nomenclature || '',
-        quantity: item.quantity || 1,
-        estimatedUnitPrice: item.estimatedUnitPrice || 0,
-        specifications: item.specifications || '',
-        remarks: item.remarks || '',
-      })) || [],
-      vendor_id: initialData?.vendor_id || '',
-      vendor_name: initialData?.vendor?.vendorName || '',
-      tender_id: initialData?.tender_id ?? '',
-      rfpFile: undefined,
-      contractFile: undefined,
-      loiFile: undefined,
-      purchaseOrderFile: undefined,
-      notingFile: undefined,
-      advertisementDate: initialData?.advertisementDate ? new Date(initialData.advertisementDate) : new Date(),
-      publicationDailies: initialData?.publicationDailies || '',
-      procurementMethod: initialData?.procurementMethod || '',
-      biddingProcedure: initialData?.biddingProcedure || '',
-      status: (typeof initialData?.status !== 'undefined' && initialData?.status !== null && initialData?.status !== '')
-        ? String(initialData.status)
-        : 'Draft',
-      tender_status: (typeof initialData?.tender_status !== 'undefined' && initialData?.tender_status !== null && initialData?.tender_status !== '')
-        ? String(initialData.tender_status)
-        : 'Open',
-    };
-    // Debug: log what is being set for vendor_id and tender_status
-    // Debug log for vendor_id and tender_status removed
-    form.reset(resetValues);
-    setHasAttemptedSubmit(false); // Reset validation alert when form is reset
-  }, [initialData, form]);
-
-  // Upload file to backend and set the returned path
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 50 * 1024 * 1024) {
-        form.setError(fieldName as any, { type: 'manual', message: 'File size must be less than 50MB' });
-        return;
-      }
-      form.clearErrors(fieldName as any);
-      form.setValue(fieldName as any, file);
-      // Upload to backend
-      const formData = new FormData();
-      formData.append('file', file);
+    const fetchItemMasters = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await res.json();
-        if (res.ok && data.filePath) {
-          if (fieldName === 'rfpFile') setUploadedRfpPath(data.filePath);
-          if (fieldName === 'contractFile') setUploadedContractPath(data.filePath);
-          if (fieldName === 'loiFile') setUploadedLoiPath(data.filePath);
-          if (fieldName === 'purchaseOrderFile') setUploadedPoPath(data.filePath);
-          if (fieldName === 'notingFile') setUploadedNotingPath(data.filePath);
-        } else {
-          form.setError(fieldName as any, { type: 'manual', message: 'File upload failed' });
+        const response = await fetch(`${API_BASE_URL}/api/item-masters`);
+        if (response.ok) {
+          const data = await response.json();
+          setItemMasters(data);
         }
-      } catch (err) {
-        form.setError(fieldName as any, { type: 'manual', message: 'File upload failed' });
+      } catch (error) {
+        console.error('Error loading item masters:', error);
       }
-    }
-  };
+    };
 
-  // Helper to get local file URL
-  function getLocalFileUrl(path?: string) {
-    if (!path) return undefined;
-    // Only rewrite if not already a full URL
-    if (path.startsWith('http')) return path;
-    return `http://localhost:3001/uploads/${path}`;
-  }
-
-  // Always use the watched value for tender_spot_type to ensure correct type is submitted
-  const watchedType = form.watch('tender_spot_type');
-  const handleSubmit = async (values: ContractTenderFormValues) => {
-    setHasAttemptedSubmit(true);
-    try {
-      // Map form fields to backend field names (snake_case where needed)
-      const tenderRequest: CreateTenderRequest = {
-        ...values,
-        created_by: getCurrentUserId(), // Use session user ID
-        tender_spot_type: watchedType,
-        type: watchedType, // for backend compatibility if needed
-        title: values.title,
-        referenceNumber: values.referenceNumber,
-        description: values.description || '',
-        estimatedValue: Number(values.estimatedValue),
-        publishDate: values.publishDate.toISOString().split('T')[0],
-        publicationDate: values.publishDate.toISOString().split('T')[0],
-        submissionDate: values.submissionDate.toISOString().split('T')[0],
-        submissionDeadline: values.submissionDate.toISOString().split('T')[0],
-        openingDate: values.openingDate.toISOString().split('T')[0],
-        eligibilityCriteria: values.eligibilityCriteria || '',
-        officeIds: values.officeIds,
-        wingIds: values.wingIds,
-        decIds: values.decIds,
-        items: values.items.map(item => ({
-          itemMasterId: item.itemMasterId,
-          nomenclature: item.nomenclature,
-          quantity: Number(item.quantity),
-          estimatedUnitPrice: Number(item.estimatedUnitPrice),
-          specifications: item.specifications || '',
-          remarks: item.remarks || '',
-        })),
-        vendor: values.vendor_id ? { vendorId: values.vendor_id, vendorName: values.vendor_name || '' } : undefined,
-        procurementMethod: values.procurementMethod,
-        biddingProcedure: values.biddingProcedure,
-        advertisementDate: values.advertisementDate instanceof Date ? values.advertisementDate.toISOString().split('T')[0] : values.advertisementDate,
-        publicationDailies: values.publicationDailies,
-        status: values.status, // Main status field for finalization logic
-        tender_status: values.tender_status, // Business workflow status field
-        tender_id: values.tender_id, // <-- include tender_id for update/edit
-        // Attach uploaded file paths for DB
-        rfp_file_path: uploadedRfpPath,
-        contract_file_path: uploadedContractPath,
-        loi_file_path: uploadedLoiPath,
-        po_file_path: uploadedPoPath,
-        noting_file_path: uploadedNotingPath,
-      };
-
-      // Remove UI-only fields from payload if present
-      // vendor field deletion retained if needed elsewhere
-      // Remove legacy fields if present
-      await onSubmit(tenderRequest);
-      setHasAttemptedSubmit(false);
-    } catch (error) {
-      
-      throw error;
-    }
-  };
-
-  const formValues = form.watch();
-  const formErrors = form.formState.errors;
-  const isFormValid = form.formState.isValid;
-
-  // Check if form can be submitted
-  const canSubmit = () => {
-    const hasRequiredFields = 
-      formValues.title?.trim() &&
-      formValues.referenceNumber?.trim() &&
-      formValues.estimatedValue >= 0 &&
-      formValues.officeIds?.length > 0 &&
-      formValues.wingIds?.length > 0 &&
-      formValues.items?.length > 0 &&
-      formValues.publishDate &&
-      formValues.submissionDate &&
-      formValues.openingDate;
-
-    const hasValidItems = formValues.items?.every(item => 
-      item.itemMasterId?.trim() && 
-      item.nomenclature?.trim() && 
-      item.quantity > 0 && 
-      item.estimatedUnitPrice >= 0
-    );
-
-    // Filter out file upload errors since file uploads are optional
-    const nonFileErrors = Object.entries(formErrors).filter(([key, error]) => {
-      const fileFields = ['rfpFile', 'contractFile', 'loiFile', 'purchaseOrderFile', 'notingFile'];
-      return !fileFields.includes(key) || (error.type !== 'manual' || error.message !== 'File upload failed');
-    });
-
-    const canSubmitResult = hasRequiredFields && hasValidItems && nonFileErrors.length === 0;
-
-    return canSubmitResult;
-  };
-
-  // Function to get missing required fields
-  const getMissingRequiredFields = () => {
-    const missing = [];
-    
-    if (!formValues.title?.trim()) missing.push({ field: 'title', label: 'Title' });
-    if (!formValues.referenceNumber?.trim()) missing.push({ field: 'referenceNumber', label: 'Reference Number' });
-    if (!formValues.estimatedValue || formValues.estimatedValue <= 0) missing.push({ field: 'estimatedValue', label: 'Estimated Value' });
-    if (!formValues.officeIds?.length) missing.push({ field: 'officeIds', label: 'Office Selection' });
-    if (!formValues.wingIds?.length) missing.push({ field: 'wingIds', label: 'Wing Selection' });
-    if (!formValues.publishDate) missing.push({ field: 'publishDate', label: 'Publish Date' });
-    if (!formValues.submissionDate) missing.push({ field: 'submissionDate', label: 'Submission Date' });
-    if (!formValues.openingDate) missing.push({ field: 'openingDate', label: 'Opening Date' });
-    if (!formValues.items?.length) missing.push({ field: 'items', label: 'Items (at least one item)' });
-    
-    // Check if items have required fields
-    if (formValues.items?.length > 0) {
-      formValues.items.forEach((item, index) => {
-        if (!item.itemMasterId?.trim()) missing.push({ field: `items.${index}.itemMasterId`, label: `Item ${index + 1} - Item Selection` });
-        if (!item.nomenclature?.trim()) missing.push({ field: `items.${index}.nomenclature`, label: `Item ${index + 1} - Nomenclature` });
-        if (!item.quantity || item.quantity <= 0) missing.push({ field: `items.${index}.quantity`, label: `Item ${index + 1} - Quantity` });
-        if (!item.estimatedUnitPrice || item.estimatedUnitPrice < 0) missing.push({ field: `items.${index}.estimatedUnitPrice`, label: `Item ${index + 1} - Unit Price` });
-      });
-    }
-    
-    return missing;
-  };
-
-  // Function to focus on first missing field
-  const focusOnFirstMissingField = () => {
-    const missing = getMissingRequiredFields();
-    if (missing.length > 0) {
-      const firstMissingField = missing[0].field;
-      
-      setTimeout(() => {
-        let element: HTMLElement | null = null;
-        
-        // Try to find the element using multiple strategies
-        element = document.querySelector(`[name="${firstMissingField}"]`) as HTMLElement ||
-                 document.querySelector(`#${firstMissingField}`) as HTMLElement ||
-                 document.querySelector(`[data-field="${firstMissingField}"]`) as HTMLElement;
-        
-        // Handle special cases for complex fields
-        if (!element) {
-          if (firstMissingField === 'officeIds') {
-            element = document.querySelector('[data-field="officeIds"] button, [data-testid="office-multiselect"], input[placeholder*="office"], button[role="combobox"]') as HTMLElement;
-          } else if (firstMissingField === 'wingIds') {
-            element = document.querySelector('[data-field="wingIds"] button, [data-testid="wing-multiselect"], input[placeholder*="wing"]') as HTMLElement;
-          } else if (firstMissingField === 'items') {
-            element = document.querySelector('[data-testid="items-section"], [data-field="items"]') as HTMLElement;
-          } else if (firstMissingField.startsWith('items.')) {
-            const itemIndex = firstMissingField.split('.')[1];
-            element = document.querySelector(`[data-testid="item-${itemIndex}"], .item-row:nth-child(${parseInt(itemIndex) + 1})`) as HTMLElement;
-          }
-        }
-        
-        // Fallback to label-based search
-        if (!element) {
-          const labelText = missing[0].label.toLowerCase();
-          const labels = Array.from(document.querySelectorAll('label'));
-          const matchingLabel = labels.find(label => {
-            const text = label.textContent?.toLowerCase() || '';
-            return text.includes(labelText.split(' ')[0]) || text.includes(labelText.split(' - ')[0]);
-          });
-          
-          if (matchingLabel) {
-            element = matchingLabel.parentElement?.querySelector('input, select, textarea, button[role="combobox"]') as HTMLElement;
-          }
-        }
-        
-        if (element) {
-          element.focus();
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          
-          // For dropdowns and comboboxes, trigger click to open
-          if (element.getAttribute('role') === 'combobox' || 
-              element.classList.contains('select-trigger') ||
-              element.tagName === 'BUTTON') {
-            element.click();
-          }
-        } else {
-          // Fallback: scroll to form top
-          const formElement = document.querySelector('form');
-          if (formElement) {
-            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }
-      }, 150);
-    }
-  };
-
-  // Handle form submission attempt (including validation failures)
-  const handleFormSubmit = (e: React.FormEvent) => {
-    setHasAttemptedSubmit(true);
-    // Let react-hook-form handle the actual submission
-  };
-
-  const missingFields = getMissingRequiredFields();
-  
-  // Filter out file upload errors since file uploads are optional
-  const nonFileErrors = Object.entries(formErrors).filter(([key, error]) => {
-    const fileFields = ['rfpFile', 'contractFile', 'loiFile', 'purchaseOrderFile', 'notingFile'];
-    return !fileFields.includes(key) || (error.type !== 'manual' || error.message !== 'File upload failed');
-  });
-  
-  const hasErrors = nonFileErrors.length > 0;
-  const shouldShowValidationAlert = hasAttemptedSubmit && (missingFields.length > 0 || hasErrors);
-
-  const submitEnabled = canSubmit() && !isLoading;
-
-  // Clear file upload errors on component mount since they're optional
-  React.useEffect(() => {
-    const fileFields = ['rfpFile', 'contractFile', 'loiFile', 'purchaseOrderFile', 'notingFile'];
-    fileFields.forEach(field => {
-      const error = formErrors[field as keyof typeof formErrors];
-      if (error?.type === 'manual' && error?.message === 'File upload failed') {
-        form.clearErrors(field as any);
-      }
-    });
+    fetchItemMasters();
   }, []);
 
-  // Removed debug logging for form state
+  // Load tender data for edit mode
+  useEffect(() => {
+    if (isEditMode && id) {
+      loadTenderData(id);
+    }
+  }, [id, isEditMode]);
 
-  // Show loading if vendors are still loading
-  // if (isLoadingVendors) {
-  //   return (
-  //     <div className="p-6 flex items-center justify-center min-h-96">
-  //       <div className="text-center">
-  //         <LoadingSpinner size="lg" className="mx-auto mb-4" />
-  //         <p className="text-gray-600">Loading form data...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  const loadTenderData = async (tenderId: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/tenders/${tenderId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load tender data');
+      }
+      
+      const tender = await response.json();
+      
+      // Process the data to match form structure
+      const formData: Partial<ContractTenderFormData> = {
+        tender_number: tender.tender_number || '',
+        title: tender.title || '',
+        description: tender.description || '',
+        tender_spot_type: tender.tender_spot_type || 'Contract/Tender',
+        procurement_method: tender.procurement_method || '',
+        estimated_value: tender.estimated_value || 0,
+        publication_daily: tender.publication_daily || '',
+        eligibility_criteria: tender.eligibility_criteria || '',
+        bidding_procedure: tender.bidding_procedure || '',
+        vendor_id: tender.vendor_id || '',
+        
+        // Parse comma-separated organizational IDs
+        office_ids: tender.office_ids ? tender.office_ids.split(',').filter(Boolean) : [],
+        wing_ids: tender.wing_ids ? tender.wing_ids.split(',').filter(Boolean) : [],
+        dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : [],
+        
+        // Parse dates
+        publish_date: tender.publish_date ? new Date(tender.publish_date) : undefined,
+        publication_date: tender.publication_date ? new Date(tender.publication_date) : undefined,
+        submission_date: tender.submission_date ? new Date(tender.submission_date) : undefined,
+        submission_deadline: tender.submission_deadline ? new Date(tender.submission_deadline) : undefined,
+        opening_date: tender.opening_date ? new Date(tender.opening_date) : undefined,
+      };
+      
+      // Load tender items
+      const itemsResponse = await fetch(`${API_BASE_URL}/api/tenders/${tenderId}/items`);
+      if (itemsResponse.ok) {
+        const items = await itemsResponse.json();
+        formData.items = items.map((item: any) => ({
+          item_master_id: item.item_master_id,
+          nomenclature: item.nomenclature,
+          quantity: item.quantity,
+          estimated_unit_price: item.estimated_unit_price || 0,
+          specifications: item.specifications || '',
+          remarks: item.remarks || '',
+        }));
+        setSelectedItems(items);
+      }
+      
+      // Reset form with loaded data
+      form.reset(formData);
+      
+    } catch (error) {
+      console.error('Error loading tender:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tender data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Helper to get heading/label text based on type
-  // Always use the latest value for heading by watching the field directly in render
-  const isSpotPurchase = watchedType === 'Spot Purchase';
-  const getHeading = (tenderLabel: string, spotLabel: string) =>
-    isSpotPurchase ? spotLabel : tenderLabel;
-  const typeName = isSpotPurchase ? 'Spot Purchase' : 'Contract/Tender';
+  const onSubmit = async (data: ContractTenderFormData) => {
+    try {
+      setSaving(true);
+      
+      // Prepare the payload with proper field mapping
+      const payload = {
+        // Use exact database field names
+        tender_number: data.tender_number,
+        title: data.title,
+        description: data.description || '',
+        tender_spot_type: data.tender_spot_type,
+        procurement_method: data.procurement_method || '',
+        estimated_value: data.estimated_value || 0,
+        publication_daily: data.publication_daily || '',
+        eligibility_criteria: data.eligibility_criteria || '',
+        bidding_procedure: data.bidding_procedure || '',
+        vendor_id: data.vendor_id || null,
+        
+        // Convert arrays to comma-separated strings (as expected by backend)
+        office_ids: data.office_ids.join(','),
+        wing_ids: data.wing_ids.join(','),
+        dec_ids: data.dec_ids?.join(',') || '',
+        
+        // Format dates as ISO strings for database
+        publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
+        publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
+        submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
+        submission_deadline: data.submission_deadline ? data.submission_deadline.toISOString() : null,
+        opening_date: data.opening_date ? data.opening_date.toISOString() : null,
+        
+        // Items
+        items: data.items,
+        
+        // User information
+        created_by: user?.Username || 'system',
+      };
+      
+      console.log('📤 Submitting payload:', payload);
+      
+      const url = isEditMode 
+        ? `${API_BASE_URL}/api/tenders/${id}`
+        : `${API_BASE_URL}/api/tenders`;
+        
+      const method = isEditMode ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${isEditMode ? 'update' : 'create'} tender`);
+      }
+      
+      const result = await response.json();
+      
+      toast({
+        title: "Success",
+        description: `Tender ${isEditMode ? 'updated' : 'created'} successfully`,
+        variant: "default",
+      });
+      
+      // Navigate back to tenders list or to the created/updated tender
+      navigate('/dashboard/tenders');
+      
+    } catch (error) {
+      console.error('Error saving tender:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save tender",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  // Only use Spot Purchase-specific headings/labels in Spot Purchase mode
+  const addItem = () => {
+    const currentItems = form.getValues('items');
+    form.setValue('items', [
+      ...currentItems,
+      {
+        item_master_id: '',
+        nomenclature: '',
+        quantity: 1,
+        estimated_unit_price: 0,
+        specifications: '',
+        remarks: '',
+      },
+    ]);
+  };
+
+  const removeItem = (index: number) => {
+    const currentItems = form.getValues('items');
+    const updatedItems = currentItems.filter((_, i) => i !== index);
+    form.setValue('items', updatedItems);
+  };
+
+  const handleItemSelect = (index: number, itemId: string) => {
+    const selectedItem = itemMasters.find(item => item.id === itemId);
+    if (selectedItem) {
+      const currentItems = form.getValues('items');
+      const updatedItems = [...currentItems];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        item_master_id: itemId,
+        nomenclature: selectedItem.nomenclature,
+        specifications: selectedItem.specifications || '',
+      };
+      form.setValue('items', updatedItems);
+    }
+  };
+
+  const onVendorCreated = () => {
+    refetchVendors();
+    setIsVendorDialogOpen(false);
+    toast({
+      title: "Success",
+      description: "Vendor created successfully",
+    });
+  };
+
+  if (loading || officesLoading || vendorsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   return (
-    <Form {...form}>
-      <h2 className="text-2xl font-bold mb-4 text-center">
-        {isSpotPurchase ? 'Spot Purchase Form' : 'Tender Form'}
-      </h2>
-      
-      {/* Finalization Warning */}
-      {isFinalized && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-amber-600 mr-3" />
-            <div>
-              <h3 className="text-sm font-medium text-amber-800 mb-1">Record is Finalized</h3>
-              <p className="text-sm text-amber-700">
-                This {typeName.toLowerCase()} has been finalized (status: Finalized) and cannot be modified or deleted. 
-                All fields are read-only.
-              </p>
-            </div>
-          </div>
+    <div className="container mx-auto py-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/dashboard/tenders')}
+            className="flex items-center space-x-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Tenders</span>
+          </Button>
+          <h1 className="text-2xl font-bold">
+            {isEditMode ? 'Edit Contract/Tender' : 'Create New Contract/Tender'}
+          </h1>
         </div>
-      )}
-      
-      <form onSubmit={(e) => {
-        handleFormSubmit(e);
-        form.handleSubmit(handleSubmit)(e);
-      }} className="space-y-6">
-        {/* Tender/Spot Type Selection */}
-        <Card>
-        <CardHeader>
-          <CardTitle>{isSpotPurchase ? 'Spot Purchase Type' : 'Tender Type'}</CardTitle>
-          <CardDescription>{isSpotPurchase ? 'Select the type for Spot Purchase' : 'Select the type for Tender'}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FormField
-            control={form.control}
-            name="tender_spot_type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{isSpotPurchase ? 'Spot Purchase Type' : 'Type'}</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value} disabled={isLoading || isReadOnly} name="tender_spot_type">
-                  <FormControl>
-                    <SelectTrigger id="tender_spot_type_trigger">
-                      <SelectValue placeholder={isSpotPurchase ? 'Select Spot Purchase Type' : 'Select type'} />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Contract/Tender" id="Contract/Tender">Contract/Tender</SelectItem>
-                    <SelectItem value="Spot Purchase" id="Spot Purchase">Spot Purchase</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </CardContent>
-        </Card>
+      </div>
 
-        {/* Required Fields Validation Alert - Only show after submit attempt */}
-        {shouldShowValidationAlert && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 mr-3 flex-shrink-0" />
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-red-800 mb-2">
-                  Please complete the following required fields:
-                </h3>
-                <ul className="text-sm text-red-700 space-y-1">
-                  {missingFields.map((missing, index) => (
-                    <li key={index} className="flex items-center">
-                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2"></span>
-                      {missing.label}
-                    </li>
-                  ))}
-                  {hasErrors && (
-                    <li className="flex items-center text-red-600 font-medium">
-                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2"></span>
-                      Please fix validation errors in the form
-                    </li>
-                  )}
-                </ul>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-3 text-red-700 border-red-300 hover:bg-red-100"
-                  onClick={focusOnFirstMissingField}
-                >
-                  Go to {missingFields[0]?.label || 'first missing field'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <BasicDetailsSection 
-          form={form} 
-          isLoading={isLoading}
-          showOfficeHierarchy={true}
-          showDepartment={false}
-          showCategory={false}
-          isSpotPurchase={isSpotPurchase}
-          isReadOnly={isReadOnly}
-        />
-
-        {/* Vendor Selection Section */}
-        <Card>
-        <CardHeader>
-          <CardTitle>{isSpotPurchase ? 'Spot Purchase Vendor Selection' : 'Tender Vendor Selection'}</CardTitle>
-          <CardDescription>
-            {isSpotPurchase ? 'Select the vendor for this spot purchase' : 'Select the vendor for this tender'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FormField
-            control={form.control}
-            name="vendor_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Vendor</FormLabel>
-                <div className="flex gap-2 items-center">
-                  <div className="flex-1">
-                    <VendorCombobox
-                      value={field.value}
-                      onValueChange={(vendorId: string) => {
-                        field.onChange(vendorId);
-                      }}
-                      disabled={isLoading || isReadOnly}
-                      placeholder="Select vendor..."
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="ml-1"
-                    title="Add New Vendor"
-                    onClick={() => setVendorDialogOpen(true)}
-                    disabled={isReadOnly}
-                  >
-                    <Plus className="w-5 h-5" />
-                  </Button>
-                </div>
-                {form.watch('vendor_id') && form.watch('vendor_name') && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Selected: <span className="font-semibold">{form.watch('vendor_id')}</span> - {form.watch('vendor_name')}
-                  </div>
-                )}
-                <FormMessage />
-                {/* Vendor Add Dialog */}
-                <Dialog open={vendorDialogOpen} onOpenChange={setVendorDialogOpen}>
-                  <DialogContent className="max-w-2xl !fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 z-[9999] !h-[90vh] overflow-auto">
-                    <DialogHeader>
-                      <DialogTitle>Add New Vendor</DialogTitle>
-                    </DialogHeader>
-                    <VendorForm
-                      isLoading={vendorFormLoading}
-                      onCancel={() => setVendorDialogOpen(false)}
-                      onSubmit={async (data) => {
-                        setVendorFormLoading(true);
-                        setVendorFormError(null);
-                        try {
-                          // Call backend API to add vendor
-                          const res = await fetch("http://localhost:3001/api/vendors", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(data),
-                          });
-                          if (!res.ok) throw new Error("Failed to add vendor");
-                          const vendor = await res.json();
-                          // Set vendor in form
-                          form.setValue("vendor_id", vendor.id);
-                          form.setValue("vendor_name", vendor.vendor_name);
-                          setVendorDialogOpen(false);
-                        } catch (err: any) {
-                          setVendorFormError(err.message || "Failed to add vendor");
-                        } finally {
-                          setVendorFormLoading(false);
-                        }
-                      }}
-                    />
-                    {vendorFormError && (
-                      <div className="text-red-600 text-sm mt-2">{vendorFormError}</div>
-                    )}
-                  </DialogContent>
-                </Dialog>
-              </FormItem>
-            )}
-          />
-        </CardContent>
-        </Card>
-
-        {/* Document Uploads Section */}
-        {!isSpotPurchase && (
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          
+          {/* Basic Information Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Tender Document Uploads</CardTitle>
-              <CardDescription>Upload required documents for the tender.</CardDescription>
+              <CardTitle>Basic Information</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-6">
-              {/* Show already uploaded files if editing and present */}
-              {/* Show already uploaded files for each document type if present */}
-              {(uploadedRfpPath || uploadedContractPath || uploadedLoiPath || uploadedPoPath || uploadedNotingPath) && (
-                <div className="mb-4">
-                  <div className="font-semibold mb-2">Already Uploaded Files:</div>
-                  <ul className="space-y-1">
-                    {uploadedRfpPath && (
-                      <li>
-                        <a href={getLocalFileUrl(uploadedRfpPath)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">
-                          RFP Document
-                        </a>
-                      </li>
-                    )}
-                    {uploadedContractPath && (
-                      <li>
-                        <a href={getLocalFileUrl(uploadedContractPath)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">
-                          Contract Document
-                        </a>
-                      </li>
-                    )}
-                    {uploadedLoiPath && (
-                      <li>
-                        <a href={getLocalFileUrl(uploadedLoiPath)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">
-                          Letter of Intent (LoI)
-                        </a>
-                      </li>
-                    )}
-                    {uploadedPoPath && (
-                      <li>
-                        <a href={getLocalFileUrl(uploadedPoPath)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">
-                          Purchase Order
-                        </a>
-                      </li>
-                    )}
-                    {uploadedNotingPath && (
-                      <li>
-                        <a href={getLocalFileUrl(uploadedNotingPath)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">
-                          Noting
-                        </a>
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* RFP Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="rfpFile">RFP</Label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-300 transition-colors">
-                    <Input
-                      id="rfpFile"
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      onChange={(e) => handleFileUpload(e, 'rfpFile')}
-                      disabled={isLoading}
-                      className="hidden"
-                    />
-                    <label htmlFor="rfpFile" className="cursor-pointer flex flex-col items-center space-y-2">
-                      <Upload className="h-8 w-8 text-gray-400" />
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium text-blue-600">Upload RFP</span>
-                        <p className="text-xs mt-1">PDF, DOC, DOCX, JPG, PNG (max 50MB)</p>
-                      </div>
-                    </label>
-                    {form.watch('rfpFile') && (
-                      <div className="mt-2 flex items-center justify-center space-x-2 text-sm text-green-600">
-                        <FileText className="h-4 w-4" />
-                        <span>{(form.watch('rfpFile') as File)?.name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Contract Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="contractFile">Contract</Label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-300 transition-colors">
-                    <Input
-                      id="contractFile"
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      onChange={(e) => handleFileUpload(e, 'contractFile')}
-                      disabled={isLoading}
-                      className="hidden"
-                    />
-                    <label htmlFor="contractFile" className="cursor-pointer flex flex-col items-center space-y-2">
-                      <Upload className="h-8 w-8 text-gray-400" />
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium text-blue-600">Upload Contract</span>
-                        <p className="text-xs mt-1">PDF, DOC, DOCX, JPG, PNG (max 50MB)</p>
-                      </div>
-                    </label>
-                    {form.watch('contractFile') && (
-                      <div className="mt-2 flex items-center justify-center space-x-2 text-sm text-green-600">
-                        <FileText className="h-4 w-4" />
-                        <span>{(form.watch('contractFile') as File)?.name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Letter of Intent Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="loiFile">Letter of Intent (LoI)</Label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-300 transition-colors">
-                    <Input
-                      id="loiFile"
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      onChange={(e) => handleFileUpload(e, 'loiFile')}
-                      disabled={isLoading}
-                      className="hidden"
-                    />
-                    <label htmlFor="loiFile" className="cursor-pointer flex flex-col items-center space-y-2">
-                      <Upload className="h-8 w-8 text-gray-400" />
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium text-blue-600">Upload LoI</span>
-                        <p className="text-xs mt-1">PDF, DOC, DOCX, JPG, PNG (max 50MB)</p>
-                      </div>
-                    </label>
-                    {form.watch('loiFile') && (
-                      <div className="mt-2 flex items-center justify-center space-x-2 text-sm text-green-600">
-                        <FileText className="h-4 w-4" />
-                        <span>{(form.watch('loiFile') as File)?.name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Purchase Order Upload */}
-                <div className="space-y-2">
-                  <Label htmlFor="purchaseOrderFile">Purchase Order</Label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-300 transition-colors">
-                    <Input
-                      id="purchaseOrderFile"
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      onChange={(e) => handleFileUpload(e, 'purchaseOrderFile')}
-                      disabled={isLoading}
-                      className="hidden"
-                    />
-                    <label htmlFor="purchaseOrderFile" className="cursor-pointer flex flex-col items-center space-y-2">
-                      <Upload className="h-8 w-8 text-gray-400" />
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium text-blue-600">Upload PO</span>
-                        <p className="text-xs mt-1">PDF, DOC, DOCX, JPG, PNG (max 50MB)</p>
-                      </div>
-                    </label>
-                    {form.watch('purchaseOrderFile') && (
-                      <div className="mt-2 flex items-center justify-center space-x-2 text-sm text-green-600">
-                        <FileText className="h-4 w-4" />
-                        <span>{(form.watch('purchaseOrderFile') as File)?.name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Noting Upload - Only for Spot Purchases */}
-        {isSpotPurchase && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Noting Upload</CardTitle>
-              <CardDescription>Upload Noting for Spot Purchase.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="notingFile">Noting</Label>
-                <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-gray-300 transition-colors">
-                  <Input
-                    id="notingFile"
-                    type="file"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    onChange={(e) => handleFileUpload(e, 'notingFile')}
-                    disabled={isLoading}
-                    className="hidden"
-                  />
-                  <label htmlFor="notingFile" className="cursor-pointer flex flex-col items-center space-y-2">
-                    <Upload className="h-8 w-8 text-gray-400" />
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-blue-600">Upload Noting</span>
-                      <p className="text-xs mt-1">PDF, DOC, DOCX, JPG, PNG (max 50MB)</p>
-                    </div>
-                  </label>
-                  {form.watch('notingFile') && (
-                    <div className="mt-2 flex items-center justify-center space-x-2 text-sm text-green-600">
-                      <FileText className="h-4 w-4" />
-                      <span>{(form.watch('notingFile') as File)?.name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tender Process Details Section - Only for Tenders */}
-        {!isSpotPurchase && (
-          <Card>
-          <CardHeader>
-            <CardTitle>Tender Process Details</CardTitle>
-            <CardDescription>Additional information about the tender process and status.</CardDescription>
-          </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Date of Advertisement/Publication */}
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Tender Number */}
                 <FormField
                   control={form.control}
-                  name="advertisementDate"
+                  name="tender_number"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Date of Advertisement/Publication of Tender</FormLabel>
+                      <FormLabel>Tender/Reference Number *</FormLabel>
                       <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value ? field.value.toISOString().split('T')[0] : ''}
-                          onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : null)}
-                          disabled={isLoading}
-                        />
+                        <Input placeholder="Enter tender number" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {/* Publication Dailies */}
+                {/* Tender Type */}
                 <FormField
                   control={form.control}
-                  name="publicationDailies"
+                  name="tender_spot_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Publication Dailies (two)</FormLabel>
+                      <FormLabel>Tender Type *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select tender type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Contract/Tender">Contract/Tender</SelectItem>
+                          <SelectItem value="Spot Purchase">Spot Purchase</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Title */}
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Title *</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="e.g., Dawn, The News"
-                          disabled={isLoading}
+                        <Input placeholder="Enter tender title" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Description */}
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Enter tender description" 
+                          className="min-h-[100px]"
+                          {...field} 
                         />
                       </FormControl>
                       <FormMessage />
@@ -965,124 +453,737 @@ const ContractTenderForm: React.FC<ContractTenderFormProps> = ({
                 {/* Procurement Method */}
                 <FormField
                   control={form.control}
-                  name="procurementMethod"
+                  name="procurement_method"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Procurement Method</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select procurement method" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Open Competitive Bidding">Open Competitive Bidding</SelectItem>
-                          <SelectItem value="MoU">MoU</SelectItem>
-                          <SelectItem value="Direct Contracting">Direct Contracting</SelectItem>
-                          <SelectItem value="Limited Tendering">Limited Tendering</SelectItem>
-                          <SelectItem value="Single Source">Single Source</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <Input placeholder="e.g., Open Tender, Limited Tender" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {/* Bidding Procedure - Only show for Open Competitive Bidding */}
-                {form.watch('procurementMethod') === 'Open Competitive Bidding' && (
-                  <FormField
-                    control={form.control}
-                    name="biddingProcedure"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Procedure Adopted (for Open Competitive Bidding)</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select bidding procedure" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Single Stage One Envelope">Single Stage One Envelope</SelectItem>
-                            <SelectItem value="Single Stage Two Envelope">Single Stage Two Envelope</SelectItem>
-                            <SelectItem value="Two Stage">Two Stage</SelectItem>
-                            <SelectItem value="Two Stage Two Envelope">Two Stage Two Envelope</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-
+                {/* Estimated Value */}
                 <FormField
                   control={form.control}
-                  name="tender_status"
+                  name="estimated_value"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tender Status *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select tender status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Open">Open</SelectItem>
-                          <SelectItem value="Closed">Closed</SelectItem>
-                          <SelectItem value="Evaluated">Evaluated</SelectItem>
-                          <SelectItem value="Awarded">Awarded</SelectItem>
-                          <SelectItem value="Cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Estimated Value</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          placeholder="0.00" 
+                          {...field} 
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                {/* Publication Daily */}
+                <FormField
+                  control={form.control}
+                  name="publication_daily"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Publication Daily/Newspaper</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter publication details" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
               </div>
             </CardContent>
           </Card>
-        )}
 
-        <ItemMasterItemsSection 
-          form={form} 
-          isLoading={isLoading}
-          isSpotPurchase={isSpotPurchase}
-          isReadOnly={isReadOnly}
-        />
+          {/* Date Information Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Important Dates</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                
+                {/* Publish Date */}
+                <FormField
+                  control={form.control}
+                  name="publish_date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Publish Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-        <div className="flex justify-end space-x-2">
-          {onCancel && (
-            <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+                {/* Publication Date */}
+                <FormField
+                  control={form.control}
+                  name="publication_date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date of Advertisement/Publication</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Submission Date */}
+                <FormField
+                  control={form.control}
+                  name="submission_date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Submission Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => date < new Date("1900-01-01")}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Submission Deadline */}
+                <FormField
+                  control={form.control}
+                  name="submission_deadline"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Submission Deadline</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => date < new Date("1900-01-01")}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Opening Date */}
+                <FormField
+                  control={form.control}
+                  name="opening_date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Opening Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => date < new Date("1900-01-01")}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Organizational Information Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Organizational Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                {/* Offices */}
+                <FormField
+                  control={form.control}
+                  name="office_ids"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Offices *</FormLabel>
+                      <Select 
+                        onValueChange={(value) => {
+                          const currentValues = field.value || [];
+                          if (!currentValues.includes(value)) {
+                            field.onChange([...currentValues, value]);
+                          }
+                        }} 
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select offices" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {offices.map((office) => (
+                            <SelectItem key={office.id} value={office.id}>
+                              {office.office_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.value && field.value.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {field.value.map((officeId) => {
+                            const office = offices.find(o => o.id === officeId);
+                            return office ? (
+                              <div key={officeId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
+                                <span className="text-sm">{office.office_name}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    field.onChange(field.value.filter(id => id !== officeId));
+                                  }}
+                                >
+                                  ×
+                                </Button>
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Wings */}
+                <FormField
+                  control={form.control}
+                  name="wing_ids"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Wings *</FormLabel>
+                      <Select 
+                        onValueChange={(value) => {
+                          const currentValues = field.value || [];
+                          if (!currentValues.includes(value)) {
+                            field.onChange([...currentValues, value]);
+                          }
+                        }} 
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select wings" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {wings.map((wing) => (
+                            <SelectItem key={wing.id} value={wing.id}>
+                              {wing.wing_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.value && field.value.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {field.value.map((wingId) => {
+                            const wing = wings.find(w => w.id === wingId);
+                            return wing ? (
+                              <div key={wingId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
+                                <span className="text-sm">{wing.wing_name}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    field.onChange(field.value.filter(id => id !== wingId));
+                                  }}
+                                >
+                                  ×
+                                </Button>
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* DECs */}
+                <FormField
+                  control={form.control}
+                  name="dec_ids"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>DECs</FormLabel>
+                      <Select 
+                        onValueChange={(value) => {
+                          const currentValues = field.value || [];
+                          if (!currentValues.includes(value)) {
+                            field.onChange([...currentValues, value]);
+                          }
+                        }} 
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select DECs" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {decs.map((dec) => (
+                            <SelectItem key={dec.id} value={dec.id}>
+                              {dec.dec_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.value && field.value.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {field.value.map((decId) => {
+                            const dec = decs.find(d => d.id === decId);
+                            return dec ? (
+                              <div key={decId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
+                                <span className="text-sm">{dec.dec_name}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    field.onChange(field.value.filter(id => id !== decId));
+                                  }}
+                                >
+                                  ×
+                                </Button>
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Vendor Information Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                Vendor Information
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsVendorDialogOpen(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add New Vendor</span>
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FormField
+                control={form.control}
+                name="vendor_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Vendor</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a vendor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {vendors.map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            {vendor.vendor_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Additional Criteria Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Additional Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              
+              {/* Eligibility Criteria */}
+              <FormField
+                control={form.control}
+                name="eligibility_criteria"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Eligibility Criteria</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Enter eligibility criteria" 
+                        className="min-h-[80px]"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Bidding Procedure */}
+              <FormField
+                control={form.control}
+                name="bidding_procedure"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bidding Procedure</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Enter bidding procedure" 
+                        className="min-h-[80px]"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+            </CardContent>
+          </Card>
+
+          {/* Items Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                Tender Items
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addItem}
+                  className="flex items-center space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Item</span>
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {form.watch('items').map((item, index) => (
+                  <div key={index} className="border p-4 rounded-lg space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Item {index + 1}</h4>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => removeItem(index)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      
+                      {/* Item Master */}
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.item_master_id`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Item *</FormLabel>
+                            <Select 
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                handleItemSelect(index, value);
+                              }} 
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select item" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {itemMasters.map((item) => (
+                                  <SelectItem key={item.id} value={item.id}>
+                                    {item.nomenclature}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Quantity */}
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.quantity`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Quantity *</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="number" 
+                                min="1"
+                                step="1"
+                                placeholder="1" 
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Estimated Unit Price */}
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.estimated_unit_price`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Estimated Unit Price</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="number" 
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00" 
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Specifications */}
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.specifications`}
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-2">
+                            <FormLabel>Specifications</FormLabel>
+                            <FormControl>
+                              <Textarea 
+                                placeholder="Enter item specifications" 
+                                className="min-h-[60px]"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Remarks */}
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.remarks`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Remarks</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter remarks" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                    </div>
+                  </div>
+                ))}
+                
+                {form.watch('items').length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No items added yet. Click "Add Item" to start.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Submit Button */}
+          <div className="flex justify-end space-x-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate('/dashboard/tenders')}
+            >
               Cancel
             </Button>
-          )}
-          {!isFinalized && (
             <Button 
               type="submit" 
-              disabled={!submitEnabled || isLoading}
-              className="min-w-[140px]"
-              title={!submitEnabled && missingFields.length > 0 ? `Missing required fields: ${missingFields.map(f => f.label).join(', ')}` : ''}
+              disabled={saving}
+              className="flex items-center space-x-2"
             >
-              {isLoading ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  {initialData ? 'Updating...' : 'Submitting...'}
-                </>
-              ) : (
-                <>
-                  {isSpotPurchase ? (initialData ? 'Update Spot Purchase' : 'Submit Spot Purchase') : (initialData ? 'Update Tender' : 'Submit Tender')}
-                  {!submitEnabled && missingFields.length > 0 && (
-                    <span className="ml-2 text-xs">({missingFields.length} missing)</span>
-                  )}
-                </>
-              )}
+              {saving && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+              <Save className="h-4 w-4" />
+              <span>{saving ? 'Saving...' : (isEditMode ? 'Update Tender' : 'Create Tender')}</span>
             </Button>
-          )}
-        </div>
-      </form>
-    </Form>
-  );
-};
+          </div>
 
-export default ContractTenderForm;
+        </form>
+      </Form>
+
+      {/* Vendor Dialog */}
+      <Dialog open={isVendorDialogOpen} onOpenChange={setIsVendorDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Vendor</DialogTitle>
+          </DialogHeader>
+          <VendorForm onSuccess={onVendorCreated} />
+        </DialogContent>
+      </Dialog>
+
+    </div>
+  );
+}

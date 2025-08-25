@@ -17,7 +17,6 @@ import {
   Eye,
   Calendar,
   Search,
-  DollarSign,
   ShoppingCart,
   Truck
 } from "lucide-react";
@@ -27,7 +26,6 @@ interface AcquisitionStats {
   activeTenders: number;
   completedTenders: number;
   pendingDeliveries: number;
-  totalValue: number;
   totalItems: number;
   totalQuantity: number;
   monthlyAcquisitions: number;
@@ -39,7 +37,6 @@ interface TenderSummary {
   tenderNumber: string;
   acquisitionType: 'Contract/Tender' | 'Spot Purchase';
   status: string;
-  totalValue: number;
   itemCount: number;
   createdAt: string;
   isFinalized: boolean;
@@ -66,7 +63,6 @@ const StockAcquisitionDashboard: React.FC = () => {
     activeTenders: 0,
     completedTenders: 0,
     pendingDeliveries: 0,
-    totalValue: 0,
     totalItems: 0,
     totalQuantity: 0,
     monthlyAcquisitions: 0
@@ -191,19 +187,6 @@ const StockAcquisitionDashboard: React.FC = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</div>
-            <p className="text-xs text-gray-600">
-              <span className="text-green-600">+{stats.monthlyAcquisitions}</span> this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Items Acquired</CardTitle>
             <Package className="h-4 w-4 text-purple-600" />
           </CardHeader>
@@ -259,7 +242,6 @@ const StockAcquisitionDashboard: React.FC = () => {
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Items</TableHead>
-                  <TableHead>Value</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -287,9 +269,6 @@ const StockAcquisitionDashboard: React.FC = () => {
                           <div className="font-medium">{tender.itemCount}</div>
                           <div className="text-xs text-gray-500">items</div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{formatCurrency(tender.totalValue)}</div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">{formatDate(tender.createdAt)}</div>

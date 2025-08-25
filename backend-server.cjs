@@ -3763,6 +3763,126 @@ app.post('/api/tenders/:tenderId/items', async (req, res) => {
   }
 });
 
+// POST - Add tender items to stock acquisition
+app.post('/api/tenders/:tenderId/add-to-stock-acquisition', async (req, res) => {
+  try {
+    const { tenderId } = req.params;
+    console.log('🚀 Adding tender items to stock acquisition for tender:', tenderId);
+
+    // First, get all tender items
+    const tenderItemsResult = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query(`
+        SELECT 
+          ti.*,
+          im.nomenclature,
+          im.unit
+        FROM tender_items ti
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id
+        WHERE ti.tender_id = @tender_id AND ti.status = 'Active'
+      `);
+
+    if (tenderItemsResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'No active tender items found for this tender' });
+    }
+
+    const tenderItems = tenderItemsResult.recordset;
+    const addedItems = [];
+    const errors = [];
+
+    // Check if tender is finalized
+    const tenderResult = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query('SELECT is_finalized, title FROM tenders WHERE id = @tender_id');
+
+    if (tenderResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+
+    const tender = tenderResult.recordset[0];
+    const isFinalized = tender.is_finalized === true || tender.is_finalized === 1 || tender.is_finalized === '1';
+
+    if (!isFinalized) {
+      return res.status(400).json({ error: 'Tender must be finalized before adding items to stock acquisition' });
+    }
+
+    // Add each tender item to stock acquisition
+    for (const item of tenderItems) {
+      try {
+        // Check if this item is already in stock acquisition
+        const existingResult = await pool.request()
+          .input('tender_id', sql.UniqueIdentifier, tenderId)
+          .input('item_master_id', sql.VarChar(50), item.item_master_id)
+          .query(`
+            SELECT id FROM stock_transactions_clean 
+            WHERE tender_id = @tender_id AND item_master_id = @item_master_id AND is_deleted = 0
+          `);
+
+        if (existingResult.recordset.length > 0) {
+          console.log(`⚠️ Item ${item.nomenclature} already exists in stock acquisition, skipping...`);
+          continue;
+        }
+
+        // Add to stock acquisition
+        const stockTransactionResult = await pool.request()
+          .input('id', sql.UniqueIdentifier, uuidv4())
+          .input('tender_id', sql.UniqueIdentifier, tenderId)
+          .input('item_master_id', sql.VarChar(50), item.item_master_id)
+          .input('estimated_unit_price', sql.Decimal(18, 2), item.estimated_unit_price || 0)
+          .input('actual_unit_price', sql.Decimal(18, 2), item.actual_unit_price || 0)
+          .input('total_quantity_received', sql.Int, 0) // Initially 0, will be updated when items are received
+          .input('pricing_confirmed', sql.Bit, false)
+          .input('type', sql.VarChar(10), 'IN')
+          .input('remarks', sql.Text, `Added from tender: ${tender.title}`)
+          .query(`
+            INSERT INTO stock_transactions_clean (
+              id, tender_id, item_master_id, estimated_unit_price, actual_unit_price,
+              total_quantity_received, pricing_confirmed, type, remarks, is_deleted,
+              created_at, updated_at
+            )
+            OUTPUT INSERTED.*
+            VALUES (
+              @id, @tender_id, @item_master_id, @estimated_unit_price, @actual_unit_price,
+              @total_quantity_received, @pricing_confirmed, @type, @remarks, 0,
+              GETDATE(), GETDATE()
+            )
+          `);
+
+        addedItems.push({
+          ...stockTransactionResult.recordset[0],
+          nomenclature: item.nomenclature,
+          quantity: item.quantity
+        });
+
+        console.log(`✅ Added ${item.nomenclature} to stock acquisition`);
+
+      } catch (itemError) {
+        console.error(`❌ Error adding item ${item.nomenclature}:`, itemError);
+        errors.push({
+          item: item.nomenclature,
+          error: itemError.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully added ${addedItems.length} items to stock acquisition`,
+      addedItems: addedItems.length,
+      totalItems: tenderItems.length,
+      items: addedItems,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('❌ Error adding tender items to stock acquisition:', error);
+    res.status(500).json({ 
+      error: 'Failed to add tender items to stock acquisition', 
+      details: error.message 
+    });
+  }
+});
+
 // =============================================================================
 // DELIVERY ENDPOINTS
 // =============================================================================
