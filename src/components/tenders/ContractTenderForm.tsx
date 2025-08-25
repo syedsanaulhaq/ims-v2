@@ -421,6 +421,14 @@ export default function ContractTenderForm({
     try {
       setSaving(true);
       
+      // Debug: Log the form data to see what date values we have
+      console.log('🔍 Form submission data:', {
+        publication_date: data.publication_date,
+        submission_date: data.submission_date,
+        opening_date: data.opening_date,
+        fullData: data
+      });
+      
       // If onSubmit prop is provided, use it (for integration with existing system)
       if (onSubmit) {
         // Transform data to match expected format for the prop-based system
@@ -450,6 +458,16 @@ export default function ContractTenderForm({
           publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
           submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
           opening_date: data.opening_date ? data.opening_date.toISOString() : null,
+          
+          // Debug: Log date transformations
+          _debug_dates: {
+            original_publication_date: data.publication_date,
+            transformed_publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
+            original_submission_date: data.submission_date,
+            transformed_submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
+            original_opening_date: data.opening_date,
+            transformed_opening_date: data.opening_date ? data.opening_date.toISOString() : null,
+          },
           
           // Items
           items: data.items,
@@ -501,6 +519,16 @@ export default function ContractTenderForm({
       publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
       submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
       opening_date: data.opening_date ? data.opening_date.toISOString() : null,
+      
+      // Debug: Log date transformations for direct submit
+      _debug_direct_dates: {
+        original_publication_date: data.publication_date,
+        transformed_publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
+        original_submission_date: data.submission_date,
+        transformed_submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
+        original_opening_date: data.opening_date,
+        transformed_opening_date: data.opening_date ? data.opening_date.toISOString() : null,
+      },
       
       // Items
       items: data.items,
