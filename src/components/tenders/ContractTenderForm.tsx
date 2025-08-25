@@ -33,27 +33,109 @@ const formatDateForDisplay = (date: Date | undefined): string => {
   return format(date, 'dd/MM/yyyy');
 };
 
+// Format input as user types to help with date entry
+const formatDateInput = (value: string): string => {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, '');
+  
+  // Auto-format as dd/mm/yyyy
+  if (digits.length >= 2) {
+    let formatted = digits.substring(0, 2);
+    if (digits.length >= 4) {
+      formatted += '/' + digits.substring(2, 4);
+      if (digits.length >= 6) {
+        formatted += '/' + digits.substring(4, Math.min(digits.length, 8));
+      }
+    }
+    return formatted;
+  }
+  
+  return digits;
+};
+
 const parseDateFromInput = (dateString: string): Date | undefined => {
   if (!dateString) return undefined;
   
-  // Allow partial typing - only try to parse when we have a complete date
-  if (dateString.length < 8) return undefined;
+  // Allow partial typing - only try to parse when we have enough input
+  if (dateString.length < 6) return undefined;
   
   try {
-    // Handle different input formats
-    let cleanedString = dateString.replace(/[^\d]/g, ''); // Remove non-digits
+    let cleanedString = dateString;
     
-    if (cleanedString.length === 8) {
-      // Format: ddmmyyyy -> dd/mm/yyyy
-      const day = cleanedString.substring(0, 2);
-      const month = cleanedString.substring(2, 4);
-      const year = cleanedString.substring(4, 8);
-      cleanedString = `${day}/${month}/${year}`;
-    } else if (dateString.includes('/')) {
-      // Already formatted, use as is
-      cleanedString = dateString;
+    // Handle different input formats
+    if (dateString.includes('/')) {
+      // Split by slash and clean each part
+      const parts = dateString.split('/');
+      if (parts.length === 3) {
+        let [day, month, year] = parts;
+        
+        // Clean and pad day
+        day = day.replace(/\D/g, '').padStart(2, '0').substring(0, 2);
+        
+        // Clean and pad month
+        month = month.replace(/\D/g, '').padStart(2, '0').substring(0, 2);
+        
+        // Clean year and handle various formats
+        year = year.replace(/\D/g, '');
+        if (year.length === 2) {
+          // Convert 2-digit year to 4-digit (assume 20xx for now)
+          year = '20' + year;
+        } else if (year.length > 4) {
+          // Take last 4 digits for year (handles 002023 -> 2023)
+          year = year.substring(year.length - 4);
+        } else if (year.length === 3) {
+          // Assume missing leading digit is 2 (023 -> 2023)
+          year = '2' + year;
+        }
+        
+        // Validate ranges
+        const dayNum = parseInt(day);
+        const monthNum = parseInt(month);
+        const yearNum = parseInt(year);
+        
+        if (dayNum < 1 || dayNum > 31) return undefined;
+        if (monthNum < 1 || monthNum > 12) return undefined;
+        if (yearNum < 1900 || yearNum > 2100) return undefined;
+        
+        cleanedString = `${day}/${month}/${year}`;
+      }
     } else {
-      return undefined;
+      // Handle numeric input (ddmmyyyy or variations)
+      const digits = dateString.replace(/\D/g, '');
+      
+      if (digits.length >= 6 && digits.length <= 10) {
+        let day, month, year;
+        
+        if (digits.length === 6) {
+          // ddmmyy
+          day = digits.substring(0, 2);
+          month = digits.substring(2, 4);
+          year = '20' + digits.substring(4, 6);
+        } else if (digits.length === 8) {
+          // ddmmyyyy
+          day = digits.substring(0, 2);
+          month = digits.substring(2, 4);
+          year = digits.substring(4, 8);
+        } else {
+          // Handle other lengths by taking last part as year
+          day = digits.substring(0, 2);
+          month = digits.substring(2, 4);
+          year = digits.substring(4);
+          
+          // Clean year similar to above
+          if (year.length === 2) {
+            year = '20' + year;
+          } else if (year.length > 4) {
+            year = year.substring(year.length - 4);
+          } else if (year.length === 3) {
+            year = '2' + year;
+          }
+        }
+        
+        cleanedString = `${day}/${month}/${year}`;
+      } else {
+        return undefined;
+      }
     }
     
     const parsed = parse(cleanedString, 'dd/MM/yyyy', new Date());
