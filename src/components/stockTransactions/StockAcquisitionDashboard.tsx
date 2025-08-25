@@ -108,6 +108,35 @@ const StockAcquisitionDashboard: React.FC = () => {
     }
   };
 
+  // Add tender items to stock acquisition
+  const addTenderToStockAcquisition = async (tenderId: string, tenderTitle: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/add-to-stock-acquisition`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add tender items to stock acquisition');
+      }
+
+      const result = await response.json();
+      
+      // Show success message
+      alert(`Success! Added ${result.addedItems} items from "${tenderTitle}" to stock acquisition.`);
+      
+      // Reload dashboard data to reflect changes
+      loadDashboardData();
+
+    } catch (error) {
+      console.error('Error adding tender to stock acquisition:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Failed to add tender items to stock acquisition'}`);
+    }
+  };
+
   // Filter active tenders based on search
   const filteredTenders = activeTenders.filter(tender =>
     tender.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -282,6 +311,15 @@ const StockAcquisitionDashboard: React.FC = () => {
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addTenderToStockAcquisition(tender.id, tender.title)}
+                            className="bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add to Stock
                           </Button>
                           {tender.hasDeliveries && (
                             <Button
