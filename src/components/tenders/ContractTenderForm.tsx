@@ -34,13 +34,39 @@ const formatDateForDisplay = (date: Date | undefined): string => {
 };
 
 const parseDateFromInput = (dateString: string): Date | undefined => {
-  if (!dateString || dateString.length !== 10) return undefined;
+  if (!dateString) return undefined;
+  
+  // Allow partial typing - only try to parse when we have a complete date
+  if (dateString.length < 8) return undefined;
+  
   try {
-    const parsed = parse(dateString, 'dd/MM/yyyy', new Date());
+    // Handle different input formats
+    let cleanedString = dateString.replace(/[^\d]/g, ''); // Remove non-digits
+    
+    if (cleanedString.length === 8) {
+      // Format: ddmmyyyy -> dd/mm/yyyy
+      const day = cleanedString.substring(0, 2);
+      const month = cleanedString.substring(2, 4);
+      const year = cleanedString.substring(4, 8);
+      cleanedString = `${day}/${month}/${year}`;
+    } else if (dateString.includes('/')) {
+      // Already formatted, use as is
+      cleanedString = dateString;
+    } else {
+      return undefined;
+    }
+    
+    const parsed = parse(cleanedString, 'dd/MM/yyyy', new Date());
     return isNaN(parsed.getTime()) ? undefined : parsed;
   } catch {
     return undefined;
   }
+};
+
+// Track the raw input values for date fields
+const useRawDateInput = (initialValue: string = '') => {
+  const [rawValue, setRawValue] = React.useState(initialValue);
+  return { rawValue, setRawValue };
 };
 
 // Complete schema based on database structure
@@ -693,137 +719,239 @@ export default function ContractTenderForm({
                 <FormField
                   control={form.control}
                   name="publication_date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Date of Advertisement/Publication</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input
-                            placeholder="dd/mm/yyyy"
-                            value={formatDateForDisplay(field.value)}
-                            onChange={(e) => {
-                              const parsed = parseDateFromInput(e.target.value);
-                              field.onChange(parsed);
-                            }}
-                            className="flex-1"
-                          />
-                        </FormControl>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="shrink-0"
-                            >
-                              <CalendarIcon className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) =>
-                                date > new Date() || date < new Date("1900-01-01")
-                              }
-                              initialFocus
+                  render={({ field }) => {
+                    const [inputValue, setInputValue] = React.useState(
+                      field.value ? formatDateForDisplay(field.value) : ''
+                    );
+
+                    // Update input value when field value changes (e.g., from calendar)
+                    React.useEffect(() => {
+                      setInputValue(field.value ? formatDateForDisplay(field.value) : '');
+                    }, [field.value]);
+
+                    return (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Date of Advertisement/Publication</FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              placeholder="dd/mm/yyyy"
+                              value={inputValue}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setInputValue(value);
+                                
+                                // Try to parse the date
+                                const parsed = parseDateFromInput(value);
+                                if (parsed) {
+                                  field.onChange(parsed);
+                                } else if (value === '') {
+                                  field.onChange(undefined);
+                                }
+                              }}
+                              onBlur={() => {
+                                // On blur, try to format the input or clear if invalid
+                                const parsed = parseDateFromInput(inputValue);
+                                if (parsed) {
+                                  setInputValue(formatDateForDisplay(parsed));
+                                  field.onChange(parsed);
+                                } else if (inputValue && inputValue.trim() !== '') {
+                                  // Invalid date, clear the field
+                                  setInputValue('');
+                                  field.onChange(undefined);
+                                }
+                              }}
+                              className="flex-1"
                             />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                          </FormControl>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="shrink-0"
+                              >
+                                <CalendarIcon className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={(date) => {
+                                  field.onChange(date);
+                                  setInputValue(date ? formatDateForDisplay(date) : '');
+                                }}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date("1900-01-01")
+                                }
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 {/* Submission Date */}
                 <FormField
                   control={form.control}
                   name="submission_date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Submission Date</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input
-                            placeholder="dd/mm/yyyy"
-                            value={formatDateForDisplay(field.value)}
-                            onChange={(e) => {
-                              const parsed = parseDateFromInput(e.target.value);
-                              field.onChange(parsed);
-                            }}
-                            className="flex-1"
-                          />
-                        </FormControl>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="shrink-0"
-                            >
-                              <CalendarIcon className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => date < new Date("1900-01-01")}
-                              initialFocus
+                  render={({ field }) => {
+                    const [inputValue, setInputValue] = React.useState(
+                      field.value ? formatDateForDisplay(field.value) : ''
+                    );
+
+                    // Update input value when field value changes (e.g., from calendar)
+                    React.useEffect(() => {
+                      setInputValue(field.value ? formatDateForDisplay(field.value) : '');
+                    }, [field.value]);
+
+                    return (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Submission Date</FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              placeholder="dd/mm/yyyy"
+                              value={inputValue}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setInputValue(value);
+                                
+                                // Try to parse the date
+                                const parsed = parseDateFromInput(value);
+                                if (parsed) {
+                                  field.onChange(parsed);
+                                } else if (value === '') {
+                                  field.onChange(undefined);
+                                }
+                              }}
+                              onBlur={() => {
+                                // On blur, try to format the input or clear if invalid
+                                const parsed = parseDateFromInput(inputValue);
+                                if (parsed) {
+                                  setInputValue(formatDateForDisplay(parsed));
+                                  field.onChange(parsed);
+                                } else if (inputValue && inputValue.trim() !== '') {
+                                  // Invalid date, clear the field
+                                  setInputValue('');
+                                  field.onChange(undefined);
+                                }
+                              }}
+                              className="flex-1"
                             />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                          </FormControl>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="shrink-0"
+                              >
+                                <CalendarIcon className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={(date) => {
+                                  field.onChange(date);
+                                  setInputValue(date ? formatDateForDisplay(date) : '');
+                                }}
+                                disabled={(date) => date < new Date("1900-01-01")}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 {/* Opening Date */}
                 <FormField
                   control={form.control}
                   name="opening_date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Opening Date</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input
-                            placeholder="dd/mm/yyyy"
-                            value={formatDateForDisplay(field.value)}
-                            onChange={(e) => {
-                              const parsed = parseDateFromInput(e.target.value);
-                              field.onChange(parsed);
-                            }}
-                            className="flex-1"
-                          />
-                        </FormControl>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="shrink-0"
-                            >
-                              <CalendarIcon className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => date < new Date("1900-01-01")}
-                              initialFocus
+                  render={({ field }) => {
+                    const [inputValue, setInputValue] = React.useState(
+                      field.value ? formatDateForDisplay(field.value) : ''
+                    );
+
+                    // Update input value when field value changes (e.g., from calendar)
+                    React.useEffect(() => {
+                      setInputValue(field.value ? formatDateForDisplay(field.value) : '');
+                    }, [field.value]);
+
+                    return (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Opening Date</FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              placeholder="dd/mm/yyyy"
+                              value={inputValue}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setInputValue(value);
+                                
+                                // Try to parse the date
+                                const parsed = parseDateFromInput(value);
+                                if (parsed) {
+                                  field.onChange(parsed);
+                                } else if (value === '') {
+                                  field.onChange(undefined);
+                                }
+                              }}
+                              onBlur={() => {
+                                // On blur, try to format the input or clear if invalid
+                                const parsed = parseDateFromInput(inputValue);
+                                if (parsed) {
+                                  setInputValue(formatDateForDisplay(parsed));
+                                  field.onChange(parsed);
+                                } else if (inputValue && inputValue.trim() !== '') {
+                                  // Invalid date, clear the field
+                                  setInputValue('');
+                                  field.onChange(undefined);
+                                }
+                              }}
+                              className="flex-1"
                             />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                          </FormControl>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="shrink-0"
+                              >
+                                <CalendarIcon className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={(date) => {
+                                  field.onChange(date);
+                                  setInputValue(date ? formatDateForDisplay(date) : '');
+                                }}
+                                disabled={(date) => date < new Date("1900-01-01")}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
               </div>
