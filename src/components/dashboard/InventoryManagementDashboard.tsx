@@ -60,14 +60,14 @@ interface InventoryStats {
 
 interface DashboardData {
   stats: InventoryStats;
-  top_moving_items: any[];
-  low_stock_alerts: any[];
+  top_moving_items: Record<string, unknown>[];
+  low_stock_alerts: Record<string, unknown>[];
 }
 
 const InventoryManagementDashboard = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [currentStock, setCurrentStock] = useState<any[]>([]);
-  const [movementHistory, setMovementHistory] = useState<any[]>([]);
+  const [currentStock, setCurrentStock] = useState<Record<string, unknown>[]>([]);
+  const [movementHistory, setMovementHistory] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
