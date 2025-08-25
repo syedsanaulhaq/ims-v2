@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { Calendar as CalendarIcon, Plus, Save, Upload, ArrowLeft } from 'lucide-react';
 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -20,11 +20,28 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import VendorForm from "@/components/vendors/VendorForm";
+import MultiSelectOfficeHierarchySection from '@/components/tenders/shared/MultiSelectOfficeHierarchySection';
 import { useOffices } from '@/hooks/useOffices';
 import { useVendors } from '@/hooks/useVendors';
 import { useSession } from '@/contexts/SessionContext';
 
 const API_BASE_URL = 'http://localhost:3001';
+
+// Date utility functions for dd/mm/yyyy format
+const formatDateForDisplay = (date: Date | undefined): string => {
+  if (!date) return '';
+  return format(date, 'dd/MM/yyyy');
+};
+
+const parseDateFromInput = (dateString: string): Date | undefined => {
+  if (!dateString || dateString.length !== 10) return undefined;
+  try {
+    const parsed = parse(dateString, 'dd/MM/yyyy', new Date());
+    return isNaN(parsed.getTime()) ? undefined : parsed;
+  } catch {
+    return undefined;
+  }
+};
 
 // Complete schema based on database structure
 const contractTenderSchema = z.object({
@@ -38,6 +55,7 @@ const contractTenderSchema = z.object({
     required_error: 'Tender type is required' 
   }),
   procurement_method: z.string().optional(),
+  bidding_procedure: z.string().optional(),
   
   // Financial Information
   estimated_value: z.coerce.number().min(0, "Estimated value must be positive").optional(),
@@ -54,12 +72,11 @@ const contractTenderSchema = z.object({
   
   // Criteria and Procedures
   eligibility_criteria: z.string().optional(),
-  bidding_procedure: z.string().optional(),
   
-  // Organizational (arrays that will be converted to comma-separated strings)
-  office_ids: z.array(z.string()).min(1, "At least one office is required"),
-  wing_ids: z.array(z.string()).min(1, "At least one wing is required"),
-  dec_ids: z.array(z.string()).optional(),
+  // Organizational (arrays for multi-select - changed from single strings)
+  officeIds: z.array(z.string()).min(1, "At least one office is required"),
+  wingIds: z.array(z.string()).min(1, "At least one wing is required"),
+  decIds: z.array(z.string()).optional(),
   
   // Vendor
   vendor_id: z.string().optional(),
@@ -131,9 +148,9 @@ export default function ContractTenderForm({
     resolver: zodResolver(contractTenderSchema),
     defaultValues: {
       tender_spot_type: 'Contract/Tender',
-      office_ids: [],
-      wing_ids: [],
-      dec_ids: [],
+      officeIds: [],
+      wingIds: [],
+      decIds: [],
       items: [],
       estimated_value: 0,
     },
@@ -187,14 +204,12 @@ export default function ContractTenderForm({
         vendor_id: tender.vendor_id || '',
         
         // Parse organizational IDs (they might come as arrays or comma-separated strings)
-        office_ids: Array.isArray(tender.officeIds) ? tender.officeIds : 
-                   (tender.office_ids ? tender.office_ids.split(',').filter(Boolean) : []),
-        wing_ids: Array.isArray(tender.wingIds) ? tender.wingIds : 
-                  (tender.wing_ids ? tender.wing_ids.split(',').filter(Boolean) : []),
-        dec_ids: Array.isArray(tender.decIds) ? tender.decIds : 
-                 (tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : []),
-        
-        // Parse dates
+        officeIds: Array.isArray(tender.officeIds) ? tender.officeIds :
+          (tender.office_ids ? tender.office_ids.split(',').filter(Boolean) : []),
+        wingIds: Array.isArray(tender.wingIds) ? tender.wingIds :
+          (tender.wing_ids ? tender.wing_ids.split(',').filter(Boolean) : []),
+        decIds: Array.isArray(tender.decIds) ? tender.decIds :
+          (tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : []),        // Parse dates
         publish_date: tender.publish_date ? new Date(tender.publish_date) : 
                      (tender.publishDate ? new Date(tender.publishDate) : undefined),
         publication_date: tender.publication_date ? new Date(tender.publication_date) : 
@@ -260,9 +275,9 @@ export default function ContractTenderForm({
         vendor_id: tender.vendor_id || '',
         
         // Parse comma-separated organizational IDs
-        office_ids: tender.office_ids ? tender.office_ids.split(',').filter(Boolean) : [],
-        wing_ids: tender.wing_ids ? tender.wing_ids.split(',').filter(Boolean) : [],
-        dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : [],
+        officeIds: tender.office_ids ? tender.office_ids.split(',').filter(Boolean) : [],
+        wingIds: tender.wing_ids ? tender.wing_ids.split(',').filter(Boolean) : [],
+        decIds: tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : [],
         
         // Parse dates
         publish_date: tender.publish_date ? new Date(tender.publish_date) : undefined,
@@ -324,12 +339,12 @@ export default function ContractTenderForm({
           vendor_id: data.vendor_id || null,
           
           // Organizational data - provide both formats
-          office_ids: data.office_ids.join(','),
-          wing_ids: data.wing_ids.join(','),
-          dec_ids: data.dec_ids?.join(',') || '',
-          officeIds: data.office_ids, // Array format
-          wingIds: data.wing_ids,     // Array format
-          decIds: data.dec_ids || [], // Array format
+          office_ids: data.officeIds.join(','),
+          wing_ids: data.wingIds.join(','),
+          dec_ids: data.decIds?.join(',') || '',
+          officeIds: data.officeIds, // Array format
+          wingIds: data.wingIds,     // Array format
+          decIds: data.decIds || [], // Array format
           
           // Dates
           publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
@@ -380,9 +395,9 @@ export default function ContractTenderForm({
       vendor_id: data.vendor_id || null,
       
       // Convert arrays to comma-separated strings (as expected by backend)
-      office_ids: data.office_ids.join(','),
-      wing_ids: data.wing_ids.join(','),
-      dec_ids: data.dec_ids?.join(',') || '',
+      office_ids: data.officeIds.join(','),
+      wing_ids: data.wingIds.join(','),
+      dec_ids: data.decIds?.join(',') || '',
       
       // Format dates as ISO strings for database
       publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
@@ -593,13 +608,51 @@ export default function ContractTenderForm({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Procurement Method</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Open Tender, Limited Tender" {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select procurement method" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Open Competitive Bidding">Open Competitive Bidding</SelectItem>
+                          <SelectItem value="MoU">MoU</SelectItem>
+                          <SelectItem value="Direct Contracting">Direct Contracting</SelectItem>
+                          <SelectItem value="Limited Tendering">Limited Tendering</SelectItem>
+                          <SelectItem value="Single Source">Single Source</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                {/* Bidding Procedure - Only show for Open Competitive Bidding */}
+                {form.watch('procurement_method') === 'Open Competitive Bidding' && (
+                  <FormField
+                    control={form.control}
+                    name="bidding_procedure"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Procedure Adopted (for Open Competitive Bidding)</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select bidding procedure" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Single Stage One Envelope">Single Stage One Envelope</SelectItem>
+                            <SelectItem value="Single Stage Two Envelope">Single Stage Two Envelope</SelectItem>
+                            <SelectItem value="Two Stage Bidding">Two Stage Bidding</SelectItem>
+                            <SelectItem value="Request for Quotations">Request for Quotations</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {/* Estimated Value */}
                 <FormField
@@ -655,37 +708,41 @@ export default function ContractTenderForm({
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Publish Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
-                            }
-                            initialFocus
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="dd/mm/yyyy"
+                            value={formatDateForDisplay(field.value)}
+                            onChange={(e) => {
+                              const parsed = parseDateFromInput(e.target.value);
+                              field.onChange(parsed);
+                            }}
+                            className="flex-1"
                           />
-                        </PopoverContent>
-                      </Popover>
+                        </FormControl>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0"
+                            >
+                              <CalendarIcon className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) =>
+                                date > new Date() || date < new Date("1900-01-01")
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -698,37 +755,41 @@ export default function ContractTenderForm({
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Date of Advertisement/Publication</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
-                            }
-                            initialFocus
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="dd/mm/yyyy"
+                            value={formatDateForDisplay(field.value)}
+                            onChange={(e) => {
+                              const parsed = parseDateFromInput(e.target.value);
+                              field.onChange(parsed);
+                            }}
+                            className="flex-1"
                           />
-                        </PopoverContent>
-                      </Popover>
+                        </FormControl>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0"
+                            >
+                              <CalendarIcon className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) =>
+                                date > new Date() || date < new Date("1900-01-01")
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -741,35 +802,39 @@ export default function ContractTenderForm({
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Submission Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => date < new Date("1900-01-01")}
-                            initialFocus
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="dd/mm/yyyy"
+                            value={formatDateForDisplay(field.value)}
+                            onChange={(e) => {
+                              const parsed = parseDateFromInput(e.target.value);
+                              field.onChange(parsed);
+                            }}
+                            className="flex-1"
                           />
-                        </PopoverContent>
-                      </Popover>
+                        </FormControl>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0"
+                            >
+                              <CalendarIcon className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < new Date("1900-01-01")}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -782,35 +847,39 @@ export default function ContractTenderForm({
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Submission Deadline</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => date < new Date("1900-01-01")}
-                            initialFocus
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="dd/mm/yyyy"
+                            value={formatDateForDisplay(field.value)}
+                            onChange={(e) => {
+                              const parsed = parseDateFromInput(e.target.value);
+                              field.onChange(parsed);
+                            }}
+                            className="flex-1"
                           />
-                        </PopoverContent>
-                      </Popover>
+                        </FormControl>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0"
+                            >
+                              <CalendarIcon className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < new Date("1900-01-01")}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -823,35 +892,39 @@ export default function ContractTenderForm({
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Opening Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => date < new Date("1900-01-01")}
-                            initialFocus
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="dd/mm/yyyy"
+                            value={formatDateForDisplay(field.value)}
+                            onChange={(e) => {
+                              const parsed = parseDateFromInput(e.target.value);
+                              field.onChange(parsed);
+                            }}
+                            className="flex-1"
                           />
-                        </PopoverContent>
-                      </Popover>
+                        </FormControl>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0"
+                            >
+                              <CalendarIcon className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < new Date("1900-01-01")}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -862,181 +935,13 @@ export default function ContractTenderForm({
           </Card>
 
           {/* Organizational Information Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Organizational Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                {/* Offices */}
-                <FormField
-                  control={form.control}
-                  name="office_ids"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Offices *</FormLabel>
-                      <Select 
-                        onValueChange={(value) => {
-                          const currentValues = field.value || [];
-                          if (!currentValues.includes(value)) {
-                            field.onChange([...currentValues, value]);
-                          }
-                        }} 
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select offices" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {offices.map((office) => (
-                            <SelectItem key={office.intOfficeID} value={office.intOfficeID.toString()}>
-                              {office.strOfficeName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {field.value && field.value.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {field.value.map((officeId) => {
-                            const office = offices.find(o => o.intOfficeID.toString() === officeId);
-                            return office ? (
-                              <div key={officeId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
-                                <span className="text-sm">{office.strOfficeName}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    field.onChange(field.value.filter(id => id !== officeId));
-                                  }}
-                                >
-                                  ×
-                                </Button>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Wings */}
-                <FormField
-                  control={form.control}
-                  name="wing_ids"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Wings *</FormLabel>
-                      <Select 
-                        onValueChange={(value) => {
-                          const currentValues = field.value || [];
-                          if (!currentValues.includes(value)) {
-                            field.onChange([...currentValues, value]);
-                          }
-                        }} 
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select wings" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {wings.map((wing) => (
-                            <SelectItem key={wing.Id} value={wing.Id.toString()}>
-                              {wing.Name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {field.value && field.value.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {field.value.map((wingId) => {
-                            const wing = wings.find(w => w.Id.toString() === wingId);
-                            return wing ? (
-                              <div key={wingId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
-                                <span className="text-sm">{wing.Name}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    field.onChange(field.value.filter(id => id !== wingId));
-                                  }}
-                                >
-                                  ×
-                                </Button>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* DECs */}
-                <FormField
-                  control={form.control}
-                  name="dec_ids"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>DECs</FormLabel>
-                      <Select 
-                        onValueChange={(value) => {
-                          const currentValues = field.value || [];
-                          if (!currentValues.includes(value)) {
-                            field.onChange([...currentValues, value]);
-                          }
-                        }} 
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select DECs" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {decs.map((dec) => (
-                            <SelectItem key={dec.intAutoID} value={dec.intAutoID.toString()}>
-                              {dec.DECName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {field.value && field.value.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {field.value.map((decId) => {
-                            const dec = decs.find(d => d.intAutoID.toString() === decId);
-                            return dec ? (
-                              <div key={decId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
-                                <span className="text-sm">{dec.DECName}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    field.onChange(field.value.filter(id => id !== decId));
-                                  }}
-                                >
-                                  ×
-                                </Button>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-              </div>
-            </CardContent>
-          </Card>
+          <MultiSelectOfficeHierarchySection
+            form={form}
+            isLoading={loading || officesLoading}
+            wingsDecLabel="Tender Related Wings/DEC"
+            wingsDecHeading="Tender Related Wings/DEC
+Select offices and wings (both required), and optionally select DECs for this tender."
+          />
 
           {/* Vendor Information Card */}
           <Card>
