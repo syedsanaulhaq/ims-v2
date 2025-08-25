@@ -582,6 +582,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
             onSubmit={editingTender ? handleUpdateTender : handleCreateTender}
             onCancel={handleCancelForm}
             isLoading={isCreating || isUpdating}
+            editingTender={editingTender}
             initialData={editingTender ? {
               tender_spot_type: mapBackendTypeToUi(editingTender.type),
               title: editingTender.title,

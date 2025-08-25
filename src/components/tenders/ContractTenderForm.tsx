@@ -93,7 +93,21 @@ interface Vendor {
   email?: string;
 }
 
-export default function ContractTenderForm() {
+interface ContractTenderFormProps {
+  onSubmit?: (data: any) => void;
+  onCancel?: () => void;
+  isLoading?: boolean;
+  initialData?: any;
+  editingTender?: any;
+}
+
+export default function ContractTenderForm({ 
+  onSubmit, 
+  onCancel, 
+  isLoading: propLoading, 
+  initialData,
+  editingTender 
+}: ContractTenderFormProps = {}) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
@@ -109,7 +123,9 @@ export default function ContractTenderForm() {
   const { offices, wings, decs, loading: officesLoading } = useOffices();
   const { vendors, loading: vendorsLoading, refetch: refetchVendors } = useVendors();
   
-  const isEditMode = Boolean(id);
+  // Edit mode can be detected from URL params OR from props
+  const isEditMode = Boolean(id) || Boolean(editingTender);
+  const currentTenderId = id || editingTender?.id;
   
   const form = useForm<ContractTenderFormData>({
     resolver: zodResolver(contractTenderSchema),
@@ -140,12 +156,84 @@ export default function ContractTenderForm() {
     fetchItemMasters();
   }, []);
 
-  // Load tender data for edit mode
+  // Load tender data for edit mode (either from URL or props)
   useEffect(() => {
-    if (isEditMode && id) {
-      loadTenderData(id);
+    if (isEditMode) {
+      if (editingTender) {
+        // Use prop data if available
+        loadTenderFromProp(editingTender);
+      } else if (currentTenderId) {
+        // Load from API if we have an ID
+        loadTenderData(currentTenderId);
+      }
     }
-  }, [id, isEditMode]);
+  }, [isEditMode, editingTender, currentTenderId]);
+
+  const loadTenderFromProp = (tender: any) => {
+    try {
+      setLoading(true);
+      
+      // Process the prop data to match form structure
+      const formData: Partial<ContractTenderFormData> = {
+        tender_number: tender.tender_number || tender.referenceNumber || '',
+        title: tender.title || '',
+        description: tender.description || '',
+        tender_spot_type: tender.tender_spot_type || tender.type || 'Contract/Tender',
+        procurement_method: tender.procurement_method || '',
+        estimated_value: tender.estimated_value || tender.estimatedValue || 0,
+        publication_daily: tender.publication_daily || '',
+        eligibility_criteria: tender.eligibility_criteria || '',
+        bidding_procedure: tender.bidding_procedure || '',
+        vendor_id: tender.vendor_id || '',
+        
+        // Parse organizational IDs (they might come as arrays or comma-separated strings)
+        office_ids: Array.isArray(tender.officeIds) ? tender.officeIds : 
+                   (tender.office_ids ? tender.office_ids.split(',').filter(Boolean) : []),
+        wing_ids: Array.isArray(tender.wingIds) ? tender.wingIds : 
+                  (tender.wing_ids ? tender.wing_ids.split(',').filter(Boolean) : []),
+        dec_ids: Array.isArray(tender.decIds) ? tender.decIds : 
+                 (tender.dec_ids ? tender.dec_ids.split(',').filter(Boolean) : []),
+        
+        // Parse dates
+        publish_date: tender.publish_date ? new Date(tender.publish_date) : 
+                     (tender.publishDate ? new Date(tender.publishDate) : undefined),
+        publication_date: tender.publication_date ? new Date(tender.publication_date) : 
+                         (tender.publicationDate ? new Date(tender.publicationDate) : undefined),
+        submission_date: tender.submission_date ? new Date(tender.submission_date) : 
+                        (tender.submissionDate ? new Date(tender.submissionDate) : undefined),
+        submission_deadline: tender.submission_deadline ? new Date(tender.submission_deadline) : 
+                           (tender.submissionDeadline ? new Date(tender.submissionDeadline) : undefined),
+        opening_date: tender.opening_date ? new Date(tender.opening_date) : 
+                     (tender.openingDate ? new Date(tender.openingDate) : undefined),
+      };
+      
+      // Handle items if they exist
+      if (tender.items && Array.isArray(tender.items)) {
+        formData.items = tender.items.map((item: any) => ({
+          item_master_id: item.item_master_id || item.itemMasterId || '',
+          nomenclature: item.nomenclature || '',
+          quantity: item.quantity || 0,
+          estimated_unit_price: item.estimated_unit_price || item.estimatedUnitPrice || 0,
+          specifications: item.specifications || '',
+          remarks: item.remarks || '',
+        }));
+        setSelectedItems(tender.items);
+      }
+      
+      // Reset form with loaded data
+      form.reset(formData);
+      
+    } catch (error) {
+      console.error('Error loading tender from props:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tender data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadTenderData = async (tenderId: string) => {
     try {
@@ -214,77 +302,58 @@ export default function ContractTenderForm() {
     }
   };
 
-  const onSubmit = async (data: ContractTenderFormData) => {
+  const handleSubmit = async (data: ContractTenderFormData) => {
     try {
       setSaving(true);
       
-      // Prepare the payload with proper field mapping
-      const payload = {
-        // Use exact database field names
-        tender_number: data.tender_number,
-        title: data.title,
-        description: data.description || '',
-        tender_spot_type: data.tender_spot_type,
-        procurement_method: data.procurement_method || '',
-        estimated_value: data.estimated_value || 0,
-        publication_daily: data.publication_daily || '',
-        eligibility_criteria: data.eligibility_criteria || '',
-        bidding_procedure: data.bidding_procedure || '',
-        vendor_id: data.vendor_id || null,
+      // If onSubmit prop is provided, use it (for integration with existing system)
+      if (onSubmit) {
+        // Transform data to match expected format for the prop-based system
+        const transformedData = {
+          tender_number: data.tender_number,
+          title: data.title,
+          description: data.description || '',
+          tender_spot_type: data.tender_spot_type,
+          type: data.tender_spot_type, // Also include as 'type' for backward compatibility
+          procurement_method: data.procurement_method || '',
+          estimated_value: data.estimated_value || 0,
+          estimatedValue: data.estimated_value || 0, // Backward compatibility
+          publication_daily: data.publication_daily || '',
+          eligibility_criteria: data.eligibility_criteria || '',
+          bidding_procedure: data.bidding_procedure || '',
+          vendor_id: data.vendor_id || null,
+          
+          // Organizational data - provide both formats
+          office_ids: data.office_ids.join(','),
+          wing_ids: data.wing_ids.join(','),
+          dec_ids: data.dec_ids?.join(',') || '',
+          officeIds: data.office_ids, // Array format
+          wingIds: data.wing_ids,     // Array format
+          decIds: data.dec_ids || [], // Array format
+          
+          // Dates
+          publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
+          publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
+          submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
+          submission_deadline: data.submission_deadline ? data.submission_deadline.toISOString() : null,
+          opening_date: data.opening_date ? data.opening_date.toISOString() : null,
+          
+          // Items
+          items: data.items,
+          
+          // User information
+          created_by: user?.user_name || 'system',
+        };
         
-        // Convert arrays to comma-separated strings (as expected by backend)
-        office_ids: data.office_ids.join(','),
-        wing_ids: data.wing_ids.join(','),
-        dec_ids: data.dec_ids?.join(',') || '',
-        
-        // Format dates as ISO strings for database
-        publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
-        publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
-        submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
-        submission_deadline: data.submission_deadline ? data.submission_deadline.toISOString() : null,
-        opening_date: data.opening_date ? data.opening_date.toISOString() : null,
-        
-        // Items
-        items: data.items,
-        
-        // User information
-        created_by: user?.Username || 'system',
-      };
-      
-      console.log('📤 Submitting payload:', payload);
-      
-      const url = isEditMode 
-        ? `${API_BASE_URL}/api/tenders/${id}`
-        : `${API_BASE_URL}/api/tenders`;
-        
-      const method = isEditMode ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${isEditMode ? 'update' : 'create'} tender`);
+        await onSubmit(transformedData);
+        return;
       }
       
-      const result = await response.json();
-      
-      toast({
-        title: "Success",
-        description: `Tender ${isEditMode ? 'updated' : 'created'} successfully`,
-        variant: "default",
-      });
-      
-      // Navigate back to tenders list or to the created/updated tender
-      navigate('/dashboard/tenders');
+      // Original direct API submission (for standalone routing)
+      await handleDirectSubmit(data);
       
     } catch (error) {
-      console.error('Error saving tender:', error);
+      console.error('Error in handleSubmit:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to save tender",
@@ -293,6 +362,73 @@ export default function ContractTenderForm() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDirectSubmit = async (data: ContractTenderFormData) => {
+    // Prepare the payload with proper field mapping
+    const payload = {
+      // Use exact database field names
+      tender_number: data.tender_number,
+      title: data.title,
+      description: data.description || '',
+      tender_spot_type: data.tender_spot_type,
+      procurement_method: data.procurement_method || '',
+      estimated_value: data.estimated_value || 0,
+      publication_daily: data.publication_daily || '',
+      eligibility_criteria: data.eligibility_criteria || '',
+      bidding_procedure: data.bidding_procedure || '',
+      vendor_id: data.vendor_id || null,
+      
+      // Convert arrays to comma-separated strings (as expected by backend)
+      office_ids: data.office_ids.join(','),
+      wing_ids: data.wing_ids.join(','),
+      dec_ids: data.dec_ids?.join(',') || '',
+      
+      // Format dates as ISO strings for database
+      publish_date: data.publish_date ? data.publish_date.toISOString().split('T')[0] : null,
+      publication_date: data.publication_date ? data.publication_date.toISOString().split('T')[0] : null,
+      submission_date: data.submission_date ? data.submission_date.toISOString().split('T')[0] : null,
+      submission_deadline: data.submission_deadline ? data.submission_deadline.toISOString() : null,
+      opening_date: data.opening_date ? data.opening_date.toISOString() : null,
+      
+      // Items
+      items: data.items,
+      
+      // User information
+      created_by: user?.user_name || 'system',
+    };
+    
+    console.log('📤 Submitting payload:', payload);
+    
+    const url = isEditMode 
+      ? `${API_BASE_URL}/api/tenders/${currentTenderId}`
+      : `${API_BASE_URL}/api/tenders`;
+      
+    const method = isEditMode ? 'PUT' : 'POST';
+    
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to ${isEditMode ? 'update' : 'create'} tender`);
+    }
+    
+    const result = await response.json();
+    
+    toast({
+      title: "Success",
+      description: `Tender ${isEditMode ? 'updated' : 'created'} successfully`,
+      variant: "default",
+    });
+    
+    // Navigate back to tenders list or to the created/updated tender
+    navigate('/dashboard/tenders');
   };
 
   const addItem = () => {
@@ -755,8 +891,8 @@ export default function ContractTenderForm() {
                         </FormControl>
                         <SelectContent>
                           {offices.map((office) => (
-                            <SelectItem key={office.id} value={office.id}>
-                              {office.office_name}
+                            <SelectItem key={office.intOfficeID} value={office.intOfficeID.toString()}>
+                              {office.strOfficeName}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -764,10 +900,10 @@ export default function ContractTenderForm() {
                       {field.value && field.value.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {field.value.map((officeId) => {
-                            const office = offices.find(o => o.id === officeId);
+                            const office = offices.find(o => o.intOfficeID.toString() === officeId);
                             return office ? (
                               <div key={officeId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
-                                <span className="text-sm">{office.office_name}</span>
+                                <span className="text-sm">{office.strOfficeName}</span>
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -810,8 +946,8 @@ export default function ContractTenderForm() {
                         </FormControl>
                         <SelectContent>
                           {wings.map((wing) => (
-                            <SelectItem key={wing.id} value={wing.id}>
-                              {wing.wing_name}
+                            <SelectItem key={wing.Id} value={wing.Id.toString()}>
+                              {wing.Name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -819,10 +955,10 @@ export default function ContractTenderForm() {
                       {field.value && field.value.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {field.value.map((wingId) => {
-                            const wing = wings.find(w => w.id === wingId);
+                            const wing = wings.find(w => w.Id.toString() === wingId);
                             return wing ? (
                               <div key={wingId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
-                                <span className="text-sm">{wing.wing_name}</span>
+                                <span className="text-sm">{wing.Name}</span>
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -865,8 +1001,8 @@ export default function ContractTenderForm() {
                         </FormControl>
                         <SelectContent>
                           {decs.map((dec) => (
-                            <SelectItem key={dec.id} value={dec.id}>
-                              {dec.dec_name}
+                            <SelectItem key={dec.intAutoID} value={dec.intAutoID.toString()}>
+                              {dec.DECName}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -874,10 +1010,10 @@ export default function ContractTenderForm() {
                       {field.value && field.value.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {field.value.map((decId) => {
-                            const dec = decs.find(d => d.id === decId);
+                            const dec = decs.find(d => d.intAutoID.toString() === decId);
                             return dec ? (
                               <div key={decId} className="flex items-center justify-between bg-gray-100 px-2 py-1 rounded">
-                                <span className="text-sm">{dec.dec_name}</span>
+                                <span className="text-sm">{dec.DECName}</span>
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -1180,7 +1316,26 @@ export default function ContractTenderForm() {
           <DialogHeader>
             <DialogTitle>Add New Vendor</DialogTitle>
           </DialogHeader>
-          <VendorForm onSuccess={onVendorCreated} />
+          <VendorForm 
+            onSubmit={async (data) => {
+              try {
+                await fetch(`${API_BASE_URL}/api/vendors`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(data),
+                });
+                onVendorCreated();
+              } catch (error) {
+                console.error('Error creating vendor:', error);
+                toast({
+                  title: "Error",
+                  description: "Failed to create vendor",
+                  variant: "destructive",
+                });
+              }
+            }}
+            onCancel={() => setIsVendorDialogOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
