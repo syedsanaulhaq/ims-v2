@@ -731,19 +731,30 @@ export default function ContractTenderForm({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Procedure Adopted (for Open Competitive Bidding)</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <div className="space-y-2">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select bidding procedure" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Single Stage One Envelope">Single Stage One Envelope</SelectItem>
+                              <SelectItem value="Single Stage Two Envelope">Single Stage Two Envelope</SelectItem>
+                              <SelectItem value="Two Stage Bidding">Two Stage Bidding</SelectItem>
+                              <SelectItem value="Request for Quotations">Request for Quotations</SelectItem>
+                              <SelectItem value="custom">Other (specify below)</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select bidding procedure" />
-                            </SelectTrigger>
+                            <Input
+                              placeholder="Or enter custom bidding procedure"
+                              value={field.value || ''}
+                              onChange={(e) => field.onChange(e.target.value)}
+                              className="mt-2"
+                            />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Single Stage One Envelope">Single Stage One Envelope</SelectItem>
-                            <SelectItem value="Single Stage Two Envelope">Single Stage Two Envelope</SelectItem>
-                            <SelectItem value="Two Stage Bidding">Two Stage Bidding</SelectItem>
-                            <SelectItem value="Request for Quotations">Request for Quotations</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1111,25 +1122,6 @@ Select offices and wings (both required), and optionally select DECs for this te
                     <FormControl>
                       <Textarea 
                         placeholder="Enter eligibility criteria" 
-                        className="min-h-[80px]"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Bidding Procedure */}
-              <FormField
-                control={form.control}
-                name="bidding_procedure"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bidding Procedure</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Enter bidding procedure" 
                         className="min-h-[80px]"
                         {...field} 
                       />
