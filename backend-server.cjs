@@ -1717,7 +1717,7 @@ app.put('/api/stock-issuance/requests/:id/finalize', async (req, res) => {
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('finalized_by', sql.NVarChar, finalized_by)
-      .input('finalized_at', sql.DateTime2, now)
+      .input('finalized_at', sql.DateTime, now)
       .query(`
         UPDATE stock_issuance_requests 
         SET 
@@ -1846,14 +1846,16 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
           .input('quantity', sql.Int, issued_quantity)
           .input('unit_price', sql.Decimal(15, 2), unit_price || 0)
           .input('reference_id', sql.UniqueIdentifier, stockIssuanceId)
-          .input('issued_by', sql.NVarChar, issued_by)
+          .input('authorized_by', sql.NVarChar, issued_by)
           .query(`
             INSERT INTO stock_movement_log (
               id, item_master_id, movement_type, reference_type, reference_id,
-              quantity, unit_price, total_value, movement_date, authorized_by, created_at
+              quantity, unit_price, total_value, movement_date, authorized_by, 
+              movement_notes, created_at
             ) VALUES (
               @movement_id, @item_master_id, 'Issue', 'Issuance Request', @reference_id,
-              @quantity, @unit_price, (@quantity * @unit_price), GETDATE(), @issued_by, GETDATE()
+              @quantity, @unit_price, (@quantity * @unit_price), GETDATE(), @authorized_by,
+              'Stock issued against request', GETDATE()
             )
           `);
 
@@ -2136,10 +2138,7 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching inventory dashboard stats:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch inventory dashboard statistics', 
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to fetch inventory dashboard statistics', details: error.message });
   }
 });
 
@@ -2277,80 +2276,7 @@ app.get('/api/inventory/valuation', async (req, res) => {
   }
 });
 
-// =============================================================================
-// INVENTORY STOCK ENDPOINTS
-// =============================================================================
-
-// Get current inventory stock
-app.get('/api/inventory/current-stock', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const { category_id, low_stock_only, search } = req.query;
-    let whereClause = '1 = 1';
-    const request = pool.request();
-
-    if (category_id) {
-      whereClause += ' AND im.category_id = @category_id';
-      request.input('category_id', sql.UniqueIdentifier, category_id);
-    }
-
-    if (low_stock_only === 'true') {
-      whereClause += ' AND cis.current_quantity <= cis.minimum_stock_level AND cis.minimum_stock_level > 0';
-    }
-
-    if (search) {
-      whereClause += ' AND (im.nomenclature LIKE @search OR im.description LIKE @search)';
-      request.input('search', sql.NVarChar, `%${search}%`);
-    }
-
-    const result = await request.query(`
-      SELECT 
-        cis.id,
-        cis.item_master_id,
-        im.nomenclature,
-        im.description,
-        im.unit,
-        c.category_name,
-        sc.sub_category_name,
-        cis.current_quantity,
-        cis.available_quantity,
-        cis.reserved_quantity,
-        cis.minimum_stock_level,
-        cis.maximum_stock_level,
-        cis.reorder_point,
-        cis.last_updated,
-        CASE 
-          WHEN cis.current_quantity = 0 THEN 'Out of Stock'
-          WHEN cis.current_quantity <= cis.minimum_stock_level AND cis.minimum_stock_level > 0 THEN 'Low Stock'
-          WHEN cis.current_quantity > cis.maximum_stock_level AND cis.maximum_stock_level > 0 THEN 'Overstock'
-          ELSE 'Normal'
-        END as stock_status
-      FROM current_inventory_stock cis
-      INNER JOIN item_masters im ON cis.item_master_id = im.id
-      LEFT JOIN categories c ON im.category_id = c.id
-      LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
-      WHERE ${whereClause}
-      ORDER BY im.nomenclature
-    `);
-
-    res.json({
-      success: true,
-      data: result.recordset
-    });
-
-  } catch (error) {
-    console.error('Error fetching current stock:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch current stock', 
-      details: error.message 
-    });
-  }
-});
-
-// Update stock levels (for manual adjustments)
+// Stock adjustment endpoint
 app.put('/api/inventory/stock/:id', async (req, res) => {
   const transaction = new sql.Transaction(pool);
   
@@ -2926,961 +2852,324 @@ app.get('/api/stock-returns', async (req, res) => {
 });
 
 // =============================================================================
-// TENDER ENDPOINTS
+// TENDER ENDPOINTS (REBUILT FROM SCRATCH)
 // =============================================================================
 
-// GET all tenders
-app.get('/api/tenders', async (req, res) => {
-  try {
-    const result = await pool.request().query(`
-      SELECT DISTINCT 
-        t.id, 
-        t.title, 
-        t.reference_number, 
-        t.description, 
-        t.estimated_value, 
-        t.publish_date, 
-        t.publication_date, 
-        t.submission_date, 
-        t.submission_deadline, 
-        t.opening_date, 
-        t.document_path, 
-        t.created_at, 
-        t.updated_at, 
-        t.created_by, 
-        t.advertisement_date, 
-        t.procedure_adopted, 
-        t.procurement_method, 
-        t.publication_daily, 
-        t.contract_file_path, 
-        t.loi_file_path, 
-        t.noting_file_path, 
-        t.po_file_path, 
-        t.rfp_file_path, 
-        t.tender_number, 
-        t.tender_type, 
-        t.office_ids, 
-        t.wing_ids, 
-        t.dec_ids, 
-        t.tender_spot_type, 
-        t.vendor_id, 
-        t.tender_status, 
-        t.individual_total, 
-        t.actual_price_total, 
-        t.is_finalized, 
-        t.finalized_at, 
-        t.finalized_by,
-        v.vendor_name,
-        v.vendor_code,
-        dbo.GetOfficeNames(t.office_ids) as office_names,
-        dbo.GetWingNames(t.wing_ids) as wing_names,
-        dbo.GetDecNames(t.dec_ids) as dec_names
-      FROM tenders t
-      LEFT JOIN vendors v ON t.vendor_id = v.id
-      ORDER BY t.created_at DESC
-    `);
-
-    // Transform data for frontend - convert comma-separated strings to arrays
-    const transformedData = result.recordset.map(tender => ({
-      ...tender,
-      officeIds: tender.office_ids ? tender.office_ids.split(',').map(id => id.trim()).filter(id => id) : [],
-      wingIds: tender.wing_ids ? tender.wing_ids.split(',').map(id => id.trim()).filter(id => id) : [],
-      decIds: tender.dec_ids ? tender.dec_ids.split(',').map(id => id.trim()).filter(id => id) : []
-    }));
-
-    res.json(transformedData);
-
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
-  }
-});
-
-// GET single tender by ID
-app.get('/api/tenders/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Get tender basic information
-    const tenderResult = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT * FROM View_tenders
-        WHERE id = @id
-      `);
-
-    if (tenderResult.recordset.length === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-
-    // Get tender items
-    const itemsResult = await pool.request()
-      .input('tenderId', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT 
-          ti.*,
-          im.nomenclature as item_name,
-          im.description as item_description,
-          im.unit as item_unit,
-          im.item_code,
-          im.specifications,
-          (ti.quantity * ti.estimated_unit_price) as calculated_total_amount
-        FROM tender_items ti
-        LEFT JOIN item_masters im ON ti.item_master_id = im.id
-        WHERE ti.tender_id = @tenderId
-        ORDER BY ti.created_at
-      `);
-
-    // Transform data for frontend - convert comma-separated strings to arrays
-    const tender = tenderResult.recordset[0];
-    const transformedTender = {
-      ...tender,
-      items: itemsResult.recordset || [],
-      officeIds: tender.office_ids ? tender.office_ids.split(',').map(id => id.trim()).filter(id => id) : [],
-      wingIds: tender.wing_ids ? tender.wing_ids.split(',').map(id => id.trim()).filter(id => id) : [],
-      decIds: tender.dec_ids ? tender.dec_ids.split(',').map(id => id.trim()).filter(id => id) : []
-    };
-
-    res.json(transformedTender);
-
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch tender', details: error.message });
-  }
-});
-
-// GET tender report data with proper items structure
-app.get('/api/view-tenders/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('🔍 Searching for tender ID:', id);
-    
-    // Get tender basic information with organizational details
-    const tenderResult = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT 
-          t.*,
-          o.strOfficeName as office_name,
-          w.Name as wing_name,
-          v.vendor_name,
-          v.vendor_code,
-          dbo.GetOfficeNames(t.office_ids) as office_names,
-          dbo.GetWingNames(t.wing_ids) as wing_names,
-          dbo.GetDecNames(t.dec_ids) as dec_names
-        FROM tenders t
-        LEFT JOIN tblOffices o ON t.office_id = o.intOfficeID
-        LEFT JOIN WingsInformation w ON t.wing_id = w.Id
-        LEFT JOIN vendors v ON t.vendor_id = v.id
-        WHERE t.id = @id
-      `);
-
-    if (tenderResult.recordset.length === 0) {
-      console.log('❌ Tender not found in database');
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-
-    const tender = tenderResult.recordset[0];
-    console.log('✅ Found tender:', tender.title);
-
-    // Get tender items separately
-    const itemsResult = await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT 
-          ti.*,
-          im.category_id,
-          im.sub_category_id,
-          c.category_name,
-          sc.sub_category_name
-        FROM tender_items ti
-        LEFT JOIN item_masters im ON ti.item_master_id = im.id
-        LEFT JOIN categories c ON im.category_id = c.id
-        LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
-        WHERE ti.tender_id = @tender_id
-        ORDER BY ti.created_at
-      `);
-
-    console.log('📦 Found items:', itemsResult.recordset.length);
-
-    // Combine tender data with items
-    const tenderData = {
-      ...tender,
-      items: itemsResult.recordset
-    };
-
-    res.json(tenderData);
-
-  } catch (error) {
-    console.error('❌ Error fetching tender data:', error);
-    res.status(500).json({ error: 'Failed to fetch tender data', details: error.message });
-  }
-});
-
-// POST create new tender
+// POST /api/tenders - Create a new tender and its items
 app.post('/api/tenders', async (req, res) => {
-  console.log('🚀 POST /api/tenders - Request received');
-  console.log('📋 Request body keys:', Object.keys(req.body));
-  console.log('📋 Full request body:', JSON.stringify(req.body, null, 2));
-  
+  const transaction = new sql.Transaction(pool);
   try {
-    const {
-      reference_number,
-      referenceNumber, // Frontend sends this
-      title,
-      description,
-      tender_type,
-      estimated_value,
-      estimatedValue, // Frontend sends this
-      submission_deadline,
-      submissionDeadline, // Frontend sends this
-      status, // This should always be 'Draft' for new tenders
-      tender_status, // This comes from the form's Tender Status combobox
-      created_by,
-      office_id,
-      wing_id,
-      dec_id,
-      officeIds, // Frontend sends arrays
-      wingIds,
-      decIds,
-      tender_spot_type,
-      procurement_method,
-      procurementMethod, // Frontend sends this
-      publication_daily,
-      publicationDailies, // Frontend sends this
-      // Missing fields that should be included
-      individual_total,
-      individualTotal, // Frontend alternative
-      actual_price_total,
-      actualPriceTotal, // Frontend alternative
-      po_number,
-      poNumber, // Frontend alternative
-      award_amount,
-      awardAmount, // Frontend alternative
-      contract_start_date,
-      contractStartDate, // Frontend alternative
-      contract_end_date,
-      contractEndDate, // Frontend alternative
-      performance_guarantee,
-      performanceGuarantee, // Frontend alternative
-      advance_payment,
-      advancePayment, // Frontend alternative
-      // Date fields from frontend
-      publishDate,
-      publicationDate,
-      submissionDate,
-      openingDate,
-      advertisementDate,
-      biddingProcedure,
-      eligibilityCriteria,
-      // File paths
-      rfp_file_path,
-      contract_file_path,
-      loi_file_path,
-      po_file_path,
-      noting_file_path,
-      // Vendor information
-      vendor_id,
-      vendor,
-      items // Add items to destructuring
-    } = req.body;
-
-    console.log('🔍 FULL REQUEST BODY DEBUG:');
-    console.log('officeIds:', officeIds);
-    console.log('wingIds:', wingIds);
-    console.log('decIds:', decIds);
-    console.log('office_id:', office_id);
-    console.log('wing_id:', wing_id);
-    console.log('dec_id:', dec_id);
-
-    const tenderId = uuidv4();
-    const now = new Date().toISOString();
-
-    // Process arrays for multi-select fields - store as comma-separated strings
-    const processedOfficeIds = officeIds?.length > 0 ? officeIds.join(',') : (office_id || null);
-    const processedWingIds = wingIds?.length > 0 ? wingIds.join(',') : (wing_id || null); 
-    const processedDecIds = decIds?.length > 0 ? decIds.join(',') : (dec_id || null);
-    
-    // For backward compatibility, also set singular fields (first element)
-    const processedOfficeId = officeIds?.length > 0 ? officeIds[0] : office_id;
-    const processedWingId = wingIds?.length > 0 ? wingIds[0] : wing_id; 
-    const processedDecId = decIds?.length > 0 ? decIds[0] : dec_id;
-
-    // Debug: Log what we're processing
-    console.log('🔍 DEBUG CREATE - Organizational data processing:');
-    console.log('Input arrays:', { officeIds, wingIds, decIds });
-    console.log('Processed strings:', { processedOfficeIds, processedWingIds, processedDecIds });
-    console.log('Processed singles:', { processedOfficeId, processedWingId, processedDecId });
-    
-    // Process vendor ID
-    const processedVendorId = vendor_id || vendor?.vendorId;
-    console.log('🔍 DEBUG VENDOR ID:');
-    console.log('  - Raw vendor_id from request:', vendor_id);
-    console.log('  - Vendor object from request:', vendor);
-    console.log('  - Processed vendor ID:', processedVendorId);
-
-    // Validate and process status field for finalization logic
-    const validStatuses = ['Draft', 'Published', 'Finalized'];
-    let processedStatus = 'Draft'; // Default to Draft for new tenders
-    
-    if (status && validStatuses.includes(status)) {
-      processedStatus = status;
-    } else if (status === 'Finalize') {
-      // If frontend sends "Finalize", convert it to "Finalized"
-      processedStatus = 'Finalized';
-    }
-
-    // Validate and process tender_status - this is separate from status field
-    const validTenderStatuses = ['Draft', 'Published', 'Submitted', 'Under Review', 'Awarded', 'Cancelled'];
-    let processedTenderStatus = 'Draft'; // Default to Draft for new tenders
-    
-    if (tender_status && validTenderStatuses.includes(tender_status)) {
-      processedTenderStatus = tender_status;
-    }
-
-    console.log('🔍 Creating tender with status:', processedStatus, 'from input:', status);
-    console.log('🔍 Creating tender with tender_status:', processedTenderStatus, 'from input:', tender_status);
-    
-    // Debug: Log organizational data processing
-    console.log('🔍 Organizational data processing:');
-    console.log('  - Raw officeIds from frontend:', officeIds);
-    console.log('  - Raw wingIds from frontend:', wingIds);
-    console.log('  - Raw decIds from frontend:', decIds);
-    console.log('  - Processed officeIds (comma-separated):', processedOfficeIds);
-    console.log('  - Processed wingIds (comma-separated):', processedWingIds);
-    console.log('  - Processed decIds (comma-separated):', processedDecIds);
-    console.log('  - Processed vendorId:', processedVendorId);
-
-    // Start a transaction to ensure tender and items are created together
-    const transaction = pool.transaction();
     await transaction.begin();
+    const tenderId = uuidv4();
+    const now = new Date();
 
-    try {
-      // Create tender first with ALL database fields
-      const result = await transaction.request()
-        .input('id', sql.UniqueIdentifier, tenderId)
-        .input('reference_number', sql.NVarChar, referenceNumber || reference_number)
-        .input('title', sql.NVarChar, title)
-        .input('description', sql.NVarChar, description)
-        .input('tender_type', sql.NVarChar, tender_type || tender_spot_type)
-        .input('estimated_value', sql.Int, estimatedValue || estimated_value)
-        .input('submission_deadline', sql.DateTime2, submissionDeadline || submission_deadline)
-        .input('status', sql.NVarChar, processedStatus) // Use processed status (Draft/Published/Finalized)
-        .input('tender_status', sql.NVarChar, processedTenderStatus) // Use processed tender_status (business workflow status)
-        .input('created_by', sql.NVarChar, created_by)
-        .input('office_ids', sql.NVarChar, processedOfficeIds)
-        .input('wing_ids', sql.NVarChar, processedWingIds)
-        .input('dec_ids', sql.NVarChar, processedDecIds)
-        .input('tender_spot_type', sql.NVarChar, tender_spot_type)
-        .input('procurement_method', sql.NVarChar, procurementMethod || procurement_method)
-        .input('publication_daily', sql.NVarChar, publicationDailies || publication_daily)
-        // Only include existing database fields
-        .input('individual_total', sql.NVarChar, individualTotal || individual_total)
-        .input('actual_price_total', sql.Int, actualPriceTotal || actual_price_total)
-        // Date fields
-        .input('publish_date', sql.Date, publishDate ? new Date(publishDate) : null)
-        .input('publication_date', sql.Date, publicationDate ? new Date(publicationDate) : null)
-        .input('submission_date', sql.Date, submissionDate ? new Date(submissionDate) : null)
-        .input('opening_date', sql.Date, openingDate ? new Date(openingDate) : null)
-        .input('advertisement_date', sql.Date, advertisementDate ? new Date(advertisementDate) : null)
-        // Additional fields
-        .input('procedure_adopted', sql.NVarChar, biddingProcedure)
-        // File paths
-        .input('rfp_file_path', sql.NVarChar, rfp_file_path)
-        .input('contract_file_path', sql.NVarChar, contract_file_path)
-        .input('loi_file_path', sql.NVarChar, loi_file_path)
-        .input('po_file_path', sql.NVarChar, po_file_path)
-        .input('noting_file_path', sql.NVarChar, noting_file_path)
-        // Vendor information
-        .input('vendor_id', sql.UniqueIdentifier, processedVendorId || null)
-        .input('created_at', sql.DateTime2, now)
-        .input('updated_at', sql.DateTime2, now)
-        .query(`
-          INSERT INTO tenders (
-            id, reference_number, title, description, tender_type, estimated_value,
-            submission_deadline, status, tender_status, created_by,
-            office_ids, wing_ids, dec_ids,
-            tender_spot_type, procurement_method, publication_daily,
-            individual_total, actual_price_total,
-            publish_date, publication_date, submission_date, opening_date, advertisement_date,
-            procedure_adopted,
-            rfp_file_path, contract_file_path, loi_file_path, po_file_path, noting_file_path,
-            vendor_id, created_at, updated_at
-          ) VALUES (
-            @id, @reference_number, @title, @description, @tender_type, @estimated_value,
-            @submission_deadline, @status, @tender_status, @created_by,
-            @office_ids, @wing_ids, @dec_ids,
-            @tender_spot_type, @procurement_method, @publication_daily,
-            @individual_total, @actual_price_total,
-            @publish_date, @publication_date, @submission_date, @opening_date, @advertisement_date,
-            @procedure_adopted,
-            @rfp_file_path, @contract_file_path, @loi_file_path, @po_file_path, @noting_file_path,
-            @vendor_id, @created_at, @updated_at
-          )
-        `);
+    const { items, ...tenderData } = req.body;
 
-      // Create tender items if provided
-      if (items && Array.isArray(items) && items.length > 0) {
-        for (const item of items) {
-          const itemId = uuidv4();
-          
-          await transaction.request()
-            .input('id', sql.UniqueIdentifier, itemId)
-            .input('tender_id', sql.UniqueIdentifier, tenderId)
-            .input('item_master_id', sql.UniqueIdentifier, item.itemMasterId || item.item_master_id || null)
-            .input('nomenclature', sql.NVarChar, item.nomenclature)
-            .input('quantity', sql.Int, item.quantity)
-            .input('estimated_unit_price', sql.Int, item.estimatedUnitPrice || item.estimated_unit_price || 0)
-            .input('actual_unit_price', sql.Int, item.actualUnitPrice || item.actual_unit_price || 0)
-            .input('total_amount', sql.Int, item.totalAmount || item.total_amount || (item.quantity * (item.estimatedUnitPrice || item.estimated_unit_price || 0)))
-            .input('specifications', sql.NVarChar, item.specifications || null)
-            .input('remarks', sql.NVarChar, item.remarks || null)
-            .input('status', sql.NVarChar, item.status || 'Active')
-            .input('created_at', sql.DateTime2, now)
-            .input('updated_at', sql.DateTime2, now)
-            .query(`
-              INSERT INTO tender_items (
-                id, tender_id, item_master_id, nomenclature, quantity, 
-                estimated_unit_price, actual_unit_price, total_amount, 
-                specifications, remarks, status, created_at, updated_at
-              ) VALUES (
-                @id, @tender_id, @item_master_id, @nomenclature, @quantity,
-                @estimated_unit_price, @actual_unit_price, @total_amount,
-                @specifications, @remarks, @status, @created_at, @updated_at
-              )
-            `);
-            // Also insert into stock_transactions_clean for each item
-            await transaction.request()
-              .input('tender_id', sql.UniqueIdentifier, tenderId)
-              .input('item_master_id', sql.VarChar(50), item.itemMasterId || item.item_master_id || null)
-              .input('estimated_unit_price', sql.Decimal(18, 2), item.estimatedUnitPrice || item.estimated_unit_price || 0)
-              .input('actual_unit_price', sql.Decimal(18, 2), item.actualUnitPrice || item.actual_unit_price || 0)
-              .input('total_quantity_received', sql.Int, item.quantity)
-              .input('pricing_confirmed', sql.Bit, false)
-              .input('type', sql.VarChar(10), 'IN')
-              .input('remarks', sql.Text, item.remarks || null)
-              .query(`
-                INSERT INTO stock_transactions_clean (
-                  id,
-                  tender_id,
-                  item_master_id,
-                  estimated_unit_price,
-                  actual_unit_price,
-                  total_quantity_received,
-                  pricing_confirmed,
-                  type,
-                  remarks,
-                  is_deleted,
-                  created_at,
-                  updated_at
-                ) VALUES (
-                  NEWID(),
-                  @tender_id,
-                  @item_master_id,
-                  @estimated_unit_price,
-                  @actual_unit_price,
-                  @total_quantity_received,
-                  @pricing_confirmed,
-                  @type,
-                  @remarks,
-                  0,
-                  GETDATE(),
-                  GETDATE()
-                )
-              `);
+    // Insert into tenders table
+    const tenderRequest = transaction.request();
+    tenderRequest.input('id', sql.UniqueIdentifier, tenderId);
+    
+    // Map all fields from the schema
+    const tenderFields = [
+      'reference_number', 'title', 'description', 'estimated_value', 'publish_date',
+      'publication_date', 'submission_date', 'submission_deadline', 'opening_date',
+      'status', 'document_path', 'created_by', 'advertisement_date', 'procedure_adopted',
+      'procurement_method', 'publication_daily', 'contract_file_path', 'loi_file_path',
+      'noting_file_path', 'po_file_path', 'rfp_file_path', 'tender_number', 'tender_type',
+      'office_ids', 'wing_ids', 'dec_ids', 'tender_spot_type', 'vendor_id', 'tender_status',
+      'individual_total', 'actual_price_total'
+    ];
+
+    let insertQuery = 'INSERT INTO tenders (id, created_at, updated_at, is_finalized';
+    let valuesQuery = 'VALUES (@id, @created_at, @updated_at, 0';
+
+    tenderRequest.input('created_at', sql.DateTime, now);
+    tenderRequest.input('updated_at', sql.DateTime, now);
+
+    for (const field of tenderFields) {
+      if (tenderData[field] !== undefined) {
+        insertQuery += `, ${field}`;
+        valuesQuery += `, @${field}`;
+        
+        let value = tenderData[field];
+        let sqlType = sql.NVarChar; // Default to NVarChar
+
+        // Adjust SQL type based on field name/schema
+        if (field.endsWith('_date') || field.endsWith('_deadline')) {
+          sqlType = sql.DateTime;
+          value = value ? new Date(value) : null;
+        } else if (field.endsWith('_value') || field.endsWith('_total') || field === 'quantity') {
+          sqlType = sql.Int;
+          value = value ? parseInt(value, 10) : null;
+        } else if (field.endsWith('_id')) {
+          sqlType = sql.UniqueIdentifier;
         }
+
+        tenderRequest.input(field, sqlType, value);
       }
-
-      await transaction.commit();
-      console.log('✅ Tender created successfully!', {
-        id: tenderId,
-        title: title,
-        referenceNumber: referenceNumber || reference_number,
-        items_count: items?.length || 0
-      });
-      
-      res.json({ 
-        success: true, 
-        id: tenderId, 
-        reference_number: referenceNumber || reference_number,
-        title: title,
-        tender_spot_type: tender_spot_type,
-        items_count: items?.length || 0,
-        vendor_id: processedVendorId,
-        publish_date: publishDate,
-        submission_date: submissionDate,
-        opening_date: openingDate,
-        message: 'Tender created successfully with all fields and items'
-      });
-
-    } catch (error) {
-      console.error('❌ Database transaction error:', error);
-      await transaction.rollback();
-      throw error;
     }
+
+    insertQuery += ') ' + valuesQuery + ')';
+
+    await tenderRequest.query(insertQuery);
+
+    // Insert into tender_items table
+    if (items && Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        const itemRequest = transaction.request();
+        itemRequest.input('id', sql.UniqueIdentifier, uuidv4());
+        itemRequest.input('tender_id', sql.UniqueIdentifier, tenderId);
+        itemRequest.input('created_at', sql.DateTime2, now);
+        itemRequest.input('updated_at', sql.DateTime2, now);
+
+        let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at';
+        let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at';
+
+        const itemFields = [
+          'item_master_id', 'nomenclature', 'quantity', 'quantity_received', 
+          'estimated_unit_price', 'actual_unit_price', 'total_amount', 
+          'specifications', 'remarks', 'status'
+        ];
+
+        for (const field of itemFields) {
+          if (item[field] !== undefined) {
+            itemInsertQuery += `, ${field}`;
+            itemValuesQuery += `, @${field}`;
+
+            let value = item[field];
+            let sqlType = sql.NVarChar; // Default
+
+            if (['quantity', 'quantity_received', 'estimated_unit_price', 'actual_unit_price', 'total_amount'].includes(field)) {
+              sqlType = sql.Int;
+              value = value ? parseInt(value, 10) : null;
+            } else if (field === 'item_master_id') {
+              sqlType = sql.VarChar(50);
+            }
+            
+            itemRequest.input(field, sqlType, value);
+          }
+        }
+        
+        itemInsertQuery += ') ' + itemValuesQuery + ')';
+        await itemRequest.query(itemInsertQuery);
+      }
+    }
+
+    await transaction.commit();
+    res.status(201).json({ success: true, message: 'Tender created successfully', tenderId });
 
   } catch (error) {
-    console.error('❌ Overall tender creation error:', error);
+    await transaction.rollback();
+    console.error('Failed to create tender:', error);
     res.status(500).json({ error: 'Failed to create tender', details: error.message });
   }
 });
 
-// PUT update tender
-app.put('/api/tenders/:id', async (req, res) => {
+// GET /api/tenders - Get all tenders
+app.get('/api/tenders', async (req, res) => {
   try {
-    const { id } = req.params;
-    const {
-      reference_number,
-      referenceNumber,
-      title,
-      description,
-      tender_type,
-      estimated_value,
-      estimatedValue,
-      submission_deadline,
-      submissionDeadline,
-      status, // Workflow status (Draft, Published, etc.)
-      tender_status, // Business status from form combobox
-      office_id,
-      wing_id,
-      dec_id,
-      officeIds,
-      wingIds,
-      decIds,
-      tender_spot_type,
-      procurement_method,
-      procurementMethod,
-      publication_daily,
-      publicationDailies,
-      individual_total,
-      actual_price_total,
-      // Date fields
-      publishDate,
-      publicationDate,
-      submissionDate,
-      openingDate,
-      advertisementDate,
-      biddingProcedure,
-      eligibilityCriteria,
-      // File paths
-      rfp_file_path,
-      contract_file_path,
-      loi_file_path,
-      po_file_path,
-      noting_file_path,
-      // Vendor information
-      vendor_id,
-      vendor
-    } = req.body;
-
-    console.log('🔍 UPDATE FULL REQUEST BODY DEBUG:');
-    console.log('officeIds:', officeIds);
-    console.log('wingIds:', wingIds);
-    console.log('decIds:', decIds);
-    console.log('office_id:', office_id);
-    console.log('wing_id:', wing_id);
-    console.log('dec_id:', dec_id);
-
-    const now = new Date().toISOString();
-
-    // Process arrays for multi-select fields - store as comma-separated strings
-    const processedOfficeIds = officeIds?.length > 0 ? officeIds.join(',') : (office_id || null);
-    const processedWingIds = wingIds?.length > 0 ? wingIds.join(',') : (wing_id || null); 
-    const processedDecIds = decIds?.length > 0 ? decIds.join(',') : (dec_id || null);
-    
-    // For backward compatibility, also set singular fields (first element)
-    const processedOfficeId = officeIds?.length > 0 ? officeIds[0] : office_id;
-    const processedWingId = wingIds?.length > 0 ? wingIds[0] : wing_id; 
-    const processedDecId = decIds?.length > 0 ? decIds[0] : dec_id;
-
-    // Debug: Log what we're processing
-    console.log('🔍 DEBUG UPDATE - Organizational data processing:');
-    console.log('Input arrays:', { officeIds, wingIds, decIds });
-    console.log('Processed strings:', { processedOfficeIds, processedWingIds, processedDecIds });
-    console.log('Processed singles:', { processedOfficeId, processedWingId, processedDecId });
-    
-    // Process vendor ID
-    const processedVendorId = vendor_id || vendor?.vendorId;
-
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('reference_number', sql.NVarChar, referenceNumber || reference_number)
-      .input('title', sql.NVarChar, title)
-      .input('description', sql.NVarChar, description)
-      .input('tender_type', sql.NVarChar, tender_type)
-      .input('estimated_value', sql.Int, estimatedValue || estimated_value)
-      .input('submission_deadline', sql.DateTime2, submissionDeadline || submission_deadline)
-      .input('status', sql.NVarChar, status)
-      .input('tender_status', sql.NVarChar, tender_status)
-      .input('office_id', sql.NVarChar, processedOfficeId ? processedOfficeId.toString() : null)
-      .input('wing_id', sql.NVarChar, processedWingId ? processedWingId.toString() : null)
-      .input('dec_id', sql.NVarChar, processedDecId ? processedDecId.toString() : null)
-      .input('office_ids', sql.NVarChar, processedOfficeIds)
-      .input('wing_ids', sql.NVarChar, processedWingIds)
-      .input('dec_ids', sql.NVarChar, processedDecIds)
-      .input('tender_spot_type', sql.NVarChar, tender_spot_type)
-      .input('procurement_method', sql.NVarChar, procurementMethod || procurement_method)
-      .input('publication_daily', sql.NVarChar, publicationDailies || publication_daily)
-      .input('individual_total', sql.NVarChar, individual_total)
-      .input('actual_price_total', sql.Int, actual_price_total)
-      // Date fields
-      .input('publish_date', sql.Date, publishDate ? new Date(publishDate) : null)
-      .input('publication_date', sql.Date, publicationDate ? new Date(publicationDate) : null)
-      .input('submission_date', sql.Date, submissionDate ? new Date(submissionDate) : null)
-      .input('opening_date', sql.Date, openingDate ? new Date(openingDate) : null)
-      .input('advertisement_date', sql.Date, advertisementDate ? new Date(advertisementDate) : null)
-      // Additional fields
-      .input('procedure_adopted', sql.NVarChar, biddingProcedure)
-      // File paths
-      .input('rfp_file_path', sql.NVarChar, rfp_file_path)
-      .input('contract_file_path', sql.NVarChar, contract_file_path)
-      .input('loi_file_path', sql.NVarChar, loi_file_path)
-      .input('po_file_path', sql.NVarChar, po_file_path)
-      .input('noting_file_path', sql.NVarChar, noting_file_path)
-      // Vendor information
-      .input('vendor_id', sql.UniqueIdentifier, processedVendorId || null)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        UPDATE tenders SET
-          reference_number = @reference_number,
-          title = @title,
-          description = @description,
-          tender_type = @tender_type,
-          estimated_value = @estimated_value,
-          submission_deadline = @submission_deadline,
-          status = @status,
-          tender_status = @tender_status,
-          office_id = @office_id,
-          wing_id = @wing_id,
-          dec_id = @dec_id,
-          office_ids = @office_ids,
-          wing_ids = @wing_ids,
-          dec_ids = @dec_ids,
-          tender_spot_type = @tender_spot_type,
-          procurement_method = @procurement_method,
-          publication_daily = @publication_daily,
-          individual_total = @individual_total,
-          actual_price_total = @actual_price_total,
-          publish_date = @publish_date,
-          publication_date = @publication_date,
-          submission_date = @submission_date,
-          opening_date = @opening_date,
-          advertisement_date = @advertisement_date,
-          procedure_adopted = @procedure_adopted,
-          rfp_file_path = @rfp_file_path,
-          contract_file_path = @contract_file_path,
-          loi_file_path = @loi_file_path,
-          po_file_path = @po_file_path,
-          noting_file_path = @noting_file_path,
-          vendor_id = @vendor_id,
-          updated_at = @updated_at
-        WHERE id = @id
-      `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-    res.json({ 
-      success: true, 
-      id: id,
-      message: 'Tender updated successfully'
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update tender', details: error.message });
-  }
-});
-
-// DELETE tender
-app.delete('/api/tenders/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM tenders WHERE id = @id');
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-    res.json({ 
-      success: true, 
-      message: 'Tender deleted successfully'
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete tender', details: error.message });
-  }
-});
-
-// PUT finalize tender
-app.put('/api/tenders/:id/finalize', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { finalized_by } = req.body;
-
-    console.log('🔄 Finalizing tender:', { id, finalized_by });
-
-    const now = new Date().toISOString();
-
-    // First check if tender exists and is not already finalized
-    const checkResult = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query('SELECT is_finalized, status FROM tenders WHERE id = @id');
-
-    console.log('📋 Tender check result:', checkResult.recordset);
-
-    if (checkResult.recordset.length === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-
-    const tender = checkResult.recordset[0];
-    
-    // Handle different data types for is_finalized (could be bit, boolean, string)
-    const isAlreadyFinalized = tender.is_finalized === true || 
-                              tender.is_finalized === 1 || 
-                              tender.is_finalized === '1' ||
-                              tender.is_finalized === 'true';
-
-    if (isAlreadyFinalized) {
-      return res.status(400).json({ error: 'Tender is already finalized' });
-    }
-
-    console.log('⚡ Updating tender to finalized status...');
-
-    // Update tender to finalized status - use default user if finalized_by is not a valid GUID
-    // For consistency with how we handle user IDs throughout the system
-    const defaultUserId = 'DEV-USER-001'; // Same as DEFAULT_SESSION.user_id
-    const finalizedByUser = finalized_by || defaultUserId;
-
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('finalized_by', sql.NVarChar, finalizedByUser)
-      .input('finalized_at', sql.DateTime2, now)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        UPDATE tenders SET
-          is_finalized = 1,
-          finalized_by = @finalized_by,
-          finalized_at = @finalized_at,
-          updated_at = @updated_at
-        WHERE id = @id
-      `);
-
-    console.log('✅ Tender finalized successfully:', { id, finalized_by });
-
-    res.json({ 
-      success: true, 
-      id: id,
-      message: 'Tender finalized successfully',
-      finalized_at: now,
-      finalized_by: finalized_by
-    });
-
-  } catch (error) {
-    console.error('❌ Error finalizing tender:', error);
-    res.status(500).json({ error: 'Failed to finalize tender', details: error.message });
-  }
-});
-
-// =============================================================================
-// TENDER ITEMS ENDPOINTS
-// =============================================================================
-
-// GET tender items by tender ID
-app.get('/api/tenders/:tenderId/items', async (req, res) => {
-  try {
-    const { tenderId } = req.params;
-    
-    const result = await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, tenderId)
-      .query(`
-        SELECT 
-          ti.*,
-          im.nomenclature as item_name
-        FROM tender_items ti
-        LEFT JOIN item_masters im ON ti.item_master_id = im.id
-        WHERE ti.tender_id = @tender_id
-        ORDER BY ti.created_at
-      `);
+    const result = await pool.request().query(`
+      SELECT 
+        t.*, 
+        v.vendor_name
+      FROM tenders t
+      LEFT JOIN vendors v ON t.vendor_id = v.id
+      ORDER BY t.created_at DESC
+    `);
     res.json(result.recordset);
-
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch tender items', details: error.message });
+    console.error('Failed to fetch tenders:', error);
+    res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
   }
 });
 
-// POST create tender item
-app.post('/api/tenders/:tenderId/items', async (req, res) => {
+// GET /api/tenders/:id - Get a single tender by ID
+app.get('/api/tenders/:id', async (req, res) => {
   try {
-    const { tenderId } = req.params;
-    const {
-      item_master_id,
-      nomenclature,
-      quantity,
-      estimated_unit_price,
-      actual_unit_price,
-      total_amount,
-      specifications,
-      remarks,
-      status
-    } = req.body;
-
-    const itemId = uuidv4();
-    const now = new Date().toISOString();
-
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, itemId)
-      .input('tender_id', sql.UniqueIdentifier, tenderId)
-      .input('item_master_id', sql.UniqueIdentifier, item_master_id)
-      .input('nomenclature', sql.NVarChar, nomenclature)
-      .input('quantity', sql.Int, quantity)
-      .input('estimated_unit_price', sql.Int, estimated_unit_price)
-      .input('actual_unit_price', sql.Int, actual_unit_price)
-      .input('total_amount', sql.Int, total_amount)
-      .input('specifications', sql.NVarChar, specifications)
-      .input('remarks', sql.NVarChar, remarks)
-      .input('status', sql.NVarChar, status || 'Active')
-      .input('created_at', sql.DateTime2, now)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        INSERT INTO tender_items (
-          id, tender_id, item_master_id, nomenclature, quantity, 
-          estimated_unit_price, actual_unit_price, total_amount, 
-          specifications, remarks, status, created_at, updated_at
-        ) VALUES (
-          @id, @tender_id, @item_master_id, @nomenclature, @quantity,
-          @estimated_unit_price, @actual_unit_price, @total_amount,
-          @specifications, @remarks, @status, @created_at, @updated_at
-        )
-      `);
-    res.json({ 
-      success: true, 
-      id: itemId,
-      message: 'Tender item created successfully'
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create tender item', details: error.message });
-  }
-});
-
-// POST - Add tender items to stock acquisition
-app.post('/api/tenders/:tenderId/add-to-stock-acquisition', async (req, res) => {
-  try {
-    const { tenderId } = req.params;
-    console.log('🚀 Adding tender items to stock acquisition for tender:', tenderId);
-
-    // First, get all tender items
-    const tenderItemsResult = await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, tenderId)
-      .query(`
-        SELECT 
-          ti.*,
-          im.nomenclature,
-          im.unit
-        FROM tender_items ti
-        LEFT JOIN item_masters im ON ti.item_master_id = im.id
-        WHERE ti.tender_id = @tender_id AND ti.status = 'Active'
-      `);
-
-    if (tenderItemsResult.recordset.length === 0) {
-      return res.status(404).json({ error: 'No active tender items found for this tender' });
-    }
-
-    const tenderItems = tenderItemsResult.recordset;
-    const addedItems = [];
-    const errors = [];
-
-    // Check if tender is finalized
+    const { id } = req.params;
+    
     const tenderResult = await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, tenderId)
-      .query('SELECT is_finalized, title FROM tenders WHERE id = @tender_id');
+      .input('id', sql.UniqueIdentifier, id)
+      .query('SELECT * FROM tenders WHERE id = @id');
 
     if (tenderResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Tender not found' });
     }
 
+    const itemsResult = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, id)
+      .query('SELECT * FROM tender_items WHERE tender_id = @tender_id');
+
     const tender = tenderResult.recordset[0];
-    const isFinalized = tender.is_finalized === true || tender.is_finalized === 1 || tender.is_finalized === '1';
+    tender.items = itemsResult.recordset;
 
-    if (!isFinalized) {
-      return res.status(400).json({ error: 'Tender must be finalized before adding items to stock acquisition' });
-    }
+    res.json(tender);
+  } catch (error) {
+    console.error('Failed to fetch tender:', error);
+    res.status(500).json({ error: 'Failed to fetch tender', details: error.message });
+  }
+});
 
-    // Add each tender item to stock acquisition
-    for (const item of tenderItems) {
-      try {
-        // Check if this item is already in stock acquisition
-        const existingResult = await pool.request()
-          .input('tender_id', sql.UniqueIdentifier, tenderId)
-          .input('item_master_id', sql.VarChar(50), item.item_master_id)
-          .query(`
-            SELECT id FROM stock_transactions_clean 
-            WHERE tender_id = @tender_id AND item_master_id = @item_master_id AND is_deleted = 0
-          `);
+// PUT /api/tenders/:id - Update a tender and its items
+app.put('/api/tenders/:id', async (req, res) => {
+  const { id } = req.params;
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+    const now = new Date();
 
-        if (existingResult.recordset.length > 0) {
-          console.log(`⚠️ Item ${item.nomenclature} already exists in stock acquisition, skipping...`);
-          continue;
+    const { items, ...tenderData } = req.body;
+
+    // Update tenders table
+    const tenderRequest = transaction.request();
+    tenderRequest.input('id', sql.UniqueIdentifier, id);
+    tenderRequest.input('updated_at', sql.DateTime, now);
+
+    let updateQuery = 'UPDATE tenders SET updated_at = @updated_at';
+
+    const tenderFields = [
+      'reference_number', 'title', 'description', 'estimated_value', 'publish_date',
+      'publication_date', 'submission_date', 'submission_deadline', 'opening_date',
+      'status', 'document_path', 'created_by', 'advertisement_date', 'procedure_adopted',
+      'procurement_method', 'publication_daily', 'contract_file_path', 'loi_file_path',
+      'noting_file_path', 'po_file_path', 'rfp_file_path', 'tender_number', 'tender_type',
+      'office_ids', 'wing_ids', 'dec_ids', 'tender_spot_type', 'vendor_id', 'tender_status',
+      'individual_total', 'actual_price_total', 'is_finalized', 'finalized_at', 'finalized_by'
+    ];
+
+    for (const field of tenderFields) {
+        if (tenderData[field] !== undefined) {
+            updateQuery += `, ${field} = @${field}`;
+            
+            let value = tenderData[field];
+            let sqlType = sql.NVarChar; // Default
+
+            if (field.endsWith('_date') || field.endsWith('_deadline') || field === 'finalized_at') {
+                sqlType = sql.DateTime;
+                value = value ? new Date(value) : null;
+            } else if (field.endsWith('_value') || field.endsWith('_total')) {
+                sqlType = sql.Int;
+                value = value ? parseInt(value, 10) : null;
+            } else if (field.endsWith('_id')) {
+                sqlType = sql.UniqueIdentifier;
+            } else if (field === 'is_finalized') {
+                sqlType = sql.Bit;
+            }
+
+            tenderRequest.input(field, sqlType, value);
         }
-
-        // Add to stock acquisition
-        const stockTransactionResult = await pool.request()
-          .input('id', sql.UniqueIdentifier, uuidv4())
-          .input('tender_id', sql.UniqueIdentifier, tenderId)
-          .input('item_master_id', sql.VarChar(50), item.item_master_id)
-          .input('estimated_unit_price', sql.Decimal(18, 2), item.estimated_unit_price || 0)
-          .input('actual_unit_price', sql.Decimal(18, 2), item.actual_unit_price || 0)
-          .input('total_quantity_received', sql.Int, 0) // Initially 0, will be updated when items are received
-          .input('pricing_confirmed', sql.Bit, false)
-          .input('type', sql.VarChar(10), 'IN')
-          .input('remarks', sql.Text, `Added from tender: ${tender.title}`)
-          .query(`
-            INSERT INTO stock_transactions_clean (
-              id, tender_id, item_master_id, estimated_unit_price, actual_unit_price,
-              total_quantity_received, pricing_confirmed, type, remarks, is_deleted,
-              created_at, updated_at
-            )
-            OUTPUT INSERTED.*
-            VALUES (
-              @id, @tender_id, @item_master_id, @estimated_unit_price, @actual_unit_price,
-              @total_quantity_received, @pricing_confirmed, @type, @remarks, 0,
-              GETDATE(), GETDATE()
-            )
-          `);
-
-        addedItems.push({
-          ...stockTransactionResult.recordset[0],
-          nomenclature: item.nomenclature,
-          quantity: item.quantity
-        });
-
-        console.log(`✅ Added ${item.nomenclature} to stock acquisition`);
-
-      } catch (itemError) {
-        console.error(`❌ Error adding item ${item.nomenclature}:`, itemError);
-        errors.push({
-          item: item.nomenclature,
-          error: itemError.message
-        });
-      }
     }
 
-    res.json({
-      success: true,
-      message: `Successfully added ${addedItems.length} items to stock acquisition`,
-      addedItems: addedItems.length,
-      totalItems: tenderItems.length,
-      items: addedItems,
-      errors: errors.length > 0 ? errors : undefined
-    });
+    updateQuery += ' WHERE id = @id';
+    await tenderRequest.query(updateQuery);
+
+    // Delete existing items and re-insert them
+    await transaction.request()
+      .input('tender_id', sql.UniqueIdentifier, id)
+      .query('DELETE FROM tender_items WHERE tender_id = @tender_id');
+
+    if (items && Array.isArray(items) && items.length > 0) {
+        for (const item of items) {
+            const itemRequest = transaction.request();
+            itemRequest.input('id', sql.UniqueIdentifier, item.id || uuidv4());
+            itemRequest.input('tender_id', sql.UniqueIdentifier, id);
+            itemRequest.input('created_at', sql.DateTime2, item.created_at ? new Date(item.created_at) : now);
+            itemRequest.input('updated_at', sql.DateTime2, now);
+
+            let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at';
+            let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at';
+
+            const itemFields = [
+              'item_master_id', 'nomenclature', 'quantity', 'quantity_received', 
+              'estimated_unit_price', 'actual_unit_price', 'total_amount', 
+              'specifications', 'remarks', 'status'
+            ];
+
+            for (const field of itemFields) {
+                if (item[field] !== undefined) {
+                    itemInsertQuery += `, ${field}`;
+                    itemValuesQuery += `, @${field}`;
+
+                    let value = item[field];
+                    let sqlType = sql.NVarChar; // Default
+
+                    if (['quantity', 'quantity_received', 'estimated_unit_price', 'actual_unit_price', 'total_amount'].includes(field)) {
+                        sqlType = sql.Int;
+                        value = value ? parseInt(value, 10) : null;
+                    } else if (field === 'item_master_id') {
+                        sqlType = sql.VarChar(50);
+                    }
+                    
+                    itemRequest.input(field, sqlType, value);
+                }
+            }
+            
+            itemInsertQuery += ') ' + itemValuesQuery + ')';
+            await itemRequest.query(itemInsertQuery);
+        }
+    }
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Tender updated successfully' });
 
   } catch (error) {
-    console.error('❌ Error adding tender items to stock acquisition:', error);
-    res.status(500).json({ 
-      error: 'Failed to add tender items to stock acquisition', 
-      details: error.message 
-    });
+    await transaction.rollback();
+    console.error('Failed to update tender:', error);
+    res.status(500).json({ error: 'Failed to update tender', details: error.message });
   }
+});
+
+// DELETE /api/tenders/:id - Delete a tender
+app.delete('/api/tenders/:id', async (req, res) => {
+  const { id } = req.params;
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+
+    // The ON DELETE CASCADE constraint on the foreign key will handle deleting tender_items
+    await transaction.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query('DELETE FROM tenders WHERE id = @id');
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Tender deleted successfully' });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Failed to delete tender:', error);
+    res.status(500).json({ error: 'Failed to delete tender', details: error.message });
+  }
+});
+
+// PUT /api/tenders/:id/finalize - Finalize a tender
+app.put('/api/tenders/:id/finalize', async (req, res) => {
+    const { id } = req.params;
+    const { finalized_by } = req.body;
+    try {
+        const now = new Date();
+        const result = await pool.request()
+            .input('id', sql.UniqueIdentifier, id)
+            .input('finalized_by', sql.NVarChar, finalized_by)
+            .input('finalized_at', sql.DateTime, now)
+            .input('updated_at', sql.DateTime, now)
+            .query(`
+                UPDATE tenders 
+                SET 
+                    is_finalized = 1, 
+                    finalized_by = @finalized_by, 
+                    finalized_at = @finalized_at,
+                    updated_at = @updated_at,
+                    status = 'Finalized'
+                WHERE id = @id AND is_finalized = 0
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ error: 'Tender not found or already finalized.' });
+        }
+        res.json({ success: true, message: 'Tender finalized successfully.' });
+    } catch (error) {
+        console.error('Failed to finalize tender:', error);
+        res.status(500).json({ error: 'Failed to finalize tender', details: error.message });
+    }
 });
 
 // =============================================================================

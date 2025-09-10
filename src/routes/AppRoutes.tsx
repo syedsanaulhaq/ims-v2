@@ -16,7 +16,7 @@ import ItemMasterManagement from '@/components/itemMasters/ItemMasterManagement'
 
 // Tender Components
 import TenderManagement from '@/components/tenders/TenderManagement';
-import TenderForm from '@/components/tenders/TenderForm';
+import TenderForm from '@/components/tenders/TenderFormUpdated';
 import TenderViewDialog from '@/components/tenders/TenderViewDialog';
 
 // Stock Transaction Components

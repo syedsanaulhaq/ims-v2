@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "backend": "node backend-server.cjs",
     "dev:full": "concurrently \"npm run backend\" \"npm run dev\"",
+    "dev:clean": "taskkill /f /im node.exe 2>nul & npm run dev:full",
     "start:production": "node scripts/switch-environment.js production && concurrently \"npm run backend\" \"npm run preview\"",
     "perf:clean": "node dev-performance.js clean",
     "perf:optimize": "node dev-performance.js optimize",
