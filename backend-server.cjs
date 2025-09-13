@@ -2465,12 +2465,14 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
         await transaction.request()
           .input('stockId', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
           .input('newQuantity', sql.Int, quantity)
+          .input('setupBy', sql.NVarChar, setupBy)
           .query(`
             UPDATE current_inventory_stock 
             SET 
               current_quantity = @newQuantity,
               available_quantity = @newQuantity,
-              last_updated = GETDATE()
+              last_updated = GETDATE(),
+              updated_by = @setupBy
             WHERE id = @stockId
           `);
       } else {
@@ -2478,15 +2480,16 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
         await transaction.request()
           .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
           .input('quantity', sql.Int, quantity)
+          .input('setupBy', sql.NVarChar, setupBy)
           .query(`
             INSERT INTO current_inventory_stock (
               id, item_master_id, current_quantity, available_quantity, reserved_quantity,
               minimum_stock_level, maximum_stock_level, reorder_point,
-              created_at, last_updated
+              created_at, last_updated, updated_by
             ) VALUES (
               NEWID(), @itemMasterId, @quantity, @quantity, 0,
               0, 0, 0,
-              GETDATE(), GETDATE()
+              GETDATE(), GETDATE(), @setupBy
             )
           `);
       }
