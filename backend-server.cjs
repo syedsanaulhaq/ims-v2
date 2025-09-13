@@ -2470,7 +2470,7 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
             UPDATE current_inventory_stock 
             SET 
               current_quantity = @newQuantity,
-              available_quantity = @newQuantity,
+              available_quantity = @newQuantity - ISNULL(reserved_quantity, 0),
               last_updated = GETDATE(),
               updated_by = @setupBy
             WHERE id = @stockId
