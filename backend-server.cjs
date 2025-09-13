@@ -5551,16 +5551,17 @@ app.get('/api/inventory/current-stock', async (req, res) => {
 
     const result = await pool.request().query(`
       SELECT 
-        cs.intOfficeID as id,
-        cs.intItemMasterID as item_master_id,
-        ISNULL(cs.intCurrentStock, 0) as current_quantity,
-        cs.dtLastUpdated as last_updated,
-        im.strItemMaster as item_name,
-        im.strUnit as unit
-      FROM Current_Stock cs
-      INNER JOIN Item_MST im ON cs.intItemMasterID = im.intOfficeID
-      WHERE cs.IS_ACT = 1 AND im.IS_ACT = 1
-      ORDER BY im.strItemMaster
+        cis.id,
+        cis.item_master_id,
+        ISNULL(cis.current_quantity, 0) as current_quantity,
+        ISNULL(cis.available_quantity, 0) as available_quantity,
+        ISNULL(cis.reserved_quantity, 0) as reserved_quantity,
+        cis.last_updated,
+        im.nomenclature as item_name,
+        im.unit
+      FROM current_inventory_stock cis
+      INNER JOIN item_masters im ON cis.item_master_id = im.id
+      ORDER BY im.nomenclature
     `);
 
     const stockData = result.recordset.map(item => ({
