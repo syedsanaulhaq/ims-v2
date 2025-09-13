@@ -3862,23 +3862,23 @@ app.get('/api/item-masters', async (req, res) => {
 
     const result = await pool.request().query(`
       SELECT 
-        intOfficeID as id,
-        strItemMaster as nomenclature,
-        strItemCode as item_code,
-        strUnit as unit,
-        intCategoryID as category_id,
-        intSubCategoryID as sub_category_id,
-        strSpecification as specifications,
-        strDescription as description,
-        intMinimumStockLevel as minimum_stock_level,
-        intReorderPoint as reorder_point,
-        intMaximumStockLevel as maximum_stock_level,
-        CASE WHEN IS_ACT = 1 THEN 'Active' ELSE 'Inactive' END as status,
-        dtCreated as created_at,
-        dtLastUpdated as updated_at
-      FROM Item_MST 
-      WHERE IS_ACT = 1
-      ORDER BY strItemMaster
+        id,
+        nomenclature,
+        item_code,
+        unit,
+        category_id,
+        sub_category_id,
+        specifications,
+        description,
+        minimum_stock_level,
+        reorder_point,
+        maximum_stock_level,
+        status,
+        created_at,
+        updated_at
+      FROM item_masters 
+      WHERE status != 'Deleted'
+      ORDER BY nomenclature
     `);
     res.json(result.recordset);
   } catch (error) {

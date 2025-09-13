@@ -149,6 +149,14 @@ const InitialInventorySetup = () => {
         return;
       }
 
+      // Debug: Log what we're sending to server
+      console.log('🚀 Sending initial inventory data to server:', {
+        validStocks,
+        count: validStocks.length,
+        sampleItemMasterID: validStocks[0]?.ItemMasterID,
+        itemMasterIDType: typeof validStocks[0]?.ItemMasterID
+      });
+
       const response = await fetch('http://localhost:3001/api/inventory/initial-setup', {
         method: 'POST',
         headers: {
@@ -162,12 +170,21 @@ const InitialInventorySetup = () => {
       });
 
       if (response.ok) {
+        const result = await response.json();
         toast({
           title: "Success",
           description: `Initial inventory setup completed for ${validStocks.length} items`,
         });
+        console.log('✅ Initial inventory setup successful:', result);
       } else {
-        throw new Error('Failed to save initial inventory');
+        // Get detailed error information from server
+        const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
+        console.error('❌ Server error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        throw new Error(errorData.details || errorData.error || 'Failed to save initial inventory');
       }
     } catch (error) {
       console.error('Error saving initial inventory:', error);
