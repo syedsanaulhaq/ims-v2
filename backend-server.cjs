@@ -2458,40 +2458,31 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
       let operationType = 'INSERT';
 
       if (existingStockResult.recordset.length > 0) {
-        currentQuantity = existingStockResult.recordset[0].current_quantity;
+        currentQuantity = existingStockResult.recordset[0].current_quantity || 0;
         operationType = 'UPDATE';
         
         // Update existing record
         await transaction.request()
-          .input('inventoryId', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
+          .input('stockId', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
           .input('newQuantity', sql.Int, quantity)
-          .input('setupBy', sql.NVarChar, setupBy)
           .query(`
             UPDATE current_inventory_stock 
             SET 
               current_quantity = @newQuantity,
-              available_quantity = @newQuantity - ISNULL(reserved_quantity, 0),
-              last_updated = GETDATE(),
-              updated_by = @setupBy
-            WHERE id = @inventoryId
+              available_quantity = @newQuantity,
+              updated_at = GETDATE()
+            WHERE id = @stockId
           `);
       } else {
         // Insert new record
-        const inventoryId = uuidv4();
         await transaction.request()
-          .input('inventoryId', sql.UniqueIdentifier, inventoryId)
           .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
           .input('quantity', sql.Int, quantity)
-          .input('setupBy', sql.NVarChar, setupBy)
           .query(`
             INSERT INTO current_inventory_stock (
-              id, item_master_id, current_quantity, available_quantity, reserved_quantity,
-              minimum_stock_level, maximum_stock_level, reorder_point,
-              last_updated, created_at, updated_by
+              id, item_master_id, current_quantity, available_quantity, created_at, updated_at
             ) VALUES (
-              @inventoryId, @itemMasterId, @quantity, @quantity, 0,
-              0, 0, 0,
-              GETDATE(), GETDATE(), @setupBy
+              NEWID(), @itemMasterId, @quantity, @quantity, GETDATE(), GETDATE()
             )
           `);
       }
@@ -2502,8 +2493,8 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
 
       insertedRecords.push({
         ItemMasterID: ItemMasterID,
-        ItemDescription: itemMaster.ItemDescription,
-        Unit: itemMaster.Unit,
+        ItemDescription: itemMaster.nomenclature,
+        Unit: itemMaster.unit,
         PreviousQuantity: currentQuantity,
         NewQuantity: quantity,
         Operation: operationType
@@ -3871,23 +3862,23 @@ app.get('/api/item-masters', async (req, res) => {
 
     const result = await pool.request().query(`
       SELECT 
-        id,
-        nomenclature,
-        item_code,
-        unit,
-        category_id,
-        sub_category_id,
-        specifications,
-        description,
-        minimum_stock_level,
-        reorder_point,
-        maximum_stock_level,
-        status,
-        created_at,
-        updated_at
-      FROM item_masters 
-      WHERE status != 'Deleted'
-      ORDER BY nomenclature
+        intOfficeID as id,
+        strItemMaster as nomenclature,
+        strItemCode as item_code,
+        strUnit as unit,
+        intCategoryID as category_id,
+        intSubCategoryID as sub_category_id,
+        strSpecification as specifications,
+        strDescription as description,
+        intMinimumStockLevel as minimum_stock_level,
+        intReorderPoint as reorder_point,
+        intMaximumStockLevel as maximum_stock_level,
+        CASE WHEN IS_ACT = 1 THEN 'Active' ELSE 'Inactive' END as status,
+        dtCreated as created_at,
+        dtLastUpdated as updated_at
+      FROM Item_MST 
+      WHERE IS_ACT = 1
+      ORDER BY strItemMaster
     `);
     res.json(result.recordset);
   } catch (error) {
@@ -4112,15 +4103,15 @@ app.get('/api/categories', async (req, res) => {
 
     const result = await pool.request().query(`
       SELECT 
-        id,
-        category_name,
-        description,
-        status,
-        created_at,
-        updated_at
-      FROM categories 
-      WHERE status != 'Deleted'
-      ORDER BY category_name
+        intOfficeID as id,
+        strCategoryName as category_name,
+        strDescription as description,
+        CASE WHEN IS_ACT = 1 THEN 'Active' ELSE 'Inactive' END as status,
+        dtCreated as created_at,
+        dtLastUpdated as updated_at
+      FROM Category_MST 
+      WHERE IS_ACT = 1
+      ORDER BY strCategoryName
     `);
     res.json(result.recordset);
   } catch (error) {
@@ -5115,6 +5106,470 @@ app.delete('/api/stores/:id', async (req, res) => {
   }
 });
 
+// ==============================================
+// INVENTORY DASHBOARD ENDPOINTS
+// ==============================================
+
+// Get inventory dashboard data
+app.get('/api/inventory/dashboard', async (req, res) => {
+  try {
+    if (!pool) {
+      // Return mock data when SQL Server is not connected
+      return res.json({
+        success: true,
+        data: {
+          items: [],
+          stats: {
+            totalItems: 0,
+            totalStockValue: 0,
+            lowStockItems: 0,
+            outOfStockItems: 0,
+            normalStockItems: 0,
+            overstockItems: 0
+          }
+        }
+      });
+    }
+
+    // Get all inventory items with proper joins
+    const result = await pool.request().query(`
+      SELECT TOP 1000
+        im.id,
+        im.nomenclature as itemName,
+        im.item_code as itemCode,
+        COALESCE(cis.current_quantity, 0) as currentStock,
+        COALESCE(im.minimum_stock_level, 0) as minimumStock,
+        COALESCE(im.maximum_stock_level, 0) as maximumStock,
+        COALESCE(im.reorder_point, 0) as reorderLevel,
+        im.unit,
+        COALESCE(s.store_name, 'Main Store') as location,
+        COALESCE(c.category_name, 'General') as category,
+        COALESCE(sc.sub_category_name, 'General') as subCategory,
+        COALESCE(cis.last_updated, im.updated_at, GETDATE()) as lastUpdated,
+        'Active' as status
+      FROM item_masters im
+      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+      LEFT JOIN stores s ON cis.store_id = s.id
+      LEFT JOIN categories c ON im.category_id = c.id
+      LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
+      WHERE im.is_active = 1
+      ORDER BY COALESCE(cis.current_quantity, 0) DESC
+    `);
+
+    const items = result.recordset.map(item => ({
+      ...item,
+      lastUpdated: new Date(item.lastUpdated).toISOString()
+    }));
+
+    // Calculate statistics
+    const stats = {
+      totalItems: items.length,
+      totalStockValue: items.reduce((sum, item) => sum + (item.currentStock * 100), 0), // Mock value calculation
+      lowStockItems: items.filter(item => 
+        item.currentStock <= item.minimumStock && item.minimumStock > 0
+      ).length,
+      outOfStockItems: items.filter(item => item.currentStock <= 0).length,
+      normalStockItems: items.filter(item => 
+        item.currentStock > item.minimumStock && 
+        item.currentStock <= (item.maximumStock || 999999)
+      ).length,
+      overstockItems: items.filter(item => 
+        item.maximumStock > 0 && item.currentStock > item.maximumStock
+      ).length
+    };
+
+    res.json({
+      success: true,
+      data: { items, stats }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching inventory dashboard data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch inventory dashboard data',
+      error: error.message
+    });
+  }
+});
+
+// Get low stock items
+app.get('/api/inventory/low-stock', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const result = await pool.request().query(`
+      SELECT TOP 50
+        im.id,
+        im.nomenclature as itemName,
+        im.item_code as itemCode,
+        COALESCE(cis.current_quantity, 0) as currentStock,
+        COALESCE(im.minimum_stock_level, 0) as minimumStock,
+        COALESCE(im.reorder_point, 0) as reorderLevel,
+        im.unit,
+        COALESCE(s.store_name, 'Main Store') as location,
+        'Active' as status
+      FROM item_masters im
+      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+      LEFT JOIN stores s ON cis.store_id = s.id
+      WHERE im.is_active = 1 
+        AND (
+          COALESCE(cis.current_quantity, 0) <= COALESCE(im.minimum_stock_level, 0)
+          OR COALESCE(cis.current_quantity, 0) <= COALESCE(im.reorder_point, 0)
+        )
+        AND COALESCE(im.minimum_stock_level, 0) > 0
+      ORDER BY COALESCE(cis.current_quantity, 0) ASC
+    `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching low stock items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch low stock items',
+      error: error.message
+    });
+  }
+});
+
+// Get items needing reorder
+app.get('/api/inventory/reorder', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const result = await pool.request().query(`
+      SELECT TOP 50
+        im.id,
+        im.nomenclature as itemName,
+        im.item_code as itemCode,
+        COALESCE(cis.current_quantity, 0) as currentStock,
+        COALESCE(im.minimum_stock_level, 0) as minimumStock,
+        COALESCE(im.reorder_point, 0) as reorderLevel,
+        im.unit,
+        COALESCE(s.store_name, 'Main Store') as location,
+        'Active' as status
+      FROM item_masters im
+      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+      LEFT JOIN stores s ON cis.store_id = s.id
+      WHERE im.is_active = 1 
+        AND COALESCE(im.reorder_point, 0) > 0
+        AND COALESCE(cis.current_quantity, 0) <= COALESCE(im.reorder_point, 0)
+      ORDER BY COALESCE(cis.current_quantity, 0) ASC
+    `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching reorder items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch reorder items',
+      error: error.message
+    });
+  }
+});
+
+// Get top items by stock quantity
+app.get('/api/inventory/top-items', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    if (!pool) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const result = await pool.request()
+      .input('limit', sql.Int, parseInt(limit))
+      .query(`
+        SELECT TOP (@limit)
+          im.id,
+          im.nomenclature as itemName,
+          im.item_code as itemCode,
+          COALESCE(cis.current_quantity, 0) as currentStock,
+          im.unit,
+          COALESCE(s.store_name, 'Main Store') as location,
+          'Active' as status
+        FROM item_masters im
+        LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+        LEFT JOIN stores s ON cis.store_id = s.id
+        WHERE im.is_active = 1
+        ORDER BY COALESCE(cis.current_quantity, 0) DESC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching top items:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch top items',
+      error: error.message
+    });
+  }
+});
+
+// ===================================
+// INVENTORY DASHBOARD ENDPOINTS
+// ===================================
+
+// Get inventory dashboard data
+app.get('/api/inventory/dashboard', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json({
+        success: false,
+        message: 'Database not connected',
+        data: { items: [], stats: { totalItems: 0, totalStockValue: 0, lowStockItems: 0, outOfStockItems: 0, normalStockItems: 0, overstockItems: 0 } }
+      });
+    }
+
+    // Get inventory items with stock information
+    const result = await pool.request().query(`
+      SELECT 
+        im.intOfficeID as id,
+        im.strItemMaster as itemName,
+        im.strItemCode as itemCode,
+        ISNULL(cs.intCurrentStock, 0) as currentStock,
+        ISNULL(im.intMinimumStockLevel, 0) as minimumStock,
+        ISNULL(im.intMaximumStockLevel, 0) as maximumStock,
+        ISNULL(im.intReorderPoint, 0) as reorderLevel,
+        im.strUnit as unit,
+        ISNULL(store.strStoreName, 'Main Store') as location,
+        ISNULL(cat.strCategoryName, 'General') as category,
+        ISNULL(subcat.strSubCategoryName, 'General') as subCategory,
+        im.dtLastUpdated as lastUpdated,
+        CASE 
+          WHEN im.IS_ACT = 1 THEN 'Active'
+          ELSE 'Inactive'
+        END as status
+      FROM Item_MST im
+      LEFT JOIN Current_Stock cs ON im.intOfficeID = cs.intItemMasterID
+      LEFT JOIN Store_MST store ON cs.intStoreID = store.intOfficeID
+      LEFT JOIN Category_MST cat ON im.intCategoryID = cat.intOfficeID
+      LEFT JOIN Sub_Category_MST subcat ON im.intSubCategoryID = subcat.intOfficeID
+      WHERE im.IS_ACT = 1
+      ORDER BY im.strItemMaster
+    `);
+
+    const items = result.recordset.map(item => ({
+      ...item,
+      currentStock: parseInt(item.currentStock) || 0,
+      minimumStock: parseInt(item.minimumStock) || 0,
+      maximumStock: parseInt(item.maximumStock) || 0,
+      reorderLevel: parseInt(item.reorderLevel) || 0,
+      lastUpdated: item.lastUpdated?.toISOString() || new Date().toISOString()
+    }));
+
+    // Calculate statistics
+    const totalItems = items.length;
+    const lowStockItems = items.filter(item => 
+      item.currentStock <= item.minimumStock && item.minimumStock > 0
+    ).length;
+    const outOfStockItems = items.filter(item => item.currentStock <= 0).length;
+    const normalStockItems = items.filter(item => 
+      item.currentStock > item.minimumStock && 
+      (item.maximumStock === 0 || item.currentStock <= item.maximumStock)
+    ).length;
+    const overstockItems = items.filter(item => 
+      item.maximumStock > 0 && item.currentStock > item.maximumStock
+    ).length;
+
+    const stats = {
+      totalItems,
+      totalStockValue: 0, // Would need price data to calculate
+      lowStockItems,
+      outOfStockItems,
+      normalStockItems,
+      overstockItems
+    };
+
+    res.json({
+      success: true,
+      data: { items, stats }
+    });
+
+  } catch (error) {
+    console.error('Error fetching inventory dashboard data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch inventory data',
+      data: { items: [], stats: { totalItems: 0, totalStockValue: 0, lowStockItems: 0, outOfStockItems: 0, normalStockItems: 0, overstockItems: 0 } }
+    });
+  }
+});
+
+// Get low stock items
+app.get('/api/inventory/low-stock', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const result = await pool.request().query(`
+      SELECT TOP 15
+        im.intOfficeID as id,
+        im.strItemMaster as itemName,
+        im.strItemCode as itemCode,
+        ISNULL(cs.intCurrentStock, 0) as currentStock,
+        ISNULL(im.intMinimumStockLevel, 0) as minimumStock,
+        im.strUnit as unit,
+        ISNULL(store.strStoreName, 'Main Store') as location,
+        'Low Stock' as status
+      FROM Item_MST im
+      LEFT JOIN Current_Stock cs ON im.intOfficeID = cs.intItemMasterID
+      LEFT JOIN Store_MST store ON cs.intStoreID = store.intOfficeID
+      WHERE im.IS_ACT = 1 
+        AND im.intMinimumStockLevel > 0
+        AND ISNULL(cs.intCurrentStock, 0) <= im.intMinimumStockLevel
+      ORDER BY cs.intCurrentStock ASC
+    `);
+
+    const items = result.recordset.map(item => ({
+      ...item,
+      currentStock: parseInt(item.currentStock) || 0,
+      minimumStock: parseInt(item.minimumStock) || 0,
+      lastUpdated: new Date().toISOString()
+    }));
+
+    res.json({ success: true, data: items });
+
+  } catch (error) {
+    console.error('Error fetching low stock items:', error);
+    res.json({ success: true, data: [] });
+  }
+});
+
+// Get items needing reorder
+app.get('/api/inventory/reorder', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const result = await pool.request().query(`
+      SELECT TOP 12
+        im.intOfficeID as id,
+        im.strItemMaster as itemName,
+        im.strItemCode as itemCode,
+        ISNULL(cs.intCurrentStock, 0) as currentStock,
+        ISNULL(im.intReorderPoint, 0) as reorderLevel,
+        im.strUnit as unit,
+        ISNULL(store.strStoreName, 'Main Store') as location,
+        'Reorder' as status
+      FROM Item_MST im
+      LEFT JOIN Current_Stock cs ON im.intOfficeID = cs.intItemMasterID
+      LEFT JOIN Store_MST store ON cs.intStoreID = store.intOfficeID
+      WHERE im.IS_ACT = 1 
+        AND im.intReorderPoint > 0
+        AND ISNULL(cs.intCurrentStock, 0) <= im.intReorderPoint
+      ORDER BY cs.intCurrentStock ASC
+    `);
+
+    const items = result.recordset.map(item => ({
+      ...item,
+      currentStock: parseInt(item.currentStock) || 0,
+      reorderLevel: parseInt(item.reorderLevel) || 0,
+      lastUpdated: new Date().toISOString()
+    }));
+
+    res.json({ success: true, data: items });
+
+  } catch (error) {
+    console.error('Error fetching reorder items:', error);
+    res.json({ success: true, data: [] });
+  }
+});
+
+// Get top items by stock quantity
+app.get('/api/inventory/top-items', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    if (!pool) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const result = await pool.request()
+      .input('limit', sql.Int, limit)
+      .query(`
+        SELECT TOP (@limit)
+          im.intOfficeID as id,
+          im.strItemMaster as itemName,
+          im.strItemCode as itemCode,
+          ISNULL(cs.intCurrentStock, 0) as currentStock,
+          im.strUnit as unit,
+          ISNULL(store.strStoreName, 'Main Store') as location,
+          'Active' as status
+        FROM Item_MST im
+        LEFT JOIN Current_Stock cs ON im.intOfficeID = cs.intItemMasterID
+        LEFT JOIN Store_MST store ON cs.intStoreID = store.intOfficeID
+        WHERE im.IS_ACT = 1
+        ORDER BY cs.intCurrentStock DESC
+      `);
+
+    const items = result.recordset.map(item => ({
+      ...item,
+      currentStock: parseInt(item.currentStock) || 0,
+      lastUpdated: new Date().toISOString()
+    }));
+
+    res.json({ success: true, data: items });
+
+  } catch (error) {
+    console.error('Error fetching top items:', error);
+    res.json({ success: true, data: [] });
+  }
+});
+
+// Get current stock for all items
+app.get('/api/inventory/current-stock', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json({ success: false, message: 'Database not connected', data: [] });
+    }
+
+    const result = await pool.request().query(`
+      SELECT 
+        cs.intOfficeID as id,
+        cs.intItemMasterID as item_master_id,
+        ISNULL(cs.intCurrentStock, 0) as current_quantity,
+        cs.dtLastUpdated as last_updated,
+        im.strItemMaster as item_name,
+        im.strUnit as unit
+      FROM Current_Stock cs
+      INNER JOIN Item_MST im ON cs.intItemMasterID = im.intOfficeID
+      WHERE cs.IS_ACT = 1 AND im.IS_ACT = 1
+      ORDER BY im.strItemMaster
+    `);
+
+    const stockData = result.recordset.map(item => ({
+      ...item,
+      current_quantity: parseInt(item.current_quantity) || 0,
+      last_updated: item.last_updated?.toISOString() || new Date().toISOString()
+    }));
+
+    res.json({ success: true, data: stockData });
+
+  } catch (error) {
+    console.error('Error fetching current stock:', error);
+    res.json({ success: false, message: 'Failed to fetch current stock', data: [] });
+  }
+});
+
 // Start server
 async function startServer() {
   try {
@@ -5127,6 +5582,7 @@ async function startServer() {
       console.log(`🔗 Database: ${sqlConfig.database} on ${sqlConfig.server}`);
       console.log(`📁 Upload directory: ${uploadsDir}`);
       console.log('🚀 Tender form with complete field mapping ready!');
+      console.log('📊 Inventory Dashboard endpoints added!');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);

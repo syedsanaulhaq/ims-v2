@@ -23,7 +23,7 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
-import { InventoryService, type InventoryItem, type InventoryStats } from '@/services/inventoryService';
+import { InventoryService, type InventoryItem, type InventoryStats } from '@/services/inventoryServiceSqlServer';
 
 interface ExtendedInventoryStats extends InventoryStats {
   totalStockQty: number;
@@ -50,11 +50,11 @@ const InventoryDashboard: React.FC = () => {
 
       const extendedStats: ExtendedInventoryStats = {
         ...result.stats,
-        totalStockQty: inventoryItems.reduce((sum, item) => sum + item.current_stock, 0),
+        totalStockQty: inventoryItems.reduce((sum, item) => sum + item.currentStock, 0),
         itemsBelowMinimum: inventoryItems.filter(item => {
-          const currentStock = item.current_stock;
-          const minLevel = item.minimum_stock_level;
-          const reorderLevel = item.reorder_point;
+          const currentStock = item.currentStock;
+          const minLevel = item.minimumStock;
+          const reorderLevel = item.reorderLevel || 0;
           
           return (
             currentStock <= 0 ||
@@ -64,9 +64,9 @@ const InventoryDashboard: React.FC = () => {
           );
         }).length,
         itemsNeedingReorder: inventoryItems.filter(item => {
-          const currentStock = item.current_stock;
-          const reorderLevel = item.reorder_point;
-          const minLevel = item.minimum_stock_level;
+          const currentStock = item.currentStock;
+          const reorderLevel = item.reorderLevel || 0;
+          const minLevel = item.minimumStock;
           
           return (
             currentStock <= 0 ||
@@ -78,15 +78,15 @@ const InventoryDashboard: React.FC = () => {
       setStats(extendedStats);
 
       const topItemsData = inventoryItems
-        .sort((a, b) => b.current_stock - a.current_stock)
+        .sort((a, b) => b.currentStock - a.currentStock)
         .slice(0, 10);
       setTopItems(topItemsData);
 
       const lowStockData = inventoryItems
         .filter(item => {
-          const currentStock = item.current_stock;
-          const minLevel = item.minimum_stock_level;
-          const reorderLevel = item.reorder_point;
+          const currentStock = item.currentStock;
+          const minLevel = item.minimumStock;
+          const reorderLevel = item.reorderLevel || 0;
           
           return (
             currentStock <= 0 ||
@@ -95,15 +95,15 @@ const InventoryDashboard: React.FC = () => {
             (minLevel > 0 && currentStock < (minLevel * 1.2))
           );
         })
-        .sort((a, b) => a.current_stock - b.current_stock)
+        .sort((a, b) => a.currentStock - b.currentStock)
         .slice(0, 15);
       setLowStockItems(lowStockData);
 
       const reorderData = inventoryItems
         .filter(item => {
-          const currentStock = item.current_stock;
-          const reorderLevel = item.reorder_point;
-          const minLevel = item.minimum_stock_level;
+          const currentStock = item.currentStock;
+          const reorderLevel = item.reorderLevel || 0;
+          const minLevel = item.minimumStock;
           
           return (
             currentStock <= 0 ||
@@ -111,7 +111,7 @@ const InventoryDashboard: React.FC = () => {
             (minLevel > 0 && currentStock <= minLevel)
           );
         })
-        .sort((a, b) => a.current_stock - b.current_stock)
+        .sort((a, b) => a.currentStock - b.currentStock)
         .slice(0, 12);
       setReorderItems(reorderData);
 
@@ -120,10 +120,11 @@ const InventoryDashboard: React.FC = () => {
       
       setStats({
         totalItems: 0,
-        totalValue: 0,
-        activeItems: 0,
+        totalStockValue: 0,
         lowStockItems: 0,
-        noStockItems: 0,
+        outOfStockItems: 0,
+        normalStockItems: 0,
+        overstockItems: 0,
         totalStockQty: 0,
         itemsBelowMinimum: 0,
         itemsNeedingReorder: 0
@@ -185,8 +186,8 @@ const InventoryDashboard: React.FC = () => {
 
   const getTopItemsChartData = () => {
     return topItems.slice(0, 10).map(item => ({
-      name: item.item_name.length > 15 ? item.item_name.substring(0, 15) + '...' : item.item_name,
-      stock: item.current_stock
+      name: item.itemName.length > 15 ? item.itemName.substring(0, 15) + '...' : item.itemName,
+      stock: item.currentStock
     }));
   };
 
@@ -221,7 +222,7 @@ const InventoryDashboard: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{formatNumber(stats.totalItems)}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.activeItems} active items
+              {stats.normalStockItems} normal stock items
             </p>
           </CardContent>
         </Card>
@@ -322,9 +323,9 @@ const InventoryDashboard: React.FC = () => {
                   {lowStockItems.slice(0, 10).map((item, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
                       <div className="flex-1">
-                        <div className="font-medium text-sm truncate">{item.item_name}</div>
+                        <div className="font-medium text-sm truncate">{item.itemName}</div>
                         <div className="text-xs text-gray-600">
-                          Current: {item.current_stock} | Min: {item.minimum_stock_level}
+                          Current: {item.currentStock} | Min: {item.minimumStock}
                         </div>
                       </div>
                       <Badge variant="secondary" className="bg-orange-100 text-orange-800">
@@ -354,9 +355,9 @@ const InventoryDashboard: React.FC = () => {
                   {reorderItems.slice(0, 10).map((item, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
                       <div className="flex-1">
-                        <div className="font-medium text-sm truncate">{item.item_name}</div>
+                        <div className="font-medium text-sm truncate">{item.itemName}</div>
                         <div className="text-xs text-gray-600">
-                          Stock: {item.current_stock} | Reorder at: {item.reorder_point}
+                          Stock: {item.currentStock} | Reorder at: {item.reorderLevel || 'N/A'}
                         </div>
                       </div>
                       <Badge variant="destructive">
