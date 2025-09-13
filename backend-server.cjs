@@ -2470,7 +2470,7 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
             SET 
               current_quantity = @newQuantity,
               available_quantity = @newQuantity,
-              updated_at = GETDATE()
+              last_updated = GETDATE()
             WHERE id = @stockId
           `);
       } else {
@@ -2480,9 +2480,13 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
           .input('quantity', sql.Int, quantity)
           .query(`
             INSERT INTO current_inventory_stock (
-              id, item_master_id, current_quantity, available_quantity, created_at, updated_at
+              id, item_master_id, current_quantity, available_quantity, reserved_quantity,
+              minimum_stock_level, maximum_stock_level, reorder_point,
+              created_at, last_updated
             ) VALUES (
-              NEWID(), @itemMasterId, @quantity, @quantity, GETDATE(), GETDATE()
+              NEWID(), @itemMasterId, @quantity, @quantity, 0,
+              0, 0, 0,
+              GETDATE(), GETDATE()
             )
           `);
       }
