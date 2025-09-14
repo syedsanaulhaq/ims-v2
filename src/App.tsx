@@ -51,6 +51,14 @@ import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
 import SimpleApiTest from "./components/testing/SimpleApiTest";
 
+// New ERP Modules
+import InvMISDashboard from "./pages/InvMISDashboard";
+import UserManagement from "./pages/UserManagement";
+import InventoryManagement from "./pages/InventoryManagement";
+import TenderManagement from "./pages/TenderManagement";
+import ReportsAnalytics from "./pages/ReportsAnalytics";
+import InvMISWelcomePage from "./pages/InvMISWelcomePage";
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -67,6 +75,7 @@ function App() {
                 {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/api-test" element={<SimpleApiTest />} />
+                <Route path="/welcome" element={<InvMISWelcomePage />} />
                 
                 {/* Protected routes */}
                 <Route path="/" element={
@@ -78,6 +87,37 @@ function App() {
                 <Route path="/user-dashboard" element={
                   <ProtectedRoute>
                     <UserDashboard />
+                  </ProtectedRoute>
+                } />
+                
+                {/* New ERP Modules */}
+                <Route path="/invmis-dashboard" element={
+                  <ProtectedRoute>
+                    <InvMISDashboard />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/user-management" element={
+                  <ProtectedRoute allowedRoles={['Admin', 'Manager']}>
+                    <UserManagement />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/inventory-management" element={
+                  <ProtectedRoute>
+                    <InventoryManagement />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/tender-management" element={
+                  <ProtectedRoute>
+                    <TenderManagement />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/reports-analytics" element={
+                  <ProtectedRoute>
+                    <ReportsAnalytics />
                   </ProtectedRoute>
                 } />
                 

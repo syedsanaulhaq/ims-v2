@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "backend": "node backend-server.cjs",
-    "invmis-api": "node invmis-api.cjs",
+    "invmis-api": "node invmis-demo-api.cjs",
     "dev:full": "concurrently --names \"API,FRONTEND\" --prefix-colors \"blue,green\" \"npm run invmis-api\" \"npm run dev\"",
     "dev:invmis": "concurrently --names \"API,FRONTEND\" --prefix-colors \"blue,green\" \"npm run invmis-api\" \"npm run dev\"",
     "dev:clean": "taskkill /f /im node.exe 2>nul & npm run dev:full",

@@ -784,7 +784,39 @@ app.get('/api/dashboard/summary', async (req, res) => {
 });
 
 // ====================================================================
-// 🌐 START SERVER
+// � HEALTH CHECK ENDPOINT
+// ====================================================================
+
+// Health check for Docker and load balancers
+app.get('/api/health', async (req, res) => {
+    try {
+        // Check database connection
+        await sql.query`SELECT 1 as health_check`;
+        
+        res.status(200).json({
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            database: 'connected',
+            service: 'InvMIS API',
+            version: '1.0.0'
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'unhealthy',
+            timestamp: new Date().toISOString(),
+            database: 'disconnected',
+            error: error.message
+        });
+    }
+});
+
+// Basic health endpoint (for simple monitoring)
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+// ====================================================================
+// �🌐 START SERVER
 // ====================================================================
 
 const PORT = process.env.PORT || 5000;

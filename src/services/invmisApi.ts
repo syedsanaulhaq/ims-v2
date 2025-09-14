@@ -4,7 +4,33 @@
 // This replaces all Supabase services with new SQL Server API calls
 // ====================================================================
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// Environment-based API URL configuration
+const getApiBaseUrl = () => {
+  // Check if running on staging port (8081)
+  const currentPort = window.location.port;
+  const isStaging = currentPort === '8081' || window.location.hostname.includes('staging');
+  
+  // Environment-based URL selection
+  if (isStaging) {
+    return 'http://localhost:5001/api';  // Staging API
+  }
+  
+  // Check for environment variable
+  if (import.meta.env.VITE_API_URL) {
+    return `${import.meta.env.VITE_API_URL}/api`;
+  }
+  
+  // Default to development
+  return 'http://localhost:5000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🚀 InvMIS API Configuration:', {
+  baseUrl: API_BASE_URL,
+  environment: window.location.port === '8081' ? 'STAGING' : 'DEVELOPMENT',
+  port: window.location.port
+});
 
 // Enhanced error handling
 class ApiError extends Error {

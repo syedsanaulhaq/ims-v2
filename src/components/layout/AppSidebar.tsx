@@ -59,7 +59,37 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       hasSubmenu: false
     },
     {
-      title: "Inv. Dashboard",
+      title: "InvMIS Dashboard",
+      icon: BarChart3,
+      path: "/invmis-dashboard",
+      hasSubmenu: false
+    },
+    {
+      title: "User Management",
+      icon: Database,
+      path: "/user-management",
+      hasSubmenu: false
+    },
+    {
+      title: "Inventory Manager",
+      icon: Package,
+      path: "/inventory-management",
+      hasSubmenu: false
+    },
+    {
+      title: "Tender Manager",
+      icon: Gavel,
+      path: "/tender-management",
+      hasSubmenu: false
+    },
+    {
+      title: "Reports & Analytics",
+      icon: TrendingUp,
+      path: "/reports-analytics",
+      hasSubmenu: false
+    },
+    {
+      title: "Legacy Dashboard",
       icon: BarChart3,
       path: "/dashboard",
       hasSubmenu: false
