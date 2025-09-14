@@ -1,51 +1,93 @@
 
 import { ApiResponse } from './api';
-import { categoriesSupabaseService } from './categoriesSupabaseService';
+import { invmisApi } from './invmisApi';
 import { Category, SubCategory, CategoriesResponse } from '@/hooks/useCategoriesData';
 
-// Categories now use Supabase for all CRUD operations
+// Categories now use InvMISDB API for all operations
 export const categoriesApi = {
-  // Get all categories and subcategories - Use Supabase
+  // Get all categories and subcategories - Use InvMIS API
   getCategories: async (): Promise<ApiResponse<CategoriesResponse>> => {
-    
-    return await categoriesSupabaseService.getCategories();
+    try {
+      const [categoriesRes, subCategoriesRes] = await Promise.all([
+        invmisApi.categories.getAll(),
+        invmisApi.subcategories.getAll()
+      ]);
+
+      // Transform InvMIS API response to match expected format
+      const categories: Category[] = categoriesRes.success 
+        ? categoriesRes.categories.map(cat => ({
+            id: cat.id,
+            name: cat.category_name,
+            description: cat.description || '',
+            status: (cat.status === 'Active' ? 'Active' : 'Inactive') as 'Active' | 'Inactive',
+            createdDate: cat.created_at,
+          }))
+        : [];
+
+      const subCategories: SubCategory[] = subCategoriesRes.success
+        ? subCategoriesRes.subcategories.map(sub => ({
+            id: sub.subcategory_id,
+            categoryId: sub.category_id,
+            name: sub.sub_category_name,
+            description: sub.description || '',
+            status: (sub.status === 'Active' ? 'Active' : 'Inactive') as 'Active' | 'Inactive',
+            createdDate: new Date().toISOString(), // InvMIS SubCategory doesn't have created_at
+          }))
+        : [];
+
+      return {
+        data: { categories, subCategories },
+        success: true,
+      };
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return {
+        data: { categories: [], subCategories: [] },
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to fetch categories'
+      };
+    }
   },
 
-  // (All CRUD methods are defined above. Duplicate methods removed.)
-
-  // Create category - Use Supabase
+  // Create category - Use InvMIS API (placeholder - will need backend implementation)
   createCategory: async (category: Omit<Category, 'id' | 'createdDate' | 'status'>): Promise<ApiResponse<Category>> => {
-    
-    return await categoriesSupabaseService.createCategory(category);
+    // TODO: Implement in InvMIS API backend
+    console.log('Create category - needs backend implementation:', category);
+    return { data: {} as Category, success: false, message: 'Not yet implemented' };
   },
 
-  // Update category - Use Supabase
+  // Update category - Use InvMIS API (placeholder - will need backend implementation)
   updateCategory: async (category: Category): Promise<ApiResponse<Category>> => {
-    
-    return await categoriesSupabaseService.updateCategory(category);
+    // TODO: Implement in InvMIS API backend
+    console.log('Update category - needs backend implementation:', category);
+    return { data: category, success: false, message: 'Not yet implemented' };
   },
 
-  // Create subcategory - Use Supabase
+  // Create subcategory - Use InvMIS API (placeholder - will need backend implementation)
   createSubCategory: async (subCategory: Omit<SubCategory, 'id' | 'createdDate' | 'status'>): Promise<ApiResponse<SubCategory>> => {
-    
-    return await categoriesSupabaseService.createSubCategory(subCategory);
+    // TODO: Implement in InvMIS API backend
+    console.log('Create subcategory - needs backend implementation:', subCategory);
+    return { data: {} as SubCategory, success: false, message: 'Not yet implemented' };
   },
 
-  // Update subcategory - Use Supabase
+  // Update subcategory - Use InvMIS API (placeholder - will need backend implementation)
   updateSubCategory: async (subCategory: SubCategory): Promise<ApiResponse<SubCategory>> => {
-    
-    return await categoriesSupabaseService.updateSubCategory(subCategory);
+    // TODO: Implement in InvMIS API backend
+    console.log('Update subcategory - needs backend implementation:', subCategory);
+    return { data: subCategory, success: false, message: 'Not yet implemented' };
   },
 
-  // Delete category - Use Supabase
+  // Delete category - Use InvMIS API (placeholder - will need backend implementation)
   deleteCategory: async (categoryId: string): Promise<ApiResponse<null>> => {
-    
-    return await categoriesSupabaseService.deleteCategory(categoryId);
+    // TODO: Implement in InvMIS API backend
+    console.log('Delete category - needs backend implementation:', categoryId);
+    return { data: null, success: false, message: 'Not yet implemented' };
   },
 
-  // Delete subcategory - Use Supabase
+  // Delete subcategory - Use InvMIS API (placeholder - will need backend implementation)
   deleteSubCategory: async (subCategoryId: string): Promise<ApiResponse<null>> => {
-    
-    return await categoriesSupabaseService.deleteSubCategory(subCategoryId);
+    // TODO: Implement in InvMIS API backend
+    console.log('Delete subcategory - needs backend implementation:', subCategoryId);
+    return { data: null, success: false, message: 'Not yet implemented' };
   },
 };

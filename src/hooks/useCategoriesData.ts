@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { categoriesApi } from '@/services/categoriesApi';
+import { invmisApi } from '@/services/invmisApi';
 
 export interface Category {
   id: string;
@@ -39,7 +39,7 @@ export const useCategoriesData = () => {
     queryKey: ['categories'],
     queryFn: async () => {
       
-      const response = await categoriesApi.getCategories();
+      const response = await invmisApi.categories.getAll();
 
       return response;
     },
@@ -59,15 +59,32 @@ export const useCategoriesData = () => {
     );
   }
 
-  // Try to extract from .data or directly
-  const raw = categoriesData?.data ?? categoriesData;
-  if (isCategoriesResponse(raw)) {
-    categories = raw.categories;
-    subCategories = raw.subCategories;
+  // Try to extract from InvMIS API response
+  if (categoriesData?.success) {
+    // Map API categories to local interface
+    categories = (categoriesData.categories || []).map(cat => ({
+      id: cat.id,
+      name: cat.category_name,
+      description: cat.description,
+      status: cat.status as 'Active' | 'Inactive',
+      createdDate: cat.created_at,
+      updatedDate: cat.created_at
+    }));
+    
+    // Map API subcategories to local interface
+    subCategories = (categoriesData.subCategories || []).map(subCat => ({
+      id: subCat.subcategory_id,
+      categoryId: subCat.category_id,
+      name: subCat.sub_category_name,
+      description: subCat.description,
+      status: subCat.status as 'Active' | 'Inactive',
+      createdDate: new Date().toISOString(),
+      updatedDate: new Date().toISOString()
+    }));
   }
 
   const createCategoryMutation = useMutation({
-    mutationFn: categoriesApi.createCategory,
+    mutationFn: invmisApi.categories.create,
     onSuccess: (response) => {
       
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -78,7 +95,7 @@ export const useCategoriesData = () => {
   });
 
   const updateCategoryMutation = useMutation({
-    mutationFn: categoriesApi.updateCategory,
+    mutationFn: ({ id, data }: { id: string; data: any }) => invmisApi.categories.update(id, data),
     onSuccess: (response) => {
       
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -89,7 +106,7 @@ export const useCategoriesData = () => {
   });
 
   const createSubCategoryMutation = useMutation({
-    mutationFn: categoriesApi.createSubCategory,
+    mutationFn: invmisApi.categories.createSubCategory,
     onSuccess: (response) => {
       
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -100,7 +117,7 @@ export const useCategoriesData = () => {
   });
 
   const updateSubCategoryMutation = useMutation({
-    mutationFn: categoriesApi.updateSubCategory,
+    mutationFn: ({ id, data }: { id: string; data: any }) => invmisApi.categories.updateSubCategory(id, data),
     onSuccess: (response) => {
       
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -111,7 +128,7 @@ export const useCategoriesData = () => {
   });
 
   const deleteCategoryMutation = useMutation({
-    mutationFn: categoriesApi.deleteCategory,
+    mutationFn: invmisApi.categories.delete,
     onSuccess: (response) => {
       
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -122,7 +139,7 @@ export const useCategoriesData = () => {
   });
 
   const deleteSubCategoryMutation = useMutation({
-    mutationFn: categoriesApi.deleteSubCategory,
+    mutationFn: invmisApi.categories.deleteSubCategory,
     onSuccess: (response) => {
       
       queryClient.invalidateQueries({ queryKey: ['categories'] });

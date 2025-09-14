@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Legend } from 'recharts';
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { invmisApi } from "@/services/invmisApi";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -53,46 +54,47 @@ const Dashboard = () => {
       try {
         setDataLoading(true);
         
-        // Fetch all data in parallel
+        // Fetch all data in parallel using new InvMIS API
         const [
           tendersRes,
           deliveriesRes,
-          stockIssuanceRes,
+          procurementRes,
           inventoryStockRes,
-          inventoryStatsRes,
+          dashboardSummaryRes,
           officesRes,
           usersRes,
           wingsRes
         ] = await Promise.all([
-          fetch('http://localhost:3001/api/tenders').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/deliveries').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/stock-issuance/requests').then(res => res.ok ? res.json() : []).catch(() => []),
-          fetch('http://localhost:3001/api/inventory/current-stock').then(res => res.ok ? res.json() : { data: [] }),
-          fetch('http://localhost:3001/api/inventory/dashboard-stats').then(res => res.ok ? res.json() : null).catch(() => null),
-          fetch('http://localhost:3001/api/offices').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/users').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/wings').then(res => res.ok ? res.json() : [])
+          invmisApi.tenders.getAwards().catch(() => ({ success: false, awards: [] })),
+          invmisApi.deliveries.getAll().catch(() => ({ success: false, deliveries: [] })),
+          invmisApi.procurement.getRequests().catch(() => ({ success: false, requests: [] })),
+          invmisApi.stock.getCurrent().catch(() => ({ success: false, stock: [] })),
+          invmisApi.dashboard.getSummary().catch(() => null),
+          invmisApi.offices.getAll().catch(() => ({ success: false, offices: [] })),
+          invmisApi.users.getAll().catch(() => ({ success: false, users: [] })),
+          invmisApi.wings.getAll().catch(() => ({ success: false, wings: [] }))
         ]);
 
-        console.log('Dashboard data loaded:', {
-          tenders: tendersRes?.length || 0,
-          deliveries: deliveriesRes?.length || 0,
-          stockRequests: stockIssuanceRes?.length || 0,
-          inventoryItems: inventoryStockRes?.data?.length || 0,
-          inventoryStats: inventoryStatsRes?.success ? 'loaded' : 'failed',
-          offices: officesRes?.length || 0,
-          users: usersRes?.length || 0,
-          wings: wingsRes?.length || 0
+        console.log('Dashboard data loaded from InvMIS API:', {
+          tenders: tendersRes?.awards?.length || 0,
+          deliveries: deliveriesRes?.deliveries?.length || 0,
+          procurementRequests: procurementRes?.requests?.length || 0,
+          inventoryItems: inventoryStockRes?.stock?.length || 0,
+          dashboardSummary: dashboardSummaryRes ? 'loaded' : 'failed',
+          offices: officesRes?.offices?.length || 0,
+          users: usersRes?.users?.length || 0,
+          wings: wingsRes?.wings?.length || 0
         });
 
-        setTenders(Array.isArray(tendersRes) ? tendersRes : []);
-        setDeliveries(Array.isArray(deliveriesRes) ? deliveriesRes : []);
-        setStockIssuanceRequests(Array.isArray(stockIssuanceRes) ? stockIssuanceRes : (stockIssuanceRes?.data ? stockIssuanceRes.data : []));
-        setInventoryStock(inventoryStockRes?.data || []);
-        setInventoryStats(inventoryStatsRes?.success ? inventoryStatsRes : null);
-        setOffices(Array.isArray(officesRes) ? officesRes : []);
-        setUsers(Array.isArray(usersRes) ? usersRes : []);
-        setWings(Array.isArray(wingsRes) ? wingsRes : []);
+        // Update state with new API response format
+        setTenders(tendersRes?.success ? tendersRes.awards : []);
+        setDeliveries(deliveriesRes?.success ? deliveriesRes.deliveries : []);
+        setStockIssuanceRequests(procurementRes?.success ? procurementRes.requests : []);
+        setInventoryStock(inventoryStockRes?.success ? inventoryStockRes.stock : []);
+        setInventoryStats(dashboardSummaryRes || null);
+        setOffices(officesRes?.success ? officesRes.offices : []);
+        setUsers(usersRes?.success ? usersRes.users : []);
+        setWings(wingsRes?.success ? wingsRes.wings : []);
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);

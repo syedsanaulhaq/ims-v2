@@ -49,6 +49,7 @@ import StockOperations from "./pages/StockOperations";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
+import SimpleApiTest from "./components/testing/SimpleApiTest";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,7 @@ function App() {
                 <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/api-test" element={<SimpleApiTest />} />
                 
                 {/* Protected routes */}
                 <Route path="/" element={

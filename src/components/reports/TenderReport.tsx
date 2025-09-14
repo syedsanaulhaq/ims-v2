@@ -20,6 +20,7 @@ import {
   Package,
   Tag
 } from "lucide-react";
+import { invmisApi } from '@/services/invmisApi';
 
 interface TenderData {
   id: string;
@@ -61,14 +62,13 @@ const TenderReport: React.FC = () => {
 
       try {
         setIsLoading(true);
-        const response = await fetch(`http://localhost:3001/api/view-tenders/${id}`);
+        const response = await invmisApi.tenders.getById(id);
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.success) {
+          throw new Error('Failed to fetch tender data');
         }
         
-        const data = await response.json();
-        setTenderData(data);
+        setTenderData(response.tender);
       } catch (err) {
         console.error('Error fetching tender data:', err);
         setError('Failed to load tender data');

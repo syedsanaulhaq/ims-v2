@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { invmisApi } from "@/services/invmisApi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateDMY } from '@/utils/dateUtils';
@@ -34,23 +35,31 @@ const ProcurementDetails = () => {
   const [activeTab, setActiveTab] = useState('tenders'); // tenders, deliveries
   const [finalizingDeliveries, setFinalizingDeliveries] = useState<Set<string>>(new Set());
 
-  // Fetch procurement data
+  // Fetch procurement data from InvMIS API
   useEffect(() => {
     const fetchProcurementData = async () => {
       try {
         setDataLoading(true);
         const [tendersResponse, deliveriesResponse] = await Promise.all([
-          fetch('http://localhost:3001/api/tenders'),
-          fetch('http://localhost:3001/api/deliveries')
+          invmisApi.tenders.getAwards(),
+          invmisApi.deliveries.getAll()
         ]);
         
-        const tendersData = await tendersResponse.json();
-        const deliveriesData = await deliveriesResponse.json();
+        // Handle InvMIS API response format
+        const tendersData = tendersResponse?.success ? tendersResponse.awards : [];
+        const deliveriesData = deliveriesResponse?.success ? deliveriesResponse.deliveries : [];
         
         setTenders(Array.isArray(tendersData) ? tendersData : []);
         setDeliveries(Array.isArray(deliveriesData) ? deliveriesData : []);
+        
+        console.log('Procurement data loaded:', {
+          tenders: tendersData.length,
+          deliveries: deliveriesData.length
+        });
       } catch (error) {
         console.error('Error fetching procurement data:', error);
+        setTenders([]);
+        setDeliveries([]);
       } finally {
         setDataLoading(false);
       }

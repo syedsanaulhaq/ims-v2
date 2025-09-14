@@ -1,12 +1,22 @@
+// ====================================================================
+// 🚀 Inventory API Service - InvMISDB Based
+// ====================================================================
+// Replaces Supabase inventory service with InvMIS API calls
+// ====================================================================
+
 import { ApiResponse } from './api';
-import { inventorySupabaseService } from './inventorySupabaseService';
+import { invmisApi, type CurrentStock, type DashboardSummary, type StockTransaction as InvMISStockTransaction } from './invmisApi';
 import { InventoryItem, Vendor, Transaction, StockTransaction } from '@/hooks/useInventoryData';
+
+// ====================================================================
+// 📊 Types & Interfaces 
+// ====================================================================
 
 export interface InventoryStats {
   totalItems: number;
   lowStockItems: number;
-  totalVendors: number;
-  thisMonthPurchases: number;
+  totalRequests: number;
+  pendingApprovals: number;
 }
 
 export interface Category {
@@ -21,207 +31,248 @@ export interface Office {
   type: string;
 }
 
-// Normalized: Only inventory-specific fields, reference item master by ID
 export interface CreateInventoryItemRequest {
-  itemMasterId: string;
-  currentStock: number;
-  minimumStock: number;
-  maximumStock?: number;
-  reorderLevel?: number;
-  vendorId?: string;
-  itemType?: string;
-  status?: string;
-  description?: string;
-  storeId: string; // Use storeId instead of location
+  itemId: number;
+  currentQuantity: number;
+  minimumLevel: number;
+  maximumLevel?: number;
+  updatedBy: string;
 }
 
 export interface UpdateInventoryItemRequest {
-  id: string;
-  itemMasterId: string;
-  currentStock: number;
-  minimumStock: number;
-  maximumStock?: number;
-  reorderLevel?: number;
-  vendorId?: string;
-  itemType?: string;
-  status?: string;
-  description?: string;
-  storeId?: string; // Use storeId instead of location
+  stockId: number;
+  itemId: number;
+  currentQuantity: number;
+  minimumLevel: number;
+  maximumLevel?: number;
+  updatedBy: string;
 }
 
 export interface CreateStockTransactionRequest {
-  items: any[];
-  vendorId: string;
-  vendorName: string;
-  procurementProcedure: string;
-  transactionDate: string;
-  totalAmount: number;
-  status: string;
+  itemId: number;
+  transactionType: string;
+  quantityChange: number;
+  reason: string;
   createdBy: string;
-  remarks: string;
-}
-
-export interface UpdateStockTransactionRequest {
-  items?: any[];
-  vendorId?: string;
-  vendorName?: string;
-  procurementProcedure?: string;
-  transactionDate?: string;
-  totalAmount?: number;
-  status?: string;
-  remarks?: string;
 }
 
 export type StockTransactionStatus = 'Pending' | 'Completed' | 'Verified';
 
+// ====================================================================
+// 🔄 Data Transformation Functions
+// ====================================================================
+
+const transformCurrentStockToInventoryItem = (stock: CurrentStock): InventoryItem => ({
+  id: stock.stock_id.toString(),
+  itemMasterId: stock.item_id.toString(),
+  currentStock: stock.current_quantity,
+  minimumStock: stock.minimum_level,
+  maximumStock: stock.maximum_level,
+  reorderLevel: stock.minimum_level,
+  location: 'Main Store', // InvMIS doesn't have store location yet
+  storeId: '1', // Default store ID
+  vendorId: undefined,
+  status: stock.stock_status === 'Normal' ? 'Active' : 'Alert',
+  itemType: 'General', // Default type
+  // Note: name, unit, category info comes from ItemMaster join, not stored in InventoryItem
+});
+
+const transformInvMISStockTransaction = (tx: InvMISStockTransaction): StockTransaction => ({
+  id: tx.transaction_id.toString(),
+  transactionNo: `TXN-${tx.transaction_id}`,
+  vendorId: 'unknown', // InvMIS StockTransaction doesn't have vendor info
+  vendorName: 'System', // Default vendor
+  procurementProcedure: 'Manual', // Default procedure
+  transactionDate: tx.transaction_date,
+  totalAmount: 0, // InvMIS doesn't track amounts in StockTransaction
+  status: 'Completed' as const, // Default status
+  createdBy: tx.created_by,
+  createdAt: tx.transaction_date,
+  items: [], // Would need to be populated separately
+  remarks: tx.reason || '',
+});
+
+// ====================================================================
+// 🏭 Inventory API Service
+// ====================================================================
+
 export const inventoryApi = {
-  // Inventory Items
+  // ====================================================================
+  // 📦 Current Stock / Inventory Items
+  // ====================================================================
+
   getInventoryItems: async (): Promise<ApiResponse<InventoryItem[]>> => {
     try {
-      const data = await inventorySupabaseService.getAll();
+      const response = await invmisApi.stock.getCurrent();
       
-      // Map database schema to API schema based on actual table structure
-      const mapped = data.map(item => ({
-        id: item.id,
-        itemMasterId: item.item_master_id,
-        currentStock: item.current_stock ?? 0,
-        minimumStock: item.minimum_stock ?? 0,
-        maximumStock: item.maximum_stock ?? undefined,
-        reorderLevel: item.reorder_level ?? undefined,
-        location: item.stores?.store_name || 'Unknown Store',
-        storeId: item.store_id, // Add the actual store_id for editing
-        vendorId: item.vendor_id ?? undefined,
-        status: item.status ?? 'Active',
-        itemType: item.item_type || 'Consumable Items', // Based on schema default
-        // Get name and unit from item_masters join
-        name: item.item_masters?.nomenclature || 'Unknown Item',
-        unit: item.item_masters?.unit || 'PCS',
-        // Get real categories from item_masters joins
-        category: item.item_masters?.categories?.category_name || 'General',
-        subCategory: item.item_masters?.sub_categories?.sub_category_name || 'General',
-      }));
+      if (!response.success) {
+        return { data: [], success: false, message: 'Failed to fetch current stock' };
+      }
+
+      const mapped = response.stock.map(transformCurrentStockToInventoryItem);
       
       return { data: mapped, success: true, message: 'Success' };
     } catch (error: any) {
+      console.error('Error fetching inventory items:', error);
       return { data: [], success: false, message: error.message };
     }
   },
 
   getInventoryItem: async (id: string): Promise<ApiResponse<InventoryItem>> => {
     try {
-      const item = await inventorySupabaseService.getById(id);
-      const mapped = {
-        id: item.id,
-        itemMasterId: item.item_master_id,
-        currentStock: item.current_stock ?? 0,
-        minimumStock: item.minimum_stock ?? 0,
-        maximumStock: item.maximum_stock ?? undefined,
-        reorderLevel: item.reorder_level ?? undefined,
-        location: item.stores?.store_name || 'Unknown Store',
-        storeId: item.store_id, // Add the actual store_id for editing
-        vendorId: item.vendor_id ?? undefined,
-        status: item.status ?? 'Active',
-        itemType: item.item_type || 'Consumable Items',
-        name: item.item_masters?.nomenclature || 'Unknown Item',
-        unit: item.item_masters?.unit || 'PCS',
-        category: item.item_masters?.categories?.category_name || 'General',
-        subCategory: item.item_masters?.sub_categories?.sub_category_name || 'General',
-      };
+      // Get all stock items and filter by ID (until we add getById to API)
+      const response = await invmisApi.stock.getCurrent();
+      
+      if (!response.success) {
+        return { data: undefined as any, success: false, message: 'Failed to fetch stock' };
+      }
+
+      const stock = response.stock.find(s => s.stock_id.toString() === id);
+      
+      if (!stock) {
+        return { data: undefined as any, success: false, message: `Stock item ${id} not found` };
+      }
+
+      const mapped = transformCurrentStockToInventoryItem(stock);
+      
       return { data: mapped, success: true, message: 'Success' };
     } catch (error: any) {
+      console.error('Error fetching inventory item:', error);
       return { data: undefined as any, success: false, message: error.message };
     }
   },
 
   createInventoryItem: async (item: CreateInventoryItemRequest): Promise<ApiResponse<InventoryItem>> => {
     try {
-      // Map CreateInventoryItemRequest to actual database schema
-      const mappedInsert = {
-        item_master_id: item.itemMasterId, // Use the actual foreign key
-        current_stock: item.currentStock,
-        minimum_stock: item.minimumStock,
-        maximum_stock: item.maximumStock,
-        reorder_level: item.reorderLevel,
-        vendor_id: item.vendorId,
-        item_type: item.itemType || 'Consumable Items', // Use schema default
-        status: item.status || 'Active',
-        store_id: item.storeId, // Use the provided store_id
-        description: item.description || null,
+      // TODO: Implement create stock endpoint in InvMIS API backend
+      console.log('Create inventory item - needs backend implementation:', item);
+      return { 
+        data: undefined as any, 
+        success: false, 
+        message: 'Create stock item not yet implemented in InvMIS API' 
       };
-      const created = await inventorySupabaseService.create(mappedInsert);
-      const mapped = {
-        id: created.id,
-        itemMasterId: created.item_master_id,
-        currentStock: created.current_stock ?? 0,
-        minimumStock: created.minimum_stock ?? 0,
-        maximumStock: created.maximum_stock ?? undefined,
-        reorderLevel: created.reorder_level ?? undefined,
-        location: 'Store', // Will be populated from store join
-        vendorId: created.vendor_id ?? undefined,
-        status: created.status ?? 'Active',
-        itemType: created.item_type || 'Consumable Items',
-        name: 'New Item', // Will need to fetch from item_masters
-        unit: 'PCS',
-        category: 'General',
-        subCategory: 'General',
-      };
-      return { data: mapped, success: true, message: 'Created' };
     } catch (error: any) {
+      console.error('Error creating inventory item:', error);
       return { data: undefined as any, success: false, message: error.message };
     }
   },
 
   updateInventoryItem: async (item: UpdateInventoryItemRequest): Promise<ApiResponse<InventoryItem>> => {
     try {
-      const mappedUpdate = {
-        item_master_id: item.itemMasterId,
-        current_stock: item.currentStock,
-        minimum_stock: item.minimumStock,
-        maximum_stock: item.maximumStock,
-        reorder_level: item.reorderLevel,
-        vendor_id: item.vendorId,
-        item_type: item.itemType,
-        status: item.status,
-        description: item.description,
-        store_id: item.storeId, // Include store_id in update
-      };
-      const updated = await inventorySupabaseService.update(item.id, mappedUpdate);
-      const mapped = {
-        id: updated.id,
-        itemMasterId: updated.item_master_id,
-        currentStock: updated.current_stock ?? 0,
-        minimumStock: updated.minimum_stock ?? 0,
-        maximumStock: updated.maximum_stock ?? undefined,
-        reorderLevel: updated.reorder_level ?? undefined,
-        location: 'Store', // Will be populated from store join
-        vendorId: updated.vendor_id ?? undefined,
-        status: updated.status ?? 'Active',
-        itemType: updated.item_type || 'Consumable Items',
-        name: 'Updated Item', // Will need to fetch from item_masters
-        unit: 'PCS',
-        category: 'General',
-        subCategory: 'General',
-      };
-      return { data: mapped, success: true, message: 'Updated' };
+      // Use existing InvMIS updateQuantity endpoint
+      const response = await invmisApi.stock.updateQuantity(item.stockId, {
+        currentQuantity: item.currentQuantity,
+        minimumLevel: item.minimumLevel,
+        maximumLevel: item.maximumLevel,
+        updatedBy: item.updatedBy
+      });
+
+      // Get updated item to return
+      const updatedResponse = await invmisApi.stock.getCurrent();
+      const updatedStock = updatedResponse.success 
+        ? updatedResponse.stock.find(s => s.stock_id === item.stockId)
+        : null;
+
+      if (!updatedStock) {
+        return { data: undefined as any, success: false, message: 'Failed to get updated item' };
+      }
+
+      const mapped = transformCurrentStockToInventoryItem(updatedStock);
+      
+      return { data: mapped, success: true, message: 'Updated successfully' };
     } catch (error: any) {
+      console.error('Error updating inventory item:', error);
       return { data: undefined as any, success: false, message: error.message };
     }
   },
 
   deleteInventoryItem: async (id: string): Promise<ApiResponse<void>> => {
     try {
-      await inventorySupabaseService.remove(id);
-      return { data: undefined, success: true, message: 'Deleted' };
+      // TODO: Implement delete stock endpoint in InvMIS API backend
+      console.log('Delete inventory item - needs backend implementation:', id);
+      return { 
+        data: undefined, 
+        success: false, 
+        message: 'Delete stock item not yet implemented in InvMIS API' 
+      };
     } catch (error: any) {
+      console.error('Error deleting inventory item:', error);
       return { data: undefined, success: false, message: error.message };
     }
   },
 
-  // Vendors (TODO: implement real Supabase calls if needed)
+  // ====================================================================
+  // 📊 Statistics & Dashboard
+  // ====================================================================
+
+  getDashboardStats: async (): Promise<ApiResponse<InventoryStats>> => {
+    try {
+      const dashboardData = await invmisApi.dashboard.getSummary();
+      
+      const stats: InventoryStats = {
+        totalItems: dashboardData.totalItems || 0,
+        lowStockItems: dashboardData.lowStockItems || 0,
+        totalRequests: dashboardData.totalRequests || 0,
+        pendingApprovals: dashboardData.pendingApprovals || 0,
+      };
+
+      return { data: stats, success: true, message: 'Success' };
+    } catch (error: any) {
+      console.error('Error fetching dashboard stats:', error);
+      
+      // Return default stats on error
+      const defaultStats: InventoryStats = {
+        totalItems: 0,
+        lowStockItems: 0,
+        totalRequests: 0,
+        pendingApprovals: 0,
+      };
+
+      return { data: defaultStats, success: false, message: error.message };
+    }
+  },
+
+  // ====================================================================
+  // 🔄 Stock Transactions
+  // ====================================================================
+
+  getStockTransactions: async (): Promise<ApiResponse<StockTransaction[]>> => {
+    try {
+      const dashboardData = await invmisApi.dashboard.getSummary();
+      
+      const transactions = dashboardData.recentTransactions?.map(transformInvMISStockTransaction) || [];
+      
+      return { data: transactions, success: true, message: 'Success' };
+    } catch (error: any) {
+      console.error('Error fetching stock transactions:', error);
+      return { data: [], success: false, message: error.message };
+    }
+  },
+
+  createStockTransaction: async (transaction: CreateStockTransactionRequest): Promise<ApiResponse<StockTransaction>> => {
+    try {
+      // TODO: Implement create stock transaction endpoint in InvMIS API backend
+      console.log('Create stock transaction - needs backend implementation:', transaction);
+      return { 
+        data: undefined as any, 
+        success: false, 
+        message: 'Create stock transaction not yet implemented in InvMIS API' 
+      };
+    } catch (error: any) {
+      console.error('Error creating stock transaction:', error);
+      return { data: undefined as any, success: false, message: error.message };
+    }
+  },
+
+  // ====================================================================
+  // 🏢 Reference Data (Placeholders for now)
+  // ====================================================================
+
   getVendors: async (): Promise<ApiResponse<Vendor[]>> => {
     try {
-      const data = await inventorySupabaseService.getVendors();
-      return { data: data || [], success: true, message: 'Success' };
+      // TODO: Implement vendors endpoint in InvMIS API backend
+      // For now, return empty array
+      return { data: [], success: true, message: 'Vendors endpoint not yet implemented' };
     } catch (error: any) {
       return { data: [], success: false, message: error.message };
     }
@@ -229,45 +280,78 @@ export const inventoryApi = {
 
   getStores: async (): Promise<ApiResponse<any[]>> => {
     try {
-      const data = await inventorySupabaseService.getStores();
-      return { data: data || [], success: true, message: 'Success' };
+      // Use offices as stores for now
+      const response = await invmisApi.offices.getAll();
+      
+      if (!response.success) {
+        return { data: [], success: false, message: 'Failed to fetch offices' };
+      }
+
+      const stores = response.offices.map(office => ({
+        id: office.office_id.toString(),
+        store_name: office.office_name,
+        office_code: office.office_code,
+      }));
+
+      return { data: stores, success: true, message: 'Success' };
     } catch (error: any) {
+      console.error('Error fetching stores:', error);
       return { data: [], success: false, message: error.message };
     }
   },
 
   getActiveVendors: async (): Promise<ApiResponse<Vendor[]>> => {
-    return { data: [], success: false, message: 'Not implemented' };
+    // Same as getVendors for now
+    return await inventoryApi.getVendors();
   },
 
-  // Transactions (TODO: implement real Supabase calls if needed)
+  // ====================================================================
+  // 📈 Transactions & Purchases (Placeholders)
+  // ====================================================================
+
   getTransactions: async (): Promise<ApiResponse<Transaction[]>> => {
-    return { data: [], success: false, message: 'Not implemented' };
+    try {
+      // TODO: Map from procurement requests or tender awards
+      return { data: [], success: true, message: 'Transactions endpoint not yet implemented' };
+    } catch (error: any) {
+      return { data: [], success: false, message: error.message };
+    }
   },
 
   getThisMonthPurchases: async (): Promise<ApiResponse<Transaction[]>> => {
-    return { data: [], success: false, message: 'Not implemented' };
+    try {
+      // TODO: Filter transactions by current month
+      return { data: [], success: true, message: 'Monthly purchases endpoint not yet implemented' };
+    } catch (error: any) {
+      return { data: [], success: false, message: error.message };
+    }
   },
 
-  // Stock Transactions (TODO: implement real Supabase calls if needed)
-  getStockTransactions: async (): Promise<ApiResponse<StockTransaction[]>> => {
-    return { data: [], success: false, message: 'Not implemented' };
-  },
-
-  createStockTransaction: async (transaction: CreateStockTransactionRequest): Promise<ApiResponse<StockTransaction>> => {
-    return { data: undefined as any, success: false, message: 'Not implemented' };
-  },
-
-  updateStockTransaction: async (id: string, transaction: UpdateStockTransactionRequest): Promise<ApiResponse<StockTransaction>> => {
-    return { data: undefined as any, success: false, message: 'Not implemented' };
+  updateStockTransaction: async (id: string, transaction: any): Promise<ApiResponse<StockTransaction>> => {
+    try {
+      // TODO: Implement update stock transaction endpoint
+      console.log('Update stock transaction - needs backend implementation:', { id, transaction });
+      return { 
+        data: undefined as any, 
+        success: false, 
+        message: 'Update stock transaction not yet implemented in InvMIS API' 
+      };
+    } catch (error: any) {
+      return { data: undefined as any, success: false, message: error.message };
+    }
   },
 
   updateStockTransactionStatus: async (id: string, status: StockTransactionStatus): Promise<ApiResponse<StockTransaction>> => {
-    return { data: undefined as any, success: false, message: 'Not implemented' };
-  },
-
-  // Statistics (TODO: implement real Supabase calls if needed)
-  getStats: async (): Promise<ApiResponse<InventoryStats>> => {
-    return { data: undefined as any, success: false, message: 'Not implemented' };
+    try {
+      // TODO: Implement update transaction status endpoint
+      console.log('Update transaction status - needs backend implementation:', { id, status });
+      return { 
+        data: undefined as any, 
+        success: false, 
+        message: 'Update transaction status not yet implemented in InvMIS API' 
+      };
+    } catch (error: any) {
+      return { data: undefined as any, success: false, message: error.message };
+    }
   },
 };

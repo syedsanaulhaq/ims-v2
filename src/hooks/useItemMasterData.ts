@@ -1,5 +1,5 @@
 ﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { itemMasterLocalService } from '@/services/itemMasterLocalService';
+import { invmisApi } from '@/services/invmisApi';
 import { ItemMaster, CreateItemMasterRequest } from '@/types/tender';
 import { useToast } from '@/hooks/use-toast';
 
@@ -16,13 +16,13 @@ export const useItemMasterData = () => {
     queryKey: ['itemMasters'],
     queryFn: async () => {
       try {
-        const response = await itemMasterLocalService.getItemMasters();
+        const response = await invmisApi.items.getAll();
         
         if (!response.success) {
-          throw new Error(response.message || 'Failed to fetch item masters');
+          throw new Error('Failed to fetch item masters');
         }
 
-        return response.data || [];
+        return response.items || [];
       } catch (error: any) {
         console.error('Error fetching item masters:', error);
         throw error;
@@ -37,13 +37,13 @@ export const useItemMasterData = () => {
   // Create Item Master mutation
   const createItemMasterMutation = useMutation({
     mutationFn: async (itemData: CreateItemMasterRequest) => {
-      const response = await itemMasterLocalService.createItemMaster(itemData);
+      const response = await invmisApi.items.create(itemData);
       
       if (!response.success) {
-        throw new Error(response.message || 'Failed to create item master');
+        throw new Error('Failed to create item master');
       }
       
-      return response.data;
+      return response.item;
     },
     onSuccess: (data) => {
       // Invalidate and refetch item masters
@@ -67,13 +67,13 @@ export const useItemMasterData = () => {
   // Update Item Master mutation
   const updateItemMasterMutation = useMutation({
     mutationFn: async ({ id, itemData }: { id: string; itemData: Partial<CreateItemMasterRequest> }) => {
-      const response = await itemMasterLocalService.updateItemMaster(id, itemData);
+      const response = await invmisApi.items.update(id, itemData);
       
       if (!response.success) {
-        throw new Error(response.message || 'Failed to update item master');
+        throw new Error('Failed to update item master');
       }
       
-      return response.data;
+      return response.item;
     },
     onSuccess: (data) => {
       // Invalidate and refetch item masters
@@ -97,13 +97,13 @@ export const useItemMasterData = () => {
   // Delete Item Master mutation
   const deleteItemMasterMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await itemMasterLocalService.deleteItemMaster(id);
+      const response = await invmisApi.items.delete(id);
       
       if (!response.success) {
-        throw new Error(response.message || 'Failed to delete item master');
+        throw new Error('Failed to delete item master');
       }
       
-      return response.data;
+      return response;
     },
     onSuccess: () => {
       // Invalidate and refetch item masters

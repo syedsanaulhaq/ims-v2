@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { invmisApi } from '@/services/invmisApi';
 
 export interface StockTransactionDashboardStats {
   totalTenders: number;
@@ -69,20 +70,19 @@ export const useStockTransactionDashboard = () => {
   } = useQuery({
     queryKey: ['stock-transaction-dashboard-stats-v2'], // Updated key to force refresh
     queryFn: async () => {
-      const response = await fetch('http://localhost:3001/api/stock-transaction-dashboard-stats');
+      const response = await invmisApi.dashboard.getSummary();
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response) {
+        throw new Error('Failed to fetch dashboard stats');
       }
       
-      const data = await response.json();
-      return data;
+      return response;
     },
     staleTime: 0, // Always fetch fresh data for now
     refetchInterval: 30 * 1000, // Refetch every 30 seconds
   });
 
-  const dashboardStats: StockTransactionDashboardStats = stats || {
+  const dashboardStats: StockTransactionDashboardStats = (stats as any) || {
     totalTenders: 0,
     activeTenders: 0,
     finalizedTenders: 0,

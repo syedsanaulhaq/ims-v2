@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { invmisApi } from '@/services/invmisApi';
 
 const InventoryDetails = () => {
   const navigate = useNavigate();
@@ -26,16 +27,21 @@ const InventoryDetails = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all'); // all, low-stock, out-of-stock
 
-  // Fetch inventory data
+  // Fetch inventory data from InvMIS API
   useEffect(() => {
     const fetchInventoryData = async () => {
       try {
         setDataLoading(true);
-        const response = await fetch('http://localhost:3001/api/inventory-stock');
-        const data = await response.json();
-        setInventoryStock(Array.isArray(data) ? data : []);
+        const response = await invmisApi.stock.getCurrent();
+        
+        if (response.success) {
+          setInventoryStock(response.stock || []);
+        } else {
+          setInventoryStock([]);
+        }
       } catch (error) {
         console.error('Error fetching inventory data:', error);
+        setInventoryStock([]);
       } finally {
         setDataLoading(false);
       }

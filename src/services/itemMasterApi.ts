@@ -1,5 +1,5 @@
 import { ItemMaster, CreateItemMasterRequest } from '../types/tender';
-import { inventorySupabaseService } from './inventorySupabaseService';
+import { invmisApi, type Item } from './invmisApi';
 
 export interface UpdateItemMasterRequest {
   id: string;
@@ -12,37 +12,36 @@ export interface UpdateItemMasterRequest {
   description?: string;
 }
 
-// Transform API response to ItemMaster format
-const transformToItemMaster = (apiItem: any): ItemMaster => ({
-  id: apiItem.id || apiItem.Id,
-  itemCode: apiItem.item_code || apiItem.itemCode || apiItem.ItemCode,
-  nomenclature: apiItem.nomenclature || apiItem.Nomenclature,
-  categoryId: apiItem.category_id || apiItem.categoryId || apiItem.CategoryId,
-  categoryName: apiItem.categories?.category_name || apiItem.categoryName || apiItem.CategoryName,
-  subCategoryId: apiItem.sub_category_id || apiItem.subCategoryId || apiItem.SubCategoryId,
-  subCategoryName: apiItem.sub_categories?.sub_category_name || apiItem.subCategoryName || apiItem.SubCategoryName,
-  unit: apiItem.unit || apiItem.Unit,
-  specifications: apiItem.specifications || apiItem.Specifications || '',
-  description: apiItem.description || apiItem.Description || '',
-  isActive: apiItem.is_active !== undefined ? apiItem.is_active : (apiItem.isActive !== undefined ? apiItem.isActive : (apiItem.status === 'Active' || apiItem.Status === 'Active')),
-  createdAt: apiItem.created_at || apiItem.createdAt || apiItem.CreatedDate,
-  updatedAt: apiItem.updated_at || apiItem.updatedAt || apiItem.ModifiedDate,
+// Transform InvMIS API Item response to ItemMaster format
+const transformToItemMaster = (apiItem: Item): ItemMaster => ({
+  id: apiItem.item_id.toString(),
+  itemCode: apiItem.item_code,
+  nomenclature: apiItem.item_name,
+  categoryId: apiItem.category_id,
+  categoryName: apiItem.category_name,
+  subCategoryId: apiItem.sub_category_id,
+  subCategoryName: apiItem.sub_category_name,
+  unit: apiItem.unit_of_measure,
+  specifications: apiItem.description || '',
+  description: apiItem.description || '',
+  isActive: apiItem.is_active,
+  createdAt: apiItem.created_at,
+  updatedAt: apiItem.created_at, // InvMIS doesn't have updated_at yet
 });
 
 export const itemMasterApi = {
   // Get all item masters
   getItemMasters: async (): Promise<ItemMaster[]> => {
     try {
+      const response = await invmisApi.items.getAll();
       
-      const data = await inventorySupabaseService.getItemMasters();
-      
-      if (Array.isArray(data)) {
-        return data.map(transformToItemMaster);
+      if (response.success && Array.isArray(response.items)) {
+        return response.items.map(transformToItemMaster);
       }
 
       return [];
     } catch (error) {
-      
+      console.error('Error fetching item masters:', error);
       throw error;
     }
   },
@@ -50,11 +49,19 @@ export const itemMasterApi = {
   // Get specific item master by ID
   getItemMaster: async (id: string): Promise<ItemMaster> => {
     try {
+      // TODO: Need to add getById endpoint to InvMIS API
+      const response = await invmisApi.items.getAll();
+      const item = response.success 
+        ? response.items.find(item => item.item_id.toString() === id)
+        : null;
       
-      const data = await inventorySupabaseService.getItemMaster(id);
-      return transformToItemMaster(data);
+      if (!item) {
+        throw new Error(`Item with ID ${id} not found`);
+      }
+      
+      return transformToItemMaster(item);
     } catch (error) {
-      
+      console.error('Error fetching item master:', error);
       throw error;
     }
   },
@@ -62,12 +69,11 @@ export const itemMasterApi = {
   // Create new item master
   createItemMaster: async (itemData: CreateItemMasterRequest): Promise<ItemMaster> => {
     try {
-
-      const data = await inventorySupabaseService.createItemMaster(itemData);
-      
-      return transformToItemMaster(data);
+      // TODO: Implement create endpoint in InvMIS API backend
+      console.log('Create item master - needs backend implementation:', itemData);
+      throw new Error('Create item master not yet implemented in InvMIS API');
     } catch (error) {
-      
+      console.error('Error creating item master:', error);
       throw error;
     }
   },
@@ -75,13 +81,11 @@ export const itemMasterApi = {
   // Update existing item master
   updateItemMaster: async (itemData: UpdateItemMasterRequest): Promise<ItemMaster> => {
     try {
-
-      const { id, ...updateData } = itemData;
-      const data = await inventorySupabaseService.updateItemMaster(id, updateData);
-      
-      return transformToItemMaster(data);
+      // TODO: Implement update endpoint in InvMIS API backend
+      console.log('Update item master - needs backend implementation:', itemData);
+      throw new Error('Update item master not yet implemented in InvMIS API');
     } catch (error) {
-      
+      console.error('Error updating item master:', error);
       throw error;
     }
   },
@@ -89,11 +93,11 @@ export const itemMasterApi = {
   // Delete item master
   deleteItemMaster: async (id: string): Promise<void> => {
     try {
-
-      await inventorySupabaseService.deleteItemMaster(id);
-
+      // TODO: Implement delete endpoint in InvMIS API backend
+      console.log('Delete item master - needs backend implementation:', id);
+      throw new Error('Delete item master not yet implemented in InvMIS API');
     } catch (error) {
-      
+      console.error('Error deleting item master:', error);
       throw error;
     }
   },

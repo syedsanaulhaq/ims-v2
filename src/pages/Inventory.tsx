@@ -17,7 +17,7 @@ import { useApiInventoryData } from "@/hooks/useApiInventoryData";
 import { useApiReorderRequests } from "@/hooks/useApiReorderRequests";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import ErrorState from "@/components/common/ErrorState";
-import { inventorySupabaseService } from '@/services/inventorySupabaseService';
+import { invmisApi } from '@/services/invmisApi';
 import { useNavigate } from 'react-router-dom';
 
 const Inventory = () => {
@@ -88,9 +88,9 @@ const Inventory = () => {
   useEffect(() => {
     async function fetchMeta() {
       try {
-        // Only fetch vendors for inventory form
-        const vends = await inventorySupabaseService.getVendors();
-        setVendors(vends || []);
+        // Only fetch vendors for inventory form - for now use empty array
+        // TODO: Add vendors API endpoint to invmisApi
+        setVendors([]);
       } catch (err) {
         // Optionally show error toast
       }
@@ -153,14 +153,11 @@ const Inventory = () => {
       return;
     }
     const createData = {
-      itemMasterId: newItem.itemMasterId,
-      currentStock: parseInt(newItem.currentStock),
-      minimumStock: parseInt(newItem.minimumStock),
-      maximumStock: newItem.maximumStock ? parseInt(newItem.maximumStock) : undefined,
-      reorderLevel: newItem.reorderLevel ? parseInt(newItem.reorderLevel) : undefined,
-      storeId: newItem.storeId || '',
-      itemType: newItem.itemType,
-      vendorId: newItem.vendorId || '',
+      itemId: parseInt(newItem.itemMasterId),
+      currentQuantity: parseInt(newItem.currentStock),
+      minimumLevel: parseInt(newItem.minimumStock),
+      maximumLevel: newItem.maximumStock ? parseInt(newItem.maximumStock) : undefined,
+      updatedBy: 'current-user', // TODO: Get from auth context
     };
     try {
       await createItem(createData);
@@ -697,15 +694,15 @@ const Inventory = () => {
                           <span className="font-mono text-sm">{request.id}</span>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{request.item_name}</div>
+                          <div className="font-medium">{request.item_master_id}</div>
                         </TableCell>
                         <TableCell>
                           <span className="text-red-600 font-medium">
                             {request.current_stock}
                           </span>
                         </TableCell>
-                        <TableCell>{request.minimum_stock}</TableCell>
-                        <TableCell>{request.requested_date}</TableCell>
+                        <TableCell>{request.minimum_level}</TableCell>
+                        <TableCell>{request.requested_at}</TableCell>
                         <TableCell>
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                             {request.status}
