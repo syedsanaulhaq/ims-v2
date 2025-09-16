@@ -1,4 +1,33 @@
 import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Package, 
+  Tag, 
+  Save, 
+  X, 
+  Building2,
+  Settings,
+  Search,
+  Filter,
+  MoreVertical,
+  ArrowLeft,
+  Layers,
+  Box
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDateDMY } from '@/utils/dateUtils';
 
 interface ItemMaster {
@@ -43,6 +72,7 @@ const UNITS_LIST = [
 ];
 
 const ItemsMaster: React.FC = () => {
+  const { toast } = useToast();
   const [items, setItems] = useState<ItemMaster[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
@@ -51,6 +81,11 @@ const ItemsMaster: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingItem, setEditingItem] = useState<ItemMaster | null>(null);
+  
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [showItemDialog, setShowItemDialog] = useState(false);
   const [formData, setFormData] = useState<ItemFormData>({
     item_code: '',
     item_name: '',
@@ -60,11 +95,66 @@ const ItemsMaster: React.FC = () => {
     specifications: ''
   });
 
+  // Keyboard shortcuts for search
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + K to focus search
+      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+      }
+      // Escape to clear search
+      if (event.key === 'Escape' && searchTerm) {
+        setSearchTerm('');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [searchTerm]);
+
   useEffect(() => {
     fetchItems();
     fetchCategories();
     fetchSubCategories();
   }, []);
+
+  // Calculate statistics
+  const stats = React.useMemo(() => {
+    const activeItems = items.filter(item => item.category_id && item.sub_category_id);
+    const categorizedItems = items.filter(item => item.category_id);
+    const uncategorizedItems = items.filter(item => !item.category_id);
+    
+    return {
+      totalItems: items.length,
+      activeItems: activeItems.length,
+      categorizedItems: categorizedItems.length,
+      uncategorizedItems: uncategorizedItems.length,
+      totalCategories: categories.length,
+      totalSubCategories: subCategories.length
+    };
+  }, [items, categories, subCategories]);
+
+  // Filtered items based on search and filters
+  const filteredItems = React.useMemo(() => {
+    return items.filter(item => {
+      const searchMatch = searchTerm === '' || 
+        item.item_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.specifications?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.sub_category_name?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const categoryMatch = categoryFilter === 'All' || 
+        (categoryFilter === 'Categorized' ? item.category_id : !item.category_id);
+
+      return searchMatch && categoryMatch;
+    });
+  }, [items, searchTerm, categoryFilter]);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -125,26 +215,9 @@ const ItemsMaster: React.FC = () => {
     );
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    
-    if (name === 'category_id') {
-      setFormData(prev => ({
-        ...prev,
-        category_id: value,
-        sub_category_id: ''
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
 
-  const handleAddNew = () => {
-    setEditingItem(null);
-    setViewMode('add');
+
+  const resetForm = () => {
     setFormData({
       item_code: '',
       item_name: '',
@@ -153,98 +226,36 @@ const ItemsMaster: React.FC = () => {
       unit_of_measure: '',
       specifications: ''
     });
+    setEditingItem(null);
+    setViewMode('list');
+  };
+
+  const handleAddNew = () => {
+    resetForm();
+    setShowItemDialog(true);
   };
 
   const handleEdit = (item: ItemMaster) => {
     setEditingItem(item);
     setViewMode('edit');
     setFormData({
-      item_code: item.item_code || '',
-      item_name: item.item_name || '',
+      item_code: item.item_code,
+      item_name: item.item_name,
       category_id: item.category_id || '',
       sub_category_id: item.sub_category_id || '',
-      unit_of_measure: item.unit_of_measure || '',
-      specifications: item.specifications || ''
+      unit_of_measure: item.unit_of_measure,
+      specifications: item.specifications
     });
+    setShowItemDialog(true);
   };
 
   const handleCancel = () => {
-    setViewMode('list');
-    setEditingItem(null);
-    setFormData({
-      item_code: '',
-      item_name: '',
-      category_id: '',
-      sub_category_id: '',
-      unit_of_measure: '',
-      specifications: ''
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormLoading(true);
-    setError(null);
-
-    if (viewMode === 'add' && checkDuplicateCode(formData.item_code)) {
-      setError('Item code already exists. Please use a different code.');
-      setFormLoading(false);
-      return;
-    }
-
-    try {
-      const payload = {
-        item_code: formData.item_code,
-        item_name: formData.item_name,
-        category_id: formData.category_id,
-        sub_category_id: formData.sub_category_id,
-        unit_of_measure: formData.unit_of_measure,
-        specifications: formData.specifications
-      };
-
-      console.log('Submitting payload:', payload);
-
-      const url = viewMode === 'add' 
-        ? 'http://localhost:3001/api/item-masters'
-        : `http://localhost:3001/api/item-masters/${editingItem?.item_id}`;
-
-      const method = viewMode === 'add' ? 'POST' : 'PUT';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server response:', errorText);
-        
-        if (response.status === 409) {
-          setError('Item code already exists. Please use a different code.');
-        } else {
-          throw new Error(`HTTP error! status: ${response.status}. ${errorText}`);
-        }
-        return;
-      }
-
-      await fetchItems();
-      handleCancel();
-      setError(null);
-    } catch (err) {
-      console.error('Error saving item:', err);
-      setError(`Failed to save item: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setFormLoading(false);
-    }
+    setShowItemDialog(false);
+    resetForm();
   };
 
   const handleDelete = async (item: ItemMaster) => {
-    if (!confirm(`Are you sure you want to delete "${item.item_name}"?`)) {
-      return;
-    }
+    if (!confirm(`Are you sure you want to delete "${item.item_name}"?`)) return;
 
     try {
       const response = await fetch(`http://localhost:3001/api/item-masters/${item.item_id}`, {
@@ -255,13 +266,94 @@ const ItemsMaster: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      await fetchItems();
-      setError(null);
+      toast({
+        title: "Success",
+        description: "Item deleted successfully",
+      });
+
+      fetchItems();
     } catch (err) {
       console.error('Error deleting item:', err);
-      setError(`Failed to delete item: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast({
+        title: "Error",
+        description: "Failed to delete item",
+        variant: "destructive",
+      });
     }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validation
+    if (viewMode === 'add' && checkDuplicateCode(formData.item_code)) {
+      toast({
+        title: "Error",
+        description: "Item code already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFormLoading(true);
+    
+    try {
+      const url = editingItem 
+        ? `http://localhost:3001/api/item-masters/${editingItem.item_id}`
+        : 'http://localhost:3001/api/item-masters';
+      
+      const method = editingItem ? 'PUT' : 'POST';
+
+      const payload = {
+        item_code: formData.item_code,
+        item_name: formData.item_name,
+        category_id: formData.category_id,
+        sub_category_id: formData.sub_category_id,
+        unit_of_measure: formData.unit_of_measure,
+        specifications: formData.specifications
+      };
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      toast({
+        title: "Success",
+        description: editingItem ? "Item updated successfully" : "Item added successfully",
+      });
+
+      setShowItemDialog(false);
+      resetForm();
+      fetchItems();
+    } catch (err) {
+      console.error('Error saving item:', err);
+      toast({
+        title: "Error", 
+        description: editingItem ? "Failed to update item" : "Failed to add item",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+
 
   if (loading) {
     return (
@@ -293,282 +385,492 @@ const ItemsMaster: React.FC = () => {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Items Master</h1>
-        <p className="text-gray-600 mt-1">Manage your inventory items</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Package className="w-8 h-8 text-blue-600" />
+            <h1 className="text-3xl font-bold text-gray-900">Items Master Management</h1>
+          </div>
+          <p className="text-gray-600 mt-1">Manage product items and inventory master data</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button onClick={() => setShowItemDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Item
+          </Button>
+        </div>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-700">{error}</p>
-          <button 
-            onClick={() => setError(null)}
-            className="mt-2 text-red-600 hover:text-red-800"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Items</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalItems}</p>
+            </div>
+            <Box className="w-8 h-8 text-blue-600" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Categorized Items</p>
+              <p className="text-2xl font-bold text-green-600">{stats.categorizedItems}</p>
+            </div>
+            <Layers className="w-8 h-8 text-green-600" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Uncategorized Items</p>
+              <p className="text-2xl font-bold text-orange-600">{stats.uncategorizedItems}</p>
+            </div>
+            <Package className="w-8 h-8 text-orange-600" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Categories Available</p>
+              <p className="text-2xl font-bold text-purple-600">{stats.totalCategories}</p>
+            </div>
+            <Tag className="w-8 h-8 text-purple-600" />
+          </CardContent>
+        </Card>
+      </div>
 
-      {viewMode === 'list' ? (
-        /* LIST VIEW */
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Items List ({items.length} items)
-              </h2>
-              <button 
-                onClick={handleAddNew}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Add New Item
-              </button>
+      {/* Enhanced Search and Filter Section */}
+      <Card className="border-blue-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-500" />
+              <Input
+                placeholder="🔍 Search items, codes, specifications... (Ctrl+K)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 pr-20 h-12 text-base border-2 border-blue-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white/80 backdrop-blur"
+              />
+              
+              {/* Keyboard shortcut indicator */}
+              {!searchTerm && (
+                <div className="absolute right-12 top-1/2 transform -translate-y-1/2 hidden sm:flex items-center gap-1 text-xs text-gray-400">
+                  <kbd className="px-2 py-1 bg-gray-100 border border-gray-200 rounded text-xs">Ctrl</kbd>
+                  <span>+</span>
+                  <kbd className="px-2 py-1 bg-gray-100 border border-gray-200 rounded text-xs">K</kbd>
+                </div>
+              )}
+              
+              {/* Clear search button */}
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 hover:bg-blue-100"
+                  onClick={() => setSearchTerm('')}
+                  title="Clear search (Esc)"
+                >
+                  <X className="h-4 w-4 text-gray-400" />
+                </Button>
+              )}
+            </div>
+
+            {/* Filter Controls */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              {/* Category Filter */}
+              <div className="flex items-center gap-2 min-w-fit">
+                <Filter className="w-4 h-4 text-blue-500" />
+                <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">Status:</Label>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-36 h-10 border-blue-200 focus:border-blue-400">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                        All Items
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Categorized">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        Categorized Only
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Uncategorized">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                        Uncategorized Only
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Search Results Info */}
+              <div className="flex items-center gap-2 text-sm text-gray-600 bg-white/60 px-3 py-2 rounded-full border border-blue-100">
+                <Package className="w-4 h-4" />
+                <span className="font-medium">
+                  {filteredItems.length} of {items.length} items
+                  {searchTerm && (
+                    <span className="text-blue-600 font-semibold ml-1">
+                      matching "{searchTerm}"
+                    </span>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
 
-          {items.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-gray-500">No items found</p>
+          {/* Quick Filter Buttons */}
+          {!searchTerm && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className={`h-8 ${categoryFilter === 'Categorized' ? 'bg-green-50 border-green-200 text-green-700' : 'hover:bg-green-50'}`}
+                onClick={() => setCategoryFilter('Categorized')}
+              >
+                <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                Categorized Only
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className={`h-8 ${categoryFilter === 'Uncategorized' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'hover:bg-orange-50'}`}
+                onClick={() => setCategoryFilter('Uncategorized')}
+              >
+                <div className="w-2 h-2 rounded-full bg-orange-500 mr-2"></div>
+                Uncategorized Only
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className={`h-8 ${categoryFilter === 'All' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'hover:bg-blue-50'}`}
+                onClick={() => setCategoryFilter('All')}
+              >
+                <div className="w-2 h-2 rounded-full bg-gray-400 mr-2"></div>
+                Show All
+              </Button>
+            </div>
+          )}
+
+          {/* Search Tips */}
+          {searchTerm && filteredItems.length === 0 && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <Search className="w-4 h-4" />
+                <span className="font-medium">No results found for "{searchTerm}"</span>
+              </div>
+              <p className="text-sm text-yellow-700 mt-1">
+                Try searching for item names, codes, or specifications. 
+                You can also check different category filters.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Items Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Box className="w-5 h-5 text-blue-600" />
+              Items List
+            </span>
+            {filteredItems.length !== items.length && (
+              <Badge variant="secondary">
+                {filteredItems.length} of {items.length}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredItems.length === 0 && items.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No items found</h3>
+              <p className="text-gray-500 mb-6">Get started by adding your first inventory item</p>
+              <Button onClick={() => setShowItemDialog(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Your First Item
+              </Button>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No items match your filters</h3>
+              <p className="text-gray-500 mb-6">Try adjusting your search terms or filters</p>
+              <Button variant="outline" onClick={() => { setSearchTerm(''); setCategoryFilter('All'); }}>
+                Clear All Filters
+              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Item Code
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Item Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Sub Category
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Unit
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {items.map((item) => (
-                    <tr key={item.item_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {item.item_code}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.item_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {item.category_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {item.sub_category_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {item.unit_of_measure}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleEdit(item)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(item)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">Item Code</TableHead>
+                    <TableHead>Item Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Sub Category</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead>Specifications</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.map((item) => (
+                    <TableRow key={item.item_id} className="hover:bg-gray-50/50">
+                      <TableCell className="font-medium">
+                        <Badge variant="outline" className="font-mono">
+                          {item.item_code}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-gray-900">{item.item_name}</div>
+                      </TableCell>
+                      <TableCell>
+                        {item.category_name ? (
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                            {item.category_name}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No category</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.sub_category_name ? (
+                          <Badge variant="secondary" className="bg-purple-50 text-purple-700">
+                            {item.sub_category_name}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No sub-category</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-gray-600">{item.unit_of_measure}</span>
+                      </TableCell>
+                      <TableCell>
+                        {item.specifications ? (
+                          <div className="text-sm text-gray-600 max-w-xs truncate" title={item.specifications}>
+                            {item.specifications}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No specifications</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(item)}>
+                              <Edit className="w-4 h-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDelete(item)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
-        </div>
-      ) : (
-        /* FORM VIEW (ADD/EDIT) */
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {viewMode === 'add' ? 'Add New Item' : `Edit Item: ${editingItem?.item_name}`}
-              </h2>
-              <button 
-                onClick={handleCancel}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-              >
-                Back to List
-              </button>
-            </div>
-          </div>
+        </CardContent>
+      </Card>
 
-          <form onSubmit={handleSubmit} className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Error Display */}
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg max-w-md">
+          <div className="flex items-start">
+            <div className="flex-1">
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+            <Button 
+              variant="ghost"
+              size="sm"
+              onClick={() => setError(null)}
+              className="ml-2 h-6 w-6 p-0 text-red-600 hover:text-red-800"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+      {/* Add/Edit Item Dialog */}
+      <Dialog open={showItemDialog} onOpenChange={setShowItemDialog}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-blue-600" />
+              {editingItem ? 'Edit Item' : 'Add New Item'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingItem ? `Update details for ${editingItem.item_name}` : 'Create a new inventory item with all necessary details'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Item Code */}
-              <div>
-                <label htmlFor="item_code" className="block text-sm font-medium text-gray-700 mb-2">
-                  Item Code *
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-2">
+                <Label htmlFor="item_code">Item Code *</Label>
+                <Input
                   id="item_code"
                   name="item_code"
                   value={formData.item_code || ''}
                   onChange={handleInputChange}
+                  placeholder="Enter unique item code"
+                  className={viewMode === 'add' && formData.item_code && checkDuplicateCode(formData.item_code) ? 'border-red-300' : ''}
                   required
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    viewMode === 'add' && formData.item_code && checkDuplicateCode(formData.item_code)
-                      ? 'border-red-300 focus:ring-red-500' 
-                      : 'border-gray-300 focus:ring-blue-500'
-                  }`}
-                  placeholder="Enter item code"
                 />
                 {viewMode === 'add' && formData.item_code && checkDuplicateCode(formData.item_code) && (
-                  <p className="mt-1 text-sm text-red-600">
-                    ⚠️ Item code already exists. Please use a different code.
-                  </p>
+                  <p className="text-sm text-red-600">⚠️ Item code already exists</p>
                 )}
               </div>
 
               {/* Item Name */}
-              <div>
-                <label htmlFor="item_name" className="block text-sm font-medium text-gray-700 mb-2">
-                  Item Name *
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-2">
+                <Label htmlFor="item_name">Item Name *</Label>
+                <Input
                   id="item_name"
                   name="item_name"
                   value={formData.item_name || ''}
                   onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter item name"
+                  required
                 />
               </div>
 
               {/* Category */}
-              <div>
-                <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 mb-2">
-                  Category *
-                </label>
-                <select
-                  id="category_id"
-                  name="category_id"
+              <div className="space-y-2">
+                <Label htmlFor="category_id">Category *</Label>
+                <Select
                   value={formData.category_id || ''}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value, sub_category_id: '' }))}
                 >
-                  <option value="">Select a category</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.category_name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.category_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Sub Category */}
-              <div>
-                <label htmlFor="sub_category_id" className="block text-sm font-medium text-gray-700 mb-2">
-                  Sub Category *
-                </label>
-                <select
-                  id="sub_category_id"
-                  name="sub_category_id"
+              <div className="space-y-2">
+                <Label htmlFor="sub_category_id">Sub Category *</Label>
+                <Select
                   value={formData.sub_category_id || ''}
-                  onChange={handleInputChange}
-                  required
-                  disabled={!formData.category_id || formData.category_id === ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, sub_category_id: value }))}
+                  disabled={!formData.category_id}
                 >
-                  <option value="">
-                    {!formData.category_id || formData.category_id === '' ? 'Select category first' : 'Select a sub category'}
-                  </option>
-                  {getFilteredSubCategories().map((subCat) => (
-                    <option key={subCat.id} value={subCat.id}>
-                      {subCat.sub_category_name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder={!formData.category_id ? 'Select category first' : 'Select a sub category'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getFilteredSubCategories().map((subCat) => (
+                      <SelectItem key={subCat.id} value={subCat.id}>
+                        {subCat.sub_category_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Unit */}
-              <div>
-                <label htmlFor="unit_of_measure" className="block text-sm font-medium text-gray-700 mb-2">
-                  Unit *
-                </label>
-                <select
-                  id="unit_of_measure"
-                  name="unit_of_measure"
+              <div className="space-y-2">
+                <Label htmlFor="unit_of_measure">Unit of Measure *</Label>
+                <Select
                   value={formData.unit_of_measure || ''}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, unit_of_measure: value }))}
                 >
-                  <option value="">Select a unit</option>
-                  {UNITS_LIST.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNITS_LIST.map((unit) => (
+                      <SelectItem key={unit} value={unit}>
+                        {unit}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Specifications */}
-              <div className="md:col-span-2">
-                <label htmlFor="specifications" className="block text-sm font-medium text-gray-700 mb-2">
-                  Specifications
-                </label>
-                <textarea
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="specifications">Specifications</Label>
+                <Textarea
                   id="specifications"
                   name="specifications"
                   value={formData.specifications || ''}
                   onChange={handleInputChange}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter technical specifications (optional)"
+                  rows={3}
                 />
               </div>
             </div>
 
-            {/* Form Buttons */}
-            <div className="mt-6 flex space-x-3">
-              <button
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setShowItemDialog(false); resetForm(); }}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+              <Button
                 type="submit"
                 disabled={formLoading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {formLoading ? 'Saving...' : (viewMode === 'add' ? 'Add Item' : 'Update Item')}
-              </button>
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
-              >
-                Cancel
-              </button>
+                {formLoading ? (
+                  <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {editingItem ? 'Update Item' : 'Add Item'}
+              </Button>
             </div>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
