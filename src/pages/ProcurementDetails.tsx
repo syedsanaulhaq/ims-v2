@@ -108,7 +108,7 @@ const ProcurementDetails = () => {
         if (result.success) {
           toast.success('Delivery finalized successfully');
           // Refresh deliveries data
-          const deliveriesResponse = await fetch('http://localhost:3001/api/deliveries');
+          const deliveriesResponse = await fetch('http://localhost:5000/api/deliveries');
           const deliveriesData = await deliveriesResponse.json();
           setDeliveries(Array.isArray(deliveriesData) ? deliveriesData : []);
         } else {

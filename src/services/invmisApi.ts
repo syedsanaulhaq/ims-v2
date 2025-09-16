@@ -20,8 +20,8 @@ const getApiBaseUrl = () => {
     return `${import.meta.env.VITE_API_URL}/api`;
   }
   
-  // Default to development
-  return 'http://localhost:5000/api';
+  // Default to our current backend server
+  return 'http://localhost:3001/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -241,7 +241,7 @@ export const invmisApi = {
   // 📦 Items & Categories APIs
   // ====================================================================
   categories: {
-    getAll: () => apiRequest<{ success: boolean; categories: Category[]; subCategories: SubCategory[] }>('/categories'),
+    getAll: () => apiRequest<Category[]>('/categories'),
     create: (data: any) => apiRequest<{ success: boolean; category: Category }>('/categories', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -253,36 +253,36 @@ export const invmisApi = {
     delete: (id: string) => apiRequest<{ success: boolean }>(`/categories/${id}`, {
       method: 'DELETE',
     }),
-    createSubCategory: (data: any) => apiRequest<{ success: boolean; subCategory: SubCategory }>('/subcategories', {
+    createSubCategory: (data: any) => apiRequest<{ success: boolean; subCategory: SubCategory }>('/sub-categories', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-    updateSubCategory: (id: string, data: any) => apiRequest<{ success: boolean; subCategory: SubCategory }>(`/subcategories/${id}`, {
+    updateSubCategory: (id: string, data: any) => apiRequest<{ success: boolean; subCategory: SubCategory }>(`/sub-categories/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-    deleteSubCategory: (id: string) => apiRequest<{ success: boolean }>(`/subcategories/${id}`, {
+    deleteSubCategory: (id: string) => apiRequest<{ success: boolean }>(`/sub-categories/${id}`, {
       method: 'DELETE',
     }),
   },
 
   subcategories: {
-    getAll: () => apiRequest<{ success: boolean; subcategories: SubCategory[] }>('/subcategories'),
+    getAll: () => apiRequest<SubCategory[]>('/sub-categories'),
     getByCategory: (categoryId: string) => 
-      apiRequest<{ success: boolean; subcategories: SubCategory[] }>(`/subcategories/category/${categoryId}`),
+      apiRequest<SubCategory[]>(`/sub-categories/category/${categoryId}`),
   },
 
   items: {
-    getAll: () => apiRequest<{ success: boolean; items: Item[] }>('/items'),
-    create: (data: any) => apiRequest<{ success: boolean; item: Item }>('/items', {
+    getAll: () => apiRequest<Item[]>('/item-masters'),
+    create: (data: any) => apiRequest<{ success: boolean; item: Item }>('/item-masters', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-    update: (id: string, data: any) => apiRequest<{ success: boolean; item: Item }>(`/items/${id}`, {
+    update: (id: string, data: any) => apiRequest<{ success: boolean; item: Item }>(`/item-masters/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-    delete: (id: string) => apiRequest<{ success: boolean }>(`/items/${id}`, {
+    delete: (id: string) => apiRequest<{ success: boolean }>(`/item-masters/${id}`, {
       method: 'DELETE',
     }),
   },

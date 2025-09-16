@@ -39,7 +39,7 @@ export interface StockIssuanceFilters {
 }
 
 class StockIssuanceService {
-  private baseUrl = 'http://localhost:3001/api/stock-issuance';
+  private baseUrl = 'http://localhost:5000/api/stock-issuance';
 
   async submitRequest(request: StockIssuanceRequest): Promise<{ id: string; request_number: string }> {
     try {

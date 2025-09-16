@@ -1,7 +1,7 @@
 import { ApiResponse } from './api';
 import { Tender, CreateTenderRequest, TenderStats } from '@/types/tender';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'http://localhost:5000';
 
 // Local SQL Server tender service
 export const tendersLocalService = {

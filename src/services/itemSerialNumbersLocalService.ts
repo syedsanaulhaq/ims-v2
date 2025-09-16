@@ -1,6 +1,6 @@
 import { ApiResponse } from './api';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'http://localhost:5000';
 
 // Interface for item serial numbers
 export interface ItemSerialNumber {

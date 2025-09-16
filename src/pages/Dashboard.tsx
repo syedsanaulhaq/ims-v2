@@ -279,27 +279,35 @@ const Dashboard = () => {
   const { stockStatusData, categoryValueData, monthlyTrends, performanceData } = processChartData();
 
   return (
-    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900">System Dashboard</h1>
-        <p className="text-lg text-gray-600 mt-2">
-          Comprehensive Inventory Management System Overview
-        </p>
-        <div className="flex items-center gap-2 mt-3">
-          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-            <Activity className="h-3 w-3 mr-1" />
-            System Online
-          </Badge>
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-            <Clock className="h-3 w-3 mr-1" />
-            Last Updated: {new Date().toLocaleTimeString()}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Key Performance Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="container mx-auto px-4 py-8">
+      {/* Dashboard Overview Card */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <BarChart3 className="w-6 h-6" />
+                <span>System Dashboard</span>
+              </CardTitle>
+              <CardDescription>
+                Comprehensive Inventory Management System Overview
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                <Activity className="h-3 w-3 mr-1" />
+                System Online
+              </Badge>
+              <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                <Clock className="h-3 w-3 mr-1" />
+                Last Updated: {new Date().toLocaleTimeString()}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Key Performance Indicators */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Inventory Status */}
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/inventory-details')}>
@@ -407,6 +415,8 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+        </CardContent>
+      </Card>
 
       {/* Advanced Analytics & Performance Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">

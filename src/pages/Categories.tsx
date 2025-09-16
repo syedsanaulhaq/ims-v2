@@ -4,163 +4,227 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Edit, Trash2, FolderOpen, Tag } from "lucide-react";
+import { Plus, Edit, Trash2, FolderOpen, Tag, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCategoriesData } from "@/hooks/useCategoriesData";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import ErrorState from "@/components/common/ErrorState";
 import { formatDateDMY } from '@/utils/dateUtils';
+
+interface Category {
+  id: string;
+  category_name: string;
+  description: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SubCategory {
+  id: string;
+  category_id: string;
+  sub_category_name: string;
+  description: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const Categories = () => {
   const { toast } = useToast();
-  const {
-    categories,
-    subCategories,
-    isLoading,
-    error,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-    createSubCategory,
-    updateSubCategory,
-    deleteSubCategory,
-    isCreatingCategory,
-    isUpdatingCategory,
-    isDeletingCategory,
-    isCreatingSubCategory,
-    isUpdatingSubCategory,
-    isDeletingSubCategory,
-  } = useCategoriesData();
-
-  // Debug logging
-  useEffect(() => {
-
-  }, [categories, subCategories, isLoading, error]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showSubCategoryForm, setShowSubCategoryForm] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<any>(null);
-  const [editingSubCategory, setEditingSubCategory] = useState<any>(null);
+  
+  // Edit states
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingSubCategory, setEditingSubCategory] = useState<string | null>(null);
 
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    description: ''
+  // Form states using exact database field names
+  const [categoryForm, setCategoryForm] = useState({
+    category_name: '',
+    description: '',
+    status: 'Active'
   });
 
-  const [newSubCategory, setNewSubCategory] = useState({
-    categoryId: '',
-    name: '',
-    description: ''
+  const [subCategoryForm, setSubCategoryForm] = useState({
+    category_id: '',
+    sub_category_name: '',
+    description: '',
+    status: 'Active'
   });
 
-  const handleEditCategory = (category: any) => {
-    setEditingCategory(category);
-    setNewCategory({
-      name: category.name,
-      description: category.description
+  // Fetch categories and sub-categories
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      
+      const [categoriesRes, subCategoriesRes] = await Promise.all([
+        fetch('http://localhost:3001/api/categories'),
+        fetch('http://localhost:3001/api/sub-categories')
+      ]);
+
+      if (categoriesRes.ok) {
+        const categoriesData = await categoriesRes.json();
+        setCategories(categoriesData);
+      }
+
+      if (subCategoriesRes.ok) {
+        const subCategoriesData = await subCategoriesRes.json();
+        setSubCategories(subCategoriesData);
+      }
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load categories data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Create new category
+  const handleCreateCategory = async () => {
+    console.log('🔧 handleCreateCategory called with form data:', categoryForm);
+    
+    if (!categoryForm.category_name.trim()) {
+      console.log('❌ Validation failed: Category name is required');
+      toast({
+        title: "Validation Error",
+        description: "Category name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('📡 Making POST request to create category...');
+      const response = await fetch('http://localhost:3001/api/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(categoryForm)
+      });
+
+      console.log('📊 Response status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Category created successfully:', result);
+        toast({
+          title: "Success",
+          description: result.message || "Category created successfully",
+        });
+        
+        setCategoryForm({ category_name: '', description: '', status: 'Active' });
+        setShowCategoryForm(false);
+        fetchData(); // Refresh data
+      } else {
+        const errorText = await response.text();
+        console.log('❌ Server error:', errorText);
+        throw new Error('Failed to create category');
+      }
+    } catch (error) {
+      console.error('❌ Error creating category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create category",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Create new sub-category
+  const handleCreateSubCategory = async () => {
+    console.log('🔧 handleCreateSubCategory called with form data:', subCategoryForm);
+    
+    if (!subCategoryForm.sub_category_name.trim()) {
+      console.log('❌ Validation failed: Sub-category name is required');
+      toast({
+        title: "Validation Error",
+        description: "Sub-category name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!subCategoryForm.category_id) {
+      console.log('❌ Validation failed: Parent category not selected');
+      toast({
+        title: "Validation Error",
+        description: "Please select a parent category",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('📡 Making POST request to create sub-category...');
+      const response = await fetch('http://localhost:3001/api/sub-categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(subCategoryForm)
+      });
+
+      console.log('📊 Response status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Sub-category created successfully:', result);
+        toast({
+          title: "Success",
+          description: result.message || "Sub-category created successfully",
+        });
+        
+        setSubCategoryForm({ category_id: '', sub_category_name: '', description: '', status: 'Active' });
+        setShowSubCategoryForm(false);
+        fetchData(); // Refresh data
+      } else {
+        const errorText = await response.text();
+        console.log('❌ Server error:', errorText);
+        throw new Error('Failed to create sub-category');
+      }
+    } catch (error) {
+      console.error('❌ Error creating sub-category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create sub-category",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Edit category
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category.id);
+    setCategoryForm({
+      category_name: category.category_name,
+      description: category.description || '',
+      status: category.status
     });
     setShowCategoryForm(true);
   };
 
-  const handleEditSubCategory = (subCategory: any) => {
-    setEditingSubCategory(subCategory);
-    setNewSubCategory({
-      categoryId: subCategory.categoryId, // Keep as string
-      name: subCategory.name,
-      description: subCategory.description
-    });
-    setShowSubCategoryForm(true);
-  };
-
+  // Update category
   const handleUpdateCategory = async () => {
-    if (!newCategory.name.trim()) {
-      toast({
-        title: "Error",
-        description: "Category name is required",
-        variant: "destructive"
-      });
-      return;
-    }
-
     if (!editingCategory) return;
-
-    const updatedCategory = {
-      ...editingCategory,
-      name: newCategory.name,
-      description: newCategory.description
-    };
-
-    try {
-      
-      await updateCategory(updatedCategory);
-      
-      // Only reset form state on success
-      setEditingCategory(null);
-      setNewCategory({ name: '', description: '' });
-      setShowCategoryForm(false);
-      
+    
+    console.log('🔧 handleUpdateCategory called with form data:', categoryForm);
+    
+    if (!categoryForm.category_name.trim()) {
       toast({
-        title: "Success",
-        description: "Category updated successfully"
-      });
-    } catch (error: any) {
-      
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to update category",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleUpdateSubCategory = async () => {
-    if (!newSubCategory.name.trim()) {
-      toast({
-        title: "Error",
-        description: "Sub-category name is required",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!editingSubCategory) return;
-
-    const updatedSubCategory = {
-      ...editingSubCategory,
-      categoryId: newSubCategory.categoryId, // Keep as string
-      name: newSubCategory.name,
-      description: newSubCategory.description
-    };
-
-    try {
-      
-      await updateSubCategory(updatedSubCategory);
-      
-      // Only reset form state on success
-      setEditingSubCategory(null);
-      setNewSubCategory({ categoryId: '', name: '', description: '' });
-      setShowSubCategoryForm(false);
-      
-      toast({
-        title: "Success",
-        description: "Sub-category updated successfully"
-      });
-    } catch (error: any) {
-      
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to update sub-category",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleAddCategory = async () => {
-    if (!newCategory.name.trim()) {
-      toast({
-        title: "Error",
+        title: "Validation Error",
         description: "Category name is required",
         variant: "destructive"
       });
@@ -168,422 +232,486 @@ const Categories = () => {
     }
 
     try {
-      
-      await createCategory(newCategory);
-      
-      // Only reset form state on success
-      setNewCategory({ name: '', description: '' });
-      setShowCategoryForm(false);
-      
-      toast({
-        title: "Success",
-        description: "Category added successfully"
+      console.log('🔧 Sending PUT request:', {
+        url: `http://localhost:3001/api/categories/${editingCategory}`,
+        method: 'PUT',
+        body: categoryForm,
+        editingCategoryId: editingCategory
       });
-    } catch (error: any) {
       
+      const response = await fetch(`http://localhost:3001/api/categories/${editingCategory}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(categoryForm),
+      });
+
+      if (response.ok) {
+        console.log('✅ Category updated successfully');
+        toast({
+          title: "Success",
+          description: "Category updated successfully",
+        });
+        
+        // Reset form and close
+        setCategoryForm({ category_name: '', description: '', status: 'Active' });
+        setShowCategoryForm(false);
+        setEditingCategory(null);
+        fetchData(); // Refresh data
+      } else {
+        const errorText = await response.text();
+        console.log('❌ Server error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`Failed to update category: ${response.status} ${errorText}`);
+      }
+    } catch (error) {
+      console.error('❌ Error updating category:', error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to add category",
+        description: "Failed to update category",
         variant: "destructive"
       });
     }
   };
 
-  const handleAddSubCategory = async () => {
-    if (!newSubCategory.name.trim()) {
-      toast({
-        title: "Error",
-        description: "Sub-category name is required",
-        variant: "destructive"
-      });
+  // Delete category
+  const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
+    if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
       return;
     }
-
-    if (!newSubCategory.categoryId) {
-      toast({
-        title: "Error",
-        description: "Parent category is required",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const subCategoryData = {
-      categoryId: newSubCategory.categoryId, // Keep as string
-      name: newSubCategory.name,
-      description: newSubCategory.description
-    };
 
     try {
-      
-      await createSubCategory(subCategoryData);
-      
-      // Only reset form state on success
-      setNewSubCategory({ categoryId: '', name: '', description: '' });
-      setShowSubCategoryForm(false);
-      
-      toast({
-        title: "Success",
-        description: "Sub-category added successfully"
+      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}`, {
+        method: 'DELETE',
       });
-    } catch (error: any) {
-      
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to add sub-category",
-        variant: "destructive"
-      });
-    }
-  };
 
-  const handleDeleteCategory = (categoryId: string) => {
-    if (window.confirm('Are you sure you want to delete this category? This will also delete all its sub-categories.')) {
-      try {
-        deleteCategory(categoryId);
+      if (response.ok) {
+        console.log('✅ Category deleted successfully');
         toast({
           title: "Success",
           description: "Category deleted successfully",
         });
-      } catch (error: any) {
-        
-        toast({
-          title: "Error",
-          description: error?.message || "Failed to delete category",
-          variant: "destructive"
-        });
+        fetchData(); // Refresh data
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete category');
       }
+    } catch (error) {
+      console.error('❌ Error deleting category:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete category",
+        variant: "destructive"
+      });
     }
   };
 
-  const handleDeleteSubCategory = (subCategoryId: string) => {
-    if (window.confirm('Are you sure you want to delete this sub-category?')) {
-      try {
-        deleteSubCategory(subCategoryId);
+  // Edit sub-category
+  const handleEditSubCategory = (subCategory: SubCategory) => {
+    setEditingSubCategory(subCategory.id);
+    setSubCategoryForm({
+      category_id: subCategory.category_id,
+      sub_category_name: subCategory.sub_category_name,
+      description: subCategory.description || '',
+      status: subCategory.status
+    });
+    setShowSubCategoryForm(true);
+  };
+
+  // Update sub-category
+  const handleUpdateSubCategory = async () => {
+    if (!editingSubCategory) return;
+    
+    console.log('🔧 handleUpdateSubCategory called with form data:', subCategoryForm);
+    
+    if (!subCategoryForm.category_id || !subCategoryForm.sub_category_name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Category and sub-category name are required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/sub-categories/${editingSubCategory}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(subCategoryForm),
+      });
+
+      if (response.ok) {
+        console.log('✅ Sub-category updated successfully');
+        toast({
+          title: "Success",
+          description: "Sub-category updated successfully",
+        });
+        
+        // Reset form and close
+        setSubCategoryForm({ category_id: '', sub_category_name: '', description: '', status: 'Active' });
+        setShowSubCategoryForm(false);
+        setEditingSubCategory(null);
+        fetchData(); // Refresh data
+      } else {
+        const errorText = await response.text();
+        console.log('❌ Server error:', errorText);
+        throw new Error('Failed to update sub-category');
+      }
+    } catch (error) {
+      console.error('❌ Error updating sub-category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update sub-category",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Delete sub-category
+  const handleDeleteSubCategory = async (subCategoryId: string, subCategoryName: string) => {
+    if (!confirm(`Are you sure you want to delete the sub-category "${subCategoryName}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/sub-categories/${subCategoryId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        console.log('✅ Sub-category deleted successfully');
         toast({
           title: "Success",
           description: "Sub-category deleted successfully",
         });
-      } catch (error: any) {
-        
-        toast({
-          title: "Error",
-          description: error?.message || "Failed to delete sub-category",
-          variant: "destructive"
-        });
+        fetchData(); // Refresh data
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete sub-category');
       }
+    } catch (error) {
+      console.error('❌ Error deleting sub-category:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete sub-category",
+        variant: "destructive"
+      });
     }
   };
 
-  const handleCancelCategory = () => {
+  // Cancel edit
+  const handleCancelEdit = () => {
     setEditingCategory(null);
-    setNewCategory({ name: '', description: '' });
-    setShowCategoryForm(false);
-  };
-
-  const handleCancelSubCategory = () => {
     setEditingSubCategory(null);
-    setNewSubCategory({ categoryId: '', name: '', description: '' });
+    setCategoryForm({ category_name: '', description: '', status: 'Active' });
+    setSubCategoryForm({ category_id: '', sub_category_name: '', description: '', status: 'Active' });
+    setShowCategoryForm(false);
     setShowSubCategoryForm(false);
   };
 
+  // Get category name by ID
   const getCategoryName = (categoryId: string) => {
-    return categories.find(cat => cat.id === categoryId)?.name || 'Unknown';
+    const category = categories.find(cat => cat.id === categoryId);
+    return category?.category_name || 'Unknown Category';
   };
 
   if (isLoading) {
-    
     return (
-      <div className="p-6">
-        <LoadingSpinner size="lg" className="mx-auto" />
-        <p className="text-center mt-4 text-muted-foreground">Loading categories...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    
-    return (
-      <div className="p-6">
-        <ErrorState 
-          message="Failed to load categories. There was an error loading the categories data."
-        />
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-lg">Loading categories...</div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Category Management</h1>
-          <p className="text-muted-foreground mt-2">Manage categories and sub-categories for your inventory</p>
+          <h1 className="text-3xl font-bold">Category Manager</h1>
+          <p className="text-gray-600 mt-1">Manage inventory categories and sub-categories</p>
         </div>
       </div>
 
-      <Tabs defaultValue="categories" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="subcategories">Sub-Categories</TabsTrigger>
-        </TabsList>
-
-        {/* Categories Tab */}
-        <TabsContent value="categories" className="space-y-6">
-          <div className="flex justify-end">
-            <Button onClick={() => setShowCategoryForm(true)} className="flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
+      {/* Categories Section */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <FolderOpen className="w-5 h-5" />
+              <CardTitle>Categories</CardTitle>
+            </div>
+            <Button 
+              onClick={() => setShowCategoryForm(!showCategoryForm)}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
               <span>Add Category</span>
             </Button>
           </div>
-
-          {/* Add/Edit Category Form */}
+        </CardHeader>
+        <CardContent>
+          {/* Add Category Form */}
           {showCategoryForm && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Label htmlFor="categoryName">Category Name *</Label>
-                    <Input
-                      id="categoryName"
-                      value={newCategory.name}
-                      onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                      placeholder="Enter category name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="categoryDescription">Description</Label>
-                    <Input
-                      id="categoryDescription"
-                      value={newCategory.description}
-                      onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-                      placeholder="Enter category description"
-                    />
-                  </div>
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <h3 className="font-semibold mb-4">Add New Category</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="category_name">Category Name</Label>
+                  <Input
+                    id="category_name"
+                    value={categoryForm.category_name}
+                    onChange={(e) => setCategoryForm({...categoryForm, category_name: e.target.value})}
+                    placeholder="Enter category name"
+                  />
                 </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    onClick={editingCategory ? handleUpdateCategory : handleAddCategory}
-                    disabled={isCreatingCategory || isUpdatingCategory}
+                <div>
+                  <Label htmlFor="category_status">Status</Label>
+                  <Select 
+                    value={categoryForm.status} 
+                    onValueChange={(value) => setCategoryForm({...categoryForm, status: value})}
                   >
-                    {isCreatingCategory || isUpdatingCategory ? (
-                      <>
-                        <LoadingSpinner size="sm" />
-                        {editingCategory ? 'Updating...' : 'Saving...'}
-                      </>
-                    ) : (
-                      editingCategory ? 'Update Category' : 'Save Category'
-                    )}
-                  </Button>
-                  <Button variant="outline" onClick={handleCancelCategory}>
-                    Cancel
-                  </Button>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="mt-4">
+                <Label htmlFor="category_description">Description</Label>
+                <Input
+                  id="category_description"
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({...categoryForm, description: e.target.value})}
+                  placeholder="Enter description (optional)"
+                />
+              </div>
+              <div className="flex space-x-2 mt-4">
+                <Button onClick={editingCategory ? handleUpdateCategory : handleCreateCategory}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {editingCategory ? 'Update Category' : 'Save Category'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCancelEdit}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Categories Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Categories</CardTitle>
-              <CardDescription>All categories in the system</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Category Details</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {categories.map((category) => (
-                    <TableRow key={category.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <FolderOpen className="h-4 w-4 text-blue-500" />
-                          <div>
-                            <div className="font-medium">{category.name}</div>
-                            <div className="text-sm text-muted-foreground">{category.description}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          category.status === 'Active' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {category.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>{formatDateDMY(category.createdDate)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEditCategory(category)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-red-600"
-                            onClick={() => handleDeleteCategory(category.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Category Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created Date</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categories.map((category) => (
+                <TableRow key={category.id}>
+                  <TableCell className="font-medium">{category.category_name}</TableCell>
+                  <TableCell>{category.description || '-'}</TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      category.status === 'Active' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {category.status}
+                    </span>
+                  </TableCell>
+                  <TableCell>{formatDateDMY(category.created_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditCategory(category)}
+                        title="Edit Category"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleDeleteCategory(category.id, category.category_name)}
+                        title="Delete Category"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        {/* Sub-Categories Tab */}
-        <TabsContent value="subcategories" className="space-y-6">
-          <div className="flex justify-end">
-            <Button onClick={() => setShowSubCategoryForm(true)} className="flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
+      {/* Sub-Categories Section */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <Tag className="w-5 h-5" />
+              <CardTitle>Sub-Categories</CardTitle>
+            </div>
+            <Button 
+              onClick={() => setShowSubCategoryForm(!showSubCategoryForm)}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
               <span>Add Sub-Category</span>
             </Button>
           </div>
-
-          {/* Add/Edit Sub-Category Form */}
+        </CardHeader>
+        <CardContent>
+          {/* Add Sub-Category Form */}
           {showSubCategoryForm && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{editingSubCategory ? 'Edit Sub-Category' : 'Add New Sub-Category'}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Label htmlFor="subCategoryParent">Parent Category *</Label>
-                    <Select
-                      value={newSubCategory.categoryId}
-                      onValueChange={(value) => setNewSubCategory({ ...newSubCategory, categoryId: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Parent Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id.toString()}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="subCategoryName">Sub-Category Name *</Label>
-                    <Input
-                      id="subCategoryName"
-                      value={newSubCategory.name}
-                      onChange={(e) => setNewSubCategory({ ...newSubCategory, name: e.target.value })}
-                      placeholder="Enter sub-category name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="subCategoryDescription">Description</Label>
-                    <Input
-                      id="subCategoryDescription"
-                      value={newSubCategory.description}
-                      onChange={(e) => setNewSubCategory({ ...newSubCategory, description: e.target.value })}
-                      placeholder="Enter sub-category description"
-                    />
-                  </div>
-                </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    onClick={editingSubCategory ? handleUpdateSubCategory : handleAddSubCategory}
-                    disabled={isCreatingSubCategory || isUpdatingSubCategory}
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <h3 className="font-semibold mb-4">Add New Sub-Category</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="parent_category">Parent Category</Label>
+                  <Select 
+                    value={subCategoryForm.category_id} 
+                    onValueChange={(value) => setSubCategoryForm({...subCategoryForm, category_id: value})}
                   >
-                    {isCreatingSubCategory || isUpdatingSubCategory ? (
-                      <>
-                        <LoadingSpinner size="sm" />
-                        {editingSubCategory ? 'Updating...' : 'Saving...'}
-                      </>
-                    ) : (
-                      editingSubCategory ? 'Update Sub-Category' : 'Save Sub-Category'
-                    )}
-                  </Button>
-                  <Button variant="outline" onClick={handleCancelSubCategory}>
-                    Cancel
-                  </Button>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select parent category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.category_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <Label htmlFor="sub_category_name">Sub-Category Name</Label>
+                  <Input
+                    id="sub_category_name"
+                    value={subCategoryForm.sub_category_name}
+                    onChange={(e) => setSubCategoryForm({...subCategoryForm, sub_category_name: e.target.value})}
+                    placeholder="Enter sub-category name"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label htmlFor="sub_category_description">Description</Label>
+                  <Input
+                    id="sub_category_description"
+                    value={subCategoryForm.description}
+                    onChange={(e) => setSubCategoryForm({...subCategoryForm, description: e.target.value})}
+                    placeholder="Enter description (optional)"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="sub_category_status">Status</Label>
+                  <Select 
+                    value={subCategoryForm.status} 
+                    onValueChange={(value) => setSubCategoryForm({...subCategoryForm, status: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex space-x-2 mt-4">
+                <Button onClick={editingSubCategory ? handleUpdateSubCategory : handleCreateSubCategory}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {editingSubCategory ? 'Update Sub-Category' : 'Save Sub-Category'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleCancelEdit}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Sub-Categories Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Sub-Categories</CardTitle>
-              <CardDescription>All sub-categories in the system</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Sub-Category Details</TableHead>
-                    <TableHead>Parent Category</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {subCategories.map((subCategory) => (
-                    <TableRow key={subCategory.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Tag className="h-4 w-4 text-green-500" />
-                          <div>
-                            <div className="font-medium">{subCategory.name}</div>
-                            <div className="text-sm text-muted-foreground">{subCategory.description}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getCategoryName(subCategory.categoryId)}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          subCategory.status === 'Active' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {subCategory.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>{formatDateDMY(subCategory.createdDate)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEditSubCategory(subCategory)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-red-600"
-                            onClick={() => handleDeleteSubCategory(subCategory.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Parent Category</TableHead>
+                <TableHead>Sub-Category Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created Date</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {subCategories.map((subCategory) => (
+                <TableRow key={subCategory.id}>
+                  <TableCell className="font-medium">{getCategoryName(subCategory.category_id)}</TableCell>
+                  <TableCell>{subCategory.sub_category_name}</TableCell>
+                  <TableCell>{subCategory.description || '-'}</TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      subCategory.status === 'Active' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {subCategory.status}
+                    </span>
+                  </TableCell>
+                  <TableCell>{formatDateDMY(subCategory.created_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditSubCategory(subCategory)}
+                        title="Edit Sub-Category"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleDeleteSubCategory(subCategory.id, subCategory.sub_category_name)}
+                        title="Delete Sub-Category"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 };

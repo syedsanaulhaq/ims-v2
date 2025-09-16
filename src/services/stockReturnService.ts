@@ -16,7 +16,7 @@ interface StockReturn {
 }
 
 class StockReturnService {
-  private baseUrl = 'http://localhost:3001/api/stock-returns';
+  private baseUrl = 'http://localhost:5000/api/stock-returns';
 
   async createReturn(stockReturn: StockReturn): Promise<any> {
     try {

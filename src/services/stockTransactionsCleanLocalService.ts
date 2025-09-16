@@ -1,6 +1,6 @@
 // Clean Stock Transactions Service for SQL Server Backend
 // This service handles stock_transactions_clean table operations
-const BASE_URL = 'http://localhost:3001/api';
+const BASE_URL = 'http://localhost:5000/api';
 
 export interface StockTransactionClean {
   id: string;

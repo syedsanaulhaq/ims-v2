@@ -13,7 +13,7 @@ import ApprovalManager from "@/pages/ApprovalManager";
 import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
-import Categories from "./pages/Categories";
+import CategoriesManagement from "./pages/CategoriesManagement";
 import Offices from "./pages/Offices";
 import Reports from "./pages/Reports";
 import StockTransactions from "./pages/StockTransactions";
@@ -22,9 +22,10 @@ import ContractTender from "./pages/ContractTender";
 import TenderFormFresh2 from './components/tenders/TenderFormFresh2';
 
 import ItemMaster from "./pages/ItemMaster";
-import VendorInfo from "./pages/VendorInfo";
+import ItemMasterManagement from "./pages/ItemMasterManagement";
+import ItemsMaster from "./pages/items-master";
+import VendorManagement from "./pages/VendorManagement";
 import NotFound from "./pages/NotFound";
-import MultiSelectDemo from "./components/demo/MultiSelectDemo";
 import TenderReport from "./pages/TenderReport";
 import InventoryReportPage from "./pages/InventoryReportPage";
 import StockAcquisitionReport from "./pages/StockAcquisitionReport";
@@ -147,8 +148,10 @@ function App() {
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
-                  <Route path="categories" element={<Categories />} />
-                  <Route path="vendors" element={<VendorInfo />} />
+                  <Route path="categories" element={<CategoriesManagement />} />
+                  <Route path="vendors" element={<VendorManagement />} />
+                  <Route path="item-masters" element={<ItemsMaster />} />
+                  <Route path="item-master" element={<ItemsMaster />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="stock-transactions" element={<StockTransactions />} />
                   <Route path="stock-acquisition-dashboard" element={<StockAcquisitionDashboard />} />
@@ -163,12 +166,10 @@ function App() {
                   <Route path="tenders/:id/edit" element={<TenderFormFresh2 />} />
                   <Route path="tenders/:id/report" element={<TenderReport />} />
                   <Route path="tenders/:id/stock-acquisition" element={<IntegratedStockAcquisition />} />
-                  <Route path="stock-acquisition/:id/report" element={<StockAcquisitionReport />} />
+                  <Route path="stock-acquisition/:id" element={<StockAcquisitionReport />} />
                   <Route path="tenders/:tenderId/expandable-receiving" element={<ExpandableReceivingForm />} />
                   <Route path="delivery-report/:id" element={<DeliveryReport />} />
                   <Route path="inventory/:id/report" element={<InventoryReportPage />} />
-                  <Route path="item-master" element={<ItemMaster />} />
-                  <Route path="multi-select-demo" element={<MultiSelectDemo />} />
                 </Route>
 
                 {/* Approval Manager - Protected */}
@@ -220,9 +221,10 @@ function App() {
                   </ProtectedRoute>
                 }>
                   <Route index element={<InventorySettings />} />
-                  <Route path="categories" element={<Categories />} />
-                  <Route path="vendors" element={<VendorInfo />} />
-                  <Route path="item-master" element={<ItemMaster />} />
+                  <Route path="categories" element={<CategoriesManagement />} />
+                  <Route path="vendors" element={<VendorManagement />} />
+                  <Route path="item-masters" element={<ItemMasterManagement />} />
+                  <Route path="item-master" element={<ItemsMaster />} />
                 </Route>
 
                 {/* 404 route */}

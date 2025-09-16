@@ -1,7 +1,7 @@
 // Stock Acquisition Service - Unified API
 // This service handles all stock acquisition operations using the unified backend API
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 export interface Delivery {
   id: string;
