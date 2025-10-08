@@ -32,7 +32,6 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Legend } from 'recharts';
 import LoadingSpinner from "@/components/common/LoadingSpinner";
-import { invmisApi } from "@/services/invmisApi";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -54,47 +53,46 @@ const Dashboard = () => {
       try {
         setDataLoading(true);
         
-        // Fetch all data in parallel using new InvMIS API
+        // Fetch all data in parallel
         const [
           tendersRes,
           deliveriesRes,
-          procurementRes,
+          stockIssuanceRes,
           inventoryStockRes,
-          dashboardSummaryRes,
+          inventoryStatsRes,
           officesRes,
           usersRes,
           wingsRes
         ] = await Promise.all([
-          invmisApi.tenders.getAwards().catch(() => ({ success: false, awards: [] })),
-          invmisApi.deliveries.getAll().catch(() => ({ success: false, deliveries: [] })),
-          invmisApi.procurement.getRequests().catch(() => ({ success: false, requests: [] })),
-          invmisApi.stock.getCurrent().catch(() => ({ success: false, stock: [] })),
-          invmisApi.dashboard.getSummary().catch(() => null),
-          invmisApi.offices.getAll().catch(() => ({ success: false, offices: [] })),
-          invmisApi.users.getAll().catch(() => ({ success: false, users: [] })),
-          invmisApi.wings.getAll().catch(() => ({ success: false, wings: [] }))
+          fetch('http://localhost:3001/api/tenders').then(res => res.ok ? res.json() : []),
+          fetch('http://localhost:3001/api/deliveries').then(res => res.ok ? res.json() : []),
+          fetch('http://localhost:3001/api/stock-issuance/requests').then(res => res.ok ? res.json() : []).catch(() => []),
+          fetch('http://localhost:3001/api/inventory/current-stock').then(res => res.ok ? res.json() : { data: [] }),
+          fetch('http://localhost:3001/api/inventory/dashboard-stats').then(res => res.ok ? res.json() : null).catch(() => null),
+          fetch('http://localhost:3001/api/offices').then(res => res.ok ? res.json() : []),
+          fetch('http://localhost:3001/api/users').then(res => res.ok ? res.json() : []),
+          fetch('http://localhost:3001/api/wings').then(res => res.ok ? res.json() : [])
         ]);
 
-        console.log('Dashboard data loaded from InvMIS API:', {
-          tenders: tendersRes?.awards?.length || 0,
-          deliveries: deliveriesRes?.deliveries?.length || 0,
-          procurementRequests: procurementRes?.requests?.length || 0,
-          inventoryItems: inventoryStockRes?.stock?.length || 0,
-          dashboardSummary: dashboardSummaryRes ? 'loaded' : 'failed',
-          offices: officesRes?.offices?.length || 0,
-          users: usersRes?.users?.length || 0,
-          wings: wingsRes?.wings?.length || 0
+        console.log('Dashboard data loaded:', {
+          tenders: tendersRes?.length || 0,
+          deliveries: deliveriesRes?.length || 0,
+          stockRequests: stockIssuanceRes?.length || 0,
+          inventoryItems: inventoryStockRes?.data?.length || 0,
+          inventoryStats: inventoryStatsRes?.success ? 'loaded' : 'failed',
+          offices: officesRes?.length || 0,
+          users: usersRes?.length || 0,
+          wings: wingsRes?.length || 0
         });
 
-        // Update state with new API response format
-        setTenders(tendersRes?.success ? tendersRes.awards : []);
-        setDeliveries(deliveriesRes?.success ? deliveriesRes.deliveries : []);
-        setStockIssuanceRequests(procurementRes?.success ? procurementRes.requests : []);
-        setInventoryStock(inventoryStockRes?.success ? inventoryStockRes.stock : []);
-        setInventoryStats(dashboardSummaryRes || null);
-        setOffices(officesRes?.success ? officesRes.offices : []);
-        setUsers(usersRes?.success ? usersRes.users : []);
-        setWings(wingsRes?.success ? wingsRes.wings : []);
+        setTenders(Array.isArray(tendersRes) ? tendersRes : []);
+        setDeliveries(Array.isArray(deliveriesRes) ? deliveriesRes : []);
+        setStockIssuanceRequests(Array.isArray(stockIssuanceRes) ? stockIssuanceRes : (stockIssuanceRes?.data ? stockIssuanceRes.data : []));
+        setInventoryStock(inventoryStockRes?.data || []);
+        setInventoryStats(inventoryStatsRes?.success ? inventoryStatsRes : null);
+        setOffices(Array.isArray(officesRes) ? officesRes : []);
+        setUsers(Array.isArray(usersRes) ? usersRes : []);
+        setWings(Array.isArray(wingsRes) ? wingsRes : []);
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -279,35 +277,27 @@ const Dashboard = () => {
   const { stockStatusData, categoryValueData, monthlyTrends, performanceData } = processChartData();
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Dashboard Overview Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle className="flex items-center space-x-2">
-                <BarChart3 className="w-6 h-6" />
-                <span>System Dashboard</span>
-              </CardTitle>
-              <CardDescription>
-                Comprehensive Inventory Management System Overview
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                <Activity className="h-3 w-3 mr-1" />
-                System Online
-              </Badge>
-              <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-                <Clock className="h-3 w-3 mr-1" />
-                Last Updated: {new Date().toLocaleTimeString()}
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Key Performance Indicators */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-4xl font-bold text-gray-900">System Dashboard</h1>
+        <p className="text-lg text-gray-600 mt-2">
+          Comprehensive Inventory Management System Overview
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+            <Activity className="h-3 w-3 mr-1" />
+            System Online
+          </Badge>
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+            <Clock className="h-3 w-3 mr-1" />
+            Last Updated: {new Date().toLocaleTimeString()}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Key Performance Indicators */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Inventory Status */}
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/inventory-details')}>
@@ -415,8 +405,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-        </CardContent>
-      </Card>
 
       {/* Advanced Analytics & Performance Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">

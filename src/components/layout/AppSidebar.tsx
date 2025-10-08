@@ -21,16 +21,7 @@ import {
   PackageOpen,
   Warehouse,
   Send,
-  Undo2,
-  Settings,
-  ShoppingCart,
-  Truck as TruckIcon,
-  Users,
-  SendHorizontal,
-  Undo,
-  CheckCircle,
-  History,
-  Receipt
+  Undo2
 } from "lucide-react";
 import {
   Sidebar,
@@ -62,15 +53,28 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
   const allMenuItems = [
     {
+      title: "My Dashboard",
+      icon: Home,
+      path: "/",
+      hasSubmenu: false
+    },
+    {
+      title: "Inv. Dashboard",
+      icon: BarChart3,
+      path: "/dashboard",
+      hasSubmenu: false
+    },
+    {
       title: "Inventory Manager",
       icon: Package,
       path: "/inventory",
       hasSubmenu: true,
       submenu: [
-        { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard", icon: BarChart3 },
-        { title: "Categories", path: "/dashboard/categories", icon: FolderOpen },
-        { title: "Item Master", path: "/dashboard/item-master", icon: Database },
-        { title: "Inventory Settings", path: "/dashboard/inventory-settings", icon: Settings }
+        { title: "Initial Setup", path: "/dashboard/initial-setup" },
+        { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard" },
+        { title: "Item Master", path: "/dashboard/item-master" },
+        { title: "Categories", path: "/dashboard/categories" },
+        { title: "Inventory Settings", path: "/dashboard/inventory-settings" }
       ]
     },
     {
@@ -79,12 +83,10 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/stock",
       hasSubmenu: true,
       submenu: [
-        { title: "Stock Dashboard", path: "/dashboard/stock-dashboard", icon: BarChart3 },
-        { title: "Contract/Tender", path: "/dashboard/contract-tender", icon: FileText },
-        { title: "Spot Purchase", path: "/dashboard/spot-purchases", icon: ShoppingCart },
-        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition", icon: TruckIcon },
-        { title: "Vendors", path: "/dashboard/vendors", icon: Users },
-        { title: "Item Masters", path: "/dashboard/item-masters", icon: Package }
+        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard" },
+        { title: "Contract/Tender", path: "/dashboard/contract-tender" },
+        { title: "Spot Purchase", path: "/dashboard/spot-purchases" },
+        { title: "Vendors", path: "/dashboard/vendors" }
       ]
     },
     {
@@ -93,11 +95,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/issuance",
       hasSubmenu: true,
       submenu: [
-        { title: "Issuance Dashboard", path: "/dashboard/issuance-dashboard", icon: BarChart3 },
-        { title: "Stock Issuance", path: "/dashboard/stock-issuance", icon: SendHorizontal },
-        { title: "Stock Returns", path: "/dashboard/stock-returns", icon: Undo },
-        { title: "Approval Management", path: "/dashboard/approval-management", icon: CheckCircle },
-        { title: "Issue History", path: "/dashboard/issue-history", icon: History }
+        { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard" },
+        { title: "Stock Returns", path: "/dashboard/stock-return" },
+        { title: "Approval Management", path: "/dashboard/approval-management" },
+        { title: "Issue Processing", path: "/dashboard/stock-issuance-processing" },
+        { title: "Historical Issuances", path: "/dashboard/issuances" }
       ]
     },
     {
@@ -106,10 +108,10 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/reports",
       hasSubmenu: true,
       submenu: [
-        { title: "Reports Dashboard", path: "/dashboard/reports-dashboard", icon: BarChart3 },
-        { title: "Inventory Reports", path: "/reports/inventory", icon: Package },
-        { title: "Transaction Reports", path: "/reports/transactions", icon: Receipt },
-        { title: "Analytics", path: "/reports/analytics", icon: TrendingUp }
+        { title: "Overview", path: "/reports?tab=overview" },
+        { title: "Inventory Report", path: "/reports?tab=inventory" },
+        { title: "Transaction Report", path: "/reports?tab=transactions" },
+        { title: "Analytics", path: "/reports?tab=analytics" }
       ]
     }
   ];
@@ -117,7 +119,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   // Filter menu items based on limitedMenu prop
   const menuItems = limitedMenu 
     ? allMenuItems.filter(item => 
-        item.title === "Inventory Manager"
+        item.title === "My Dashboard" || item.title === "Inv. Dashboard"
       )
     : allMenuItems;
 
@@ -166,9 +168,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                               hasActiveChild ? 'bg-teal-700 text-white' : ''
                             }`}
                           >
-                            <div className="flex items-center space-x-2">
-                              <item.icon className="w-4 h-4 flex-shrink-0" />
-                              <span className="font-medium text-xs whitespace-nowrap group-data-[collapsible=icon]:hidden">{item.title}</span>
+                            <div className="flex items-center space-x-3">
+                              <item.icon className="w-5 h-5" />
+                              <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                             </div>
                             <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
                           </SidebarMenuButton>
@@ -187,10 +189,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                   }`}
                                 >
                                   <Link to={subItem.path}>
-                                    <div className="flex items-center space-x-2">
-                                      {subItem.icon && <subItem.icon className="w-3 h-3 flex-shrink-0" />}
-                                      <span className="text-xs whitespace-nowrap truncate">{subItem.title}</span>
-                                    </div>
+                                    <span className="ml-1">- {subItem.title}</span>
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
@@ -214,8 +213,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                       }`}
                     >
                       <Link to={item.path}>
-                        <item.icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="font-medium text-xs whitespace-nowrap group-data-[collapsible=icon]:hidden">{item.title}</span>
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

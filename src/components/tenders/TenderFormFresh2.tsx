@@ -22,7 +22,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useToast } from "@/hooks/use-toast";
-import { officeApi } from "@/services/officeApi";
+import { officeApi } from "@/services/officeApiClean";
 import { cn } from "@/lib/utils";
 import { Building2, Users, MapPin } from "lucide-react";
 

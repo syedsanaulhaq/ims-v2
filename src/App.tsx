@@ -1,5 +1,4 @@
-import { Toaster } from "@/components/ui/sonner";
-import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";import InitialSetupPageFresh from './pages/InitialSetupPageFresh';import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
@@ -13,7 +12,7 @@ import ApprovalManager from "@/pages/ApprovalManager";
 import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
-import CategoriesManagement from "./pages/CategoriesManagement";
+import Categories from "./pages/Categories";
 import Offices from "./pages/Offices";
 import Reports from "./pages/Reports";
 import StockTransactions from "./pages/StockTransactions";
@@ -22,9 +21,7 @@ import ContractTender from "./pages/ContractTender";
 import TenderFormFresh2 from './components/tenders/TenderFormFresh2';
 
 import ItemMaster from "./pages/ItemMaster";
-import ItemMasterManagement from "./pages/ItemMasterManagement";
-import ItemsMaster from "./pages/items-master";
-import VendorManagement from "./pages/VendorManagement";
+import VendorInfo from "./pages/VendorInfo";
 import NotFound from "./pages/NotFound";
 import TenderReport from "./pages/TenderReport";
 import InventoryReportPage from "./pages/InventoryReportPage";
@@ -50,15 +47,6 @@ import StockOperations from "./pages/StockOperations";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
-import SimpleApiTest from "./components/testing/SimpleApiTest";
-
-// New ERP Modules
-import InvMISDashboard from "./pages/InvMISDashboard";
-import UserManagement from "./pages/UserManagement";
-import InventoryManagement from "./pages/InventoryManagement";
-import TenderManagement from "./pages/TenderManagement";
-import ReportsAnalytics from "./pages/ReportsAnalytics";
-import InvMISWelcomePage from "./pages/InvMISWelcomePage";
 
 const queryClient = new QueryClient();
 
@@ -75,8 +63,6 @@ function App() {
                 <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/api-test" element={<SimpleApiTest />} />
-                <Route path="/welcome" element={<InvMISWelcomePage />} />
                 
                 {/* Protected routes */}
                 <Route path="/" element={
@@ -88,37 +74,6 @@ function App() {
                 <Route path="/user-dashboard" element={
                   <ProtectedRoute>
                     <UserDashboard />
-                  </ProtectedRoute>
-                } />
-                
-                {/* New ERP Modules */}
-                <Route path="/invmis-dashboard" element={
-                  <ProtectedRoute>
-                    <InvMISDashboard />
-                  </ProtectedRoute>
-                } />
-                
-                <Route path="/user-management" element={
-                  <ProtectedRoute allowedRoles={['Admin', 'Manager']}>
-                    <UserManagement />
-                  </ProtectedRoute>
-                } />
-                
-                <Route path="/inventory-management" element={
-                  <ProtectedRoute>
-                    <InventoryManagement />
-                  </ProtectedRoute>
-                } />
-                
-                <Route path="/tender-management" element={
-                  <ProtectedRoute>
-                    <TenderManagement />
-                  </ProtectedRoute>
-                } />
-                
-                <Route path="/reports-analytics" element={
-                  <ProtectedRoute>
-                    <ReportsAnalytics />
                   </ProtectedRoute>
                 } />
                 
@@ -134,7 +89,7 @@ function App() {
                   </ProtectedRoute>
                 }>
                   <Route index element={<Dashboard />} />
-                  <Route path="initial-setup" element={<InitialSetupPage />} />
+                  <Route path="initial-setup" element={<InitialSetupPageFresh />} />
                   <Route path="inventory-details" element={<InventoryDetails />} />
                   <Route path="stock-operations" element={<StockOperations />} />
                   <Route path="procurement-details" element={<ProcurementDetails />} />
@@ -148,10 +103,8 @@ function App() {
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
-                  <Route path="categories" element={<CategoriesManagement />} />
-                  <Route path="vendors" element={<VendorManagement />} />
-                  <Route path="item-masters" element={<ItemsMaster />} />
-                  <Route path="item-master" element={<ItemsMaster />} />
+                  <Route path="categories" element={<Categories />} />
+                  <Route path="vendors" element={<VendorInfo />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="stock-transactions" element={<StockTransactions />} />
                   <Route path="stock-acquisition-dashboard" element={<StockAcquisitionDashboard />} />
@@ -166,10 +119,11 @@ function App() {
                   <Route path="tenders/:id/edit" element={<TenderFormFresh2 />} />
                   <Route path="tenders/:id/report" element={<TenderReport />} />
                   <Route path="tenders/:id/stock-acquisition" element={<IntegratedStockAcquisition />} />
-                  <Route path="stock-acquisition/:id" element={<StockAcquisitionReport />} />
+                  <Route path="stock-acquisition/:id/report" element={<StockAcquisitionReport />} />
                   <Route path="tenders/:tenderId/expandable-receiving" element={<ExpandableReceivingForm />} />
                   <Route path="delivery-report/:id" element={<DeliveryReport />} />
                   <Route path="inventory/:id/report" element={<InventoryReportPage />} />
+                  <Route path="item-master" element={<ItemMaster />} />
                 </Route>
 
                 {/* Approval Manager - Protected */}
@@ -221,10 +175,9 @@ function App() {
                   </ProtectedRoute>
                 }>
                   <Route index element={<InventorySettings />} />
-                  <Route path="categories" element={<CategoriesManagement />} />
-                  <Route path="vendors" element={<VendorManagement />} />
-                  <Route path="item-masters" element={<ItemMasterManagement />} />
-                  <Route path="item-master" element={<ItemsMaster />} />
+                  <Route path="categories" element={<Categories />} />
+                  <Route path="vendors" element={<VendorInfo />} />
+                  <Route path="item-master" element={<ItemMaster />} />
                 </Route>
 
                 {/* 404 route */}

@@ -68,16 +68,16 @@ const upload = multer({
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// SQL Server configuration - Using SQL Server Authentication for InvMISDB
+// SQL Server configuration - Using exact server name from SSMS
 const sqlConfig = {
-  server: process.env.SQL_SERVER_HOST || 'SYED-FAZLI-LAPT',
-  database: process.env.SQL_SERVER_DATABASE || 'InvMISDB',
-  user: process.env.SQL_SERVER_USER,
-  password: process.env.SQL_SERVER_PASSWORD,
-  port: parseInt(process.env.SQL_SERVER_PORT) || 1433,
+  server: 'SYED-FAZLI-LAPT', // Exact server name as used in SSMS
+  database: 'InventoryManagementDB',
+  user: 'inventoryuser',
+  password: '1978Jupiter87@#',
+  port: 1433,
   options: {
-    encrypt: process.env.SQL_SERVER_ENCRYPT === 'true',
-    trustServerCertificate: process.env.SQL_SERVER_TRUST_CERT === 'true',
+    encrypt: false,
+    trustServerCertificate: true,
     enableArithAbort: true
   },
   requestTimeout: 30000,
@@ -2458,12 +2458,12 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
       let operationType = 'INSERT';
 
       if (existingStockResult.recordset.length > 0) {
-        currentQuantity = existingStockResult.recordset[0].current_quantity || 0;
+        currentQuantity = existingStockResult.recordset[0].current_quantity;
         operationType = 'UPDATE';
         
         // Update existing record
         await transaction.request()
-          .input('stockId', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
+          .input('inventoryId', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
           .input('newQuantity', sql.Int, quantity)
           .input('setupBy', sql.NVarChar, setupBy)
           .query(`
@@ -2473,11 +2473,13 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
               available_quantity = @newQuantity - ISNULL(reserved_quantity, 0),
               last_updated = GETDATE(),
               updated_by = @setupBy
-            WHERE id = @stockId
+            WHERE id = @inventoryId
           `);
       } else {
         // Insert new record
+        const inventoryId = uuidv4();
         await transaction.request()
+          .input('inventoryId', sql.UniqueIdentifier, inventoryId)
           .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
           .input('quantity', sql.Int, quantity)
           .input('setupBy', sql.NVarChar, setupBy)
@@ -2485,9 +2487,9 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
             INSERT INTO current_inventory_stock (
               id, item_master_id, current_quantity, available_quantity, reserved_quantity,
               minimum_stock_level, maximum_stock_level, reorder_point,
-              created_at, last_updated, updated_by
+              last_updated, created_at, updated_by
             ) VALUES (
-              NEWID(), @itemMasterId, @quantity, @quantity, 0,
+              @inventoryId, @itemMasterId, @quantity, @quantity, 0,
               0, 0, 0,
               GETDATE(), GETDATE(), @setupBy
             )
@@ -2500,8 +2502,8 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
 
       insertedRecords.push({
         ItemMasterID: ItemMasterID,
-        ItemDescription: itemMaster.nomenclature,
-        Unit: itemMaster.unit,
+        ItemDescription: itemMaster.ItemDescription,
+        Unit: itemMaster.Unit,
         PreviousQuantity: currentQuantity,
         NewQuantity: quantity,
         Operation: operationType
@@ -2531,6 +2533,317 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
     console.error('Error setting up initial inventory:', error);
     res.status(500).json({ 
       error: 'Failed to setup initial inventory', 
+      details: error.message 
+    });
+  }
+});
+
+// =============================================================================
+// FRESH INITIAL SETUP ENDPOINTS
+// =============================================================================
+
+// Get detailed current stock with item master information
+app.get('/api/inventory/current-stock-detailed', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const request = pool.request();
+    const result = await request.query(`
+      SELECT 
+        cs.id,
+        cs.item_master_id,
+        im.nomenclature,
+        im.item_code,
+        c.category_name,
+        im.unit,
+        ISNULL(cs.current_quantity, 0) as current_quantity,
+        ISNULL(im.minimum_stock_level, 0) as minimum_stock_level,
+        ISNULL(im.maximum_stock_level, 0) as maximum_stock_level,
+        im.specifications
+      FROM CurrentStock cs
+      INNER JOIN item_masters im ON cs.item_master_id = im.id
+      LEFT JOIN categories c ON im.category_id = c.id
+      WHERE im.status = 'Active'
+      ORDER BY im.nomenclature
+    `);
+
+    console.log(`📊 Fetched ${result.recordset.length} detailed current stock items`);
+    res.json(result.recordset);
+
+  } catch (error) {
+    console.error('Error fetching detailed current stock:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch detailed current stock', 
+      details: error.message 
+    });
+  }
+});
+
+// Update stock quantities (for initial setup adjustments)
+app.post('/api/inventory/update-stock-quantities', async (req, res) => {
+  const transaction = new sql.Transaction(pool);
+  
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { updates, updated_by, update_date } = req.body;
+
+    if (!updates || !Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'Updates array is required' });
+    }
+
+    await transaction.begin();
+
+    const updatedItems = [];
+    
+    for (const update of updates) {
+      const { item_master_id, new_quantity, notes } = update;
+
+      if (!item_master_id || new_quantity < 0) {
+        continue; // Skip invalid entries
+      }
+
+      // Get current stock info
+      const currentStockResult = await transaction.request()
+        .input('itemMasterId', sql.UniqueIdentifier, item_master_id)
+        .query(`
+          SELECT cs.id, cs.current_quantity, im.nomenclature
+          FROM CurrentStock cs
+          INNER JOIN item_masters im ON cs.item_master_id = im.id
+          WHERE cs.item_master_id = @itemMasterId
+        `);
+
+      if (currentStockResult.recordset.length === 0) {
+        console.warn(`No current stock found for item ${item_master_id}, skipping...`);
+        continue;
+      }
+
+      const currentStock = currentStockResult.recordset[0];
+      const previousQuantity = currentStock.current_quantity;
+
+      // Update the current stock quantity
+      await transaction.request()
+        .input('itemMasterId', sql.UniqueIdentifier, item_master_id)
+        .input('newQuantity', sql.Int, new_quantity)
+        .input('updatedBy', sql.NVarChar(100), updated_by || 'System')
+        .input('updateDate', sql.DateTime, new Date(update_date || new Date()))
+        .query(`
+          UPDATE CurrentStock 
+          SET 
+            current_quantity = @newQuantity,
+            last_updated = @updateDate,
+            updated_by = @updatedBy
+          WHERE item_master_id = @itemMasterId
+        `);
+
+      // Log the stock movement (if you have a stock transactions table)
+      try {
+        await transaction.request()
+          .input('itemMasterId', sql.UniqueIdentifier, item_master_id)
+          .input('transactionType', sql.NVarChar(50), 'Initial Setup Adjustment')
+          .input('quantityChange', sql.Int, new_quantity - previousQuantity)
+          .input('previousQuantity', sql.Int, previousQuantity)
+          .input('newQuantity', sql.Int, new_quantity)
+          .input('notes', sql.NVarChar(500), notes || 'Initial setup quantity adjustment')
+          .input('createdBy', sql.NVarChar(100), updated_by || 'System')
+          .input('transactionDate', sql.DateTime, new Date())
+          .query(`
+            INSERT INTO stock_transactions (
+              item_master_id, transaction_type, quantity_change, 
+              previous_quantity, new_quantity, notes, created_by, transaction_date
+            ) VALUES (
+              @itemMasterId, @transactionType, @quantityChange,
+              @previousQuantity, @newQuantity, @notes, @createdBy, @transactionDate
+            )
+          `);
+      } catch (logError) {
+        // If stock_transactions table doesn't exist, just log to console
+        console.log(`Stock change logged: ${currentStock.nomenclature} - ${previousQuantity} → ${new_quantity}`);
+      }
+
+      updatedItems.push({
+        item_master_id: item_master_id,
+        nomenclature: currentStock.nomenclature,
+        previous_quantity: previousQuantity,
+        new_quantity: new_quantity,
+        change: new_quantity - previousQuantity
+      });
+    }
+
+    await transaction.commit();
+
+    console.log(`✅ Updated ${updatedItems.length} stock quantities`);
+    
+    res.json({
+      success: true,
+      message: `Successfully updated ${updatedItems.length} stock quantities`,
+      data: {
+        updated_items: updatedItems,
+        total_updated: updatedItems.length,
+        updated_by: updated_by,
+        update_date: update_date
+      }
+    });
+
+  } catch (error) {
+    if (transaction._aborted === false) {
+      await transaction.rollback();
+    }
+    console.error('Error updating stock quantities:', error);
+    res.status(500).json({ 
+      error: 'Failed to update stock quantities', 
+      details: error.message 
+    });
+  }
+});
+
+// =============================================================================
+// CURRENT INVENTORY STOCK ENDPOINTS (FROM SCRATCH)
+// =============================================================================
+
+// Get all records from current_inventory_stock table
+app.get('/api/inventory/current-inventory-stock', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    console.log('📊 Fetching data from View_Current_Inv_Stock view...');
+    console.log('🔍 Using view with all item details and categories');
+    
+    const request = pool.request();
+    const result = await request.query(`
+      SELECT 
+        item_master_id,
+        item_code,
+        nomenclature,
+        category_name,
+        sub_category_name,
+        current_quantity,
+        reserved_quantity,
+        available_quantity,
+        minimum_stock_level,
+        reorder_point,
+        maximum_stock_level,
+        last_updated,
+        created_at,
+        updated_by,
+        category_id,
+        sub_category_id
+      FROM View_Current_Inv_Stock
+      ORDER BY nomenclature
+    `);
+
+    console.log(`✅ Query executed. Found ${result.recordset.length} records from view`);
+    console.log('📄 Sample record fields:', Object.keys(result.recordset[0] || {}));
+    res.json(result.recordset);
+
+  } catch (error) {
+    console.error('❌ Error fetching current_inventory_stock:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch current_inventory_stock',
+      details: error.message 
+    });
+  }
+});
+
+// Update single record in current_inventory_stock
+app.put('/api/inventory/current-inventory-stock/:id', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { id } = req.params;
+    const { current_quantity } = req.body;
+    
+    console.log(`🔄 Updating current_inventory_stock ID: ${id} with quantity: ${current_quantity}`);
+    
+    const request = pool.request();
+    const result = await request
+      .input('id', sql.UniqueIdentifier, id)
+      .input('current_quantity', sql.Int, current_quantity)
+      .input('updated_by', sql.NVarChar, 'system')
+      .query(`
+        UPDATE current_inventory_stock 
+        SET current_quantity = @current_quantity,
+            available_quantity = @current_quantity - ISNULL(reserved_quantity, 0),
+            last_updated = GETDATE(),
+            updated_by = @updated_by
+        WHERE id = @id
+      `);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+    
+    console.log(`✅ Updated current_inventory_stock ID: ${id}`);
+    res.json({ 
+      success: true, 
+      message: 'Quantity updated successfully',
+      id: id,
+      new_quantity: current_quantity
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating current_inventory_stock:', error);
+    res.status(500).json({ 
+      error: 'Failed to update quantity',
+      details: error.message 
+    });
+  }
+});
+
+// Bulk update records in current_inventory_stock
+app.post('/api/inventory/current-inventory-stock/bulk-update', async (req, res) => {
+  const transaction = new sql.Transaction(pool);
+  
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { updates } = req.body;
+    console.log('🚀 Bulk updating current_inventory_stock:', updates.length, 'records');
+    
+    await transaction.begin();
+    
+    for (const update of updates) {
+      const request = new sql.Request(transaction);
+      await request
+        .input('item_master_id', sql.UniqueIdentifier, update.item_master_id)
+        .input('current_quantity', sql.Int, update.current_quantity)
+        .input('updated_by', sql.NVarChar, 'system')
+        .query(`
+          UPDATE current_inventory_stock 
+          SET current_quantity = @current_quantity,
+              available_quantity = @current_quantity - ISNULL(reserved_quantity, 0),
+              last_updated = GETDATE(),
+              updated_by = @updated_by
+          WHERE item_master_id = @item_master_id
+        `);
+    }
+    
+    await transaction.commit();
+    
+    console.log('✅ Bulk update completed successfully');
+    res.json({ 
+      success: true, 
+      message: 'Bulk update completed successfully',
+      recordsUpdated: updates.length
+    });
+
+  } catch (error) {
+    if (transaction._aborted === false) {
+      await transaction.rollback();
+    }
+    console.error('❌ Error in bulk update:', error);
+    res.status(500).json({ 
+      error: 'Failed to bulk update quantities',
       details: error.message 
     });
   }
@@ -3851,11 +4164,10 @@ app.post('/api/inventory-stock/:id/transaction', async (req, res) => {
 });
 
 // =============================================================================
-// ITEM MASTER ENDPOINTS - OLD (DISABLED - CONFLICTS WITH NEW ENDPOINTS)
+// ITEM MASTER ENDPOINTS
 // =============================================================================
 
-// GET all item masters - DISABLED TO PREVENT CONFLICTS
-/*
+// GET all item masters
 app.get('/api/item-masters', async (req, res) => {
   try {
     if (!pool) {
@@ -3899,10 +4211,8 @@ app.get('/api/item-masters', async (req, res) => {
     res.json(mockItemMasters);
   }
 });
-*/
 
-// GET single item master by ID - DISABLED TO PREVENT CONFLICTS
-/*
+// GET single item master by ID
 app.get('/api/item-masters/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -3938,10 +4248,8 @@ app.get('/api/item-masters/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch item master', details: error.message });
   }
 });
-*/
 
-// POST create new item master - DISABLED (conflicting with newer endpoint)
-/*
+// POST create new item master
 app.post('/api/item-masters', async (req, res) => {
   try {
     const {
@@ -3999,10 +4307,8 @@ app.post('/api/item-masters', async (req, res) => {
     res.status(500).json({ error: 'Failed to create item master', details: error.message });
   }
 });
-*/
 
-// PUT update item master - DISABLED (conflicting with newer endpoint)
-/*
+// PUT update item master
 app.put('/api/item-masters/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -4066,10 +4372,8 @@ app.put('/api/item-masters/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update item master', details: error.message });
   }
 });
-*/
 
-// DELETE item master (soft delete) - DISABLED - CONFLICTS WITH LINE 5457
-/*
+// DELETE item master (soft delete)
 app.delete('/api/item-masters/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -4097,7 +4401,6 @@ app.delete('/api/item-masters/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete item master', details: error.message });
   }
 });
-*/
 
 // =============================================================================
 // CATEGORIES ENDPOINTS
@@ -4127,6 +4430,7 @@ app.get('/api/categories', async (req, res) => {
         created_at,
         updated_at
       FROM categories 
+      WHERE status != 'Deleted'
       ORDER BY category_name
     `);
     res.json(result.recordset);
@@ -4176,480 +4480,6 @@ app.get('/api/categories/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching category:', error);
     res.status(500).json({ error: 'Failed to fetch category', details: error.message });
-  }
-});
-
-// POST - Create new category
-app.post('/api/categories', async (req, res) => {
-  try {
-    const { category_name, description, status = 'Active' } = req.body;
-    
-    console.log('📝 Creating category with data:', { category_name, description, status });
-    
-    if (!category_name || !category_name.trim()) {
-      console.log('❌ Validation failed: Category name is required');
-      return res.status(400).json({ 
-        success: false,
-        error: 'Category name is required' 
-      });
-    }
-
-    if (!pool) {
-      console.log('❌ Database pool not available');
-      return res.status(500).json({ 
-        success: false,
-        error: 'Database connection not available' 
-      });
-    }
-
-    // Insert into the actual categories table
-    const categoryId = uuidv4();
-    const now = new Date();
-    
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, categoryId)
-      .input('category_name', sql.NVarChar(255), category_name.trim())
-      .input('description', sql.NVarChar(sql.MAX), description || null)
-      .input('status', sql.NVarChar(255), status)
-      .input('created_at', sql.DateTime2, now)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        INSERT INTO categories (id, category_name, description, status, created_at, updated_at)
-        VALUES (@id, @category_name, @description, @status, @created_at, @updated_at)
-      `);
-
-    console.log(`✅ Category created successfully: ${category_name} (ID: ${categoryId})`);
-    
-    const newCategory = {
-      id: categoryId,
-      category_name: category_name.trim(),
-      description: description || null,
-      status: status,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString()
-    };
-
-    res.json({ 
-      success: true, 
-      category: newCategory,
-      message: `Category '${category_name}' created successfully`
-    });
-    
-  } catch (error) {
-    console.error('❌ Error creating category:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to create category',
-      details: error.message 
-    });
-  }
-});
-
-// PUT - Update category
-app.put('/api/categories/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { category_name, description, status } = req.body;
-    
-    console.log('📝 Updating category:', { 
-      id, 
-      idType: typeof id,
-      category_name, 
-      description, 
-      status,
-      fullBody: req.body
-    });
-    
-    if (!category_name || !category_name.trim()) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Category name is required' 
-      });
-    }
-
-    if (!pool) {
-      return res.status(500).json({ 
-        success: false,
-        error: 'Database connection not available' 
-      });
-    }
-
-    const now = new Date();
-    
-    console.log('🔍 About to execute SQL update with params:', {
-      id: id,
-      category_name: category_name.trim(),
-      description: description || null,
-      status: status || 'Active'
-    });
-    
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('category_name', sql.NVarChar(255), category_name.trim())
-      .input('description', sql.NVarChar(sql.MAX), description || null)
-      .input('status', sql.NVarChar(255), status || 'Active')
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        UPDATE categories 
-        SET category_name = @category_name, 
-            description = @description, 
-            status = @status, 
-            updated_at = @updated_at
-        WHERE id = @id AND status != 'Deleted'
-      `);
-      
-    console.log('📊 SQL update result:', { 
-      rowsAffected: result.rowsAffected,
-      recordset: result.recordset 
-    });
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Category not found' 
-      });
-    }
-
-    console.log(`✅ Category updated successfully: ${category_name} (ID: ${id})`);
-    
-    const updatedCategory = {
-      id: id,
-      category_name: category_name.trim(),
-      description: description || null,
-      status: status || 'Active',
-      updated_at: now.toISOString()
-    };
-
-    res.json({ 
-      success: true, 
-      category: updatedCategory,
-      message: `Category '${category_name}' updated successfully`
-    });
-    
-  } catch (error) {
-    console.error('❌ Error updating category:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to update category',
-      details: error.message,
-      sqlError: error.code || 'Unknown SQL error'
-    });
-  }
-});
-
-// DELETE - Delete category
-app.delete('/api/categories/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    console.log('🗑️ Deleting category:', { id });
-
-    if (!pool) {
-      return res.status(500).json({ 
-        success: false,
-        error: 'Database connection not available' 
-      });
-    }
-
-    // Check if category has sub-categories
-    const subCategoryCheck = await pool.request()
-      .input('category_id', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT COUNT(*) as count 
-        FROM sub_categories 
-        WHERE category_id = @category_id AND status != 'Deleted'
-      `);
-
-    if (subCategoryCheck.recordset[0].count > 0) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Cannot delete category that has sub-categories. Please delete sub-categories first.'
-      });
-    }
-
-    // Soft delete - update status to 'Deleted'
-    const now = new Date();
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        UPDATE categories 
-        SET status = 'Deleted', updated_at = @updated_at
-        WHERE id = @id AND status != 'Deleted'
-      `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Category not found or already deleted' 
-      });
-    }
-
-    console.log(`✅ Category deleted successfully (ID: ${id})`);
-
-    res.json({ 
-      success: true, 
-      message: 'Category deleted successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error deleting category:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to delete category',
-      details: error.message 
-    });
-  }
-});
-
-// GET all sub-categories
-app.get('/api/sub-categories', async (req, res) => {
-  try {
-    if (!pool) {
-      // Return mock data when SQL Server is not connected
-      const mockSubCategories = [
-        { id: 'sub1', category_id: '1', sub_category_name: 'Laptops', description: 'Laptop computers', status: 'Active' },
-        { id: 'sub2', category_id: '1', sub_category_name: 'Desktops', description: 'Desktop computers', status: 'Active' },
-        { id: 'sub3', category_id: '2', sub_category_name: 'Office Chairs', description: 'Office seating', status: 'Active' },
-        { id: 'sub4', category_id: '3', sub_category_name: 'Pens & Pencils', description: 'Writing instruments', status: 'Active' }
-      ];
-      return res.json(mockSubCategories);
-    }
-
-    const result = await pool.request().query(`
-      SELECT 
-        id,
-        category_id,
-        sub_category_name,
-        description,
-        status,
-        created_at,
-        updated_at
-      FROM sub_categories 
-      ORDER BY sub_category_name
-    `);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('Error fetching sub-categories:', error);
-    // Fallback to mock data on any error
-    const mockSubCategories = [
-      { id: 'sub1', category_id: '1', sub_category_name: 'Laptops', description: 'Laptop computers', status: 'Active' },
-      { id: 'sub2', category_id: '1', sub_category_name: 'Desktops', description: 'Desktop computers', status: 'Active' },
-      { id: 'sub3', category_id: '2', sub_category_name: 'Office Chairs', description: 'Office seating', status: 'Active' },
-      { id: 'sub4', category_id: '3', sub_category_name: 'Pens & Pencils', description: 'Writing instruments', status: 'Active' }
-    ];
-    res.json(mockSubCategories);
-  }
-});
-
-// POST - Create new sub-category  
-app.post('/api/sub-categories', async (req, res) => {
-  try {
-    const { category_id, sub_category_name, description, status = 'Active' } = req.body;
-    
-    console.log('📝 Creating sub-category with data:', { category_id, sub_category_name, description, status });
-    
-    if (!category_id || !category_id.trim()) {
-      console.log('❌ Validation failed: Category ID is required');
-      return res.status(400).json({ 
-        success: false,
-        error: 'Category ID is required' 
-      });
-    }
-    
-    if (!sub_category_name || !sub_category_name.trim()) {
-      console.log('❌ Validation failed: Sub-category name is required');
-      return res.status(400).json({ 
-        success: false,
-        error: 'Sub-category name is required' 
-      });
-    }
-
-    if (!pool) {
-      console.log('❌ Database pool not available');
-      return res.status(500).json({ 
-        success: false,
-        error: 'Database connection not available' 
-      });
-    }
-
-    // Insert into the actual sub_categories table
-    const subCategoryId = uuidv4();
-    const now = new Date();
-    
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, subCategoryId)
-      .input('category_id', sql.UniqueIdentifier, category_id)
-      .input('sub_category_name', sql.NVarChar(255), sub_category_name.trim())
-      .input('description', sql.NVarChar(sql.MAX), description || null)
-      .input('status', sql.NVarChar(255), status)
-      .input('created_at', sql.DateTime2, now)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        INSERT INTO sub_categories (id, category_id, sub_category_name, description, status, created_at, updated_at)
-        VALUES (@id, @category_id, @sub_category_name, @description, @status, @created_at, @updated_at)
-      `);
-
-    console.log(`✅ Sub-category created successfully: ${sub_category_name} (ID: ${subCategoryId})`);
-    
-    const newSubCategory = {
-      id: subCategoryId,
-      category_id: category_id,
-      sub_category_name: sub_category_name.trim(),
-      description: description || null,
-      status: status,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString()
-    };
-
-    res.json({ 
-      success: true, 
-      subCategory: newSubCategory,
-      message: `Sub-category '${sub_category_name}' created successfully`
-    });
-    
-  } catch (error) {
-    console.error('❌ Error creating sub-category:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to create sub-category',
-      details: error.message 
-    });
-  }
-});
-
-// PUT - Update sub-category
-app.put('/api/sub-categories/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { category_id, sub_category_name, description, status } = req.body;
-    
-    console.log('📝 Updating sub-category:', { id, category_id, sub_category_name, description, status });
-    
-    if (!category_id || !category_id.trim()) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Category ID is required' 
-      });
-    }
-    
-    if (!sub_category_name || !sub_category_name.trim()) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Sub-category name is required' 
-      });
-    }
-
-    if (!pool) {
-      return res.status(500).json({ 
-        success: false,
-        error: 'Database connection not available' 
-      });
-    }
-
-    const now = new Date();
-    
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('category_id', sql.UniqueIdentifier, category_id.trim())
-      .input('sub_category_name', sql.NVarChar(255), sub_category_name.trim())
-      .input('description', sql.NVarChar(sql.MAX), description || null)
-      .input('status', sql.NVarChar(255), status || 'Active')
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        UPDATE sub_categories 
-        SET category_id = @category_id,
-            sub_category_name = @sub_category_name, 
-            description = @description, 
-            status = @status, 
-            updated_at = @updated_at
-        WHERE id = @id
-      `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Sub-category not found' 
-      });
-    }
-
-    console.log(`✅ Sub-category updated successfully: ${sub_category_name} (ID: ${id})`);
-    
-    const updatedSubCategory = {
-      id: id,
-      category_id: category_id.trim(),
-      sub_category_name: sub_category_name.trim(),
-      description: description || null,
-      status: status || 'Active',
-      updated_at: now.toISOString()
-    };
-
-    res.json({ 
-      success: true, 
-      subCategory: updatedSubCategory,
-      message: `Sub-category '${sub_category_name}' updated successfully`
-    });
-    
-  } catch (error) {
-    console.error('❌ Error updating sub-category:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to update sub-category',
-      details: error.message 
-    });
-  }
-});
-
-// DELETE - Delete sub-category
-app.delete('/api/sub-categories/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    console.log('🗑️ Deleting sub-category:', { id });
-
-    if (!pool) {
-      return res.status(500).json({ 
-        success: false,
-        error: 'Database connection not available' 
-      });
-    }
-
-    // Soft delete - update status to 'Deleted'
-    const now = new Date();
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        UPDATE sub_categories 
-        SET status = 'Deleted', updated_at = @updated_at
-        WHERE id = @id AND status != 'Deleted'
-      `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Sub-category not found or already deleted' 
-      });
-    }
-
-    console.log(`✅ Sub-category deleted successfully (ID: ${id})`);
-
-    res.json({ 
-      success: true, 
-      message: 'Sub-category deleted successfully'
-    });
-    
-  } catch (error) {
-    console.error('❌ Error deleting sub-category:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to delete sub-category',
-      details: error.message 
-    });
   }
 });
 
@@ -4880,733 +4710,6 @@ app.delete('/api/vendors/:id', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete vendor', details: error.message });
-  }
-});
-
-// ==================== TENDER AWARDS ENDPOINTS ====================
-
-// GET all tender awards with vendor information
-app.get('/api/tender-awards', async (req, res) => {
-  try {
-    console.log('📋 Fetching tender awards...');
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    const result = await request.query(`
-      SELECT 
-        ta.award_id,
-        ta.award_code,
-        ta.request_id,
-        ta.award_title,
-        ta.award_date,
-        ta.expected_delivery_date,
-        ta.contract_number,
-        ta.contract_date,
-        ta.total_contract_amount,
-        ta.tax_amount,
-        ta.final_amount,
-        ta.payment_terms,
-        ta.status,
-        ta.created_by,
-        ta.created_at,
-        ta.vendor_id,
-        -- Vendor information from normalized structure
-        v.vendor_code,
-        v.vendor_name,
-        v.contact_person,
-        v.email as vendor_email,
-        v.phone as vendor_phone,
-        v.address as vendor_address,
-        v.city as vendor_city,
-        v.country as vendor_country,
-        -- User information
-        u.strUserName as created_by_name
-      FROM TenderAwards ta
-      LEFT JOIN vendors v ON ta.vendor_id = v.id
-      LEFT JOIN AspNetUsers u ON ta.created_by = u.Id
-      ORDER BY ta.award_date DESC, ta.created_at DESC
-    `);
-
-    console.log(`✅ Found ${result.recordset.length} tender awards`);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('❌ Error fetching tender awards:', error);
-    res.status(500).json({ error: 'Failed to fetch tender awards', details: error.message });
-  }
-});
-
-// GET specific tender award by ID
-app.get('/api/tender-awards/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`📋 Fetching tender award: ${id}`);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    request.input('id', sql.Int, id);
-    
-    const result = await request.query(`
-      SELECT 
-        ta.award_id,
-        ta.award_code,
-        ta.request_id,
-        ta.award_title,
-        ta.award_date,
-        ta.expected_delivery_date,
-        ta.contract_number,
-        ta.contract_date,
-        ta.total_contract_amount,
-        ta.tax_amount,
-        ta.final_amount,
-        ta.payment_terms,
-        ta.status,
-        ta.created_by,
-        ta.created_at,
-        ta.vendor_id,
-        -- Vendor information
-        v.vendor_code,
-        v.vendor_name,
-        v.contact_person,
-        v.email as vendor_email,
-        v.phone as vendor_phone,
-        v.address as vendor_address,
-        v.city as vendor_city,
-        v.country as vendor_country,
-        -- User information
-        u.strUserName as created_by_name
-      FROM TenderAwards ta
-      LEFT JOIN vendors v ON ta.vendor_id = v.id
-      LEFT JOIN AspNetUsers u ON ta.created_by = u.Id
-      WHERE ta.award_id = @id
-    `);
-
-    if (result.recordset.length === 0) {
-      return res.status(404).json({ error: 'Tender award not found' });
-    }
-
-    console.log(`✅ Found tender award: ${result.recordset[0].award_code}`);
-    res.json(result.recordset[0]);
-  } catch (error) {
-    console.error('❌ Error fetching tender award:', error);
-    res.status(500).json({ error: 'Failed to fetch tender award', details: error.message });
-  }
-});
-
-// POST create new tender award
-app.post('/api/tender-awards', async (req, res) => {
-  try {
-    console.log('📝 Creating tender award with data:', req.body);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const {
-      award_code,
-      request_id,
-      award_title,
-      award_date,
-      expected_delivery_date,
-      vendor_id,
-      contract_number,
-      contract_date,
-      total_contract_amount,
-      tax_amount,
-      final_amount,
-      payment_terms,
-      status = 'AWARDED',
-      created_by
-    } = req.body;
-
-    // Validation
-    if (!award_code || !award_title || !award_date || !expected_delivery_date || !vendor_id || !total_contract_amount || !final_amount) {
-      return res.status(400).json({ 
-        error: 'Missing required fields',
-        required: ['award_code', 'award_title', 'award_date', 'expected_delivery_date', 'vendor_id', 'total_contract_amount', 'final_amount']
-      });
-    }
-
-    const request = pool.request();
-    request.input('award_code', sql.VarChar(50), award_code);
-    request.input('request_id', sql.Int, request_id || null);
-    request.input('award_title', sql.VarChar(200), award_title);
-    request.input('award_date', sql.Date, award_date);
-    request.input('expected_delivery_date', sql.Date, expected_delivery_date);
-    request.input('vendor_id', sql.UniqueIdentifier, vendor_id);
-    request.input('contract_number', sql.VarChar(100), contract_number || null);
-    request.input('contract_date', sql.Date, contract_date || null);
-    request.input('total_contract_amount', sql.Decimal(15, 2), total_contract_amount);
-    request.input('tax_amount', sql.Decimal(15, 2), tax_amount || 0);
-    request.input('final_amount', sql.Decimal(15, 2), final_amount);
-    request.input('payment_terms', sql.Text, payment_terms || null);
-    request.input('status', sql.VarChar(50), status);
-    request.input('created_by', sql.NVarChar(450), created_by || null);
-
-    const result = await request.query(`
-      INSERT INTO TenderAwards (
-        award_code, request_id, award_title, award_date, expected_delivery_date,
-        vendor_id, contract_number, contract_date, total_contract_amount, tax_amount,
-        final_amount, payment_terms, status, created_by
-      )
-      OUTPUT INSERTED.award_id
-      VALUES (
-        @award_code, @request_id, @award_title, @award_date, @expected_delivery_date,
-        @vendor_id, @contract_number, @contract_date, @total_contract_amount, @tax_amount,
-        @final_amount, @payment_terms, @status, @created_by
-      )
-    `);
-
-    const newAwardId = result.recordset[0].award_id;
-    console.log(`✅ Tender award created successfully: ${award_code} (ID: ${newAwardId})`);
-    
-    res.status(201).json({
-      success: true,
-      message: 'Tender award created successfully',
-      award_id: newAwardId,
-      award_code: award_code
-    });
-
-  } catch (error) {
-    console.error('❌ Error creating tender award:', error);
-    if (error.message.includes('UNIQUE KEY constraint')) {
-      res.status(409).json({ error: 'Award code already exists' });
-    } else if (error.message.includes('FOREIGN KEY constraint')) {
-      res.status(400).json({ error: 'Invalid vendor_id - vendor not found' });
-    } else {
-      res.status(500).json({ error: 'Failed to create tender award', details: error.message });
-    }
-  }
-});
-
-// PUT update tender award
-app.put('/api/tender-awards/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`📝 Updating tender award: ${id}`, req.body);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const {
-      award_code,
-      request_id,
-      award_title,
-      award_date,
-      expected_delivery_date,
-      vendor_id,
-      contract_number,
-      contract_date,
-      total_contract_amount,
-      tax_amount,
-      final_amount,
-      payment_terms,
-      status
-    } = req.body;
-
-    const request = pool.request();
-    request.input('id', sql.Int, id);
-    request.input('award_code', sql.VarChar(50), award_code);
-    request.input('request_id', sql.Int, request_id || null);
-    request.input('award_title', sql.VarChar(200), award_title);
-    request.input('award_date', sql.Date, award_date);
-    request.input('expected_delivery_date', sql.Date, expected_delivery_date);
-    request.input('vendor_id', sql.UniqueIdentifier, vendor_id);
-    request.input('contract_number', sql.VarChar(100), contract_number || null);
-    request.input('contract_date', sql.Date, contract_date || null);
-    request.input('total_contract_amount', sql.Decimal(15, 2), total_contract_amount);
-    request.input('tax_amount', sql.Decimal(15, 2), tax_amount || 0);
-    request.input('final_amount', sql.Decimal(15, 2), final_amount);
-    request.input('payment_terms', sql.Text, payment_terms || null);
-    request.input('status', sql.VarChar(50), status);
-
-    const result = await request.query(`
-      UPDATE TenderAwards SET
-        award_code = @award_code,
-        request_id = @request_id,
-        award_title = @award_title,
-        award_date = @award_date,
-        expected_delivery_date = @expected_delivery_date,
-        vendor_id = @vendor_id,
-        contract_number = @contract_number,
-        contract_date = @contract_date,
-        total_contract_amount = @total_contract_amount,
-        tax_amount = @tax_amount,
-        final_amount = @final_amount,
-        payment_terms = @payment_terms,
-        status = @status
-      WHERE award_id = @id
-    `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Tender award not found' });
-    }
-
-    console.log(`✅ Tender award updated successfully: ${award_code} (ID: ${id})`);
-    res.json({ 
-      success: true, 
-      message: 'Tender award updated successfully',
-      award_id: id
-    });
-
-  } catch (error) {
-    console.error('❌ Error updating tender award:', error);
-    if (error.message.includes('UNIQUE KEY constraint')) {
-      res.status(409).json({ error: 'Award code already exists' });
-    } else if (error.message.includes('FOREIGN KEY constraint')) {
-      res.status(400).json({ error: 'Invalid vendor_id - vendor not found' });
-    } else {
-      res.status(500).json({ error: 'Failed to update tender award', details: error.message });
-    }
-  }
-});
-
-// DELETE tender award
-app.delete('/api/tender-awards/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`🗑️ Deleting tender award: ${id}`);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    request.input('id', sql.Int, id);
-    
-    const result = await request.query(`
-      DELETE FROM TenderAwards 
-      WHERE award_id = @id
-    `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Tender award not found' });
-    }
-
-    console.log(`✅ Tender award deleted successfully (ID: ${id})`);
-    res.json({ 
-      success: true, 
-      message: 'Tender award deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('❌ Error deleting tender award:', error);
-    res.status(500).json({ error: 'Failed to delete tender award', details: error.message });
-  }
-});
-
-// GET tender awards statistics
-app.get('/api/tender-awards/stats', async (req, res) => {
-  try {
-    console.log('📊 Fetching tender awards statistics...');
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    const result = await request.query(`
-      SELECT 
-        COUNT(*) as total_awards,
-        COUNT(CASE WHEN status = 'AWARDED' THEN 1 END) as awarded_count,
-        COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) as completed_count,
-        COUNT(CASE WHEN status = 'CANCELLED' THEN 1 END) as cancelled_count,
-        COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_count,
-        SUM(total_contract_amount) as total_contract_value,
-        SUM(final_amount) as total_final_value,
-        COUNT(DISTINCT vendor_id) as unique_vendors,
-        AVG(total_contract_amount) as average_award_amount
-      FROM TenderAwards
-    `);
-
-    console.log('✅ Tender awards statistics retrieved');
-    res.json(result.recordset[0]);
-  } catch (error) {
-    console.error('❌ Error fetching tender awards statistics:', error);
-    res.status(500).json({ error: 'Failed to fetch statistics', details: error.message });
-  }
-});
-
-// ==================== ITEM MASTER ENDPOINTS ====================
-
-// GET all item masters using view_ItemMaster with soft delete filtering
-app.get('/api/item-masters', async (req, res) => {
-  try {
-    console.log('📦 Fetching item masters from view_ItemMaster...');
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    const result = await request.query(`
-      SELECT 
-        item_id,
-        item_code,
-        item_name,
-        category_id,
-        category_name,
-        sub_category_id,
-        sub_category_name,
-        specifications,
-        unit_of_measure,
-        is_active,
-        created_at,
-        is_deleted
-      FROM view_ItemMaster
-      WHERE ISNULL(is_deleted, 0) = 0
-      ORDER BY item_code
-    `);
-
-    console.log(`✅ Found ${result.recordset.length} item masters from view`);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('❌ Error fetching item masters from view:', error);
-    res.status(500).json({ error: 'Failed to fetch item masters', details: error.message });
-  }
-});
-
-// DEBUG: GET all item masters without is_deleted filter
-app.get('/api/item-masters-debug', async (req, res) => {
-  try {
-    console.log('🐛 DEBUG: Fetching ALL item masters...');
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    const result = await request.query(`
-      SELECT 
-        im.item_id,
-        im.item_code,
-        im.item_name,
-        im.is_deleted,
-        im.is_active,
-        im.created_at
-      FROM ItemMaster im
-      ORDER BY im.item_code
-    `);
-
-    console.log(`🐛 DEBUG: Found ${result.recordset.length} total records`);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('❌ DEBUG: Error fetching item masters:', error);
-    res.status(500).json({ error: 'Failed to fetch item masters', details: error.message });
-  }
-});
-
-// DEBUG: GET item masters with simple is_deleted filter (no JOINs)
-app.get('/api/item-masters-simple', async (req, res) => {
-  try {
-    console.log('🐛 SIMPLE: Fetching item masters with simple filter...');
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    const result = await request.query(`
-      SELECT 
-        im.item_id,
-        im.item_code,
-        im.item_name,
-        im.is_deleted,
-        im.is_active,
-        im.created_at
-      FROM ItemMaster im
-      WHERE (im.is_deleted = 0 OR im.is_deleted IS NULL)
-      ORDER BY im.item_code
-    `);
-
-    console.log(`🐛 SIMPLE: Found ${result.recordset.length} records with is_deleted filter`);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('❌ SIMPLE: Error fetching item masters:', error);
-    res.status(500).json({ error: 'Failed to fetch item masters', details: error.message });
-  }
-});
-
-// GET specific item master by ID
-app.get('/api/item-masters/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`📦 Fetching item master: ${id}`);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    request.input('id', sql.Int, id);
-    
-    const result = await request.query(`
-      SELECT 
-        item_id,
-        item_code,
-        item_name,
-        category_id,
-        category_name,
-        sub_category_id,
-        sub_category_name,
-        specifications,
-        unit_of_measure,
-        is_active,
-        created_at,
-        is_deleted
-      FROM view_ItemMaster
-      WHERE item_id = @id AND ISNULL(is_deleted, 0) = 0
-    `);
-
-    if (result.recordset.length === 0) {
-      return res.status(404).json({ error: 'Item master not found' });
-    }
-
-    console.log(`✅ Found item master: ${result.recordset[0].item_code}`);
-    res.json(result.recordset[0]);
-  } catch (error) {
-    console.error('❌ Error fetching item master:', error);
-    res.status(500).json({ error: 'Failed to fetch item master', details: error.message });
-  }
-});
-
-// POST create new item master
-app.post('/api/item-masters', async (req, res) => {
-  try {
-    console.log('📝 Creating item master with data:', req.body);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const {
-      item_code,
-      item_name,
-      category_id,
-      sub_category_id,
-      specifications,
-      unit_of_measure,
-      is_active = true
-    } = req.body;
-
-    // Validation
-    if (!item_code || !item_name || !sub_category_id || !unit_of_measure) {
-      return res.status(400).json({ 
-        error: 'Missing required fields',
-        required: ['item_code', 'item_name', 'sub_category_id', 'unit_of_measure']
-      });
-    }
-
-    const request = pool.request();
-    request.input('item_code', sql.VarChar(50), item_code);
-    request.input('item_name', sql.VarChar(200), item_name);
-    request.input('category_id', sql.UniqueIdentifier, category_id || null);
-    request.input('sub_category_id', sql.UniqueIdentifier, sub_category_id);
-    request.input('specifications', sql.Text, specifications || null);
-    request.input('unit_of_measure', sql.VarChar(20), unit_of_measure);
-    request.input('is_active', sql.Bit, is_active);
-
-    const result = await request.query(`
-      INSERT INTO ItemMaster (
-        item_code, item_name, category_id, sub_category_id, 
-        specifications, unit_of_measure, is_active, created_at
-      )
-      OUTPUT INSERTED.item_id
-      VALUES (
-        @item_code, @item_name, @category_id, @sub_category_id,
-        @specifications, @unit_of_measure, @is_active, GETDATE()
-      )
-    `);
-
-    const newItemId = result.recordset[0].item_id;
-    console.log(`✅ Item master created successfully: ${item_code} (ID: ${newItemId})`);
-    
-    res.status(201).json({
-      success: true,
-      message: 'Item master created successfully',
-      item_id: newItemId,
-      item_code: item_code
-    });
-
-  } catch (error) {
-    console.error('❌ Error creating item master:', error);
-    if (error.message.includes('UNIQUE KEY constraint') || error.message.includes('duplicate key')) {
-      res.status(409).json({ error: 'Item code already exists' });
-    } else if (error.message.includes('FOREIGN KEY constraint')) {
-      res.status(400).json({ error: 'Invalid category_id or sub_category_id' });
-    } else {
-      res.status(500).json({ error: 'Failed to create item master', details: error.message });
-    }
-  }
-});
-
-// PUT update item master
-app.put('/api/item-masters/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`📝 Updating item master: ${id}`, req.body);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const {
-      item_code,
-      item_name,
-      category_id,
-      sub_category_id,
-      specifications,
-      unit_of_measure,
-      is_active
-    } = req.body;
-
-    const request = pool.request();
-    request.input('id', sql.Int, id);
-    request.input('item_code', sql.VarChar(50), item_code);
-    request.input('item_name', sql.VarChar(200), item_name);
-    request.input('category_id', sql.UniqueIdentifier, category_id || null);
-    request.input('sub_category_id', sql.UniqueIdentifier, sub_category_id);
-    request.input('specifications', sql.Text, specifications || null);
-    request.input('unit_of_measure', sql.VarChar(20), unit_of_measure);
-    request.input('is_active', sql.Bit, is_active);
-
-    const result = await request.query(`
-      UPDATE ItemMaster SET
-        item_code = @item_code,
-        item_name = @item_name,
-        category_id = @category_id,
-        sub_category_id = @sub_category_id,
-        specifications = @specifications,
-        unit_of_measure = @unit_of_measure,
-        is_active = @is_active
-      WHERE item_id = @id
-    `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Item master not found' });
-    }
-
-    console.log(`✅ Item master updated successfully: ${item_code} (ID: ${id})`);
-    res.json({ 
-      success: true, 
-      message: 'Item master updated successfully',
-      item_id: id
-    });
-
-  } catch (error) {
-    console.error('❌ Error updating item master:', error);
-    if (error.message.includes('UNIQUE KEY constraint') || error.message.includes('duplicate key')) {
-      res.status(409).json({ error: 'Item code already exists' });
-    } else if (error.message.includes('FOREIGN KEY constraint')) {
-      res.status(400).json({ error: 'Invalid category_id or sub_category_id' });
-    } else {
-      res.status(500).json({ error: 'Failed to update item master', details: error.message });
-    }
-  }
-});
-
-// DELETE item master (soft delete)
-app.delete('/api/item-masters/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`🗑️ Soft deleting item master: ${id}`);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    request.input('id', sql.Int, id);
-    
-    const result = await request.query(`
-      UPDATE ItemMaster 
-      SET is_deleted = 1
-      WHERE item_id = @id AND ISNULL(is_deleted, 0) = 0
-    `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Item master not found or already deleted' });
-    }
-
-    console.log(`✅ Item master soft deleted successfully (ID: ${id})`);
-    res.json({ 
-      success: true, 
-      message: 'Item master deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('❌ Error deleting item master:', error);
-    res.status(500).json({ error: 'Failed to delete item master', details: error.message });
-  }
-});
-
-// GET item masters statistics
-app.get('/api/item-masters/stats', async (req, res) => {
-  try {
-    console.log('📊 Fetching item masters statistics...');
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    const result = await request.query(`
-      SELECT 
-        COUNT(*) as total_items,
-        COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_items,
-        COUNT(CASE WHEN is_active = 0 THEN 1 END) as inactive_items,
-        COUNT(DISTINCT category_id) as total_categories,
-        COUNT(DISTINCT sub_category_id) as total_subcategories
-      FROM view_ItemMaster
-      WHERE ISNULL(is_deleted, 0) = 0
-    `);
-
-    console.log('✅ Item masters statistics retrieved');
-    res.json(result.recordset[0]);
-  } catch (error) {
-    console.error('❌ Error fetching item masters statistics:', error);
-    res.status(500).json({ error: 'Failed to fetch statistics', details: error.message });
-  }
-});
-
-// GET items by category
-app.get('/api/item-masters/category/:categoryId', async (req, res) => {
-  try {
-    const { categoryId } = req.params;
-    console.log(`📦 Fetching items for category: ${categoryId}`);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const request = pool.request();
-    request.input('categoryId', sql.Int, categoryId);
-    
-    const result = await request.query(`
-      SELECT 
-        item_id,
-        item_code,
-        item_name,
-        specifications,
-        unit_of_measure,
-        is_active,
-        sub_category_name
-      FROM view_ItemMaster
-      WHERE category_id = @categoryId AND is_active = 1 AND ISNULL(is_deleted, 0) = 0
-      ORDER BY item_name
-    `);
-
-    console.log(`✅ Found ${result.recordset.length} items for category ${categoryId}`);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('❌ Error fetching items by category:', error);
-    res.status(500).json({ error: 'Failed to fetch items', details: error.message });
   }
 });
 
@@ -6323,470 +5426,6 @@ app.delete('/api/stores/:id', async (req, res) => {
   }
 });
 
-// ==============================================
-// INVENTORY DASHBOARD ENDPOINTS - DISABLED (DUPLICATE)
-// Replaced by updated endpoint below using view_ItemMaster
-// ==============================================
-
-/*
-// Get inventory dashboard data - DISABLED - DUPLICATE
-app.get('/api/inventory/dashboard', async (req, res) => {
-  try {
-    if (!pool) {
-      // Return mock data when SQL Server is not connected
-      return res.json({
-        success: true,
-        data: {
-          items: [],
-          stats: {
-            totalItems: 0,
-            totalStockValue: 0,
-            lowStockItems: 0,
-            outOfStockItems: 0,
-            normalStockItems: 0,
-            overstockItems: 0
-          }
-        }
-      });
-    }
-
-    // Get all inventory items with proper joins
-    const result = await pool.request().query(`
-      SELECT TOP 1000
-        im.id,
-        im.nomenclature as itemName,
-        im.item_code as itemCode,
-        COALESCE(cis.current_quantity, 0) as currentStock,
-        COALESCE(im.minimum_stock_level, 0) as minimumStock,
-        COALESCE(im.maximum_stock_level, 0) as maximumStock,
-        COALESCE(im.reorder_point, 0) as reorderLevel,
-        im.unit,
-        COALESCE(s.store_name, 'Main Store') as location,
-        COALESCE(c.category_name, 'General') as category,
-        COALESCE(sc.sub_category_name, 'General') as subCategory,
-        COALESCE(cis.last_updated, im.updated_at, GETDATE()) as lastUpdated,
-        'Active' as status
-      FROM item_masters im
-      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
-      LEFT JOIN stores s ON cis.store_id = s.id
-      LEFT JOIN categories c ON im.category_id = c.id
-      LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
-      WHERE im.is_active = 1
-      ORDER BY COALESCE(cis.current_quantity, 0) DESC
-    `);
-
-    const items = result.recordset.map(item => ({
-      ...item,
-      lastUpdated: new Date(item.lastUpdated).toISOString()
-    }));
-
-    // Calculate statistics
-    const stats = {
-      totalItems: items.length,
-      totalStockValue: items.reduce((sum, item) => sum + (item.currentStock * 100), 0), // Mock value calculation
-      lowStockItems: items.filter(item => 
-        item.currentStock <= item.minimumStock && item.minimumStock > 0
-      ).length,
-      outOfStockItems: items.filter(item => item.currentStock <= 0).length,
-      normalStockItems: items.filter(item => 
-        item.currentStock > item.minimumStock && 
-        item.currentStock <= (item.maximumStock || 999999)
-      ).length,
-      overstockItems: items.filter(item => 
-        item.maximumStock > 0 && item.currentStock > item.maximumStock
-      ).length
-    };
-
-    res.json({
-      success: true,
-      data: { items, stats }
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching inventory dashboard data:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch inventory dashboard data',
-      error: error.message
-    });
-  }
-});
-*/
-
-// Get low stock items
-app.get('/api/inventory/low-stock', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const result = await pool.request().query(`
-      SELECT TOP 50
-        im.id,
-        im.nomenclature as itemName,
-        im.item_code as itemCode,
-        COALESCE(cis.current_quantity, 0) as currentStock,
-        COALESCE(im.minimum_stock_level, 0) as minimumStock,
-        COALESCE(im.reorder_point, 0) as reorderLevel,
-        im.unit,
-        COALESCE(s.store_name, 'Main Store') as location,
-        'Active' as status
-      FROM item_masters im
-      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
-      LEFT JOIN stores s ON cis.store_id = s.id
-      WHERE im.is_active = 1 
-        AND (
-          COALESCE(cis.current_quantity, 0) <= COALESCE(im.minimum_stock_level, 0)
-          OR COALESCE(cis.current_quantity, 0) <= COALESCE(im.reorder_point, 0)
-        )
-        AND COALESCE(im.minimum_stock_level, 0) > 0
-      ORDER BY COALESCE(cis.current_quantity, 0) ASC
-    `);
-
-    res.json({
-      success: true,
-      data: result.recordset
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching low stock items:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch low stock items',
-      error: error.message
-    });
-  }
-});
-
-// Get items needing reorder
-app.get('/api/inventory/reorder', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const result = await pool.request().query(`
-      SELECT TOP 50
-        im.id,
-        im.nomenclature as itemName,
-        im.item_code as itemCode,
-        COALESCE(cis.current_quantity, 0) as currentStock,
-        COALESCE(im.minimum_stock_level, 0) as minimumStock,
-        COALESCE(im.reorder_point, 0) as reorderLevel,
-        im.unit,
-        COALESCE(s.store_name, 'Main Store') as location,
-        'Active' as status
-      FROM item_masters im
-      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
-      LEFT JOIN stores s ON cis.store_id = s.id
-      WHERE im.is_active = 1 
-        AND COALESCE(im.reorder_point, 0) > 0
-        AND COALESCE(cis.current_quantity, 0) <= COALESCE(im.reorder_point, 0)
-      ORDER BY COALESCE(cis.current_quantity, 0) ASC
-    `);
-
-    res.json({
-      success: true,
-      data: result.recordset
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching reorder items:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch reorder items',
-      error: error.message
-    });
-  }
-});
-
-// Get top items by stock quantity
-app.get('/api/inventory/top-items', async (req, res) => {
-  try {
-    const { limit = 10 } = req.query;
-
-    if (!pool) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const result = await pool.request()
-      .input('limit', sql.Int, parseInt(limit))
-      .query(`
-        SELECT TOP (@limit)
-          im.id,
-          im.nomenclature as itemName,
-          im.item_code as itemCode,
-          COALESCE(cis.current_quantity, 0) as currentStock,
-          im.unit,
-          COALESCE(s.store_name, 'Main Store') as location,
-          'Active' as status
-        FROM item_masters im
-        LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
-        LEFT JOIN stores s ON cis.store_id = s.id
-        WHERE im.is_active = 1
-        ORDER BY COALESCE(cis.current_quantity, 0) DESC
-      `);
-
-    res.json({
-      success: true,
-      data: result.recordset
-    });
-
-  } catch (error) {
-    console.error('❌ Error fetching top items:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch top items',
-      error: error.message
-    });
-  }
-});
-
-// ===================================
-// INVENTORY DASHBOARD ENDPOINTS
-// ===================================
-
-// Get inventory dashboard data
-app.get('/api/inventory/dashboard', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.json({
-        success: false,
-        message: 'Database not connected',
-        data: { items: [], stats: { totalItems: 0, totalStockValue: 0, lowStockItems: 0, outOfStockItems: 0, normalStockItems: 0, overstockItems: 0 } }
-      });
-    }
-
-    // Get inventory items from view_ItemMaster
-    const result = await pool.request().query(`
-      SELECT 
-        item_id as id,
-        item_name as itemName,
-        item_code as itemCode,
-        0 as currentStock,
-        0 as minimumStock,
-        0 as maximumStock,
-        0 as reorderLevel,
-        unit_of_measure as unit,
-        'Main Store' as location,
-        ISNULL(category_name, 'General') as category,
-        ISNULL(sub_category_name, 'General') as subCategory,
-        created_at as lastUpdated,
-        CASE 
-          WHEN is_active = 1 THEN 'Active'
-          ELSE 'Inactive'
-        END as status
-      FROM view_ItemMaster
-      WHERE ISNULL(is_deleted, 0) = 0 AND is_active = 1
-      ORDER BY item_name
-    `);
-
-    const items = result.recordset.map(item => ({
-      ...item,
-      currentStock: parseInt(item.currentStock) || 0,
-      minimumStock: parseInt(item.minimumStock) || 0,
-      maximumStock: parseInt(item.maximumStock) || 0,
-      reorderLevel: parseInt(item.reorderLevel) || 0,
-      lastUpdated: item.lastUpdated?.toISOString() || new Date().toISOString()
-    }));
-
-    // Calculate statistics
-    const totalItems = items.length;
-    const lowStockItems = items.filter(item => 
-      item.currentStock <= item.minimumStock && item.minimumStock > 0
-    ).length;
-    const outOfStockItems = items.filter(item => item.currentStock <= 0).length;
-    const normalStockItems = items.filter(item => 
-      item.currentStock > item.minimumStock && 
-      (item.maximumStock === 0 || item.currentStock <= item.maximumStock)
-    ).length;
-    const overstockItems = items.filter(item => 
-      item.maximumStock > 0 && item.currentStock > item.maximumStock
-    ).length;
-
-    const stats = {
-      totalItems,
-      totalStockValue: 0, // Would need price data to calculate
-      lowStockItems,
-      outOfStockItems,
-      normalStockItems,
-      overstockItems
-    };
-
-    res.json({
-      success: true,
-      data: { items, stats }
-    });
-
-  } catch (error) {
-    console.error('Error fetching inventory dashboard data:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch inventory data',
-      data: { items: [], stats: { totalItems: 0, totalStockValue: 0, lowStockItems: 0, outOfStockItems: 0, normalStockItems: 0, overstockItems: 0 } }
-    });
-  }
-});
-
-// Get low stock items
-app.get('/api/inventory/low-stock', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const result = await pool.request().query(`
-      SELECT TOP 15
-        im.intOfficeID as id,
-        im.strItemMaster as itemName,
-        im.strItemCode as itemCode,
-        ISNULL(cs.intCurrentStock, 0) as currentStock,
-        ISNULL(im.intMinimumStockLevel, 0) as minimumStock,
-        im.strUnit as unit,
-        ISNULL(store.strStoreName, 'Main Store') as location,
-        'Low Stock' as status
-      FROM Item_MST im
-      LEFT JOIN Current_Stock cs ON im.intOfficeID = cs.intItemMasterID
-      LEFT JOIN Store_MST store ON cs.intStoreID = store.intOfficeID
-      WHERE im.IS_ACT = 1 
-        AND im.intMinimumStockLevel > 0
-        AND ISNULL(cs.intCurrentStock, 0) <= im.intMinimumStockLevel
-      ORDER BY cs.intCurrentStock ASC
-    `);
-
-    const items = result.recordset.map(item => ({
-      ...item,
-      currentStock: parseInt(item.currentStock) || 0,
-      minimumStock: parseInt(item.minimumStock) || 0,
-      lastUpdated: new Date().toISOString()
-    }));
-
-    res.json({ success: true, data: items });
-
-  } catch (error) {
-    console.error('Error fetching low stock items:', error);
-    res.json({ success: true, data: [] });
-  }
-});
-
-// Get items needing reorder
-app.get('/api/inventory/reorder', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const result = await pool.request().query(`
-      SELECT TOP 12
-        im.intOfficeID as id,
-        im.strItemMaster as itemName,
-        im.strItemCode as itemCode,
-        ISNULL(cs.intCurrentStock, 0) as currentStock,
-        ISNULL(im.intReorderPoint, 0) as reorderLevel,
-        im.strUnit as unit,
-        ISNULL(store.strStoreName, 'Main Store') as location,
-        'Reorder' as status
-      FROM Item_MST im
-      LEFT JOIN Current_Stock cs ON im.intOfficeID = cs.intItemMasterID
-      LEFT JOIN Store_MST store ON cs.intStoreID = store.intOfficeID
-      WHERE im.IS_ACT = 1 
-        AND im.intReorderPoint > 0
-        AND ISNULL(cs.intCurrentStock, 0) <= im.intReorderPoint
-      ORDER BY cs.intCurrentStock ASC
-    `);
-
-    const items = result.recordset.map(item => ({
-      ...item,
-      currentStock: parseInt(item.currentStock) || 0,
-      reorderLevel: parseInt(item.reorderLevel) || 0,
-      lastUpdated: new Date().toISOString()
-    }));
-
-    res.json({ success: true, data: items });
-
-  } catch (error) {
-    console.error('Error fetching reorder items:', error);
-    res.json({ success: true, data: [] });
-  }
-});
-
-// Get top items by stock quantity
-app.get('/api/inventory/top-items', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    
-    if (!pool) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const result = await pool.request()
-      .input('limit', sql.Int, limit)
-      .query(`
-        SELECT TOP (@limit)
-          im.intOfficeID as id,
-          im.strItemMaster as itemName,
-          im.strItemCode as itemCode,
-          ISNULL(cs.intCurrentStock, 0) as currentStock,
-          im.strUnit as unit,
-          ISNULL(store.strStoreName, 'Main Store') as location,
-          'Active' as status
-        FROM Item_MST im
-        LEFT JOIN Current_Stock cs ON im.intOfficeID = cs.intItemMasterID
-        LEFT JOIN Store_MST store ON cs.intStoreID = store.intOfficeID
-        WHERE im.IS_ACT = 1
-        ORDER BY cs.intCurrentStock DESC
-      `);
-
-    const items = result.recordset.map(item => ({
-      ...item,
-      currentStock: parseInt(item.currentStock) || 0,
-      lastUpdated: new Date().toISOString()
-    }));
-
-    res.json({ success: true, data: items });
-
-  } catch (error) {
-    console.error('Error fetching top items:', error);
-    res.json({ success: true, data: [] });
-  }
-});
-
-// Get current stock for all items
-app.get('/api/inventory/current-stock', async (req, res) => {
-  try {
-    if (!pool) {
-      return res.json({ success: false, message: 'Database not connected', data: [] });
-    }
-
-    const result = await pool.request().query(`
-      SELECT 
-        cis.id,
-        cis.item_master_id,
-        ISNULL(cis.current_quantity, 0) as current_quantity,
-        ISNULL(cis.available_quantity, 0) as available_quantity,
-        ISNULL(cis.reserved_quantity, 0) as reserved_quantity,
-        cis.last_updated,
-        im.nomenclature as item_name,
-        im.unit
-      FROM current_inventory_stock cis
-      INNER JOIN item_masters im ON cis.item_master_id = im.id
-      ORDER BY im.nomenclature
-    `);
-
-    const stockData = result.recordset.map(item => ({
-      ...item,
-      current_quantity: parseInt(item.current_quantity) || 0,
-      last_updated: item.last_updated?.toISOString() || new Date().toISOString()
-    }));
-
-    res.json({ success: true, data: stockData });
-
-  } catch (error) {
-    console.error('Error fetching current stock:', error);
-    res.json({ success: false, message: 'Failed to fetch current stock', data: [] });
-  }
-});
-
 // Start server
 async function startServer() {
   try {
@@ -6799,7 +5438,6 @@ async function startServer() {
       console.log(`🔗 Database: ${sqlConfig.database} on ${sqlConfig.server}`);
       console.log(`📁 Upload directory: ${uploadsDir}`);
       console.log('🚀 Tender form with complete field mapping ready!');
-      console.log('📊 Inventory Dashboard endpoints added!');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
@@ -8384,8 +7022,4 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-// Start the server after all endpoints are defined
-startServer().catch(err => {
-  console.error('❌ Failed to start server:', err);
-  process.exit(1);
-});
+startServer().catch(err => process.exit(1));

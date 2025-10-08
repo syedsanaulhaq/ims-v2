@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, AlertCircle, Plus } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { ArrowLeft, Save, Calendar, DollarSign } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -16,53 +14,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import VendorCombobox from "@/components/common/VendorCombobox";
-import VendorForm from "@/components/vendors/VendorForm";
 
 const API_BASE_URL = "http://localhost:3001";
 
-// Schema matching the actual database tenders table
-const tenderFormSchema = z.object({
-  reference_number: z.string().min(1, "Reference number is required"),
-  title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
-  estimated_value: z.coerce.number().min(0, "Estimated value must be positive"),
-  status: z.string().min(1, "Status is required"),
-  tender_status: z.string().min(1, "Tender status is required"),
-  tender_spot_type: z.string().optional(),
-  tender_type: z.string().optional(),
-  tender_number: z.string().optional(),
-  procurement_method: z.string().optional(),
-  procedure_adopted: z.string().optional(),
-  publication_daily: z.string().optional(),
-  publish_date: z.date({ required_error: "Publish date is required" }),
-  publication_date: z.date().optional(),
-  advertisement_date: z.date().optional(),
-  submission_date: z.date({ required_error: "Submission date is required" }),
-  submission_deadline: z.date().optional(),
-  opening_date: z.date({ required_error: "Opening date is required" }),
-  vendor_id: z.string().optional(),
-  office_ids: z.string().optional(),
-  wing_ids: z.string().optional(),
-  dec_ids: z.string().optional(),
-  individual_total: z.string().optional(),
-  actual_price_total: z.coerce.number().optional(),
-  document_path: z.string().optional(),
-  contract_file_path: z.string().optional(),
-  loi_file_path: z.string().optional(),
-  noting_file_path: z.string().optional(),
-  po_file_path: z.string().optional(),
-  rfp_file_path: z.string().optional(),
-});
-
-type TenderFormValues = z.infer<typeof tenderFormSchema>;
+interface TenderFormData {
+  reference_number: string;
+  title: string;
+  description: string;
+  estimated_value: number;
+  status: string;
+  tender_status: string;
+  tender_spot_type: string;
+  procurement_method: string;
+  publication_date: string;
+  submission_date: string;
+  opening_date: string;
+  vendor_name: string;
+  vendor_contact: string;
+  vendor_email: string;
+  delivery_location: string;
+  payment_terms: string;
+  evaluation_criteria: string;
+  bid_security_required: boolean;
+  bid_security_amount: number;
+  performance_guarantee_required: boolean;
+  performance_guarantee_percentage: number;
+  contract_duration_months: number;
+  special_conditions: string;
+  technical_specifications: string;
+  eligibility_criteria: string;
+}
 
 const TenderForm: React.FC = () => {
-  console.log("🚀 TenderFormUpdated component loaded - UPDATED VERSION with database schema");
+  console.log("⚠️ OLD TenderForm.tsx component loaded - THIS SHOULD NOT BE USED!");
   const navigate = useNavigate();
   const { id } = useParams();
   const { toast } = useToast();
@@ -70,44 +56,33 @@ const TenderForm: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(isEditing);
-  const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
-
-  // Form setup with React Hook Form (matching database schema)
-  const form = useForm<TenderFormValues>({
-    resolver: zodResolver(tenderFormSchema),
-    mode: "onBlur",
-    defaultValues: {
-      reference_number: "",
-      title: "",
-      description: "",
-      estimated_value: 0,
-      status: "Draft",
-      tender_status: "Open",
-      tender_spot_type: "Contract/Tender",
-      tender_type: "",
-      tender_number: "",
-      procurement_method: "Open Competitive Bidding",
-      procedure_adopted: "",
-      publication_daily: "",
-      publish_date: new Date(),
-      publication_date: new Date(),
-      advertisement_date: new Date(),
-      submission_date: new Date(),
-      submission_deadline: new Date(),
-      opening_date: new Date(),
-      vendor_id: "",
-      office_ids: "",
-      wing_ids: "",
-      dec_ids: "",
-      individual_total: "",
-      actual_price_total: 0,
-      document_path: "",
-      contract_file_path: "",
-      loi_file_path: "",
-      noting_file_path: "",
-      po_file_path: "",
-      rfp_file_path: "",
-    },
+  
+  const [formData, setFormData] = useState<TenderFormData>({
+    reference_number: "",
+    title: "",
+    description: "",
+    estimated_value: 0,
+    status: "draft",
+    tender_status: "open",
+    tender_spot_type: "goods",
+    procurement_method: "open_tender",
+    publication_date: "",
+    submission_date: "",
+    opening_date: "",
+    vendor_name: "",
+    vendor_contact: "",
+    vendor_email: "",
+    delivery_location: "",
+    payment_terms: "",
+    evaluation_criteria: "",
+    bid_security_required: false,
+    bid_security_amount: 0,
+    performance_guarantee_required: false,
+    performance_guarantee_percentage: 0,
+    contract_duration_months: 0,
+    special_conditions: "",
+    technical_specifications: "",
+    eligibility_criteria: "",
   });
 
   // Fetch tender data if editing
@@ -128,37 +103,16 @@ const TenderForm: React.FC = () => {
       
       const tender = await response.json();
       
-      // Map backend fields to form fields and ensure no null values
-      const formData = {
-        referenceNumber: tender.reference_number || "",
-        title: tender.title || "",
-        description: tender.description || "",
-        estimatedValue: tender.estimated_value || 0,
-        status: tender.status || "Draft",
-        tender_status: tender.tender_status || "Open",
-        tender_spot_type: tender.tender_spot_type || "Contract/Tender",
-        procurementMethod: tender.procurement_method || "Open Competitive Bidding",
-        publishDate: tender.publication_date ? new Date(tender.publication_date) : new Date(),
-        submissionDate: tender.submission_date ? new Date(tender.submission_date) : new Date(),
-        openingDate: tender.opening_date ? new Date(tender.opening_date) : new Date(),
-        vendor_id: tender.vendor_id || "",
-        vendor_name: tender.vendor_name || "",
-        vendor_contact: tender.vendor_contact || "",
-        vendor_email: tender.vendor_email || "",
-        delivery_location: tender.delivery_location || "",
-        payment_terms: tender.payment_terms || "",
-        evaluation_criteria: tender.evaluation_criteria || "",
-        bid_security_required: tender.bid_security_required || false,
-        bid_security_amount: tender.bid_security_amount || 0,
-        performance_guarantee_required: tender.performance_guarantee_required || false,
-        performance_guarantee_percentage: tender.performance_guarantee_percentage || 0,
-        contract_duration_months: tender.contract_duration_months || 0,
-        special_conditions: tender.special_conditions || "",
-        technical_specifications: tender.technical_specifications || "",
-        eligibility_criteria: tender.eligibility_criteria || "",
-      };
-      
-      form.reset(formData);
+      // Convert dates to input format (YYYY-MM-DD)
+      setFormData({
+        ...tender,
+        publication_date: tender.publication_date ? 
+          new Date(tender.publication_date).toISOString().split('T')[0] : "",
+        submission_date: tender.submission_date ? 
+          new Date(tender.submission_date).toISOString().split('T')[0] : "",
+        opening_date: tender.opening_date ? 
+          new Date(tender.opening_date).toISOString().split('T')[0] : "",
+      });
       
     } catch (error) {
       console.error("Error fetching tender:", error);
@@ -172,43 +126,27 @@ const TenderForm: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (values: TenderFormValues) => {
+  const handleInputChange = (field: keyof TenderFormData, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.title.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Title is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
-      
-      // Map form fields to database field names
-      const requestData = {
-        reference_number: values.reference_number,
-        title: values.title,
-        description: values.description || "",
-        estimated_value: values.estimated_value,
-        status: values.status,
-        tender_status: values.tender_status,
-        tender_spot_type: values.tender_spot_type || "",
-        tender_type: values.tender_type || "",
-        tender_number: values.tender_number || "",
-        procurement_method: values.procurement_method || "",
-        procedure_adopted: values.procedure_adopted || "",
-        publication_daily: values.publication_daily || "",
-        publish_date: values.publish_date.toISOString().split('T')[0],
-        publication_date: values.publication_date?.toISOString().split('T')[0] || null,
-        advertisement_date: values.advertisement_date?.toISOString().split('T')[0] || null,
-        submission_date: values.submission_date.toISOString().split('T')[0],
-        submission_deadline: values.submission_deadline?.toISOString().split('T')[0] || null,
-        opening_date: values.opening_date.toISOString().split('T')[0],
-        vendor_id: values.vendor_id || null,
-        office_ids: values.office_ids || "",
-        wing_ids: values.wing_ids || "",
-        dec_ids: values.dec_ids || "",
-        individual_total: values.individual_total || "",
-        actual_price_total: values.actual_price_total || 0,
-        document_path: values.document_path || "",
-        contract_file_path: values.contract_file_path || "",
-        loi_file_path: values.loi_file_path || "",
-        noting_file_path: values.noting_file_path || "",
-        po_file_path: values.po_file_path || "",
-        rfp_file_path: values.rfp_file_path || "",
-      };
       
       const url = isEditing 
         ? `${API_BASE_URL}/api/tenders/${id}`
@@ -221,7 +159,7 @@ const TenderForm: React.FC = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestData),
+        body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
@@ -257,9 +195,6 @@ const TenderForm: React.FC = () => {
     );
   }
 
-  const watchedType = form.watch('tender_spot_type');
-  const isSpotPurchase = watchedType === 'Spot Purchase';
-
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
@@ -274,436 +209,422 @@ const TenderForm: React.FC = () => {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">
-              {isEditing ? "Edit Tender (Updated Schema)" : "Create New Tender (Updated Schema)"}
+              {isEditing ? "Edit Tender" : "Create New Tender"}
             </h1>
             <p className="text-muted-foreground">
-              {isEditing ? "Update tender information - Database Schema Matched" : "Fill in the details to create a new tender - Database Schema Matched"}
+              {isEditing ? "Update tender information" : "Fill in the details to create a new tender"}
             </p>
           </div>
         </div>
-        {isEditing && form.watch('status') && (
-          <Badge variant={form.watch('status') === "Finalized" ? "destructive" : "default"}>
-            {form.watch('status')}
+        {isEditing && formData.status && (
+          <Badge variant={formData.status === "finalized" ? "destructive" : "default"}>
+            {formData.status}
           </Badge>
         )}
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-          
-          {/* Tender Type Selection - Matching original styling */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tender Type</CardTitle>
-              <CardDescription>Select the type for this tender</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="tender_spot_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={loading}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Contract/Tender">Contract/Tender</SelectItem>
-                        <SelectItem value="Spot Purchase">Spot Purchase</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Basic Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="reference_number"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Reference Number *</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter reference number" disabled={loading} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Basic Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Basic Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="reference_number">Reference Number</Label>
+                <Input
+                  id="reference_number"
+                  value={formData.reference_number}
+                  onChange={(e) => handleInputChange("reference_number", e.target.value)}
+                  placeholder="Enter reference number"
                 />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select 
+                  value={formData.status} 
+                  onValueChange={(value) => handleInputChange("status", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="published">Published</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                placeholder="Enter tender title"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleInputChange("description", e.target.value)}
+                placeholder="Enter tender description"
+                rows={4}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tender Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tender Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tender_spot_type">Tender Type</Label>
+                <Select 
+                  value={formData.tender_spot_type} 
+                  onValueChange={(value) => handleInputChange("tender_spot_type", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="goods">Goods</SelectItem>
+                    <SelectItem value="services">Services</SelectItem>
+                    <SelectItem value="works">Works</SelectItem>
+                    <SelectItem value="consultancy">Consultancy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="procurement_method">Procurement Method</Label>
+                <Select 
+                  value={formData.procurement_method} 
+                  onValueChange={(value) => handleInputChange("procurement_method", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open_tender">Open Tender</SelectItem>
+                    <SelectItem value="restricted_tender">Restricted Tender</SelectItem>
+                    <SelectItem value="competitive_negotiation">Competitive Negotiation</SelectItem>
+                    <SelectItem value="direct_procurement">Direct Procurement</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tender_status">Tender Status</Label>
+                <Select 
+                  value={formData.tender_status} 
+                  onValueChange={(value) => handleInputChange("tender_status", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="awarded">Awarded</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="estimated_value">Estimated Value</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="estimated_value"
+                    type="number"
+                    value={formData.estimated_value}
+                    onChange={(e) => handleInputChange("estimated_value", parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="pl-10"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Important Dates */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Calendar className="h-5 w-5 mr-2" />
+              Important Dates
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="publication_date">Publication Date</Label>
+                <Input
+                  id="publication_date"
+                  type="date"
+                  value={formData.publication_date}
+                  onChange={(e) => handleInputChange("publication_date", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="submission_date">Submission Deadline</Label>
+                <Input
+                  id="submission_date"
+                  type="date"
+                  value={formData.submission_date}
+                  onChange={(e) => handleInputChange("submission_date", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="opening_date">Opening Date</Label>
+                <Input
+                  id="opening_date"
+                  type="date"
+                  value={formData.opening_date}
+                  onChange={(e) => handleInputChange("opening_date", e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Vendor Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Vendor Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vendor_name">Vendor Name</Label>
+                <Input
+                  id="vendor_name"
+                  value={formData.vendor_name}
+                  onChange={(e) => handleInputChange("vendor_name", e.target.value)}
+                  placeholder="Enter vendor name"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="vendor_contact">Vendor Contact</Label>
+                <Input
+                  id="vendor_contact"
+                  value={formData.vendor_contact}
+                  onChange={(e) => handleInputChange("vendor_contact", e.target.value)}
+                  placeholder="Enter contact number"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="vendor_email">Vendor Email</Label>
+                <Input
+                  id="vendor_email"
+                  type="email"
+                  value={formData.vendor_email}
+                  onChange={(e) => handleInputChange("vendor_email", e.target.value)}
+                  placeholder="Enter email address"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="delivery_location">Delivery Location</Label>
+                <Input
+                  id="delivery_location"
+                  value={formData.delivery_location}
+                  onChange={(e) => handleInputChange("delivery_location", e.target.value)}
+                  placeholder="Enter delivery location"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Contract Terms */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Contract Terms</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contract_duration_months">Contract Duration (Months)</Label>
+                <Input
+                  id="contract_duration_months"
+                  type="number"
+                  value={formData.contract_duration_months}
+                  onChange={(e) => handleInputChange("contract_duration_months", parseInt(e.target.value) || 0)}
+                  placeholder="Enter duration in months"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment_terms">Payment Terms</Label>
+                <Input
+                  id="payment_terms"
+                  value={formData.payment_terms}
+                  onChange={(e) => handleInputChange("payment_terms", e.target.value)}
+                  placeholder="Enter payment terms"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="evaluation_criteria">Evaluation Criteria</Label>
+              <Textarea
+                id="evaluation_criteria"
+                value={formData.evaluation_criteria}
+                onChange={(e) => handleInputChange("evaluation_criteria", e.target.value)}
+                placeholder="Enter evaluation criteria"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="technical_specifications">Technical Specifications</Label>
+              <Textarea
+                id="technical_specifications"
+                value={formData.technical_specifications}
+                onChange={(e) => handleInputChange("technical_specifications", e.target.value)}
+                placeholder="Enter technical specifications"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="special_conditions">Special Conditions</Label>
+              <Textarea
+                id="special_conditions"
+                value={formData.special_conditions}
+                onChange={(e) => handleInputChange("special_conditions", e.target.value)}
+                placeholder="Enter any special conditions"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="eligibility_criteria">Eligibility Criteria</Label>
+              <Textarea
+                id="eligibility_criteria"
+                value={formData.eligibility_criteria}
+                onChange={(e) => handleInputChange("eligibility_criteria", e.target.value)}
+                placeholder="Enter eligibility criteria"
+                rows={3}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Security & Guarantees */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Security & Guarantees</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="bid_security_required"
+                    checked={formData.bid_security_required}
+                    onChange={(e) => handleInputChange("bid_security_required", e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="bid_security_required">Bid Security Required</Label>
+                </div>
                 
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={loading}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Draft">Draft</SelectItem>
-                          <SelectItem value="Published">Published</SelectItem>
-                          <SelectItem value="Closed">Closed</SelectItem>
-                          <SelectItem value="Finalized">Finalized</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title *</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter tender title" disabled={loading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} placeholder="Enter tender description" rows={4} disabled={loading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="estimated_value"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estimated Value *</FormLabel>
-                    <FormControl>
+                {formData.bid_security_required && (
+                  <div className="space-y-2">
+                    <Label htmlFor="bid_security_amount">Bid Security Amount</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
+                        id="bid_security_amount"
                         type="number"
-                        {...field}
+                        value={formData.bid_security_amount}
+                        onChange={(e) => handleInputChange("bid_security_amount", parseFloat(e.target.value) || 0)}
                         placeholder="0.00"
+                        className="pl-10"
                         step="0.01"
-                        disabled={loading}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Tender Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tender Details</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="procurement_method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Procurement Method</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={loading}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Open Competitive Bidding">Open Competitive Bidding</SelectItem>
-                          <SelectItem value="Limited Competitive Bidding">Limited Competitive Bidding</SelectItem>
-                          <SelectItem value="Direct Contracting">Direct Contracting</SelectItem>
-                          <SelectItem value="Shopping">Shopping</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="tender_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tender Status *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={loading}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Open">Open</SelectItem>
-                          <SelectItem value="Closed">Closed</SelectItem>
-                          <SelectItem value="Evaluated">Evaluated</SelectItem>
-                          <SelectItem value="Awarded">Awarded</SelectItem>
-                          <SelectItem value="Cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Important Dates */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Important Dates</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="publish_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Publish Date *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value ? field.value.toISOString().split('T')[0] : ''}
-                          onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : null)}
-                          disabled={loading}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="submission_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Submission Date *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value ? field.value.toISOString().split('T')[0] : ''}
-                          onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : null)}
-                          disabled={loading}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="opening_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Opening Date *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value ? field.value.toISOString().split('T')[0] : ''}
-                          onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : null)}
-                          disabled={loading}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Vendor Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Vendor Selection</CardTitle>
-              <CardDescription>Select the vendor for this tender</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="vendor_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Vendor</FormLabel>
-                    <div className="flex gap-2 items-center">
-                      <div className="flex-1">
-                        <VendorCombobox
-                          value={field.value}
-                          onValueChange={(vendorId: string) => {
-                            field.onChange(vendorId);
-                          }}
-                          disabled={loading}
-                          placeholder="Select vendor..."
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="ml-1"
-                        title="Add New Vendor"
-                        onClick={() => setVendorDialogOpen(true)}
-                        disabled={loading}
-                      >
-                        <Plus className="w-5 h-5" />
-                      </Button>
                     </div>
-                    {form.watch('vendor_id') && form.watch('vendor_name') && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Selected: <span className="font-semibold">{form.watch('vendor_id')}</span> - {form.watch('vendor_name')}
-                      </div>
-                    )}
-                    <FormMessage />
-                    
-                    {/* Vendor Add Dialog */}
-                    <Dialog open={vendorDialogOpen} onOpenChange={setVendorDialogOpen}>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Add New Vendor</DialogTitle>
-                        </DialogHeader>
-                        <VendorForm
-                          onSubmit={async (vendorData) => {
-                            // Handle vendor creation
-                            console.log('New vendor:', vendorData);
-                            setVendorDialogOpen(false);
-                            toast({
-                              title: "Success",
-                              description: "Vendor added successfully",
-                            });
-                          }}
-                          onCancel={() => setVendorDialogOpen(false)}
-                        />
-                      </DialogContent>
-                    </Dialog>
-                  </FormItem>
+                  </div>
                 )}
-              />
-            </CardContent>
-          </Card>
+              </div>
 
-          {/* Additional Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Additional Information</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-              <FormField
-                control={form.control}
-                name="payment_terms"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Payment Terms</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} placeholder="Enter payment terms" rows={3} disabled={loading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="performance_guarantee_required"
+                    checked={formData.performance_guarantee_required}
+                    onChange={(e) => handleInputChange("performance_guarantee_required", e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="performance_guarantee_required">Performance Guarantee Required</Label>
+                </div>
+                
+                {formData.performance_guarantee_required && (
+                  <div className="space-y-2">
+                    <Label htmlFor="performance_guarantee_percentage">Performance Guarantee (%)</Label>
+                    <Input
+                      id="performance_guarantee_percentage"
+                      type="number"
+                      value={formData.performance_guarantee_percentage}
+                      onChange={(e) => handleInputChange("performance_guarantee_percentage", parseFloat(e.target.value) || 0)}
+                      placeholder="Enter percentage"
+                      step="0.1"
+                      max="100"
+                    />
+                  </div>
                 )}
-              />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              <FormField
-                control={form.control}
-                name="evaluation_criteria"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Evaluation Criteria</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} placeholder="Enter evaluation criteria" rows={3} disabled={loading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="technical_specifications"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Technical Specifications</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} placeholder="Enter technical specifications" rows={3} disabled={loading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="eligibility_criteria"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Eligibility Criteria</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} placeholder="Enter eligibility criteria" rows={3} disabled={loading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Form Actions */}
-          <div className="flex justify-end space-x-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => navigate("/dashboard/tenders")}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  {isEditing ? "Updating..." : "Creating..."}
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  {isEditing ? "Update Tender" : "Create Tender"}
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
-      </Form>
+        {/* Form Actions */}
+        <div className="flex items-center justify-end space-x-4">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => navigate("/dashboard/tenders")}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                {isEditing ? "Updating..." : "Creating..."}
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                {isEditing ? "Update Tender" : "Create Tender"}
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 };

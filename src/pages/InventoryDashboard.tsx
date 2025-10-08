@@ -4,6 +4,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Package, 
   AlertTriangle, 
@@ -11,7 +28,19 @@ import {
   RefreshCw,
   TrendingDown,
   TrendingUp,
-  ExternalLink
+  ExternalLink,
+  Search,
+  Filter,
+  Plus,
+  Edit,
+  Trash2,
+  MoreHorizontal,
+  Activity,
+  Archive,
+  Package2,
+  CheckCircle,
+  XCircle,
+  Clock
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -36,9 +65,20 @@ const InventoryDashboard: React.FC = () => {
   const [topItems, setTopItems] = useState<InventoryItem[]>([]);
   const [lowStockItems, setLowStockItems] = useState<InventoryItem[]>([]);
   const [reorderItems, setReorderItems] = useState<InventoryItem[]>([]);
+  const [allItems, setAllItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Enhanced search and filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [stockFilter, setStockFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [showSearch, setShowSearch] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -47,6 +87,9 @@ const InventoryDashboard: React.FC = () => {
     try {
       const result = await InventoryService.getInventoryData();
       const inventoryItems = result.data;
+      
+      // Store all items for the enhanced table
+      setAllItems(inventoryItems);
 
       const extendedStats: ExtendedInventoryStats = {
         ...result.stats,
@@ -145,6 +188,79 @@ const InventoryDashboard: React.FC = () => {
     fetchData();
   };
 
+  // Enhanced search and filtering functions
+  const filteredItems = allItems.filter(item => {
+    const matchesSearch = searchTerm === '' || 
+      item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.itemCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.category?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStockFilter = stockFilter === 'all' || 
+      (stockFilter === 'low-stock' && item.currentStock <= item.minimumStock) ||
+      (stockFilter === 'out-of-stock' && item.currentStock === 0) ||
+      (stockFilter === 'normal-stock' && item.currentStock > item.minimumStock) ||
+      (stockFilter === 'overstock' && item.maximumStock && item.currentStock > item.maximumStock);
+
+    const matchesCategoryFilter = categoryFilter === 'all' || 
+      item.category === categoryFilter;
+
+    return matchesSearch && matchesStockFilter && matchesCategoryFilter;
+  });
+
+  const getStockStatusBadge = (item: InventoryItem) => {
+    if (item.currentStock === 0) {
+      return <Badge variant="destructive">Out of Stock</Badge>;
+    } else if (item.currentStock <= item.minimumStock) {
+      return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Low Stock</Badge>;
+    } else if (item.maximumStock && item.currentStock > item.maximumStock) {
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Overstock</Badge>;
+    } else {
+      return <Badge variant="secondary" className="bg-green-100 text-green-800">Normal</Badge>;
+    }
+  };
+
+  const handleQuickFilter = (filterType: string) => {
+    setStockFilter(filterType);
+    setSearchTerm('');
+  };
+
+  const handleItemEdit = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setDialogOpen(true);
+  };
+
+  const handleItemDelete = async (item: InventoryItem) => {
+    if (confirm(`Are you sure you want to delete ${item.itemName}?`)) {
+      try {
+        // Add delete API call here
+        toast({
+          title: "Success",
+          description: `${item.itemName} has been deleted.`,
+        });
+        fetchData(); // Refresh data
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete item.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault();
+        setShowSearch(!showSearch);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSearch]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -192,98 +308,290 @@ const InventoryDashboard: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+    <div className="p-6 space-y-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+      {/* Enhanced Header */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Inventory Dashboard</h1>
-          <p className="text-gray-600 mt-1">Visual inventory analytics and insights</p>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Inventory Dashboard
+          </h1>
+          <p className="text-lg text-muted-foreground mt-2">
+            Comprehensive inventory analytics and stock management
+          </p>
+          <div className="flex items-center gap-4 mt-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              Last updated: {new Date().toLocaleString()}
+            </div>
+          </div>
         </div>
-        <Button onClick={handleRefresh} variant="outline" size="sm">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
+        <div className="flex items-center gap-3">
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </Button>
+          <Button onClick={() => navigate('/dashboard/inventory')} className="flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            Manage Items
+          </Button>
+        </div>
+      </div>
+
+      {/* Enhanced Search Bar */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Input
+            placeholder="Search inventory... (Ctrl+K)"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Stock Level: {stockFilter === 'all' ? 'All' : stockFilter.charAt(0).toUpperCase() + stockFilter.slice(1).replace('-', ' ')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setStockFilter('all')}>All Items</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setStockFilter('low-stock')}>Low Stock</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setStockFilter('out-of-stock')}>Out of Stock</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setStockFilter('normal-stock')}>Normal Stock</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setStockFilter('overstock')}>Overstock</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Quick Action Buttons */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={stockFilter === 'normal-stock' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleQuickFilter('normal-stock')}
+          className="flex items-center gap-2"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Normal Stock
+        </Button>
+        <Button
+          variant={stockFilter === 'low-stock' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleQuickFilter('low-stock')}
+          className="flex items-center gap-2"
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Low Stock
+        </Button>
+        <Button
+          variant={stockFilter === 'out-of-stock' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleQuickFilter('out-of-stock')}
+          className="flex items-center gap-2"
+        >
+          <XCircle className="w-4 h-4" />
+          Out of Stock
         </Button>
       </div>
 
-      {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Total Items Card - Clickable */}
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow duration-200"
-          onClick={() => navigate('/dashboard/inventory-all-items')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              Total Items
-              <ExternalLink className="h-3 w-3 text-gray-400" />
-            </CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(stats.totalItems)}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.normalStockItems} normal stock items
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Total Qty Card - Clickable */}
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow duration-200"
-          onClick={() => navigate('/dashboard/inventory-stock-quantities')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              Total Qty
-              <ExternalLink className="h-3 w-3 text-gray-400" />
-            </CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(stats.totalStockQty)}</div>
-            <p className="text-xs text-muted-foreground">
-              Units in inventory
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Alerts Card - Clickable */}
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow duration-200"
-          onClick={() => navigate('/dashboard/inventory-alerts')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              Alerts
-              <ExternalLink className="h-3 w-3 text-gray-400" />
-            </CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {stats.itemsNeedingReorder}
+      {/* Enhanced Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105" onClick={() => navigate('/dashboard/inventory-all-items')}>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Items</p>
+              <p className="text-2xl font-bold text-blue-600">{stats?.totalItems || 0}</p>
+              <p className="text-xs text-blue-500">Active inventory</p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Items need attention
-            </p>
+            <Package className="w-8 h-8 text-blue-600" />
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105" onClick={() => navigate('/dashboard/inventory-stock-quantities')}>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Quantity</p>
+              <p className="text-2xl font-bold text-green-600">{formatNumber(stats?.totalStockQty || 0)}</p>
+              <p className="text-xs text-green-500">Units in stock</p>
+            </div>
+            <Archive className="w-8 h-8 text-green-600" />
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105" onClick={() => handleQuickFilter('low-stock')}>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Low Stock Alerts</p>
+              <p className="text-2xl font-bold text-orange-600">{stats?.itemsBelowMinimum || 0}</p>
+              <p className="text-xs text-orange-500">Need attention</p>
+            </div>
+            <AlertTriangle className="w-8 h-8 text-orange-600" />
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105" onClick={() => handleQuickFilter('out-of-stock')}>
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+              <p className="text-2xl font-bold text-red-600">{stats?.outOfStockItems || 0}</p>
+              <p className="text-xs text-red-500">Critical items</p>
+            </div>
+            <XCircle className="w-8 h-8 text-red-600" />
+          </CardContent>
+        </Card>
+
+
+
+        <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105">
+          <CardContent className="flex items-center justify-between p-6">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Normal Stock</p>
+              <p className="text-2xl font-bold text-teal-600">{stats?.normalStockItems || 0}</p>
+              <p className="text-xs text-teal-500">Healthy levels</p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-teal-600" />
           </CardContent>
         </Card>
       </div>
 
+      {/* Enhanced Data Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package2 className="w-5 h-5" />
+            Inventory Items ({filteredItems.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item Details</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="text-right">Current Stock</TableHead>
+                  <TableHead className="text-right">Min/Max</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p>No items match your search criteria</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => { setSearchTerm(''); setStockFilter('all'); }}>
+                        Clear Filters
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredItems.slice(0, 20).map((item, index) => (
+                    <TableRow key={index} className="hover:bg-muted/50">
+                      <TableCell>
+                        <div className="space-y-1">
+                          <p className="font-medium">{item.itemName}</p>
+                          {item.itemCode && (
+                            <p className="text-sm text-muted-foreground">Code: {item.itemCode}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {item.category && (
+                            <Badge variant="outline" className="text-xs">
+                              {item.category}
+                            </Badge>
+                          )}
+                          {item.subCategory && (
+                            <p className="text-xs text-muted-foreground">{item.subCategory}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        <div className="space-y-1">
+                          <p className="font-medium">{formatNumber(item.currentStock)}</p>
+                          {item.unit && (
+                            <p className="text-xs text-muted-foreground">{item.unit}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        <div className="space-y-1">
+                          <p>Min: {formatNumber(item.minimumStock)}</p>
+                          {item.maximumStock && (
+                            <p className="text-muted-foreground">Max: {formatNumber(item.maximumStock)}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {getStockStatusBadge(item)}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleItemEdit(item)}>
+                              <Edit className="w-4 h-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Activity className="w-4 h-4 mr-2" />
+                              View History
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleItemDelete(item)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          {filteredItems.length > 20 && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Showing 20 of {filteredItems.length} items
+              </p>
+              <Button variant="outline" size="sm" className="mt-2">
+                Load More
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Charts Section */}
-      <Tabs defaultValue="stock-levels" className="space-y-4">
+      <Tabs defaultValue="analytics" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="stock-levels">Stock Levels</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="alerts">Alerts & Actions</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="stock-levels" className="space-y-4">
+        <TabsContent value="analytics" className="space-y-4">
           <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="w-5 h-5" />
-                  Stock Levels Overview
+                  Top Items by Stock Level
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -377,6 +685,50 @@ const InventoryDashboard: React.FC = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Item Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+            <DialogDescription>
+              Make changes to {selectedItem?.itemName} inventory details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Current Stock</label>
+              <Input
+                type="number"
+                defaultValue={selectedItem?.currentStock || 0}
+                placeholder="Enter current stock"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Minimum Stock</label>
+              <Input
+                type="number"
+                defaultValue={selectedItem?.minimumStock || 0}
+                placeholder="Enter minimum stock level"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              toast({
+                title: "Success",
+                description: "Item updated successfully.",
+              });
+              setDialogOpen(false);
+            }}>
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

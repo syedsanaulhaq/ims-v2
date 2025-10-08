@@ -85,6 +85,7 @@ const ItemsMaster: React.FC = () => {
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [unitFilter, setUnitFilter] = useState('All');
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [formData, setFormData] = useState<ItemFormData>({
     item_code: '',
@@ -125,19 +126,29 @@ const ItemsMaster: React.FC = () => {
 
   // Calculate statistics
   const stats = React.useMemo(() => {
-    const activeItems = items.filter(item => item.category_id && item.sub_category_id);
-    const categorizedItems = items.filter(item => item.category_id);
+    const fullyCategorized = items.filter(item => item.category_id && item.sub_category_id);
+    const partiallyCategorized = items.filter(item => item.category_id && !item.sub_category_id);
     const uncategorizedItems = items.filter(item => !item.category_id);
+    const itemsWithSpecs = items.filter(item => item.specifications && item.specifications.trim().length > 0);
+    const uniqueUnits = new Set(items.map(item => item.unit_of_measure).filter(Boolean));
     
     return {
       totalItems: items.length,
-      activeItems: activeItems.length,
-      categorizedItems: categorizedItems.length,
+      fullyCategorized: fullyCategorized.length,
+      partiallyCategorized: partiallyCategorized.length,
       uncategorizedItems: uncategorizedItems.length,
+      itemsWithSpecs: itemsWithSpecs.length,
+      uniqueUnits: uniqueUnits.size,
       totalCategories: categories.length,
-      totalSubCategories: subCategories.length
+      completionRate: items.length > 0 ? ((fullyCategorized.length / items.length) * 100) : 0
     };
   }, [items, categories, subCategories]);
+
+  // Get unique units for filter
+  const availableUnits = React.useMemo(() => {
+    const units = [...new Set(items.map(item => item.unit_of_measure).filter(Boolean))];
+    return units.sort();
+  }, [items]);
 
   // Filtered items based on search and filters
   const filteredItems = React.useMemo(() => {
@@ -147,14 +158,19 @@ const ItemsMaster: React.FC = () => {
         item.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.specifications?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sub_category_name?.toLowerCase().includes(searchTerm.toLowerCase());
+        item.sub_category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.unit_of_measure?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const categoryMatch = categoryFilter === 'All' || 
-        (categoryFilter === 'Categorized' ? item.category_id : !item.category_id);
+        (categoryFilter === 'Categorized' ? item.category_id && item.sub_category_id : 
+         categoryFilter === 'Uncategorized' ? !item.category_id : 
+         categoryFilter === 'Partial' ? item.category_id && !item.sub_category_id : true);
 
-      return searchMatch && categoryMatch;
+      const unitMatch = unitFilter === 'All' || item.unit_of_measure === unitFilter;
+
+      return searchMatch && categoryMatch && unitMatch;
     });
-  }, [items, searchTerm, categoryFilter]);
+  }, [items, searchTerm, categoryFilter, unitFilter]);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -428,8 +444,9 @@ const ItemsMaster: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm font-medium text-gray-600">Categorized Items</p>
-              <p className="text-2xl font-bold text-green-600">{stats.categorizedItems}</p>
+              <p className="text-sm font-medium text-gray-600">Fully Categorized</p>
+              <p className="text-2xl font-bold text-green-600">{stats.fullyCategorized}</p>
+              <p className="text-xs text-green-500">{stats.completionRate.toFixed(1)}% complete</p>
             </div>
             <Layers className="w-8 h-8 text-green-600" />
           </CardContent>
@@ -437,17 +454,19 @@ const ItemsMaster: React.FC = () => {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm font-medium text-gray-600">Uncategorized Items</p>
-              <p className="text-2xl font-bold text-orange-600">{stats.uncategorizedItems}</p>
+              <p className="text-sm font-medium text-gray-600">Need Categorization</p>
+              <p className="text-2xl font-bold text-red-600">{stats.uncategorizedItems}</p>
+              <p className="text-xs text-red-500">Missing categories</p>
             </div>
-            <Package className="w-8 h-8 text-orange-600" />
+            <Package className="w-8 h-8 text-red-600" />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm font-medium text-gray-600">Categories Available</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.totalCategories}</p>
+              <p className="text-sm font-medium text-gray-600">With Specifications</p>
+              <p className="text-2xl font-bold text-purple-600">{stats.itemsWithSpecs}</p>
+              <p className="text-xs text-purple-500">{stats.uniqueUnits} unique units</p>
             </div>
             <Tag className="w-8 h-8 text-purple-600" />
           </CardContent>
@@ -493,12 +512,12 @@ const ItemsMaster: React.FC = () => {
 
             {/* Filter Controls */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              {/* Category Filter */}
+              {/* Category Status Filter */}
               <div className="flex items-center gap-2 min-w-fit">
                 <Filter className="w-4 h-4 text-blue-500" />
-                <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">Status:</Label>
+                <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">Category:</Label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-36 h-10 border-blue-200 focus:border-blue-400">
+                  <SelectTrigger className="w-40 h-10 border-blue-200 focus:border-blue-400">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -511,15 +530,39 @@ const ItemsMaster: React.FC = () => {
                     <SelectItem value="Categorized">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        Categorized Only
+                        Fully Categorized
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Partial">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                        Partially Categorized
                       </div>
                     </SelectItem>
                     <SelectItem value="Uncategorized">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                        Uncategorized Only
+                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                        Uncategorized
                       </div>
                     </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Unit Filter */}
+              <div className="flex items-center gap-2 min-w-fit">
+                <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">Unit:</Label>
+                <Select value={unitFilter} onValueChange={setUnitFilter}>
+                  <SelectTrigger className="w-32 h-10 border-blue-200 focus:border-blue-400">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Units</SelectItem>
+                    {availableUnits.map((unit) => (
+                      <SelectItem key={unit} value={unit}>
+                        {unit}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -549,16 +592,25 @@ const ItemsMaster: React.FC = () => {
                 onClick={() => setCategoryFilter('Categorized')}
               >
                 <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                Categorized Only
+                Fully Categorized
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className={`h-8 ${categoryFilter === 'Uncategorized' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'hover:bg-orange-50'}`}
+                className={`h-8 ${categoryFilter === 'Partial' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 'hover:bg-yellow-50'}`}
+                onClick={() => setCategoryFilter('Partial')}
+              >
+                <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></div>
+                Needs Sub-Category
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className={`h-8 ${categoryFilter === 'Uncategorized' ? 'bg-red-50 border-red-200 text-red-700' : 'hover:bg-red-50'}`}
                 onClick={() => setCategoryFilter('Uncategorized')}
               >
-                <div className="w-2 h-2 rounded-full bg-orange-500 mr-2"></div>
-                Uncategorized Only
+                <div className="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
+                Needs Categorization
               </Button>
               <Button
                 variant="outline"
@@ -567,7 +619,7 @@ const ItemsMaster: React.FC = () => {
                 onClick={() => setCategoryFilter('All')}
               >
                 <div className="w-2 h-2 rounded-full bg-gray-400 mr-2"></div>
-                Show All
+                Show All Items
               </Button>
             </div>
           )}
@@ -580,8 +632,8 @@ const ItemsMaster: React.FC = () => {
                 <span className="font-medium">No results found for "{searchTerm}"</span>
               </div>
               <p className="text-sm text-yellow-700 mt-1">
-                Try searching for item names, codes, or specifications. 
-                You can also check different category filters.
+                Try searching for item names, item codes, specifications, categories, or units of measure. 
+                You can also use the category and unit filters above.
               </p>
             </div>
           )}
@@ -619,7 +671,7 @@ const ItemsMaster: React.FC = () => {
               <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No items match your filters</h3>
               <p className="text-gray-500 mb-6">Try adjusting your search terms or filters</p>
-              <Button variant="outline" onClick={() => { setSearchTerm(''); setCategoryFilter('All'); }}>
+              <Button variant="outline" onClick={() => { setSearchTerm(''); setCategoryFilter('All'); setUnitFilter('All'); }}>
                 Clear All Filters
               </Button>
             </div>
