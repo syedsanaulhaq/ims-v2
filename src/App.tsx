@@ -21,6 +21,7 @@ import ContractTender from "./pages/ContractTender";
 import CreateTender from "./pages/CreateTender";
 import EditTender from "./pages/EditTender";
 import TenderFormFresh2 from './components/tenders/TenderFormFresh2';
+import EnhancedTenderDashboard from './components/tenders/EnhancedTenderDashboard';
 
 import ItemMaster from "./pages/ItemMaster";
 import VendorInfo from "./pages/VendorInfo";
@@ -118,7 +119,9 @@ function App() {
                   <Route path="contract-tender" element={<ContractTender />} />
                   <Route path="create-tender" element={<CreateTender />} />
                   <Route path="spot-purchases" element={<ContractTender initialType="Spot Purchase" />} />
-                  <Route path="tenders" element={<ContractTender />} />
+                  <Route path="tenders" element={<EnhancedTenderDashboard />} />
+                  <Route path="tenders/create" element={<CreateTender />} />
+                  <Route path="tenders/edit/:id" element={<EditTender />} />
                   <Route path="tenders/new" element={<TenderFormFresh2 />} />
                   <Route path="tenders/:id/edit" element={<EditTender />} />
                   <Route path="tenders/:id/report" element={<TenderReport />} />

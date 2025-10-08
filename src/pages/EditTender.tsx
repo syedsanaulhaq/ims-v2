@@ -145,7 +145,7 @@ const EditTender: React.FC = () => {
     try {
       setLoadingData(true);
       
-      // Fetch tender details
+      // Fetch tender details with items
       const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
       if (tenderResponse.ok) {
         const tender = await tenderResponse.json();
@@ -168,13 +168,11 @@ const EditTender: React.FC = () => {
           procurement_method: tender.procurement_method || '',
           procedure_adopted: tender.procedure_adopted || ''
         });
-      }
 
-      // Fetch tender items
-      const itemsResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}/items`);
-      if (itemsResponse.ok) {
-        const items = await itemsResponse.json();
-        setTenderItems(Array.isArray(items) ? items : items.data || []);
+        // Set tender items from the tender response
+        if (tender.items && Array.isArray(tender.items)) {
+          setTenderItems(tender.items);
+        }
       }
 
     } catch (err) {
@@ -341,13 +339,17 @@ const EditTender: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Prepare tender data for JSON submission
+      // Prepare tender data for JSON submission (only include valid database fields)
       const tenderFormData = {
-        ...tenderData,
+        reference_number: tenderData.reference_number,
+        title: tenderData.title,
+        description: tenderData.description,
         estimated_value: totalTenderValue || (tenderData.estimated_value ? parseFloat(tenderData.estimated_value) : null),
         publish_date: tenderData.publish_date || null,
         submission_deadline: tenderData.submission_deadline || null,
         opening_date: tenderData.opening_date || null,
+        procurement_method: tenderData.procurement_method || null,
+        publication_daily: tenderData.publication_daily || null,
         vendor_id: tenderData.vendor_id || null,
         office_ids: tenderData.office_ids.length > 0 ? tenderData.office_ids.join(',') : null,
         wing_ids: tenderData.wing_ids.length > 0 ? tenderData.wing_ids.join(',') : null,
