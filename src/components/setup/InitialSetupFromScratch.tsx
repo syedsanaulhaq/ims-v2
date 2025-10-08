@@ -196,6 +196,9 @@ const InitialSetupFromScratch: React.FC = () => {
       '100+': 0
     };
 
+    // Location-based distribution
+    const locationCounts: { [key: string]: number } = {};
+
     stockData.forEach(item => {
       const quantity = item.editedQuantity || 0;
       const status = getStockStatus(quantity, item.minimum_level, item.maximum_level);
@@ -212,6 +215,10 @@ const InitialSetupFromScratch: React.FC = () => {
       else if (quantity <= 50) quantityRanges['11-50']++;
       else if (quantity <= 100) quantityRanges['51-100']++;
       else quantityRanges['100+']++;
+
+      // Count by location
+      const location = item.location || 'Unknown';
+      locationCounts[location] = (locationCounts[location] || 0) + 1;
     });
 
     const pieData = [
@@ -227,10 +234,19 @@ const InitialSetupFromScratch: React.FC = () => {
       percentage: stats.total > 0 ? ((count / stats.total) * 100).toFixed(1) : '0'
     }));
 
-    return { pieData, barData };
+    const locationData = Object.entries(locationCounts)
+      .map(([location, count]) => ({
+        location: location.length > 15 ? location.substring(0, 15) + '...' : location,
+        count,
+        percentage: stats.total > 0 ? ((count / stats.total) * 100).toFixed(1) : '0'
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8); // Top 8 locations
+
+    return { pieData, barData, locationData };
   };
 
-  const { pieData, barData } = getChartData();
+  const { pieData, barData, locationData } = getChartData();
 
   if (isLoading) {
     return (
@@ -327,7 +343,7 @@ const InitialSetupFromScratch: React.FC = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Stock Status Distribution (Pie Chart) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -335,7 +351,7 @@ const InitialSetupFromScratch: React.FC = () => {
             <PieChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={280}>
               <RechartsPieChart>
                 <Pie
                   data={pieData}
@@ -343,7 +359,7 @@ const InitialSetupFromScratch: React.FC = () => {
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
+                  outerRadius={70}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -364,28 +380,60 @@ const InitialSetupFromScratch: React.FC = () => {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={280}>
               <BarChart data={barData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="range" 
-                  tick={{ fontSize: 12 }}
-                  label={{ value: 'Quantity Range', position: 'insideBottom', offset: -5 }}
+                  tick={{ fontSize: 11 }}
                 />
                 <YAxis 
-                  tick={{ fontSize: 12 }}
-                  label={{ value: 'Item Count', angle: -90, position: 'insideLeft' }}
+                  tick={{ fontSize: 11 }}
                 />
                 <Tooltip 
                   formatter={(value, name) => [value, 'Items']}
                   labelFormatter={(label) => `Range: ${label}`}
                 />
-                <Legend />
                 <Bar 
                   dataKey="count" 
                   fill="#0891b2" 
                   name="Items"
-                  radius={[4, 4, 0, 0]}
+                  radius={[2, 2, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Location Distribution (Bar Chart) */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Top Locations</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={locationData} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  type="number"
+                  tick={{ fontSize: 11 }}
+                />
+                <YAxis 
+                  type="category"
+                  dataKey="location" 
+                  tick={{ fontSize: 10 }}
+                  width={60}
+                />
+                <Tooltip 
+                  formatter={(value, name) => [value, 'Items']}
+                  labelFormatter={(label) => `Location: ${label}`}
+                />
+                <Bar 
+                  dataKey="count" 
+                  fill="#7c3aed" 
+                  name="Items"
+                  radius={[0, 2, 2, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
