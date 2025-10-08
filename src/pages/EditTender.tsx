@@ -385,11 +385,6 @@ const EditTender: React.FC = () => {
       const result = await response.json();
       console.log('✅ Success response:', result);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
       alert(`${tenderData.tender_type === 'spot-purchase' ? 'Spot purchase' : 'Contract tender'} updated successfully!`);
       navigate(tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender');
     } catch (err) {
