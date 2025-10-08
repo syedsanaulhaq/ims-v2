@@ -4442,6 +4442,10 @@ app.put('/api/item-masters/:id', async (req, res) => {
       status
     } = req.body;
 
+    console.log('🔄 PUT /api/item-masters/:id - Request received');
+    console.log('📝 Item ID:', id);
+    console.log('📊 Request body:', req.body);
+
     const now = new Date().toISOString();
 
     const result = await pool.request()
@@ -4478,6 +4482,8 @@ app.put('/api/item-masters/:id', async (req, res) => {
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Item master not found' });
     }
+    
+    console.log('✅ Item master updated successfully');
     res.json({ 
       success: true, 
       id: id,
@@ -4485,6 +4491,8 @@ app.put('/api/item-masters/:id', async (req, res) => {
     });
 
   } catch (error) {
+    console.error('❌ Error updating item master:', error);
+    console.error('📋 Error details:', error.message);
     res.status(500).json({ error: 'Failed to update item master', details: error.message });
   }
 });
@@ -4596,6 +4604,96 @@ app.get('/api/categories/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching category:', error);
     res.status(500).json({ error: 'Failed to fetch category', details: error.message });
+  }
+});
+
+// =============================================================================
+// SUB-CATEGORIES ENDPOINTS
+// =============================================================================
+
+// GET all sub-categories
+app.get('/api/sub-categories', async (req, res) => {
+  try {
+    console.log('🔍 Fetching all sub-categories...');
+    
+    if (!pool) {
+      const mockSubCategories = [
+        { id: 1, sub_category_name: 'Computers', category_id: 1, description: 'Desktop and laptop computers', status: 'Active' },
+        { id: 2, sub_category_name: 'Printers', category_id: 1, description: 'All types of printers', status: 'Active' },
+        { id: 3, sub_category_name: 'Office Chairs', category_id: 2, description: 'Office seating furniture', status: 'Active' },
+        { id: 4, sub_category_name: 'Desks', category_id: 2, description: 'Office desks and tables', status: 'Active' },
+        { id: 5, sub_category_name: 'Paper Products', category_id: 3, description: 'All paper-based stationery', status: 'Active' },
+        { id: 6, sub_category_name: 'Writing Instruments', category_id: 3, description: 'Pens, pencils, markers', status: 'Active' }
+      ];
+      return res.json(mockSubCategories);
+    }
+
+    const result = await pool.request().query(`
+      SELECT 
+        id,
+        sub_category_name,
+        category_id,
+        description,
+        status,
+        created_at,
+        updated_at
+      FROM sub_categories 
+      WHERE status != 'Deleted'
+      ORDER BY sub_category_name
+    `);
+    
+    console.log('✅ Sub-categories fetched:', result.recordset.length);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching sub-categories:', error);
+    // Fallback to mock data on any error
+    const mockSubCategories = [
+      { id: 1, sub_category_name: 'Computers', category_id: 1, description: 'Desktop and laptop computers', status: 'Active' },
+      { id: 2, sub_category_name: 'Printers', category_id: 1, description: 'All types of printers', status: 'Active' },
+      { id: 3, sub_category_name: 'Office Chairs', category_id: 2, description: 'Office seating furniture', status: 'Active' },
+      { id: 4, sub_category_name: 'Desks', category_id: 2, description: 'Office desks and tables', status: 'Active' },
+      { id: 5, sub_category_name: 'Paper Products', category_id: 3, description: 'All paper-based stationery', status: 'Active' },
+      { id: 6, sub_category_name: 'Writing Instruments', category_id: 3, description: 'Pens, pencils, markers', status: 'Active' }
+    ];
+    res.json(mockSubCategories);
+  }
+});
+
+// GET sub-categories by category ID
+app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    console.log('🔍 Fetching sub-categories for category:', categoryId);
+    
+    if (!pool) {
+      const mockSubCategories = [
+        { id: 1, sub_category_name: 'Computers', category_id: 1, description: 'Desktop and laptop computers', status: 'Active' },
+        { id: 2, sub_category_name: 'Printers', category_id: 1, description: 'All types of printers', status: 'Active' }
+      ].filter(sub => sub.category_id.toString() === categoryId);
+      return res.json(mockSubCategories);
+    }
+
+    const result = await pool.request()
+      .input('categoryId', sql.Int, categoryId)
+      .query(`
+        SELECT 
+          id,
+          sub_category_name,
+          category_id,
+          description,
+          status,
+          created_at,
+          updated_at
+        FROM sub_categories 
+        WHERE category_id = @categoryId AND status != 'Deleted'
+        ORDER BY sub_category_name
+      `);
+    
+    console.log('✅ Sub-categories fetched for category', categoryId, ':', result.recordset.length);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching sub-categories by category:', error);
+    res.status(500).json({ error: 'Failed to fetch sub-categories', details: error.message });
   }
 });
 

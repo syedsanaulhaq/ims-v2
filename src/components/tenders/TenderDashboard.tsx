@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +67,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
   onCreateTender,
   onEditTender
 }) => {
+  const navigate = useNavigate();
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +192,15 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
     }
   };
 
+  // Handle opening create modal - navigate to create page
+  const handleOpenCreateModal = () => {
+    if (onCreateTender) {
+      onCreateTender();
+    } else {
+      navigate('/dashboard/create-tender');
+    }
+  };
+
   useEffect(() => {
     fetchTenders();
   }, []);
@@ -255,7 +266,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
             Manage procurement tenders and track their progress
           </p>
         </div>
-        <Button onClick={onCreateTender} className="flex items-center gap-2">
+        <Button onClick={handleOpenCreateModal} className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
           Create New Tender
         </Button>
