@@ -78,20 +78,20 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       ]
     },
     {
-      title: "Stock Manager",
-      icon: Warehouse,
-      path: "/stock",
+      title: "Procurement Manager",
+      icon: Building2,
+      path: "/procurement",
       hasSubmenu: true,
       submenu: [
         { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard" },
         { title: "Contract/Tender", path: "/dashboard/contract-tender" },
         { title: "Spot Purchase", path: "/dashboard/spot-purchases" },
-        { title: "Vendors", path: "/dashboard/vendors" }
+        { title: "Vendor Management", path: "/dashboard/vendors" }
       ]
     },
     {
       title: "Issuance Manager",
-      icon: ArrowRightLeft,
+      icon: Warehouse,
       path: "/issuance",
       hasSubmenu: true,
       submenu: [
