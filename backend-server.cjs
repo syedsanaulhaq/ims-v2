@@ -4170,43 +4170,159 @@ app.post('/api/inventory-stock/:id/transaction', async (req, res) => {
 // GET all item masters
 app.get('/api/item-masters', async (req, res) => {
   try {
+    console.log('🔍 Starting /api/item-masters request...');
+    
     if (!pool) {
+      console.log('⚠️ No database pool available, returning mock data');
       // Return mock data when SQL Server is not connected
       const mockItemMasters = [
-        { id: '1', nomenclature: 'Desktop Computer', item_code: 'IT001', unit: 'Unit', category_id: '1', specifications: 'Intel i5, 8GB RAM, 500GB HDD' },
-        { id: '2', nomenclature: 'Office Chair', item_code: 'FUR001', unit: 'Unit', category_id: '2', specifications: 'Ergonomic design, adjustable height' },
-        { id: '3', nomenclature: 'A4 Paper', item_code: 'STA001', unit: 'Ream', category_id: '3', specifications: '80GSM, white, 500 sheets' }
+        { 
+          id: '1', 
+          nomenclature: 'Desktop Computer', 
+          item_code: 'IT001', 
+          unit: 'Unit', 
+          category_id: '1', 
+          sub_category_id: '1',
+          specifications: 'Intel i5, 8GB RAM, 500GB HDD',
+          description: 'Standard desktop computer for office use',
+          status: 'Active',
+          minimum_stock_level: 5,
+          maximum_stock_level: 50,
+          reorder_point: 10,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          category_name: 'Information Technology',
+          sub_category_name: 'Computers'
+        },
+        { 
+          id: '2', 
+          nomenclature: 'Office Chair', 
+          item_code: 'FUR001', 
+          unit: 'Unit', 
+          category_id: '2', 
+          sub_category_id: '2',
+          specifications: 'Ergonomic design, adjustable height',
+          description: 'Comfortable office chair with back support',
+          status: 'Active',
+          minimum_stock_level: 2,
+          maximum_stock_level: 20,
+          reorder_point: 5,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          category_name: 'Furniture',
+          sub_category_name: 'Office Furniture'
+        },
+        { 
+          id: '3', 
+          nomenclature: 'A4 Paper', 
+          item_code: 'STA001', 
+          unit: 'Ream', 
+          category_id: '3', 
+          sub_category_id: '3',
+          specifications: '80GSM, white, 500 sheets',
+          description: 'Standard office paper for printing',
+          status: 'Active',
+          minimum_stock_level: 10,
+          maximum_stock_level: 100,
+          reorder_point: 20,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          category_name: 'Stationery',
+          sub_category_name: 'Paper Products'
+        }
       ];
       return res.json(mockItemMasters);
     }
 
+    console.log('📊 Executing database query...');
     const result = await pool.request().query(`
       SELECT 
         id,
-        nomenclature,
         item_code,
-        unit,
+        nomenclature,
         category_id,
         sub_category_id,
+        unit,
         specifications,
         description,
-        minimum_stock_level,
-        reorder_point,
-        maximum_stock_level,
         status,
+        minimum_stock_level,
+        maximum_stock_level,
+        reorder_point,
         created_at,
-        updated_at
-      FROM item_masters 
-      WHERE status != 'Deleted'
+        updated_at,
+        category_name,
+        sub_category_name
+      FROM vw_item_masters_with_categories
       ORDER BY nomenclature
     `);
+    
+    console.log('✅ Query executed successfully, rows returned:', result.recordset.length);
+    if (result.recordset.length > 0) {
+      console.log('📊 First item sample:', JSON.stringify(result.recordset[0], null, 2));
+    }
+    
     res.json(result.recordset);
   } catch (error) {
+    console.error('❌ Error in /api/item-masters:', error.message);
+    console.error('📋 Full error:', error);
+    
     // Fallback to mock data on any error
     const mockItemMasters = [
-      { id: '1', nomenclature: 'Desktop Computer', item_code: 'IT001', unit: 'Unit', category_id: '1', specifications: 'Intel i5, 8GB RAM, 500GB HDD' },
-      { id: '2', nomenclature: 'Office Chair', item_code: 'FUR001', unit: 'Unit', category_id: '2', specifications: 'Ergonomic design, adjustable height' },
-      { id: '3', nomenclature: 'A4 Paper', item_code: 'STA001', unit: 'Ream', category_id: '3', specifications: '80GSM, white, 500 sheets' }
+      { 
+        id: '1', 
+        nomenclature: 'Desktop Computer', 
+        item_code: 'IT001', 
+        unit: 'Unit', 
+        category_id: '1', 
+        sub_category_id: '1',
+        specifications: 'Intel i5, 8GB RAM, 500GB HDD',
+        description: 'Standard desktop computer for office use',
+        status: 'Active',
+        minimum_stock_level: 5,
+        maximum_stock_level: 50,
+        reorder_point: 10,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        category_name: 'Information Technology',
+        sub_category_name: 'Computers'
+      },
+      { 
+        id: '2', 
+        nomenclature: 'Office Chair', 
+        item_code: 'FUR001', 
+        unit: 'Unit', 
+        category_id: '2', 
+        sub_category_id: '2',
+        specifications: 'Ergonomic design, adjustable height',
+        description: 'Comfortable office chair with back support',
+        status: 'Active',
+        minimum_stock_level: 2,
+        maximum_stock_level: 20,
+        reorder_point: 5,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        category_name: 'Furniture',
+        sub_category_name: 'Office Furniture'
+      },
+      { 
+        id: '3', 
+        nomenclature: 'A4 Paper', 
+        item_code: 'STA001', 
+        unit: 'Ream', 
+        category_id: '3', 
+        sub_category_id: '3',
+        specifications: '80GSM, white, 500 sheets',
+        description: 'Standard office paper for printing',
+        status: 'Active',
+        minimum_stock_level: 10,
+        maximum_stock_level: 100,
+        reorder_point: 20,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        category_name: 'Stationery',
+        sub_category_name: 'Paper Products'
+      }
     ];
     res.json(mockItemMasters);
   }
