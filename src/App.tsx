@@ -19,6 +19,7 @@ import StockTransactions from "./pages/StockTransactions";
 import StockIssuances from "./pages/StockIssuances";
 import ContractTender from "./pages/ContractTender";
 import CreateTender from "./pages/CreateTender";
+import EditTender from "./pages/EditTender";
 import TenderFormFresh2 from './components/tenders/TenderFormFresh2';
 
 import ItemMaster from "./pages/ItemMaster";
@@ -118,7 +119,7 @@ function App() {
                   <Route path="spot-purchases" element={<ContractTender initialType="Spot Purchase" />} />
                   <Route path="tenders" element={<ContractTender />} />
                   <Route path="tenders/new" element={<TenderFormFresh2 />} />
-                  <Route path="tenders/:id/edit" element={<TenderFormFresh2 />} />
+                  <Route path="tenders/:id/edit" element={<EditTender />} />
                   <Route path="tenders/:id/report" element={<TenderReport />} />
                   <Route path="tenders/:id/stock-acquisition" element={<IntegratedStockAcquisition />} />
                   <Route path="stock-acquisition/:id/report" element={<StockAcquisitionReport />} />

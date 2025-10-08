@@ -61,11 +61,15 @@ interface Tender {
 interface TenderDashboardProps {
   onCreateTender?: () => void;
   onEditTender?: (tender: Tender) => void;
+  tenderTypeFilter?: 'contract' | 'spot-purchase' | null;
+  dashboardTitle?: string;
 }
 
 const TenderDashboard: React.FC<TenderDashboardProps> = ({
   onCreateTender,
-  onEditTender
+  onEditTender,
+  tenderTypeFilter = null,
+  dashboardTitle = "Tender Management"
 }) => {
   const navigate = useNavigate();
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -197,7 +201,8 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
     if (onCreateTender) {
       onCreateTender();
     } else {
-      navigate('/dashboard/create-tender');
+      const typeParam = tenderTypeFilter ? `?type=${tenderTypeFilter}` : '';
+      navigate(`/dashboard/create-tender${typeParam}`);
     }
   };
 
@@ -215,8 +220,11 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
 
     const matchesStatus = statusFilter === 'all' || tender.status === statusFilter;
     const matchesType = typeFilter === 'all' || tender.tender_type === typeFilter;
+    
+    // Apply tender type filter if specified
+    const matchesTenderTypeFilter = !tenderTypeFilter || tender.tender_type === tenderTypeFilter;
 
-    return matchesSearch && matchesStatus && matchesType;
+    return matchesSearch && matchesStatus && matchesType && matchesTenderTypeFilter;
   });
 
   // Get status badge variant
@@ -242,9 +250,9 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
   // Format currency
   const formatCurrency = (amount?: number) => {
     if (!amount) return 'N/A';
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PK', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'PKR',
     }).format(amount);
   };
 
@@ -261,9 +269,14 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Tender Management</h2>
+          <h2 className="text-3xl font-bold tracking-tight">{dashboardTitle}</h2>
           <p className="text-muted-foreground">
-            Manage procurement tenders and track their progress
+            {tenderTypeFilter === 'contract' 
+              ? 'Manage contract tenders and track their progress'
+              : tenderTypeFilter === 'spot-purchase'
+              ? 'Manage spot purchase tenders and quick procurement'
+              : 'Manage procurement tenders and track their progress'
+            }
           </p>
         </div>
         <Button onClick={handleOpenCreateModal} className="flex items-center gap-2">
@@ -276,13 +289,17 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tenders</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {tenderTypeFilter === 'contract' ? 'Contract Tenders' 
+               : tenderTypeFilter === 'spot-purchase' ? 'Spot Purchases'
+               : 'Total Tenders'}
+            </CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{tenders.length}</div>
+            <div className="text-2xl font-bold">{filteredTenders.length}</div>
             <p className="text-xs text-muted-foreground">
-              All tenders in system
+              {tenderTypeFilter ? `${tenderTypeFilter} tenders` : 'All tenders in system'}
             </p>
           </CardContent>
         </Card>
@@ -294,7 +311,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {tenders.filter(t => !t.is_finalized && (t.status === 'published' || t.status === 'draft')).length}
+              {filteredTenders.filter(t => !t.is_finalized && (t.status === 'published' || t.status === 'draft')).length}
             </div>
             <p className="text-xs text-muted-foreground">
               Currently active
@@ -309,7 +326,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {tenders.filter(t => t.is_finalized).length}
+              {filteredTenders.filter(t => t.is_finalized).length}
             </div>
             <p className="text-xs text-muted-foreground">
               Completed tenders
@@ -324,7 +341,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(tenders.reduce((sum, tender) => sum + (tender.estimated_value || 0), 0))}
+              {formatCurrency(filteredTenders.reduce((sum, tender) => sum + (tender.estimated_value || 0), 0))}
             </div>
             <p className="text-xs text-muted-foreground">
               Combined tender value

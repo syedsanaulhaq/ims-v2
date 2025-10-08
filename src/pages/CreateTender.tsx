@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, Save, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, FileText, Upload } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -68,6 +68,24 @@ interface Vendor {
 
 const CreateTender: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Determine tender type from referrer or URL params
+  const getTenderType = () => {
+    const searchParams = new URLSearchParams(location.search);
+    const typeParam = searchParams.get('type');
+    if (typeParam) return typeParam;
+    
+    // Check referrer URL
+    const referrer = document.referrer;
+    if (referrer.includes('spot-purchases')) return 'spot-purchase';
+    if (referrer.includes('contract-tender')) return 'contract';
+    
+    return 'contract'; // default
+  };
+  
+  const tenderType = getTenderType();
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [itemMasters, setItemMasters] = useState<ItemMaster[]>([]);
@@ -87,12 +105,25 @@ const CreateTender: React.FC = () => {
     publish_date: '',
     submission_deadline: '',
     opening_date: '',
-    tender_type: '',
+    tender_type: tenderType,
     status: 'draft',
     vendor_id: '',
     office_ids: [] as string[],
     wing_ids: [] as string[],
-    dec_ids: [] as string[]
+    dec_ids: [] as string[],
+    // Additional fields
+    publication_dailies: '',
+    procurement_methods: '',
+    procedure_adopted: ''
+  });
+
+  // File uploads state
+  const [fileUploads, setFileUploads] = useState({
+    contract_file: null as File | null,
+    loi_file: null as File | null,
+    noting_file: null as File | null,
+    po_file: null as File | null,
+    rfp_file: null as File | null
   });
 
   // Tender items
@@ -290,11 +321,20 @@ const CreateTender: React.FC = () => {
       return;
     }
 
+    if (!tenderData.vendor_id) {
+      alert('Please select a vendor');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const formData = {
+      // Create FormData for file uploads
+      const formData = new FormData();
+      
+      // Add tender data
+      const tenderFormData = {
         ...tenderData,
         estimated_value: totalTenderValue || (tenderData.estimated_value ? parseFloat(tenderData.estimated_value) : null),
         publish_date: tenderData.publish_date || null,
@@ -315,12 +355,29 @@ const CreateTender: React.FC = () => {
         }))
       };
 
+      // Add tender data as JSON string
+      formData.append('tenderData', JSON.stringify(tenderFormData));
+
+      // Add file uploads
+      if (fileUploads.contract_file) {
+        formData.append('contract_file', fileUploads.contract_file);
+      }
+      if (fileUploads.loi_file) {
+        formData.append('loi_file', fileUploads.loi_file);
+      }
+      if (fileUploads.noting_file) {
+        formData.append('noting_file', fileUploads.noting_file);
+      }
+      if (fileUploads.po_file) {
+        formData.append('po_file', fileUploads.po_file);
+      }
+      if (fileUploads.rfp_file) {
+        formData.append('rfp_file', fileUploads.rfp_file);
+      }
+
       const response = await fetch('http://localhost:3001/api/tenders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        body: formData, // Remove Content-Type header to let browser set it for FormData
       });
 
       if (!response.ok) {
@@ -328,8 +385,8 @@ const CreateTender: React.FC = () => {
       }
 
       const result = await response.json();
-      alert('Tender created successfully!');
-      navigate('/dashboard/contract-tender');
+      alert(`${tenderType === 'spot-purchase' ? 'Spot purchase' : 'Contract tender'} created successfully!`);
+      navigate(tenderType === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender');
     } catch (err) {
       console.error('Error creating tender:', err);
       setError(err instanceof Error ? err.message : 'Failed to create tender');
@@ -340,9 +397,9 @@ const CreateTender: React.FC = () => {
 
   // Format currency
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PK', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'PKR',
     }).format(amount);
   };
 
@@ -351,14 +408,21 @@ const CreateTender: React.FC = () => {
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate('/dashboard/contract-tender')}>
+          <Button variant="outline" onClick={() => navigate(
+            tenderType === 'spot_purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
+          )}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Tenders
+            Back to {tenderType === 'spot_purchase' ? 'Spot Purchases' : 'Contract Tenders'}
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Create New Tender</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {tenderType === 'spot-purchase' ? 'Create New Spot Purchase' : 'Create New Contract'}
+            </h1>
             <p className="text-muted-foreground">
-              Enter tender details and add items for procurement
+              {tenderType === 'spot-purchase' 
+                ? 'Enter spot purchase details for quick procurement'
+                : 'Enter contract tender details and add items for procurement'
+              }
             </p>
           </div>
         </div>
@@ -370,30 +434,18 @@ const CreateTender: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Main Tender Information */}
+          {/* Tender Type Selection */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
                 <FileText className="h-5 w-5 mr-2" />
-                Tender Information
+                Tender Type
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium">Reference Number</label>
-                  <Input
-                    value={tenderData.reference_number}
-                    onChange={(e) => setTenderData(prev => ({
-                      ...prev,
-                      reference_number: e.target.value
-                    }))}
-                    placeholder="Enter reference number"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Tender Type</label>
+                  <label className="text-sm font-medium">Tender Type *</label>
                   <Select 
                     value={tenderData.tender_type} 
                     onValueChange={(value) => setTenderData(prev => ({
@@ -405,13 +457,54 @@ const CreateTender: React.FC = () => {
                       <SelectValue placeholder="Select tender type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">Open Tender</SelectItem>
-                      <SelectItem value="restricted">Restricted Tender</SelectItem>
-                      <SelectItem value="negotiated">Negotiated Tender</SelectItem>
-                      <SelectItem value="framework">Framework Agreement</SelectItem>
+                      <SelectItem value="contract">Contract Tender</SelectItem>
+                      <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                
+                <div>
+                  <label className="text-sm font-medium">Status</label>
+                  <Select 
+                    value={tenderData.status} 
+                    onValueChange={(value) => setTenderData(prev => ({
+                      ...prev,
+                      status: value
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="published">Published</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Main Tender Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Tender Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Reference Number</label>
+                <Input
+                  value={tenderData.reference_number}
+                  onChange={(e) => setTenderData(prev => ({
+                    ...prev,
+                    reference_number: e.target.value
+                  }))}
+                  placeholder="Enter reference number"
+                />
               </div>
 
               <div>
@@ -441,48 +534,9 @@ const CreateTender: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Manual Estimated Value</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={tenderData.estimated_value}
-                    onChange={(e) => setTenderData(prev => ({
-                      ...prev,
-                      estimated_value: e.target.value
-                    }))}
-                    placeholder="Leave empty to use calculated total"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Current calculated total: {formatCurrency(totalTenderValue)}
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Status</label>
-                  <Select 
-                    value={tenderData.status} 
-                    onValueChange={(value) => setTenderData(prev => ({
-                      ...prev,
-                      status: value
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="published">Published</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
               {/* Vendor Selection */}
               <div>
-                <label className="text-sm font-medium">Vendor</label>
+                <label className="text-sm font-medium">Vendor *</label>
                 <Select 
                   value={tenderData.vendor_id} 
                   onValueChange={(value) => setTenderData(prev => ({
@@ -491,20 +545,16 @@ const CreateTender: React.FC = () => {
                   }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select vendor (optional)" />
+                    <SelectValue placeholder="Select vendor" />
                   </SelectTrigger>
                   <SelectContent>
                     {vendors.map(vendor => (
                       <SelectItem key={vendor.id} value={vendor.id}>
-                        <div className="flex flex-col">
-                          <span className="font-medium">
-                            {vendor.vendor_name}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {vendor.vendor_code && `Code: ${vendor.vendor_code}`}
-                            {vendor.contact_person && ` | Contact: ${vendor.contact_person}`}
-                          </span>
-                        </div>
+                        <span className="font-medium">
+                          {vendor.vendor_code && `${vendor.vendor_code} - `}
+                          {vendor.vendor_name}
+                          {vendor.contact_person && ` (${vendor.contact_person})`}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -512,80 +562,6 @@ const CreateTender: React.FC = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   {vendors.length} vendors available
                 </p>
-              </div>
-
-              {/* Location Selection */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Location Selection (Hierarchical)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-sm font-medium">Offices *</label>
-                    <MultiSelect
-                      options={offices.map(office => ({
-                        label: `${office.strOfficeName}${office.OfficeCode ? ` (${office.OfficeCode})` : ''}`,
-                        value: office.intOfficeID.toString()
-                      }))}
-                      onValueChange={(values) => setTenderData(prev => ({
-                        ...prev,
-                        office_ids: values
-                      }))}
-                      defaultValue={tenderData.office_ids}
-                      placeholder="Select offices first"
-                      variant="inverted"
-                      animation={2}
-                      maxCount={3}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Select offices to load their wings
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Wings</label>
-                    <MultiSelect
-                      options={filteredWings.map(wing => ({
-                        label: `${wing.Name}${wing.ShortName ? ` (${wing.ShortName})` : ''}`,
-                        value: wing.Id.toString()
-                      }))}
-                      onValueChange={(values) => setTenderData(prev => ({
-                        ...prev,
-                        wing_ids: values
-                      }))}
-                      defaultValue={tenderData.wing_ids}
-                      placeholder={tenderData.office_ids.length === 0 ? "Select offices first" : "Select wings"}
-                      variant="inverted"
-                      animation={2}
-                      maxCount={3}
-                      disabled={tenderData.office_ids.length === 0}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {filteredWings.length} wings available
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">DECs</label>
-                    <MultiSelect
-                      options={filteredDecs.map(dec => ({
-                        label: `${dec.DECName.trim()}${dec.DECAcronym ? ` (${dec.DECAcronym})` : ''}`,
-                        value: dec.intAutoID.toString()
-                      }))}
-                      onValueChange={(values) => setTenderData(prev => ({
-                        ...prev,
-                        dec_ids: values
-                      }))}
-                      defaultValue={tenderData.dec_ids}
-                      placeholder={tenderData.wing_ids.length === 0 ? "Select wings first" : "Select DECs"}
-                      variant="inverted"
-                      animation={2}
-                      maxCount={3}
-                      disabled={tenderData.wing_ids.length === 0}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {filteredDecs.length} DECs available
-                    </p>
-                  </div>
-                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -628,6 +604,312 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
+          {/* Location Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Tender Request Form
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Offices *</label>
+                  <MultiSelect
+                    options={offices.map(office => ({
+                      label: `${office.strOfficeName}${office.OfficeCode ? ` (${office.OfficeCode})` : ''}`,
+                      value: office.intOfficeID.toString()
+                    }))}
+                    onValueChange={(values) => setTenderData(prev => ({
+                      ...prev,
+                      office_ids: values
+                    }))}
+                    defaultValue={tenderData.office_ids}
+                    placeholder="Select offices first"
+                    variant="inverted"
+                    animation={2}
+                    maxCount={3}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select offices to load their wings
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Wings</label>
+                  <MultiSelect
+                    options={filteredWings.map(wing => ({
+                      label: `${wing.Name}${wing.ShortName ? ` (${wing.ShortName})` : ''}`,
+                      value: wing.Id.toString()
+                    }))}
+                    onValueChange={(values) => setTenderData(prev => ({
+                      ...prev,
+                      wing_ids: values
+                    }))}
+                    defaultValue={tenderData.wing_ids}
+                    placeholder={tenderData.office_ids.length === 0 ? "Select offices first" : "Select wings"}
+                    variant="inverted"
+                    animation={2}
+                    maxCount={3}
+                    disabled={tenderData.office_ids.length === 0}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {filteredWings.length} wings available
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">DECs</label>
+                  <MultiSelect
+                    options={filteredDecs.map(dec => ({
+                      label: `${dec.DECName.trim()}${dec.DECAcronym ? ` (${dec.DECAcronym})` : ''}`,
+                      value: dec.intAutoID.toString()
+                    }))}
+                    onValueChange={(values) => setTenderData(prev => ({
+                      ...prev,
+                      dec_ids: values
+                    }))}
+                    defaultValue={tenderData.dec_ids}
+                    placeholder={tenderData.wing_ids.length === 0 ? "Select wings first" : "Select DECs"}
+                    variant="inverted"
+                    animation={2}
+                    maxCount={3}
+                    disabled={tenderData.wing_ids.length === 0}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {filteredDecs.length} DECs available
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Additional Tender Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Additional Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Publication Dailies</label>
+                  <Input
+                    value={tenderData.publication_dailies}
+                    onChange={(e) => setTenderData(prev => ({
+                      ...prev,
+                      publication_dailies: e.target.value
+                    }))}
+                    placeholder="Enter publication dailies"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium">Procurement Methods</label>
+                  <Select 
+                    value={tenderData.procurement_methods} 
+                    onValueChange={(value) => setTenderData(prev => ({
+                      ...prev,
+                      procurement_methods: value
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select procurement method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open_bidding">Open Bidding</SelectItem>
+                      <SelectItem value="limited_bidding">Limited Bidding</SelectItem>
+                      <SelectItem value="direct_contracting">Direct Contracting</SelectItem>
+                      <SelectItem value="framework_agreement">Framework Agreement</SelectItem>
+                      <SelectItem value="request_for_quotation">Request for Quotation</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Procedure Adopted</label>
+                  <Select 
+                    value={tenderData.procedure_adopted} 
+                    onValueChange={(value) => setTenderData(prev => ({
+                      ...prev,
+                      procedure_adopted: value
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select procedure" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single_stage">Single Stage</SelectItem>
+                      <SelectItem value="two_stage">Two Stage</SelectItem>
+                      <SelectItem value="pre_qualification">Pre-qualification</SelectItem>
+                      <SelectItem value="expression_of_interest">Expression of Interest</SelectItem>
+                      <SelectItem value="request_for_proposal">Request for Proposal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Document Uploads */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Upload className="h-5 w-5 mr-2" />
+                Document Uploads
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Contract Tender Documents */}
+              {tenderData.tender_type === 'contract' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Contract Document</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, contract_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.contract_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.contract_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">LOI (Letter of Intent)</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, loi_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.loi_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.loi_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">PO (Purchase Order)</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, po_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.po_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.po_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">RFP (Request for Proposal)</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, rfp_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.rfp_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.rfp_file.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Spot Purchase Documents */}
+              {tenderData.tender_type === 'spot-purchase' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Noting File</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, noting_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.noting_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.noting_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">PO (Purchase Order)</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, po_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.po_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.po_file.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Default message when no tender type selected */}
+              {!tenderData.tender_type && (
+                <div className="text-center py-8 text-gray-500">
+                  <Upload className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>Please select a tender type to see available document upload options</p>
+                </div>
+              )}
+              
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Accepted formats:</strong> PDF, DOC, DOCX, XLS, XLSX
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Maximum file size: 10MB per file
+                </p>
+                {tenderData.tender_type === 'contract' && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    <strong>Contract Tender:</strong> Contract, LOI, PO, RFP documents
+                  </p>
+                )}
+                {tenderData.tender_type === 'spot-purchase' && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    <strong>Spot Purchase:</strong> Noting file and PO documents
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Tender Items Section */}
           <Card>
             <CardHeader>
@@ -641,15 +923,15 @@ const CreateTender: React.FC = () => {
               <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                 <h3 className="text-lg font-medium mb-4">Add New Item</h3>
                 
-                {/* Main fields in one row */}
-                <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 mb-4">
+                {/* All fields in one row */}
+                <div className="grid grid-cols-1 lg:grid-cols-8 gap-3 mb-4">
                   <div className="lg:col-span-2">
-                    <label className="text-sm font-medium">Select Item Master *</label>
+                    <label className="text-xs font-medium mb-1 block">Item Master *</label>
                     <Select 
                       value={newItem.item_master_id} 
                       onValueChange={handleItemMasterSelect}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select item" />
                       </SelectTrigger>
                       <SelectContent>
@@ -662,9 +944,23 @@ const CreateTender: React.FC = () => {
                     </Select>
                   </div>
 
-                  <div>
-                    <label className="text-sm font-medium">Quantity *</label>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-medium mb-1 block">Nomenclature *</label>
                     <Input
+                      className="h-9"
+                      value={newItem.nomenclature}
+                      onChange={(e) => setNewItem(prev => ({
+                        ...prev,
+                        nomenclature: e.target.value
+                      }))}
+                      placeholder="Item description"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Quantity *</label>
+                    <Input
+                      className="h-9"
                       type="number"
                       min="1"
                       value={newItem.quantity}
@@ -677,8 +973,9 @@ const CreateTender: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Unit Price</label>
+                    <label className="text-xs font-medium mb-1 block">Unit Price</label>
                     <Input
+                      className="h-9"
                       type="number"
                       step="0.01"
                       value={newItem.estimated_unit_price || ''}
@@ -691,43 +988,29 @@ const CreateTender: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Total Amount</label>
+                    <label className="text-xs font-medium mb-1 block">Total</label>
                     <Input
+                      className="h-9 bg-gray-100"
                       value={formatCurrency(newItem.total_amount || 0)}
                       disabled
-                      className="bg-gray-100"
                     />
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Actions</label>
-                    <Button type="button" onClick={handleAddItem} className="w-full">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Item
+                    <label className="text-xs font-medium mb-1 block">Action</label>
+                    <Button type="button" onClick={handleAddItem} className="h-9 w-full">
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
                     </Button>
                   </div>
                 </div>
 
-                {/* Nomenclature field (auto-filled, editable) */}
-                <div className="mb-4">
-                  <label className="text-sm font-medium">Nomenclature *</label>
-                  <Input
-                    value={newItem.nomenclature}
-                    onChange={(e) => setNewItem(prev => ({
-                      ...prev,
-                      nomenclature: e.target.value
-                    }))}
-                    placeholder="Item name/description (auto-filled from selection)"
-                    className="mt-1"
-                  />
-                </div>
-
-                {/* Optional specifications and remarks */}
+                {/* Text areas for longer content in one row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium">Specifications (Optional)</label>
+                    <label className="text-xs font-medium mb-1 block">Specifications (Optional)</label>
                     <textarea
-                      className="w-full p-3 border border-input rounded-md resize-none mt-1"
+                      className="w-full p-2 border border-input rounded-md resize-none text-sm"
                       rows={2}
                       value={newItem.specifications || ''}
                       onChange={(e) => setNewItem(prev => ({
@@ -739,9 +1022,9 @@ const CreateTender: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Remarks (Optional)</label>
+                    <label className="text-xs font-medium mb-1 block">Remarks (Optional)</label>
                     <textarea
-                      className="w-full p-3 border border-input rounded-md resize-none mt-1"
+                      className="w-full p-2 border border-input rounded-md resize-none text-sm"
                       rows={2}
                       value={newItem.remarks || ''}
                       onChange={(e) => setNewItem(prev => ({
@@ -859,13 +1142,15 @@ const CreateTender: React.FC = () => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => navigate('/dashboard/contract-tender')}
+                    onClick={() => navigate(
+                      tenderType === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
+                    )}
                   >
                     Cancel
                   </Button>
                   <Button type="submit" disabled={loading || !tenderData.title}>
                     <Save className="h-4 w-4 mr-2" />
-                    {loading ? 'Creating...' : 'Create Tender'}
+                    {loading ? 'Creating...' : `Create ${tenderType === 'spot-purchase' ? 'Spot Purchase' : 'Contract'}`}
                   </Button>
                 </div>
               </div>
