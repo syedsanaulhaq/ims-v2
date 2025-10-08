@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Save, Package, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
+import { Search, Save, Package, RefreshCw, AlertCircle, CheckCircle, BarChart3, PieChart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Cell, Pie } from 'recharts';
 
 interface CurrentInventoryStock {
   id: string;
@@ -176,6 +177,61 @@ const InitialSetupFromScratch: React.FC = () => {
     changes: getChangedItems().length
   };
 
+  // Prepare chart data
+  const getChartData = () => {
+    // Stock status distribution for pie chart
+    const statusCounts = {
+      normal: 0,
+      belowMin: 0,
+      aboveMax: 0,
+      outOfStock: 0
+    };
+
+    // Quantity distribution for bar chart (grouped by ranges)
+    const quantityRanges = {
+      '0': 0,
+      '1-10': 0,
+      '11-50': 0,
+      '51-100': 0,
+      '100+': 0
+    };
+
+    stockData.forEach(item => {
+      const quantity = item.editedQuantity || 0;
+      const status = getStockStatus(quantity, item.minimum_level, item.maximum_level);
+
+      // Count status types
+      if (status.label === 'Out of Stock') statusCounts.outOfStock++;
+      else if (status.label === 'Below Minimum') statusCounts.belowMin++;
+      else if (status.label === 'Above Maximum') statusCounts.aboveMax++;
+      else statusCounts.normal++;
+
+      // Count quantity ranges
+      if (quantity === 0) quantityRanges['0']++;
+      else if (quantity <= 10) quantityRanges['1-10']++;
+      else if (quantity <= 50) quantityRanges['11-50']++;
+      else if (quantity <= 100) quantityRanges['51-100']++;
+      else quantityRanges['100+']++;
+    });
+
+    const pieData = [
+      { name: 'Normal Stock', value: statusCounts.normal, color: '#10b981' },
+      { name: 'Out of Stock', value: statusCounts.outOfStock, color: '#ef4444' },
+      { name: 'Below Minimum', value: statusCounts.belowMin, color: '#f59e0b' },
+      { name: 'Above Maximum', value: statusCounts.aboveMax, color: '#8b5cf6' }
+    ].filter(item => item.value > 0);
+
+    const barData = Object.entries(quantityRanges).map(([range, count]) => ({
+      range,
+      count,
+      percentage: stats.total > 0 ? ((count / stats.total) * 100).toFixed(1) : '0'
+    }));
+
+    return { pieData, barData };
+  };
+
+  const { pieData, barData } = getChartData();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -266,6 +322,73 @@ const InitialSetupFromScratch: React.FC = () => {
             <p className="text-xs text-muted-foreground">
               unsaved modifications
             </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Stock Status Distribution (Pie Chart) */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stock Status Distribution</CardTitle>
+            <PieChart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <RechartsPieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Quantity Distribution (Bar Chart) */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Quantity Distribution</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={barData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="range" 
+                  tick={{ fontSize: 12 }}
+                  label={{ value: 'Quantity Range', position: 'insideBottom', offset: -5 }}
+                />
+                <YAxis 
+                  tick={{ fontSize: 12 }}
+                  label={{ value: 'Item Count', angle: -90, position: 'insideLeft' }}
+                />
+                <Tooltip 
+                  formatter={(value, name) => [value, 'Items']}
+                  labelFormatter={(label) => `Range: ${label}`}
+                />
+                <Legend />
+                <Bar 
+                  dataKey="count" 
+                  fill="#0891b2" 
+                  name="Items"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
