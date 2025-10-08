@@ -459,34 +459,113 @@ const InventoryDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Chart Section - Moved from bottom */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5" />
-            Top Items by Stock Level
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={getTopItemsChartData()}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="name" 
-                angle={-45}
-                textAnchor="end"
-                height={80}
-              />
-              <YAxis />
-              <Tooltip 
-                formatter={(value) => [`${value} units`, 'Stock']}
-              />
-              <Legend />
-              <Bar dataKey="stock" fill="#10B981" name="Stock" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {/* Charts and Analytics Section */}
+      <Tabs defaultValue="analytics" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="alerts">Alerts & Actions</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="analytics" className="space-y-4">
+          <div className="grid grid-cols-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Top Items by Stock Level
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={getTopItemsChartData()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                    />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value) => [`${value} units`, 'Stock']}
+                    />
+                    <Legend />
+                    <Bar dataKey="stock" fill="#10B981" name="Stock" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="alerts" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-orange-500" />
+                  Low Stock Alerts ({lowStockItems.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {lowStockItems.slice(0, 10).map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm truncate">{item.itemName}</div>
+                        <div className="text-xs text-gray-600">
+                          Current: {item.currentStock} | Min: {item.minimumStock}
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                        {item.status}
+                      </Badge>
+                    </div>
+                  ))}
+                  {lowStockItems.length === 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p>No low stock alerts</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5 text-red-500" />
+                  Reorder Required ({reorderItems.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {reorderItems.slice(0, 10).map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm truncate">{item.itemName}</div>
+                        <div className="text-xs text-gray-600">
+                          Stock: {item.currentStock} | Reorder at: {item.reorderLevel || 'N/A'}
+                        </div>
+                      </div>
+                      <Badge variant="destructive">
+                        Urgent
+                      </Badge>
+                    </div>
+                  ))}
+                  {reorderItems.length === 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p>No urgent reorders</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Enhanced Data Table */}
       <Card>
@@ -606,114 +685,6 @@ const InventoryDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Charts Section */}
-      <Tabs defaultValue="analytics" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts & Actions</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="analytics" className="space-y-4">
-          <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  Top Items by Stock Level
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={getTopItemsChartData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45}
-                      textAnchor="end"
-                      height={100}
-                    />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value) => [`${value} units`, 'Stock']}
-                    />
-                    <Legend />
-                    <Bar dataKey="stock" fill="#10B981" name="Stock" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="alerts" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-orange-500" />
-                  Low Stock Alerts ({lowStockItems.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {lowStockItems.slice(0, 10).map((item, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
-                      <div className="flex-1">
-                        <div className="font-medium text-sm truncate">{item.itemName}</div>
-                        <div className="text-xs text-gray-600">
-                          Current: {item.currentStock} | Min: {item.minimumStock}
-                        </div>
-                      </div>
-                      <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                        {item.status}
-                      </Badge>
-                    </div>
-                  ))}
-                  {lowStockItems.length === 0 && (
-                    <div className="text-center py-4 text-gray-500">
-                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p>No low stock alerts</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingDown className="w-5 h-5 text-red-500" />
-                  Reorder Required ({reorderItems.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {reorderItems.slice(0, 10).map((item, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                      <div className="flex-1">
-                        <div className="font-medium text-sm truncate">{item.itemName}</div>
-                        <div className="text-xs text-gray-600">
-                          Stock: {item.currentStock} | Reorder at: {item.reorderLevel || 'N/A'}
-                        </div>
-                      </div>
-                      <Badge variant="destructive">
-                        Urgent
-                      </Badge>
-                    </div>
-                  ))}
-                  {reorderItems.length === 0 && (
-                    <div className="text-center py-4 text-gray-500">
-                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p>No urgent reorders</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
 
       {/* Edit Item Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
