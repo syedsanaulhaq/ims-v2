@@ -24,6 +24,7 @@ import TenderFormFresh2 from './components/tenders/TenderFormFresh2';
 
 import ItemMaster from "./pages/ItemMaster";
 import VendorInfo from "./pages/VendorInfo";
+import VendorManagementEnhanced from "./pages/VendorManagementEnhanced";
 import NotFound from "./pages/NotFound";
 import TenderReport from "./pages/TenderReport";
 import InventoryReportPage from "./pages/InventoryReportPage";
@@ -106,7 +107,7 @@ function App() {
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
                   <Route path="categories" element={<Categories />} />
-                  <Route path="vendors" element={<VendorInfo />} />
+                  <Route path="vendors" element={<VendorManagementEnhanced />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="stock-transactions" element={<StockTransactions />} />
                   <Route path="stock-acquisition-dashboard" element={<StockAcquisitionDashboard />} />
@@ -179,7 +180,7 @@ function App() {
                 }>
                   <Route index element={<InventorySettings />} />
                   <Route path="categories" element={<Categories />} />
-                  <Route path="vendors" element={<VendorInfo />} />
+                  <Route path="vendors" element={<VendorManagementEnhanced />} />
                   <Route path="item-master" element={<ItemMaster />} />
                 </Route>
 
