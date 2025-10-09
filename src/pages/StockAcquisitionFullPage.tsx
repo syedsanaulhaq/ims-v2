@@ -445,9 +445,7 @@ const StockAcquisitionFullPage: React.FC = () => {
         let errorMessage = 'Failed to save delivery information';
         try {
           const errorData = JSON.parse(errorText);
-          if (errorData.reason === 'tender_finalized') {
-            errorMessage = '❌ Cannot save changes: This tender has been finalized and is now read-only. No further modifications are allowed.';
-          } else if (errorData.reason === 'delivery_finalized') {
+          if (errorData.reason === 'delivery_finalized') {
             errorMessage = '❌ Cannot save changes: This delivery has been finalized and cannot be modified.';
           } else if (errorData.error) {
             errorMessage = `❌ ${errorData.error}`;
@@ -465,9 +463,7 @@ const StockAcquisitionFullPage: React.FC = () => {
       
       // Provide user-friendly error message
       let userMessage = 'Failed to save delivery information. Please try again.';
-      if (err.message.includes('tender_finalized')) {
-        userMessage = '❌ Cannot save changes: This tender has been finalized and is now read-only.';
-      } else if (err.message.includes('delivery_finalized')) {
+      if (err.message.includes('delivery_finalized')) {
         userMessage = '❌ Cannot save changes: This delivery has been finalized and cannot be modified.';
       } else if (err.message.includes('NetworkError') || err.message.includes('fetch')) {
         userMessage = '❌ Network error: Please check your connection and try again.';
@@ -571,16 +567,17 @@ const StockAcquisitionFullPage: React.FC = () => {
       )}
 
       {/* Tabs */}
-      {/* Tender Finalized Warning */}
+      {/* Tender Ready for Delivery */}
       {tenderInfo?.is_finalized && (
-        <Card className="border-orange-200 bg-orange-50">
+        <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-orange-600" />
+              <CheckCircle className="w-5 h-5 text-green-600" />
               <div>
-                <h3 className="font-medium text-orange-800">Tender Finalized - Read Only Mode</h3>
-                <p className="text-sm text-orange-700 mt-1">
-                  This tender has been finalized and is now in read-only mode. No modifications can be made to deliveries, items, or pricing.
+                <h3 className="font-medium text-green-800">Tender Finalized - Ready for Delivery Management</h3>
+                <p className="text-sm text-green-700 mt-1">
+                  This tender has been finalized and stock transactions are available for delivery management.
+                  You can create and manage deliveries for the approved items.
                   {tenderInfo.finalized_at && (
                     <span className="block mt-1">
                       Finalized on: {formatDate(tenderInfo.finalized_at)}
@@ -743,8 +740,8 @@ const StockAcquisitionFullPage: React.FC = () => {
                               <Button 
                                 onClick={() => saveDeliveryInfo()} 
                                 size="sm"
-                                disabled={delivery.is_finalized || tenderInfo?.is_finalized}
-                                title={delivery.is_finalized ? "Cannot save: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot save: Tender is finalized" : "Save delivery information"}
+                                disabled={delivery.is_finalized}
+                                title={delivery.is_finalized ? "Cannot save: Delivery is finalized" : "Save delivery information"}
                               >
                                 <Save className="w-4 h-4 mr-1" />
                                 Save
@@ -782,8 +779,8 @@ const StockAcquisitionFullPage: React.FC = () => {
                                     size="sm"
                                     onClick={() => saveDeliveryInfo(delivery.id)}
                                     className="bg-orange-500 hover:bg-orange-600 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                    disabled={delivery.is_finalized || tenderInfo?.is_finalized}
-                                    title={delivery.is_finalized ? "Cannot save: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot save: Tender is finalized" : "Save unsaved changes"}
+                                    disabled={delivery.is_finalized}
+                                    title={delivery.is_finalized ? "Cannot save: Delivery is finalized" : "Save unsaved changes"}
                                   >
                                     <Save className="w-4 h-4 mr-1" />
                                     Save Changes
@@ -793,8 +790,8 @@ const StockAcquisitionFullPage: React.FC = () => {
                                   variant="outline" 
                                   size="sm"
                                   onClick={() => setEditingDeliveryId(delivery.id)}
-                                  disabled={delivery.is_finalized || tenderInfo?.is_finalized}
-                                  title={delivery.is_finalized ? "Cannot edit: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot edit: Tender is finalized" : "Edit delivery information"}
+                                  disabled={delivery.is_finalized}
+                                  title={delivery.is_finalized ? "Cannot edit: Delivery is finalized" : "Edit delivery information"}
                                 >
                                   <Edit className="w-4 h-4 mr-1" />
                                   Edit
@@ -838,8 +835,8 @@ const StockAcquisitionFullPage: React.FC = () => {
                                     setCurrentDeliveryId(delivery.id);
                                     setShowAddDeliveryItem(true);
                                   }}
-                                  disabled={delivery.is_finalized || tenderInfo?.is_finalized}
-                                  title={delivery.is_finalized ? "Cannot add items: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot add items: Tender is finalized" : "Add items to this delivery"}
+                                  disabled={delivery.is_finalized}
+                                  title={delivery.is_finalized ? "Cannot add items: Delivery is finalized" : "Add items to this delivery"}
                                 >
                                   <Plus className="w-4 h-4 mr-1" />
                                   Add Item
@@ -905,8 +902,8 @@ const StockAcquisitionFullPage: React.FC = () => {
                                             <Button 
                                               size="sm"
                                               onClick={() => addSerialNumber(delivery.id, item.id)}
-                                              disabled={!newSerialNumber.trim() || delivery.is_finalized || tenderInfo?.is_finalized}
-                                              title={delivery.is_finalized ? "Cannot add serial: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot add serial: Tender is finalized" : "Add serial number"}
+                                              disabled={!newSerialNumber.trim() || delivery.is_finalized}
+                                              title={delivery.is_finalized ? "Cannot add serial: Delivery is finalized" : "Add serial number"}
                                             >
                                               <Plus className="w-4 h-4" />
                                             </Button>
