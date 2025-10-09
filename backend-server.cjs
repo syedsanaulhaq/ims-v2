@@ -30,6 +30,18 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Global request logger to debug routing issues
+app.use((req, res, next) => {
+  console.log(`🌍 ALL REQUESTS: ${req.method} ${req.originalUrl}`);
+  if (req.originalUrl.includes('/finalize')) {
+    console.log('🚨 FINALIZE REQUEST DETECTED!');
+    console.log('🚨 Method:', req.method);
+    console.log('🚨 URL:', req.originalUrl);
+    console.log('🚨 Body:', req.body);
+  }
+  next();
+});
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads', 'tender-files');
 if (!fs.existsSync(uploadsDir)) {
@@ -3365,6 +3377,135 @@ app.get('/api/tenders/:id', async (req, res) => {
   }
 });
 
+// PUT /api/tenders/:id/finalize - Finalize a tender (MUST be before /api/tenders/:id)
+app.put('/api/tenders/:id/finalize', async (req, res) => {
+    console.log('🔥 FINALIZE ENDPOINT HIT! Route: PUT /api/tenders/:id/finalize');
+    const { id } = req.params;
+    const { finalized_by } = req.body;
+    
+    console.log('🎯 FINALIZE REQUEST:', { id, finalized_by });
+    
+    const transaction = new sql.Transaction(pool);
+    
+    try {
+        await transaction.begin();
+        console.log('✅ Transaction started');
+        
+        const now = new Date();
+        
+        // First, get all tender items
+        console.log('📦 Getting tender items...');
+        const tenderItemsResult = await transaction.request()
+            .input('tender_id', sql.UniqueIdentifier, id)
+            .query(`
+                SELECT 
+                    ti.item_master_id,
+                    ti.estimated_unit_price,
+                    ti.quantity,
+                    im.nomenclature
+                FROM tender_items ti
+                INNER JOIN item_masters im ON ti.item_master_id = im.id
+                WHERE ti.tender_id = @tender_id
+            `);
+            
+        console.log('📦 Found tender items:', tenderItemsResult.recordset.length);
+        
+        // Add each tender item to stock_transactions_clean
+        for (const item of tenderItemsResult.recordset) {
+            console.log('📥 Adding item to stock_transactions_clean:', item.nomenclature);
+            
+            await transaction.request()
+                .input('tender_id', sql.UniqueIdentifier, id)
+                .input('item_master_id', sql.VarChar(50), item.item_master_id)
+                .input('estimated_unit_price', sql.Decimal(18, 2), item.estimated_unit_price || 0)
+                .input('actual_unit_price', sql.Decimal(18, 2), 0) // Will be updated later when actual pricing is confirmed
+                .input('total_quantity_received', sql.Int, item.quantity || 0)
+                .input('pricing_confirmed', sql.Bit, false)
+                .input('type', sql.VarChar(10), 'IN')
+                .input('remarks', sql.Text, `Added from tender finalization - ${item.nomenclature}`)
+                .query(`
+                    INSERT INTO stock_transactions_clean (
+                        id,
+                        tender_id,
+                        item_master_id,
+                        estimated_unit_price,
+                        actual_unit_price,
+                        total_quantity_received,
+                        pricing_confirmed,
+                        type,
+                        remarks,
+                        is_deleted,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (
+                        NEWID(),
+                        @tender_id,
+                        @item_master_id,
+                        @estimated_unit_price,
+                        @actual_unit_price,
+                        @total_quantity_received,
+                        @pricing_confirmed,
+                        @type,
+                        @remarks,
+                        0,
+                        GETDATE(),
+                        GETDATE()
+                    )
+                `);
+        }
+        
+        // Update tender status to finalized
+        console.log('📝 Updating tender status...');
+        const updateResult = await transaction.request()
+            .input('id', sql.UniqueIdentifier, id)
+            .input('finalized_by', sql.NVarChar, finalized_by)
+            .input('finalized_at', sql.DateTime, now)
+            .input('updated_at', sql.DateTime, now)
+            .query(`
+                UPDATE tenders 
+                SET 
+                    is_finalized = 1, 
+                    finalized_by = @finalized_by, 
+                    finalized_at = @finalized_at,
+                    updated_at = @updated_at,
+                    status = 'Finalized'
+                WHERE id = @id AND is_finalized = 0
+            `);
+            
+        console.log('📝 Tender update result:', updateResult.rowsAffected);
+
+        if (updateResult.rowsAffected[0] === 0) {
+            await transaction.rollback();
+            return res.status(404).json({ error: 'Tender not found or already finalized.' });
+        }
+
+        await transaction.commit();
+        console.log('🎉 Tender finalized successfully with stock transactions!');
+        res.json({ 
+            success: true, 
+            message: `Tender finalized successfully! Added ${tenderItemsResult.recordset.length} items to stock transactions.`,
+            items_added: tenderItemsResult.recordset.length
+        });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('❌ Failed to finalize tender:', error);
+        console.error('❌ Error stack:', error.stack);
+        res.status(500).json({ error: 'Failed to finalize tender', details: error.message });
+    }
+});
+
+// TEST endpoint - New finalize endpoint with different name
+app.put('/api/tenders/:id/finalize-test', async (req, res) => {
+    console.log('🧪 TEST FINALIZE ENDPOINT HIT!');
+    res.json({ 
+        success: true, 
+        message: 'Test finalize endpoint is working!',
+        id: req.params.id,
+        body: req.body
+    });
+});
+
 // PUT /api/tenders/:id - Update a tender and its items
 app.put('/api/tenders/:id', async (req, res) => {
   const { id } = req.params;
@@ -3537,104 +3678,6 @@ app.delete('/api/tenders/:id', async (req, res) => {
     console.error('Failed to delete tender:', error);
     res.status(500).json({ error: 'Failed to delete tender', details: error.message });
   }
-});
-
-// PUT /api/tenders/:id/finalize - Finalize a tender
-app.put('/api/tenders/:id/finalize', async (req, res) => {
-    const { id } = req.params;
-    const { finalized_by } = req.body;
-    
-    const transaction = new sql.Transaction(pool);
-    
-    try {
-        await transaction.begin();
-        
-        const now = new Date();
-        
-        // Update tender status to finalized
-        const updateResult = await transaction.request()
-            .input('id', sql.NVarChar, id)
-            .input('finalized_by', sql.NVarChar, finalized_by)
-            .input('finalized_at', sql.DateTime, now)
-            .input('updated_at', sql.DateTime, now)
-            .query(`
-                UPDATE tenders 
-                SET 
-                    is_finalized = 1, 
-                    finalized_by = @finalized_by, 
-                    finalized_at = @finalized_at,
-                    updated_at = @updated_at,
-                    status = 'Finalized'
-                WHERE id = @id AND is_finalized = 0
-            `);
-
-        if (updateResult.rowsAffected[0] === 0) {
-            await transaction.rollback();
-            return res.status(404).json({ error: 'Tender not found or already finalized.' });
-        }
-
-        // Get tender items to create stock transaction entries
-        const tenderItemsResult = await transaction.request()
-            .input('tender_id', sql.NVarChar, id)
-            .query(`
-                SELECT 
-                    ti.item_master_id,
-                    ti.quantity,
-                    ti.unit_price
-                FROM tender_items ti
-                WHERE ti.tender_id = @tender_id 
-                AND ti.is_deleted = 0
-            `);
-
-        // Create stock transaction entries for each tender item
-        for (const item of tenderItemsResult.recordset) {
-            // Check if stock transaction already exists for this tender-item combination
-            const existingTransaction = await transaction.request()
-                .input('tender_id', sql.NVarChar, id)
-                .input('item_master_id', sql.NVarChar, item.item_master_id)
-                .query(`
-                    SELECT id FROM stock_transactions_clean 
-                    WHERE tender_id = @tender_id AND item_master_id = @item_master_id
-                `);
-
-            if (existingTransaction.recordset.length === 0) {
-                // Create stock transaction entry for this item
-                const stockTransactionId = uuidv4();
-                await transaction.request()
-                    .input('id', sql.NVarChar, stockTransactionId)
-                    .input('tender_id', sql.NVarChar, id)
-                    .input('item_master_id', sql.NVarChar, item.item_master_id)
-                    .input('estimated_unit_price', sql.Decimal, item.unit_price || 0)
-                    .input('actual_unit_price', sql.Decimal, item.unit_price || 0)
-                    .input('total_quantity_received', sql.Decimal, 0) // Start with 0, will be updated by deliveries
-                    .input('pricing_confirmed', sql.Bit, 1) // Finalized tenders have confirmed pricing
-                    .input('type', sql.NVarChar, 'IN')
-                    .input('created_at', sql.DateTime, now)
-                    .input('updated_at', sql.DateTime, now)
-                    .query(`
-                        INSERT INTO stock_transactions_clean (
-                            id, tender_id, item_master_id, estimated_unit_price, 
-                            actual_unit_price, total_quantity_received, pricing_confirmed,
-                            type, created_at, updated_at
-                        ) VALUES (
-                            @id, @tender_id, @item_master_id, @estimated_unit_price,
-                            @actual_unit_price, @total_quantity_received, @pricing_confirmed,
-                            @type, @created_at, @updated_at
-                        )
-                    `);
-            }
-        }
-
-        await transaction.commit();
-        res.json({ 
-            success: true, 
-            message: 'Tender finalized successfully and added to stock acquisition system.' 
-        });
-    } catch (error) {
-        await transaction.rollback();
-        console.error('Failed to finalize tender:', error);
-        res.status(500).json({ error: 'Failed to finalize tender', details: error.message });
-    }
 });
 
 // =============================================================================
@@ -6404,8 +6447,8 @@ app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
       .input('tender_id', sql.NVarChar, tenderId)
       .query(`
         SELECT t.*, ti.id as item_id, ti.item_master_id, ti.nomenclature, 
-               ti.quantity, ti.unit_price, ti.total_amount, 
-               ti.specification, ti.remarks
+               ti.quantity, ti.estimated_unit_price, ti.total_amount, 
+               ti.specifications, ti.remarks
         FROM tenders t
         LEFT JOIN tender_items ti ON t.id = ti.tender_id
         WHERE t.id = @tender_id
@@ -6446,8 +6489,8 @@ app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
         .input('id', sql.NVarChar, uuidv4())
         .input('tender_id', sql.NVarChar, tenderId)
         .input('item_master_id', sql.NVarChar, item.item_master_id)
-        .input('estimated_unit_price', sql.Decimal(15, 2), item.unit_price || 0)
-        .input('actual_unit_price', sql.Decimal(15, 2), item.unit_price || 0)
+        .input('estimated_unit_price', sql.Decimal(15, 2), item.estimated_unit_price || 0)
+        .input('actual_unit_price', sql.Decimal(15, 2), item.estimated_unit_price || 0)
         .input('total_quantity_received', sql.Decimal(10, 2), 0) // Will be updated from deliveries
         .input('pricing_confirmed', sql.Bit, false)
         .input('type', sql.NVarChar(10), 'IN')
@@ -7476,6 +7519,181 @@ app.get('/api/acquisition/recent-deliveries', async (req, res) => {
   } catch (error) {
     console.error('Error fetching recent deliveries:', error);
     res.status(500).json({ error: 'Failed to fetch recent deliveries' });
+  }
+});
+
+// =====================================================
+// ENHANCED STOCK ACQUISITION API ENDPOINTS
+// =====================================================
+
+// GET /api/stock-acquisition/dashboard-stats - Get stock acquisition dashboard statistics
+app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        COUNT(DISTINCT tender_id) as total_tenders,
+        COUNT(*) as total_items,
+        SUM(CASE WHEN pricing_confirmed = 1 THEN 1 ELSE 0 END) as confirmed_pricing_items,
+        SUM(CASE WHEN pricing_confirmed = 0 OR pricing_confirmed IS NULL THEN 1 ELSE 0 END) as pending_pricing_items,
+        SUM(estimated_unit_price) as total_estimated_value,
+        SUM(actual_unit_price) as total_actual_value,
+        CASE 
+          WHEN SUM(estimated_unit_price) > 0 
+          THEN ((SUM(actual_unit_price) - SUM(estimated_unit_price)) / SUM(estimated_unit_price)) * 100
+          ELSE 0 
+        END as average_price_variance
+      FROM stock_transactions_clean 
+      WHERE (is_deleted = 0 OR is_deleted IS NULL)
+    `;
+
+    const result = await pool.request().query(query);
+    res.json(result.recordset[0] || {
+      total_tenders: 0,
+      total_items: 0,
+      confirmed_pricing_items: 0,
+      pending_pricing_items: 0,
+      total_estimated_value: 0,
+      total_actual_value: 0,
+      average_price_variance: 0
+    });
+  } catch (error) {
+    console.error('Failed to fetch stock acquisition stats:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard statistics', details: error.message });
+  }
+});
+
+// GET /api/stock-acquisition/tender-summaries - Get tender summaries from stock transactions
+app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        stc.tender_id,
+        t.title as tender_title,
+        t.reference_number as tender_number,
+        COUNT(*) as total_items,
+        SUM(CASE WHEN stc.pricing_confirmed = 1 THEN 1 ELSE 0 END) as confirmed_items,
+        SUM(CASE WHEN stc.pricing_confirmed = 0 OR stc.pricing_confirmed IS NULL THEN 1 ELSE 0 END) as pending_items,
+        SUM(stc.estimated_unit_price) as total_estimated_value,
+        SUM(stc.actual_unit_price) as total_actual_value,
+        CASE 
+          WHEN COUNT(*) > 0 
+          THEN (CAST(SUM(CASE WHEN stc.pricing_confirmed = 1 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*)) * 100
+          ELSE 0 
+        END as pricing_completion_rate,
+        CASE WHEN d.tender_id IS NOT NULL THEN 1 ELSE 0 END as has_deliveries,
+        MIN(stc.created_at) as created_at
+      FROM stock_transactions_clean stc
+      LEFT JOIN tenders t ON stc.tender_id = t.id
+      LEFT JOIN (SELECT DISTINCT tender_id FROM deliveries) d ON stc.tender_id = d.tender_id
+      WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+      GROUP BY stc.tender_id, t.title, t.reference_number, d.tender_id
+      ORDER BY MIN(stc.created_at) DESC
+    `;
+
+    const result = await pool.request().query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Failed to fetch tender summaries:', error);
+    res.status(500).json({ error: 'Failed to fetch tender summaries', details: error.message });
+  }
+});
+
+// GET /api/stock-acquisition/items/:tenderId - Get stock transaction items for a specific tender
+app.get('/api/stock-acquisition/items/:tenderId', async (req, res) => {
+  try {
+    const { tenderId } = req.params;
+    
+    const query = `
+      SELECT 
+        stc.*,
+        im.nomenclature as item_name
+      FROM stock_transactions_clean stc
+      LEFT JOIN item_masters im ON stc.item_master_id = im.id
+      WHERE stc.tender_id = @tender_id 
+      AND (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+      ORDER BY stc.created_at ASC
+    `;
+
+    const result = await pool.request()
+      .input('tender_id', sql.NVarChar, tenderId)
+      .query(query);
+      
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Failed to fetch tender items:', error);
+    res.status(500).json({ error: 'Failed to fetch tender items', details: error.message });
+  }
+});
+
+// PUT /api/stock-acquisition/update-price/:itemId - Update actual price for a stock transaction item
+app.put('/api/stock-acquisition/update-price/:itemId', async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const { actual_unit_price, pricing_confirmed } = req.body;
+    
+    const query = `
+      UPDATE stock_transactions_clean 
+      SET 
+        actual_unit_price = @actual_unit_price,
+        pricing_confirmed = @pricing_confirmed,
+        updated_at = GETDATE()
+      WHERE id = @item_id
+      AND (is_deleted = 0 OR is_deleted IS NULL)
+    `;
+
+    const result = await pool.request()
+      .input('item_id', sql.NVarChar, itemId)
+      .input('actual_unit_price', sql.Decimal(15, 2), actual_unit_price)
+      .input('pricing_confirmed', sql.Bit, pricing_confirmed)
+      .query(query);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Stock transaction item not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Price updated successfully',
+      updated_price: actual_unit_price,
+      pricing_confirmed 
+    });
+  } catch (error) {
+    console.error('Failed to update price:', error);
+    res.status(500).json({ error: 'Failed to update price', details: error.message });
+  }
+});
+
+// GET /api/stock-acquisition/price-history/:itemId - Get price change history for an item
+app.get('/api/stock-acquisition/price-history/:itemId', async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    
+    // This would require an audit table for price changes
+    // For now, return the current item data
+    const query = `
+      SELECT 
+        stc.*,
+        im.nomenclature as item_name,
+        t.title as tender_title
+      FROM stock_transactions_clean stc
+      LEFT JOIN item_masters im ON stc.item_master_id = im.id
+      LEFT JOIN tenders t ON stc.tender_id = t.id
+      WHERE stc.id = @item_id
+      AND (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+    `;
+
+    const result = await pool.request()
+      .input('item_id', sql.NVarChar, itemId)
+      .query(query);
+      
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Failed to fetch price history:', error);
+    res.status(500).json({ error: 'Failed to fetch price history', details: error.message });
   }
 });
 
