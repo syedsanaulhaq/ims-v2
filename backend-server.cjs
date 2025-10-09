@@ -3794,13 +3794,12 @@ app.put('/api/deliveries/:id', async (req, res) => {
       chalan_file_path
     } = req.body;
 
-    // Check if tender is finalized or delivery is finalized
+    // Check if delivery is finalized
     const checkResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT d.is_finalized, t.is_finalized as tender_is_finalized
+        SELECT d.is_finalized
         FROM deliveries d
-        LEFT JOIN tenders t ON d.tender_id = t.id
         WHERE d.id = @id
       `);
 
@@ -3808,18 +3807,11 @@ app.put('/api/deliveries/:id', async (req, res) => {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    const { is_finalized, tender_is_finalized } = checkResult.recordset[0];
-    
-    if (tender_is_finalized) {
-      return res.status(400).json({ 
-        error: 'Cannot update acquisition - tender is finalized',
-        reason: 'tender_finalized'
-      });
-    }
+    const { is_finalized } = checkResult.recordset[0];
 
     if (is_finalized) {
       return res.status(400).json({ 
-        error: 'Cannot update acquisition - delivery is finalized',
+        error: 'Cannot update delivery - delivery is finalized',
         reason: 'delivery_finalized'
       });
     }
@@ -3868,13 +3860,12 @@ app.delete('/api/deliveries/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if tender is finalized or delivery is finalized
+    // Check if delivery is finalized
     const checkResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT d.is_finalized, t.is_finalized as tender_is_finalized
+        SELECT d.is_finalized
         FROM deliveries d
-        LEFT JOIN tenders t ON d.tender_id = t.id
         WHERE d.id = @id
       `);
 
@@ -3882,18 +3873,11 @@ app.delete('/api/deliveries/:id', async (req, res) => {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    const { is_finalized, tender_is_finalized } = checkResult.recordset[0];
-    
-    if (tender_is_finalized) {
-      return res.status(400).json({ 
-        error: 'Cannot delete acquisition - tender is finalized',
-        reason: 'tender_finalized'
-      });
-    }
+    const { is_finalized } = checkResult.recordset[0];
 
     if (is_finalized) {
       return res.status(400).json({ 
-        error: 'Cannot delete acquisition - delivery is finalized',
+        error: 'Cannot delete delivery - delivery is finalized',
         reason: 'delivery_finalized'
       });
     }

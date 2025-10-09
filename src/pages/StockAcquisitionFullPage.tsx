@@ -237,19 +237,6 @@ const StockAcquisitionFullPage: React.FC = () => {
         console.log('📦 Stock transaction items loaded:', items);
         setStockTransactionItems(items);
         
-        // Check if any item indicates the tender is finalized
-        // All items in a tender should have the same finalized status
-        const isFinalized = items.length > 0 && items.some((item: any) => item.is_finalized);
-        console.log('🔒 Tender finalized status:', isFinalized);
-        
-        // Set tender info with finalized status
-        setTenderInfo(prevInfo => ({
-          ...prevInfo,
-          is_finalized: isFinalized,
-          finalized_at: isFinalized ? items.find((item: any) => item.finalized_at)?.finalized_at : null,
-          finalized_by: isFinalized ? items.find((item: any) => item.finalized_by)?.finalized_by : null
-        }));
-        
         // Initialize edited items state
         const initialEdits: { [key: string]: { actual_unit_price: number; remarks?: string } } = {};
         items.forEach((item: StockTransactionItem) => {
@@ -284,6 +271,18 @@ const StockAcquisitionFullPage: React.FC = () => {
         // Ensure we always have an array
         const deliveriesArray = Array.isArray(deliveriesData) ? deliveriesData : [deliveriesData];
         console.log('✅ Processed deliveries array:', deliveriesArray);
+        
+        // Debug delivery finalization status
+        deliveriesArray.forEach((delivery, index) => {
+          console.log(`🔒 Delivery ${index + 1} finalization status:`, {
+            id: delivery.id,
+            delivery_number: delivery.delivery_number,
+            is_finalized: delivery.is_finalized,
+            finalized_at: delivery.finalized_at,
+            finalized_by: delivery.finalized_by
+          });
+        });
+        
         setDeliveries(deliveriesArray);
       } else {
         const errorText = await deliveryResponse.text();
@@ -567,30 +566,6 @@ const StockAcquisitionFullPage: React.FC = () => {
       )}
 
       {/* Tabs */}
-      {/* Tender Ready for Delivery */}
-      {tenderInfo?.is_finalized && (
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <div>
-                <h3 className="font-medium text-green-800">Tender Finalized - Ready for Delivery Management</h3>
-                <p className="text-sm text-green-700 mt-1">
-                  This tender has been finalized and stock transactions are available for delivery management.
-                  You can create and manage deliveries for the approved items.
-                  {tenderInfo.finalized_at && (
-                    <span className="block mt-1">
-                      Finalized on: {formatDate(tenderInfo.finalized_at)}
-                      {tenderInfo.finalized_by && ` by ${tenderInfo.finalized_by}`}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="delivery">Delivery Management</TabsTrigger>
