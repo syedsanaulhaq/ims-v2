@@ -43,6 +43,9 @@ import IntegratedStockAcquisition from "./pages/IntegratedStockAcquisition";
 import StockTransactionList from "./pages/StockTransactionList";
 import TransactionManager from "./components/stockTransactions/TransactionManager";
 import StockAcquisitionDashboard from "./components/stockTransactions/StockAcquisitionDashboard";
+import EnhancedStockAcquisitionDashboard from "./components/stockTransactions/EnhancedStockAcquisitionDashboard";
+import EnhancedStockAcquisitionWithDelivery from "./components/stockTransactions/EnhancedStockAcquisitionWithDelivery";
+import StockAcquisitionFullPage from "./pages/StockAcquisitionFullPage";
 import AllInventoryItemsPage from "./pages/AllInventoryItemsPage";
 import StockQuantitiesPage from "./pages/StockQuantitiesPage";
 import InventoryAlertsPage from "./pages/InventoryAlertsPage";
@@ -111,7 +114,8 @@ function App() {
                   <Route path="vendors" element={<VendorManagementEnhanced />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="stock-transactions" element={<StockTransactions />} />
-                  <Route path="stock-acquisition-dashboard" element={<StockAcquisitionDashboard />} />
+                  <Route path="stock-acquisition-dashboard" element={<EnhancedStockAcquisitionWithDelivery />} />
+                  <Route path="stock-acquisition/:tenderId" element={<StockAcquisitionFullPage />} />
                   <Route path="stock-transaction-list" element={<StockTransactionList />} />
                   <Route path="transaction-manager" element={<TransactionManager />} />
                   <Route path="transaction-manager/:tenderId" element={<TransactionManager />} />
@@ -149,7 +153,7 @@ function App() {
                   <Route index element={<Dashboard />} />
                   <Route path="contract-tender" element={<ContractTender />} />
                   <Route path="spot-purchases" element={<ContractTender initialType="Spot Purchase" />} />
-                  <Route path="dashboard" element={<StockAcquisitionDashboard />} />
+                  <Route path="dashboard" element={<EnhancedStockAcquisitionDashboard />} />
                 </Route>
 
                 {/* Stock Issuance - Protected */}

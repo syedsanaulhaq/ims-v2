@@ -3915,6 +3915,101 @@ app.delete('/api/deliveries/:id', async (req, res) => {
   }
 });
 
+// POST create delivery items
+app.post('/api/delivery-items', async (req, res) => {
+  try {
+    const { delivery_id, items } = req.body;
+
+    if (!delivery_id || !items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Missing delivery_id or items array' });
+    }
+
+    // First, delete existing delivery items for this delivery
+    await pool.request()
+      .input('delivery_id', sql.UniqueIdentifier, delivery_id)
+      .query('DELETE FROM delivery_items WHERE delivery_id = @delivery_id');
+
+    const now = new Date().toISOString();
+    
+    // Insert new delivery items
+    for (const item of items) {
+      const itemId = uuidv4();
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, itemId)
+        .input('delivery_id', sql.UniqueIdentifier, delivery_id)
+        .input('item_master_id', sql.NVarChar, item.item_master_id)
+        .input('item_name', sql.NVarChar, item.item_name)
+        .input('delivery_qty', sql.Int, item.delivery_qty)
+        .input('created_at', sql.DateTime2, now)
+        .query(`
+          INSERT INTO delivery_items (
+            id, delivery_id, item_master_id, item_name, delivery_qty, created_at
+          ) VALUES (
+            @id, @delivery_id, @item_master_id, @item_name, @delivery_qty, @created_at
+          )
+        `);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Delivery items saved successfully',
+      items_count: items.length
+    });
+
+  } catch (error) {
+    console.error('Error saving delivery items:', error);
+    res.status(500).json({ error: 'Failed to save delivery items', details: error.message });
+  }
+});
+
+// PUT update delivery items
+app.put('/api/delivery-items/:delivery_id', async (req, res) => {
+  try {
+    const { delivery_id } = req.params;
+    const { items } = req.body;
+
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Missing items array' });
+    }
+
+    // First, delete existing delivery items for this delivery
+    await pool.request()
+      .input('delivery_id', sql.UniqueIdentifier, delivery_id)
+      .query('DELETE FROM delivery_items WHERE delivery_id = @delivery_id');
+
+    const now = new Date().toISOString();
+    
+    // Insert updated delivery items
+    for (const item of items) {
+      const itemId = uuidv4();
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, itemId)
+        .input('delivery_id', sql.UniqueIdentifier, delivery_id)
+        .input('item_master_id', sql.NVarChar, item.item_master_id)
+        .input('item_name', sql.NVarChar, item.item_name)
+        .input('delivery_qty', sql.Int, item.delivery_qty)
+        .input('created_at', sql.DateTime2, now)
+        .query(`
+          INSERT INTO delivery_items (
+            id, delivery_id, item_master_id, item_name, delivery_qty, created_at
+          ) VALUES (
+            @id, @delivery_id, @item_master_id, @item_name, @delivery_qty, @created_at
+          )
+        `);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Delivery items updated successfully',
+      items_count: items.length
+    });
+
+  } catch (error) {
+    console.error('Error updating delivery items:', error);
+    res.status(500).json({ error: 'Failed to update delivery items', details: error.message });
+  }
+});
+
 // PUT finalize delivery and add to inventory
 app.put('/api/deliveries/:id/finalize', async (req, res) => {
   try {
@@ -6240,6 +6335,638 @@ app.get('/api/stock-transactions-clean', async (req, res) => {
     
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch stock transactions', details: error.message });
+  }
+});
+
+// Create new stock transaction in stock_transactions_clean
+app.post('/api/stock-transactions-clean', async (req, res) => {
+  try {
+    const {
+      tender_id,
+      item_master_id,
+      estimated_unit_price = 0,
+      actual_unit_price = 0,
+      total_quantity_received = 0,
+      pricing_confirmed = false,
+      type = 'IN',
+      remarks
+    } = req.body;
+    const query = `
+      INSERT INTO stock_transactions_clean (
+        id,
+        tender_id,
+        item_master_id,
+        estimated_unit_price,
+        actual_unit_price,
+        total_quantity_received,
+        pricing_confirmed,
+        type,
+        remarks,
+        is_deleted,
+        created_at,
+        updated_at
+      )
+      OUTPUT INSERTED.*
+      VALUES (
+        NEWID(),
+        @tender_id,
+        @item_master_id,
+        @estimated_unit_price,
+        @actual_unit_price,
+        @total_quantity_received,
+        @pricing_confirmed,
+        @type,
+        @remarks,
+        0,
+        GETDATE(),
+        GETDATE()
+      )
+    `;
+
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tender_id)
+      .input('item_master_id', sql.VarChar(50), item_master_id)
+      .input('estimated_unit_price', sql.Decimal(18, 2), estimated_unit_price)
+      .input('actual_unit_price', sql.Decimal(18, 2), actual_unit_price)
+      .input('total_quantity_received', sql.Int, total_quantity_received)
+      .input('pricing_confirmed', sql.Bit, pricing_confirmed)
+      .input('type', sql.VarChar(10), type)
+      .input('remarks', sql.Text, remarks)
+      .query(query);
+    res.status(201).json(result.recordset[0]);
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create stock transaction', details: error.message });
+  }
+});
+
+// Update stock transaction in stock_transactions_clean
+app.put('/api/stock-transactions-clean/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      estimated_unit_price,
+      actual_unit_price,
+      total_quantity_received,
+      pricing_confirmed,
+      type,
+      remarks
+    } = req.body;
+
+    // Build dynamic update query
+    const fields = [];
+    const request = pool.request().input('id', sql.UniqueIdentifier, id);
+
+    if (estimated_unit_price !== undefined) {
+      fields.push('estimated_unit_price = @estimated_unit_price');
+      request.input('estimated_unit_price', sql.Decimal(18, 2), estimated_unit_price);
+    }
+    if (actual_unit_price !== undefined) {
+      fields.push('actual_unit_price = @actual_unit_price');
+      request.input('actual_unit_price', sql.Decimal(18, 2), actual_unit_price);
+    }
+    if (total_quantity_received !== undefined) {
+      fields.push('total_quantity_received = @total_quantity_received');
+      request.input('total_quantity_received', sql.Int, total_quantity_received);
+    }
+    if (pricing_confirmed !== undefined) {
+      fields.push('pricing_confirmed = @pricing_confirmed');
+      request.input('pricing_confirmed', sql.Bit, pricing_confirmed);
+    }
+    if (type !== undefined) {
+      fields.push('type = @type');
+      request.input('type', sql.VarChar(10), type);
+    }
+    if (remarks !== undefined) {
+      fields.push('remarks = @remarks');
+      request.input('remarks', sql.Text, remarks);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    fields.push('updated_at = GETDATE()');
+
+    const query = `
+      UPDATE stock_transactions_clean 
+      SET ${fields.join(', ')}
+      WHERE id = @id
+    `;
+
+    await request.query(query);
+    res.json({ success: true, message: 'Stock transaction updated successfully' });
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update stock transaction', details: error.message });
+  }
+});
+
+// Soft delete stock transaction in stock_transactions_clean
+app.delete('/api/stock-transactions-clean/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deleted_by } = req.body;
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('deleted_by', sql.NVarChar, deleted_by || 'System')
+      .query(`
+        UPDATE stock_transactions_clean 
+        SET 
+          is_deleted = 1,
+          deleted_at = GETDATE(),
+          deleted_by = @deleted_by,
+          updated_at = GETDATE()
+        WHERE id = @id
+      `);
+    res.json({ success: true, message: 'Stock transaction deleted successfully' });
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete stock transaction', details: error.message });
+  }
+});
+
+// =============================================================================
+// ENHANCED STOCK ACQUISITION WITH DELIVERY ENDPOINTS
+// =============================================================================
+
+// Get delivery by tender ID
+app.get('/api/deliveries/by-tender/:tenderId', async (req, res) => {
+  try {
+    const { tenderId } = req.params;
+    console.log('🔍 Getting deliveries for tender:', tenderId);
+    
+    // First, let's check the table structure
+    console.log('🔍 Checking deliveries table structure...');
+    const structureResult = await pool.request().query(`
+      SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'deliveries'
+      ORDER BY ORDINAL_POSITION
+    `);
+    console.log('📊 Deliveries table columns:', structureResult.recordset);
+    
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query(`
+        SELECT 
+          d.*
+        FROM deliveries d
+        WHERE d.tender_id = @tender_id
+        ORDER BY d.created_at DESC
+      `);
+
+    console.log('📦 Found deliveries:', result.recordset.length);
+
+    if (result.recordset.length === 0) {
+      console.log('❌ No deliveries found for tender:', tenderId);
+      return res.status(404).json({ error: 'No deliveries found for this tender' });
+    }
+
+    // Get delivery items for each delivery
+    const deliveries = [];
+    
+    for (const delivery of result.recordset) {
+      const itemsResult = await pool.request()
+        .input('delivery_id', sql.UniqueIdentifier, delivery.id)
+        .query(`
+          SELECT * FROM delivery_items WHERE delivery_id = @delivery_id
+        `);
+
+      // Get serial numbers for each item
+      const items = [];
+      for (const item of itemsResult.recordset) {
+        const serialsResult = await pool.request()
+          .input('delivery_item_id', sql.UniqueIdentifier, item.id)
+          .query(`
+            SELECT * FROM delivery_item_serial_numbers WHERE delivery_item_id = @delivery_item_id
+          `);
+
+        items.push({
+          ...item,
+          serial_numbers: serialsResult.recordset
+        });
+      }
+
+      deliveries.push({
+        ...delivery,
+        items: items
+      });
+    }
+
+    console.log('✅ Returning deliveries with items:', deliveries.length);
+    res.json(deliveries);
+  } catch (error) {
+    console.error('❌ Error fetching deliveries:', error);
+    res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
+  }
+});
+
+// Update multiple stock transaction prices
+app.put('/api/stock-acquisition/update-multiple-prices', async (req, res) => {
+  try {
+    const { updates } = req.body;
+
+    if (!updates || !Array.isArray(updates)) {
+      return res.status(400).json({ error: 'Updates array is required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      for (const update of updates) {
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, update.id)
+          .input('actual_unit_price', sql.Decimal(18, 2), update.actual_unit_price)
+          .input('remarks', sql.Text, update.remarks || null)
+          .input('pricing_confirmed', sql.Bit, update.pricing_confirmed)
+          .query(`
+            UPDATE stock_transactions_clean 
+            SET 
+              actual_unit_price = @actual_unit_price,
+              remarks = @remarks,
+              pricing_confirmed = @pricing_confirmed,
+              updated_at = GETDATE()
+            WHERE id = @id
+          `);
+      }
+
+      await transaction.commit();
+      res.json({ success: true, message: `Updated ${updates.length} items successfully` });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update multiple prices', details: error.message });
+  }
+});
+
+// Get stock acquisition dashboard statistics
+app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
+  try {
+    const statsQuery = `
+      SELECT 
+        COUNT(DISTINCT stc.tender_id) as total_tenders,
+        COUNT(stc.id) as total_items,
+        COUNT(CASE WHEN stc.pricing_confirmed = 1 THEN 1 END) as confirmed_pricing_items,
+        COUNT(CASE WHEN stc.pricing_confirmed = 0 THEN 1 END) as pending_pricing_items,
+        SUM(stc.estimated_unit_price * stc.total_quantity_received) as total_estimated_value,
+        SUM(stc.actual_unit_price * stc.total_quantity_received) as total_actual_value,
+        AVG(CASE 
+          WHEN stc.estimated_unit_price > 0 
+          THEN ((stc.actual_unit_price - stc.estimated_unit_price) / stc.estimated_unit_price) * 100 
+          ELSE 0 
+        END) as average_price_variance,
+        COUNT(DISTINCT d.id) as total_deliveries,
+        COUNT(CASE WHEN d.delivery_status = 'Pending' THEN 1 END) as pending_deliveries
+      FROM stock_transactions_clean stc
+      LEFT JOIN deliveries d ON stc.tender_id = d.tender_id
+      WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+    `;
+
+    const result = await pool.request().query(statsQuery);
+    const stats = result.recordset[0];
+
+    res.json({
+      total_tenders: stats.total_tenders || 0,
+      total_items: stats.total_items || 0,
+      confirmed_pricing_items: stats.confirmed_pricing_items || 0,
+      pending_pricing_items: stats.pending_pricing_items || 0,
+      total_estimated_value: stats.total_estimated_value || 0,
+      total_actual_value: stats.total_actual_value || 0,
+      average_price_variance: stats.average_price_variance || 0,
+      total_deliveries: stats.total_deliveries || 0,
+      pending_deliveries: stats.pending_deliveries || 0
+    });
+
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Failed to fetch dashboard stats', 
+      details: error.message,
+      // Return default values on error
+      total_tenders: 0,
+      total_items: 0,
+      confirmed_pricing_items: 0,
+      pending_pricing_items: 0,
+      total_estimated_value: 0,
+      total_actual_value: 0,
+      average_price_variance: 0,
+      total_deliveries: 0,
+      pending_deliveries: 0
+    });
+  }
+});
+
+// Get tender summaries from stock transactions
+app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        stc.tender_id,
+        t.title as tender_title,
+        t.reference_number as tender_number,
+        COUNT(stc.id) as total_items,
+        COUNT(CASE WHEN stc.pricing_confirmed = 1 THEN 1 END) as confirmed_items,
+        COUNT(CASE WHEN stc.pricing_confirmed = 0 THEN 1 END) as pending_items,
+        SUM(stc.estimated_unit_price * stc.total_quantity_received) as total_estimated_value,
+        SUM(stc.actual_unit_price * stc.total_quantity_received) as total_actual_value,
+        CASE 
+          WHEN COUNT(stc.id) > 0 
+          THEN (CAST(COUNT(CASE WHEN stc.pricing_confirmed = 1 THEN 1 END) AS FLOAT) / COUNT(stc.id)) * 100 
+          ELSE 0 
+        END as pricing_completion_rate,
+        CASE WHEN COUNT(d.id) > 0 THEN 1 ELSE 0 END as has_deliveries,
+        MAX(stc.created_at) as created_at
+      FROM stock_transactions_clean stc
+      LEFT JOIN tenders t ON stc.tender_id = t.id
+      LEFT JOIN deliveries d ON stc.tender_id = d.tender_id
+      WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+      GROUP BY stc.tender_id, t.title, t.reference_number
+      ORDER BY created_at DESC
+    `;
+
+    const result = await pool.request().query(query);
+    res.json(result.recordset);
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch tender summaries', details: error.message });
+  }
+});
+
+// Get stock acquisition items by tender ID
+app.get('/api/stock-acquisition/items/:tenderId', async (req, res) => {
+  try {
+    const { tenderId } = req.params;
+    
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query(`
+        SELECT 
+          stc.*,
+          COALESCE(im.nomenclature, 'Unknown Item') as item_name
+        FROM stock_transactions_clean stc
+        LEFT JOIN item_masters im ON stc.item_master_id = CAST(im.id AS VARCHAR(50))
+        WHERE stc.tender_id = @tender_id 
+          AND (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+        ORDER BY stc.created_at
+      `);
+
+    res.json(result.recordset);
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch stock acquisition items', details: error.message });
+  }
+});
+
+// Update single item price in stock acquisition
+app.put('/api/stock-acquisition/update-price/:itemId', async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const { actual_unit_price, pricing_confirmed } = req.body;
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, itemId)
+      .input('actual_unit_price', sql.Decimal(18, 2), actual_unit_price)
+      .input('pricing_confirmed', sql.Bit, pricing_confirmed)
+      .query(`
+        UPDATE stock_transactions_clean 
+        SET 
+          actual_unit_price = @actual_unit_price,
+          pricing_confirmed = @pricing_confirmed,
+          updated_at = GETDATE()
+        WHERE id = @id
+      `);
+
+    res.json({ success: true, message: 'Item price updated successfully' });
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update item price', details: error.message });
+  }
+});
+
+// Restore soft deleted stock transaction in stock_transactions_clean
+app.put('/api/stock-transactions-clean/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE stock_transactions_clean 
+        SET 
+          is_deleted = 0,
+          deleted_at = NULL,
+          deleted_by = NULL,
+          updated_at = GETDATE()
+        WHERE id = @id
+      `);
+    res.json({ success: true, message: 'Stock transaction restored successfully' });
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to restore stock transaction', details: error.message });
+  }
+});
+
+// Bulk create stock transactions for tender finalization
+app.post('/api/stock-transactions-clean/bulk-create', async (req, res) => {
+  try {
+    const { tender_id, items } = req.body;
+
+    if (!tender_id || !items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'tender_id and items array are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      const createdItems = [];
+
+      for (const item of items) {
+        const result = await transaction.request()
+          .input('tender_id', sql.UniqueIdentifier, tender_id)
+          .input('item_master_id', sql.VarChar(50), item.item_master_id)
+          .input('estimated_unit_price', sql.Decimal(18, 2), item.estimated_unit_price || 0)
+          .input('actual_unit_price', sql.Decimal(18, 2), item.actual_unit_price || 0)
+          .input('total_quantity_received', sql.Int, item.total_quantity_received || 0)
+          .input('pricing_confirmed', sql.Bit, item.pricing_confirmed || false)
+          .input('type', sql.VarChar(10), item.type || 'IN')
+          .input('remarks', sql.Text, item.remarks || null)
+          .query(`
+            INSERT INTO stock_transactions_clean (
+              id,
+              tender_id,
+              item_master_id,
+              estimated_unit_price,
+              actual_unit_price,
+              total_quantity_received,
+              pricing_confirmed,
+              type,
+              remarks,
+              is_deleted,
+              created_at,
+              updated_at
+            )
+            OUTPUT INSERTED.*
+            VALUES (
+              NEWID(),
+              @tender_id,
+              @item_master_id,
+              @estimated_unit_price,
+              @actual_unit_price,
+              @total_quantity_received,
+              @pricing_confirmed,
+              @type,
+              @remarks,
+              0,
+              GETDATE(),
+              GETDATE()
+            )
+          `);
+
+        createdItems.push(result.recordset[0]);
+      }
+
+      await transaction.commit();
+      res.json({ 
+        success: true, 
+        message: `Created ${createdItems.length} stock transactions successfully`,
+        items: createdItems
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create bulk stock transactions', details: error.message });
+  }
+});
+
+// Get tenders from stock_transactions_clean
+app.get('/api/stock-acquisition/tenders', async (req, res) => {
+  try {
+    const query = `
+      SELECT DISTINCT
+        stc.tender_id,
+        t.title as tender_title,
+        t.reference_number as tender_number,
+        t.tender_spot_type as acquisition_type,
+        t.status as tender_status,
+        COUNT(stc.id) as item_count,
+        SUM(stc.total_quantity_received) as total_quantity,
+        MAX(stc.created_at) as latest_transaction
+      FROM stock_transactions_clean stc
+      LEFT JOIN tenders t ON stc.tender_id = t.id
+      WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+      GROUP BY stc.tender_id, t.title, t.reference_number, t.tender_spot_type, t.status
+      ORDER BY latest_transaction DESC
+    `;
+
+    const result = await pool.request().query(query);
+    res.json(result.recordset);
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
+  }
+});
+
+// Get stock transaction statistics by tender
+app.get('/api/stock-acquisition/tender-stats/:tenderId', async (req, res) => {
+  try {
+    const { tenderId } = req.params;
+    
+    const query = `
+      SELECT 
+        COUNT(*) as total_items,
+        COUNT(CASE WHEN pricing_confirmed = 1 THEN 1 END) as confirmed_items,
+        COUNT(CASE WHEN pricing_confirmed = 0 THEN 1 END) as pending_items,
+        SUM(estimated_unit_price * total_quantity_received) as estimated_value,
+        SUM(actual_unit_price * total_quantity_received) as actual_value,
+        SUM(total_quantity_received) as total_quantity
+      FROM stock_transactions_clean
+      WHERE tender_id = @tender_id 
+        AND (is_deleted = 0 OR is_deleted IS NULL)
+    `;
+
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query(query);
+
+    res.json(result.recordset[0]);
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch tender statistics', details: error.message });
+  }
+});
+
+// Search items in stock transactions
+app.get('/api/stock-acquisition/search', async (req, res) => {
+  try {
+    const { query: searchQuery } = req.query;
+    
+    if (!searchQuery) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    const result = await pool.request()
+      .input('searchQuery', sql.NVarChar, `%${searchQuery}%`)
+      .query(`
+        SELECT 
+          stc.*,
+          COALESCE(im.nomenclature, 'Unknown Item') as item_name,
+          t.title as tender_title,
+          t.reference_number as tender_number
+        FROM stock_transactions_clean stc
+        LEFT JOIN item_masters im ON stc.item_master_id = CAST(im.id AS VARCHAR(50))
+        LEFT JOIN tenders t ON stc.tender_id = t.id
+        WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+          AND (
+            im.nomenclature LIKE @searchQuery 
+            OR t.title LIKE @searchQuery 
+            OR t.reference_number LIKE @searchQuery
+            OR stc.remarks LIKE @searchQuery
+          )
+        ORDER BY stc.created_at DESC
+      `);
+
+    res.json(result.recordset);
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to search stock transactions', details: error.message });
+  }
+});
+
+// New endpoint for the SQL Server view: View_stock_transactions_clean
+app.get('/api/stock-transactions-clean/view', async (req, res) => {
+  try {
+    const { tender_id } = req.query;
+    
+    let query = `
+      SELECT * FROM View_stock_transactions_clean
+      WHERE (is_deleted = 0 OR is_deleted IS NULL)
+    `;
+    
+    const request = pool.request();
+    
+    if (tender_id) {
+      query += ` AND tender_id = @tender_id`;
+      request.input('tender_id', sql.UniqueIdentifier, tender_id);
+    }
+    
+    query += ` ORDER BY created_at DESC`;
+    
+    const result = await request.query(query);
+    res.json(result.recordset);
+    
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch stock transactions from view', details: error.message });
   }
 });
 
