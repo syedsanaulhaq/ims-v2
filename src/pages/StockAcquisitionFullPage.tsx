@@ -133,6 +133,7 @@ const StockAcquisitionFullPage: React.FC = () => {
   const [newSerialNotes, setNewSerialNotes] = useState('');
   const [activeTab, setActiveTab] = useState('delivery');
   const [currentDeliveryId, setCurrentDeliveryId] = useState<string | null>(null);
+  const [unsavedChanges, setUnsavedChanges] = useState<Set<string>>(new Set());
 
   // Helper functions for serial number management
   const addSerialNumber = (deliveryId: string, itemId: string) => {
@@ -160,9 +161,17 @@ const StockAcquisitionFullPage: React.FC = () => {
 
     setNewSerialNumber('');
     setNewSerialNotes('');
+    
+    // Mark delivery as having unsaved changes
+    setUnsavedChanges(prev => new Set(prev).add(deliveryId));
   };
 
   const removeSerialNumber = (itemId: string, serialId: string) => {
+    // Find the delivery that contains this item
+    const deliveryId = deliveries.find(delivery => 
+      delivery.items?.some(item => item.id === itemId)
+    )?.id;
+    
     setDeliveries(prev => prev.map(delivery => ({
       ...delivery,
       items: delivery.items?.map(item => 
@@ -171,6 +180,11 @@ const StockAcquisitionFullPage: React.FC = () => {
           : item
       ) || []
     })));
+    
+    // Mark delivery as having unsaved changes
+    if (deliveryId) {
+      setUnsavedChanges(prev => new Set(prev).add(deliveryId));
+    }
   };
 
   // Helper function to create initial delivery info
@@ -310,12 +324,16 @@ const StockAcquisitionFullPage: React.FC = () => {
     }));
   };
 
-  const saveDeliveryInfo = async () => {
-    const currentDelivery = deliveries.find(d => d.id === editingDeliveryId || (!d.id && editingDeliveryId === 'new'));
+  const saveDeliveryInfo = async (specificDeliveryId?: string) => {
+    // If a specific delivery ID is provided, use that; otherwise use the editing one
+    const targetDeliveryId = specificDeliveryId || editingDeliveryId;
+    const currentDelivery = deliveries.find(d => d.id === targetDeliveryId || (!d.id && targetDeliveryId === 'new'));
     
     console.log('🔄 Starting save delivery info...', {
       currentDelivery,
       editingDeliveryId,
+      specificDeliveryId,
+      targetDeliveryId,
       tenderId,
       hasCurrentDelivery: !!currentDelivery,
       hasTenderId: !!tenderId
@@ -389,6 +407,16 @@ const StockAcquisitionFullPage: React.FC = () => {
         }
         
         setEditingDeliveryId(null);
+        
+        // Clear unsaved changes for this delivery
+        if (currentDelivery.id) {
+          setUnsavedChanges(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(currentDelivery.id!);
+            return newSet;
+          });
+        }
+        
         alert('Delivery information saved successfully!');
         
         // Force reload to get updated data
@@ -398,11 +426,40 @@ const StockAcquisitionFullPage: React.FC = () => {
       } else {
         const errorText = await response.text();
         console.error('❌ Save failed:', { status: response.status, error: errorText });
-        throw new Error(`Failed to save delivery info: ${response.status} ${errorText}`);
+        
+        // Parse error response to provide better user feedback
+        let errorMessage = 'Failed to save delivery information';
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.reason === 'tender_finalized') {
+            errorMessage = '❌ Cannot save changes: This tender has been finalized and is now read-only. No further modifications are allowed.';
+          } else if (errorData.reason === 'delivery_finalized') {
+            errorMessage = '❌ Cannot save changes: This delivery has been finalized and cannot be modified.';
+          } else if (errorData.error) {
+            errorMessage = `❌ ${errorData.error}`;
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, use the raw error text
+          errorMessage = `❌ ${errorText}`;
+        }
+        
+        alert(errorMessage);
+        return; // Don't throw error, just return to prevent further processing
       }
     } catch (err) {
       console.error('❌ Error saving delivery info:', err);
-      alert(`Failed to save delivery info: ${err.message}`);
+      
+      // Provide user-friendly error message
+      let userMessage = 'Failed to save delivery information. Please try again.';
+      if (err.message.includes('tender_finalized')) {
+        userMessage = '❌ Cannot save changes: This tender has been finalized and is now read-only.';
+      } else if (err.message.includes('delivery_finalized')) {
+        userMessage = '❌ Cannot save changes: This delivery has been finalized and cannot be modified.';
+      } else if (err.message.includes('NetworkError') || err.message.includes('fetch')) {
+        userMessage = '❌ Network error: Please check your connection and try again.';
+      }
+      
+      alert(userMessage);
     }
   };
 
@@ -500,6 +557,29 @@ const StockAcquisitionFullPage: React.FC = () => {
       )}
 
       {/* Tabs */}
+      {/* Tender Finalized Warning */}
+      {tenderInfo?.is_finalized && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-orange-600" />
+              <div>
+                <h3 className="font-medium text-orange-800">Tender Finalized - Read Only Mode</h3>
+                <p className="text-sm text-orange-700 mt-1">
+                  This tender has been finalized and is now in read-only mode. No modifications can be made to deliveries, items, or pricing.
+                  {tenderInfo.finalized_at && (
+                    <span className="block mt-1">
+                      Finalized on: {formatDate(tenderInfo.finalized_at)}
+                      {tenderInfo.finalized_by && ` by ${tenderInfo.finalized_by}`}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="delivery">Delivery Management</TabsTrigger>
@@ -646,7 +726,12 @@ const StockAcquisitionFullPage: React.FC = () => {
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <Button onClick={saveDeliveryInfo} size="sm">
+                              <Button 
+                                onClick={() => saveDeliveryInfo()} 
+                                size="sm"
+                                disabled={delivery.is_finalized || tenderInfo?.is_finalized}
+                                title={delivery.is_finalized ? "Cannot save: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot save: Tender is finalized" : "Save delivery information"}
+                              >
                                 <Save className="w-4 h-4 mr-1" />
                                 Save
                               </Button>
@@ -661,16 +746,41 @@ const StockAcquisitionFullPage: React.FC = () => {
                           <div>
                             <div className="flex items-center justify-between mb-4">
                               <div className="flex items-center gap-4">
-                                <h4 className="font-medium text-lg">Delivery #{delivery.delivery_number}</h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium text-lg">Delivery #{delivery.delivery_number}</h4>
+                                  {unsavedChanges.has(delivery.id) && (
+                                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" title="Unsaved changes"></div>
+                                  )}
+                                </div>
                                 <Badge variant={delivery.is_finalized ? 'default' : 'secondary'}>
                                   {delivery.is_finalized ? 'Finalized' : 'Pending'}
                                 </Badge>
+                                {unsavedChanges.has(delivery.id) && (
+                                  <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                    Unsaved Changes
+                                  </Badge>
+                                )}
                               </div>
                               <div className="flex gap-2">
+                                {/* Show save button if there are unsaved changes */}
+                                {unsavedChanges.has(delivery.id) && (
+                                  <Button 
+                                    size="sm"
+                                    onClick={() => saveDeliveryInfo(delivery.id)}
+                                    className="bg-orange-500 hover:bg-orange-600 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                    disabled={delivery.is_finalized || tenderInfo?.is_finalized}
+                                    title={delivery.is_finalized ? "Cannot save: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot save: Tender is finalized" : "Save unsaved changes"}
+                                  >
+                                    <Save className="w-4 h-4 mr-1" />
+                                    Save Changes
+                                  </Button>
+                                )}
                                 <Button 
                                   variant="outline" 
                                   size="sm"
                                   onClick={() => setEditingDeliveryId(delivery.id)}
+                                  disabled={delivery.is_finalized || tenderInfo?.is_finalized}
+                                  title={delivery.is_finalized ? "Cannot edit: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot edit: Tender is finalized" : "Edit delivery information"}
                                 >
                                   <Edit className="w-4 h-4 mr-1" />
                                   Edit
@@ -714,6 +824,8 @@ const StockAcquisitionFullPage: React.FC = () => {
                                     setCurrentDeliveryId(delivery.id);
                                     setShowAddDeliveryItem(true);
                                   }}
+                                  disabled={delivery.is_finalized || tenderInfo?.is_finalized}
+                                  title={delivery.is_finalized ? "Cannot add items: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot add items: Tender is finalized" : "Add items to this delivery"}
                                 >
                                   <Plus className="w-4 h-4 mr-1" />
                                   Add Item
@@ -779,7 +891,8 @@ const StockAcquisitionFullPage: React.FC = () => {
                                             <Button 
                                               size="sm"
                                               onClick={() => addSerialNumber(delivery.id, item.id)}
-                                              disabled={!newSerialNumber.trim()}
+                                              disabled={!newSerialNumber.trim() || delivery.is_finalized || tenderInfo?.is_finalized}
+                                              title={delivery.is_finalized ? "Cannot add serial: Delivery is finalized" : tenderInfo?.is_finalized ? "Cannot add serial: Tender is finalized" : "Add serial number"}
                                             >
                                               <Plus className="w-4 h-4" />
                                             </Button>
@@ -1129,17 +1242,35 @@ const StockAcquisitionFullPage: React.FC = () => {
                         const itemsResult = await itemsResponse.json();
                         console.log('✅ Delivery items auto-saved:', itemsResult);
                         alert('Items added and saved successfully!');
+                        
+                        // Clear unsaved changes since auto-save succeeded
+                        setUnsavedChanges(prev => {
+                          const newSet = new Set(prev);
+                          newSet.delete(currentDelivery.id);
+                          return newSet;
+                        });
                       } else {
                         const itemsError = await itemsResponse.text();
                         console.error('❌ Failed to auto-save delivery items:', itemsError);
                         alert('Items added to delivery but failed to save. Please click Save to try again.');
+                        
+                        // Mark as having unsaved changes since auto-save failed
+                        setUnsavedChanges(prev => new Set(prev).add(currentDelivery.id));
                       }
                     } catch (error) {
                       console.error('❌ Error auto-saving delivery items:', error);
                       alert('Items added to delivery but failed to save. Please click Save to try again.');
+                      
+                      // Mark as having unsaved changes since auto-save failed
+                      setUnsavedChanges(prev => new Set(prev).add(currentDelivery.id));
                     }
                   } else {
                     alert('Items added to delivery! Click Save to persist changes.');
+                    
+                    // Mark as having unsaved changes for new deliveries
+                    if (currentDelivery.id) {
+                      setUnsavedChanges(prev => new Set(prev).add(currentDelivery.id));
+                    }
                   }
                 }
 
