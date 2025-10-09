@@ -234,7 +234,21 @@ const StockAcquisitionFullPage: React.FC = () => {
       const itemsResponse = await fetch(`http://localhost:3001/api/stock-acquisition/items/${tenderId}`);
       if (itemsResponse.ok) {
         const items = await itemsResponse.json();
+        console.log('📦 Stock transaction items loaded:', items);
         setStockTransactionItems(items);
+        
+        // Check if any item indicates the tender is finalized
+        // All items in a tender should have the same finalized status
+        const isFinalized = items.length > 0 && items.some((item: any) => item.is_finalized);
+        console.log('🔒 Tender finalized status:', isFinalized);
+        
+        // Set tender info with finalized status
+        setTenderInfo(prevInfo => ({
+          ...prevInfo,
+          is_finalized: isFinalized,
+          finalized_at: isFinalized ? items.find((item: any) => item.finalized_at)?.finalized_at : null,
+          finalized_by: isFinalized ? items.find((item: any) => item.finalized_by)?.finalized_by : null
+        }));
         
         // Initialize edited items state
         const initialEdits: { [key: string]: { actual_unit_price: number; remarks?: string } } = {};
