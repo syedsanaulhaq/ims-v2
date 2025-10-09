@@ -17,7 +17,8 @@ import {
   Clock, 
   AlertCircle,
   Shield,
-  ShieldCheck
+  ShieldCheck,
+  Package
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -353,6 +354,16 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                               onClick={() => handleEdit(tender)}
                             >
                               <Edit className="w-4 h-4" />
+                            </Button>
+                            
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => navigate(`/dashboard/tender-management/${tender.id}`)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              title="Manage Tender & Deliveries"
+                            >
+                              <Package className="w-4 h-4" />
                             </Button>
                             
                             <Button
