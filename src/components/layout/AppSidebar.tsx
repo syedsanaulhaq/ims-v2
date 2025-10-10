@@ -196,7 +196,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                 <TooltipTrigger asChild>
                                   <item.icon className="w-5 h-5" />
                                 </TooltipTrigger>
-                                <TooltipContent side="right">
+                                <TooltipContent side="right" className="text-xs">
                                   <p>{item.title}</p>
                                 </TooltipContent>
                               </Tooltip>
@@ -223,7 +223,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                       <TooltipTrigger asChild>
                                         <span className="ml-1">- {subItem.title}</span>
                                       </TooltipTrigger>
-                                      <TooltipContent side="right">
+                                      <TooltipContent side="right" className="text-xs">
                                         <p>{subItem.title}</p>
                                       </TooltipContent>
                                     </Tooltip>
@@ -254,7 +254,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                           <TooltipTrigger asChild>
                             <item.icon className="w-5 h-5" />
                           </TooltipTrigger>
-                          <TooltipContent side="right">
+                          <TooltipContent side="right" className="text-xs">
                             <p>{item.title}</p>
                           </TooltipContent>
                         </Tooltip>
