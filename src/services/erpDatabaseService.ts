@@ -309,15 +309,15 @@ class ERPDatabaseService {
   // Users services
   async getActiveUsers(): Promise<any[]> {
     try {
-      const response = await fetch('http://localhost:3001/api/users');
+      const response = await fetch('http://localhost:3001/api/aspnet-users/active');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const users = await response.json();
-      console.log(`✅ Loaded ${users.length} active users from API`);
+      console.log(`✅ Loaded ${users.length} active users from AspNetUsers API`);
       return users;
     } catch (error) {
-      console.error('❌ Error fetching active users from API:', error);
+      console.error('❌ Error fetching active users from AspNetUsers API:', error);
       // Fallback to mock data if API fails
       console.warn('🔄 Falling back to mock user data');
       await new Promise(resolve => setTimeout(resolve, 200));

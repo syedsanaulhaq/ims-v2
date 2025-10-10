@@ -8,9 +8,10 @@ import { erpDatabaseService } from '../services/erpDatabaseService';
 
 interface User {
   id: string;
-  name: string;
-  designation: string;
-  office_id?: string;
+  fullName: string;
+  role: string;
+  intDesignationID?: number;
+  intOfficeID?: number;
 }
 
 export const WorkflowAdmin: React.FC = () => {
@@ -111,8 +112,9 @@ export const WorkflowAdmin: React.FC = () => {
 
       await approvalForwardingService.addWorkflowApprover(selectedWorkflow, {
         ...newApprover,
-        user_name: selectedUser.name,
-        user_designation: selectedUser.designation
+        user_name: selectedUser.fullName,
+        user_designation: selectedUser.intDesignationID?.toString() || '',
+        user_role: selectedUser.role
       });
       
       // Refresh approvers
@@ -355,7 +357,7 @@ export const WorkflowAdmin: React.FC = () => {
                   <option value="">Select user...</option>
                   {availableUsers.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.name} - {user.designation}
+                      {user.fullName} - {user.role}
                     </option>
                   ))}
                 </select>

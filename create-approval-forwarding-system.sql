@@ -18,12 +18,12 @@ CREATE TABLE approval_workflows (
 CREATE TABLE workflow_approvers (
     id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
     workflow_id UNIQUEIDENTIFIER REFERENCES approval_workflows(id),
-    user_id UNIQUEIDENTIFIER REFERENCES users(id),
+    user_id NVARCHAR(450) REFERENCES AspNetUsers(Id), -- Reference to AspNetUsers
     can_approve BIT DEFAULT 1,
     can_forward BIT DEFAULT 1,
     can_finalize BIT DEFAULT 0, -- Only specific roles can finalize
     approver_role NVARCHAR(100), -- 'Department Head', 'Finance Officer', 'CO', etc.
-    added_by UNIQUEIDENTIFIER REFERENCES users(id),
+    added_by NVARCHAR(450) REFERENCES AspNetUsers(Id),
     added_date DATETIME2 DEFAULT GETDATE()
 );
 
@@ -36,18 +36,18 @@ CREATE TABLE request_approvals (
     
     -- Current status
     current_status NVARCHAR(20) DEFAULT 'pending', -- 'pending', 'approved', 'rejected', 'finalized'
-    current_approver_id UNIQUEIDENTIFIER REFERENCES users(id),
+    current_approver_id NVARCHAR(450) REFERENCES AspNetUsers(Id),
     
     -- Original submission
-    submitted_by UNIQUEIDENTIFIER REFERENCES users(id),
+    submitted_by NVARCHAR(450) REFERENCES AspNetUsers(Id),
     submitted_date DATETIME2 DEFAULT GETDATE(),
     
     -- Finalization
-    finalized_by UNIQUEIDENTIFIER REFERENCES users(id),
+    finalized_by NVARCHAR(450) REFERENCES AspNetUsers(Id),
     finalized_date DATETIME2,
     
     -- Rejection
-    rejected_by UNIQUEIDENTIFIER REFERENCES users(id),
+    rejected_by NVARCHAR(450) REFERENCES AspNetUsers(Id),
     rejected_date DATETIME2,
     rejection_reason NVARCHAR(500),
     
@@ -62,12 +62,12 @@ CREATE TABLE approval_history (
     
     -- Action details
     action_type NVARCHAR(20) NOT NULL, -- 'submitted', 'forwarded', 'approved', 'rejected', 'finalized'
-    action_by UNIQUEIDENTIFIER REFERENCES users(id),
+    action_by NVARCHAR(450) REFERENCES AspNetUsers(Id),
     action_date DATETIME2 DEFAULT GETDATE(),
     
     -- Forwarding details
-    forwarded_from UNIQUEIDENTIFIER REFERENCES users(id),
-    forwarded_to UNIQUEIDENTIFIER REFERENCES users(id),
+    forwarded_from NVARCHAR(450) REFERENCES AspNetUsers(Id),
+    forwarded_to NVARCHAR(450) REFERENCES AspNetUsers(Id),
     
     -- Comments and notes
     comments NVARCHAR(1000),
@@ -96,18 +96,21 @@ VALUES ('Stock Issuance Approval', 'stock_issuance', NULL, 'General approval wor
 INSERT INTO workflow_approvers (workflow_id, user_id, can_approve, can_forward, can_finalize, approver_role)
 SELECT 
     w.id,
-    u.id,
+    u.Id,
     1, -- can approve
     1, -- can forward  
-    CASE WHEN u.designation IN ('Commanding Officer', 'Finance Officer') THEN 1 ELSE 0 END, -- can finalize
-    u.designation
+    CASE WHEN u.Role IN ('Admin', 'CommandingOfficer', 'FinanceOfficer') THEN 1 ELSE 0 END, -- can finalize
+    u.Role
 FROM approval_workflows w
-CROSS JOIN users u
+CROSS JOIN AspNetUsers u
 WHERE w.request_type = 'stock_issuance' 
-AND u.designation IN ('Department Head', 'Wing Commander', 'Finance Officer', 'Commanding Officer');
+AND u.ISACT = 1
+AND u.Role IN ('Admin', 'DepartmentHead', 'WingCommander', 'FinanceOfficer', 'CommandingOfficer');
 */
 
 -- 7. Views for easy querying
+GO
+
 CREATE VIEW vw_pending_approvals AS
 SELECT 
     ra.id as approval_id,
@@ -118,13 +121,13 @@ SELECT
     ra.submitted_date,
     
     -- Current approver details
-    cu.name as current_approver_name,
-    cu.designation as current_approver_designation,
-    cu.office_id as current_approver_office,
+    cu.FullName as current_approver_name,
+    cu.intDesignationID as current_approver_designation,
+    cu.intOfficeID as current_approver_office,
     
     -- Submitter details
-    su.name as submitter_name,
-    su.designation as submitter_designation,
+    su.FullName as submitter_name,
+    su.intDesignationID as submitter_designation,
     
     -- Workflow details
     aw.workflow_name,
@@ -134,11 +137,13 @@ SELECT
     ah.comments as last_comments
     
 FROM request_approvals ra
-LEFT JOIN users cu ON ra.current_approver_id = cu.id
-LEFT JOIN users su ON ra.submitted_by = su.id
+LEFT JOIN AspNetUsers cu ON ra.current_approver_id = cu.Id
+LEFT JOIN AspNetUsers su ON ra.submitted_by = su.Id
 LEFT JOIN approval_workflows aw ON ra.workflow_id = aw.id
 LEFT JOIN approval_history ah ON ra.id = ah.request_approval_id AND ah.is_current_step = 1
 WHERE ra.current_status = 'pending';
+
+GO
 
 CREATE VIEW vw_approval_trail AS
 SELECT 
@@ -150,19 +155,18 @@ SELECT
     ah.action_date,
     
     -- Action by user
-    u.name as action_by_name,
-    u.designation as action_by_designation,
+    u.FullName as action_by_name,
+    u.intDesignationID as action_by_designation,
     
     -- Forwarding details
-    uf.name as forwarded_from_name,
-    ut.name as forwarded_to_name,
+    uf.FullName as forwarded_from_name,
+    ut.FullName as forwarded_to_name,
     
     ah.comments,
     ah.is_current_step
     
 FROM approval_history ah
 LEFT JOIN request_approvals ra ON ah.request_approval_id = ra.id
-LEFT JOIN users u ON ah.action_by = u.id
-LEFT JOIN users uf ON ah.forwarded_from = uf.id
-LEFT JOIN users ut ON ah.forwarded_to = ut.id
-ORDER BY ah.request_approval_id, ah.step_number;
+LEFT JOIN AspNetUsers u ON ah.action_by = u.Id
+LEFT JOIN AspNetUsers uf ON ah.forwarded_from = uf.Id
+LEFT JOIN AspNetUsers ut ON ah.forwarded_to = ut.Id;

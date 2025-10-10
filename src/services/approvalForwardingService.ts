@@ -18,6 +18,7 @@ export interface WorkflowApprover {
   user_id: string;
   user_name: string;
   user_designation: string;
+  user_role: string;
   can_approve: boolean;
   can_forward: boolean;
   can_finalize: boolean;
