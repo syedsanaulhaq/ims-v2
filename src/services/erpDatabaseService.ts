@@ -313,9 +313,13 @@ class ERPDatabaseService {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const users = await response.json();
-      console.log(`✅ Loaded ${users.length} active users from AspNetUsers API`);
-      return users;
+      const result = await response.json();
+      
+      // Handle the API response format {success: true, data: [...]}
+      const users = result.success ? result.data : result;
+      
+      console.log(`✅ Loaded ${users?.length || 0} active users from AspNetUsers API`);
+      return users || [];
     } catch (error) {
       console.error('❌ Error fetching active users from AspNetUsers API:', error);
       // Fallback to mock data if API fails

@@ -87,7 +87,7 @@ const StockIssuance: React.FC = () => {
   const filteredDecs = decs.filter(dec => dec.WingID === parseInt(selectedWingId));
   
   // Users filtered by office and wing (branch is optional)
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = (users || []).filter(user => {
     // Must match office and wing
     const matchesOffice = user.intOfficeID === parseInt(selectedOfficeId);
     const matchesWing = user.intWingID === parseInt(selectedWingId);
@@ -153,13 +153,13 @@ const StockIssuance: React.FC = () => {
           offices: officesData.length, 
           wings: wingsData.length, 
           decs: decsData.length, 
-          users: usersData.length 
+          users: usersData?.length || 0
         });
 
         setOffices(officesData);
         setWings(wingsData);
         setDecs(decsData);
-        setUsers(usersData);
+        setUsers(usersData || []);
       } catch (erpError) {
         console.error('❌ Error loading ERP data:', erpError);
         setError('Failed to load office, wing, DEC, and user data');
@@ -287,7 +287,7 @@ const StockIssuance: React.FC = () => {
     setSuccess('');
 
     try {
-      const selectedUser = selectedUserId ? users.find(user => user.Id === selectedUserId) : null;
+      const selectedUser = selectedUserId ? (users || []).find(user => user.Id === selectedUserId) : null;
       const requestNumber = stockIssuanceService.generateRequestNumber();
       
       // Create issuance request using SQL Server API
@@ -552,7 +552,7 @@ const StockIssuance: React.FC = () => {
                   <div className="bg-white p-3 rounded border">
                     <h4 className="font-medium text-sm text-gray-700 mb-1">Selected Requester:</h4>
                     {(() => {
-                      const user = users.find(u => u.Id === selectedUserId);
+                      const user = (users || []).find(u => u.Id === selectedUserId);
                       const office = offices.find(o => o.intOfficeID === parseInt(selectedOfficeId));
                       const wing = filteredWings.find(w => w.Id === parseInt(selectedWingId));
                       const branch = filteredDecs.find(d => d.intAutoID === parseInt(selectedBranchId));
