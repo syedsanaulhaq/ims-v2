@@ -142,10 +142,12 @@ function App() {
                   <Route path="item-master" element={<ItemMaster />} />
                 </Route>
 
-                {/* Approval Manager - Protected */}
+                {/* Approval Manager - Redirect to better dashboard */}
                 <Route path="/approval-manager" element={
                   <ProtectedRoute>
-                    <ApprovalManager />
+                    <Layout>
+                      <ApprovalDashboard />
+                    </Layout>
                   </ProtectedRoute>
                 } />
 
