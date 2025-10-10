@@ -48,6 +48,9 @@ import EnhancedStockAcquisitionWithDelivery from "./components/stockTransactions
 import UnifiedTenderManagement from "./pages/UnifiedTenderManagement";
 import AllInventoryItemsPage from "./pages/AllInventoryItemsPage";
 import StockQuantitiesPage from "./pages/StockQuantitiesPage";
+import ApprovalDashboard from "./components/ApprovalDashboard";
+import WorkflowAdmin from "./components/WorkflowAdmin";
+import ApprovalForwarding from "./components/ApprovalForwarding";
 import InventoryAlertsPage from "./pages/InventoryAlertsPage";
 import InventoryDetails from "./pages/InventoryDetails";
 import StockOperations from "./pages/StockOperations";
@@ -109,6 +112,8 @@ function App() {
                   <Route path="stock-issuance-dashboard" element={<StockIssuanceDashboard />} />
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
+                  <Route path="approval-dashboard" element={<ApprovalDashboard />} />
+                  <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
                   <Route path="categories" element={<Categories />} />
                   <Route path="vendors" element={<VendorManagementEnhanced />} />

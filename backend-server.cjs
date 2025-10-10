@@ -8408,6 +8408,666 @@ app.get('/api/stock-acquisition/price-history/:itemId', async (req, res) => {
   }
 });
 
+// ==============================================
+// APPROVAL FORWARDING SYSTEM ENDPOINTS
+// ==============================================
+
+// Get all approval workflows
+app.get('/api/approval-workflows', async (req, res) => {
+  try {
+    const request = pool.request();
+    const result = await request.query(`
+      SELECT id, workflow_name, request_type, office_id, description, is_active, created_date
+      FROM approval_workflows 
+      WHERE is_active = 1
+      ORDER BY workflow_name
+    `);
+    
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('Error fetching approval workflows:', error);
+    res.status(500).json({ error: 'Failed to fetch approval workflows', details: error.message });
+  }
+});
+
+// Create new approval workflow
+app.post('/api/approval-workflows', async (req, res) => {
+  try {
+    const { workflow_name, request_type, office_id, description } = req.body;
+    const request = pool.request();
+    
+    const result = await request
+      .input('workflow_name', sql.NVarChar, workflow_name)
+      .input('request_type', sql.NVarChar, request_type)
+      .input('office_id', sql.UniqueIdentifier, office_id)
+      .input('description', sql.NVarChar, description)
+      .query(`
+        INSERT INTO approval_workflows (workflow_name, request_type, office_id, description, is_active)
+        OUTPUT INSERTED.*
+        VALUES (@workflow_name, @request_type, @office_id, @description, 1)
+      `);
+    
+    res.json({ success: true, data: result.recordset[0] });
+  } catch (error) {
+    console.error('Error creating approval workflow:', error);
+    res.status(500).json({ error: 'Failed to create approval workflow', details: error.message });
+  }
+});
+
+// Get workflow approvers
+app.get('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
+  try {
+    const { workflowId } = req.params;
+    const request = pool.request();
+    
+    const result = await request
+      .input('workflowId', sql.UniqueIdentifier, workflowId)
+      .query(`
+        SELECT 
+          wa.id,
+          wa.workflow_id,
+          wa.user_id,
+          u.FullName as user_name,
+          u.Role as user_role,
+          u.intDesignationID as user_designation,
+          wa.can_approve,
+          wa.can_forward,
+          wa.can_finalize,
+          wa.approver_role,
+          wa.added_date
+        FROM workflow_approvers wa
+        JOIN AspNetUsers u ON wa.user_id = u.Id
+        WHERE wa.workflow_id = @workflowId
+        ORDER BY wa.added_date
+      `);
+    
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('Error fetching workflow approvers:', error);
+    res.status(500).json({ error: 'Failed to fetch workflow approvers', details: error.message });
+  }
+});
+
+// Add workflow approver
+app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
+  try {
+    const { workflowId } = req.params;
+    const { user_id, can_approve, can_forward, can_finalize, approver_role } = req.body;
+    const request = pool.request();
+    
+    const result = await request
+      .input('workflowId', sql.UniqueIdentifier, workflowId)
+      .input('user_id', sql.NVarChar, user_id)
+      .input('can_approve', sql.Bit, can_approve)
+      .input('can_forward', sql.Bit, can_forward)
+      .input('can_finalize', sql.Bit, can_finalize)
+      .input('approver_role', sql.NVarChar, approver_role)
+      .query(`
+        INSERT INTO workflow_approvers (workflow_id, user_id, can_approve, can_forward, can_finalize, approver_role)
+        OUTPUT INSERTED.*
+        VALUES (@workflowId, @user_id, @can_approve, @can_forward, @can_finalize, @approver_role)
+      `);
+    
+    res.json({ success: true, data: result.recordset[0] });
+  } catch (error) {
+    console.error('Error adding workflow approver:', error);
+    res.status(500).json({ error: 'Failed to add workflow approver', details: error.message });
+  }
+});
+
+// Get active AspNetUsers for approver selection
+app.get('/api/aspnet-users/active', async (req, res) => {
+  try {
+    const request = pool.request();
+    const result = await request.query(`
+      SELECT Id, FullName, Role, intDesignationID, intOfficeID, intWingID
+      FROM AspNetUsers 
+      WHERE ISACT = 1
+      ORDER BY FullName
+    `);
+    
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('Error fetching active AspNetUsers:', error);
+    res.status(500).json({ error: 'Failed to fetch active users', details: error.message });
+  }
+});
+
+// Submit request for approval
+app.post('/api/approvals/submit', async (req, res) => {
+  try {
+    const { request_id, request_type, workflow_id } = req.body;
+    const userId = req.session?.userId || 'system'; // Get from session
+    
+    const request = pool.request();
+    
+    // Get first approver from workflow (you can customize this logic)
+    const workflowResult = await request
+      .input('workflow_id', sql.UniqueIdentifier, workflow_id)
+      .query(`
+        SELECT TOP 1 user_id 
+        FROM workflow_approvers 
+        WHERE workflow_id = @workflow_id AND can_approve = 1
+        ORDER BY added_date
+      `);
+    
+    if (workflowResult.recordset.length === 0) {
+      return res.status(400).json({ error: 'No approvers found for this workflow' });
+    }
+    
+    const firstApproverId = workflowResult.recordset[0].user_id;
+    
+    // Create approval record
+    const approvalResult = await request
+      .input('request_id', sql.UniqueIdentifier, request_id)
+      .input('request_type', sql.NVarChar, request_type)
+      .input('current_approver_id', sql.NVarChar, firstApproverId)
+      .input('submitted_by', sql.NVarChar, userId)
+      .query(`
+        INSERT INTO request_approvals (request_id, request_type, workflow_id, current_approver_id, submitted_by)
+        OUTPUT INSERTED.*
+        VALUES (@request_id, @request_type, @workflow_id, @current_approver_id, @submitted_by)
+      `);
+    
+    // Create history entry
+    await request
+      .input('approval_id', sql.UniqueIdentifier, approvalResult.recordset[0].id)
+      .input('action_by', sql.NVarChar, userId)
+      .query(`
+        INSERT INTO approval_history (request_approval_id, action_type, action_by, step_number, is_current_step)
+        VALUES (@approval_id, 'submitted', @action_by, 1, 1)
+      `);
+    
+    res.json({ success: true, data: approvalResult.recordset[0] });
+  } catch (error) {
+    console.error('Error submitting for approval:', error);
+    res.status(500).json({ error: 'Failed to submit for approval', details: error.message });
+  }
+});
+
+// Get my pending approvals
+app.get('/api/approvals/my-pending', async (req, res) => {
+  try {
+    const userId = req.session?.userId || 'demo-user'; // Get from session
+    const request = pool.request();
+    
+    const result = await request
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          ra.id,
+          ra.request_id,
+          ra.request_type,
+          ra.current_status,
+          ra.submitted_date,
+          submitter.FullName as submitted_by_name,
+          wf.workflow_name
+        FROM request_approvals ra
+        JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
+        WHERE ra.current_approver_id = @userId 
+        AND ra.current_status = 'pending'
+        ORDER BY ra.submitted_date DESC
+      `);
+    
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('Error fetching pending approvals:', error);
+    res.status(500).json({ error: 'Failed to fetch pending approvals', details: error.message });
+  }
+});
+
+// Get approval details
+app.get('/api/approvals/:approvalId', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const request = pool.request();
+    
+    const result = await request
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .query(`
+        SELECT 
+          ra.*,
+          submitter.FullName as submitted_by_name,
+          current_approver.FullName as current_approver_name,
+          wf.workflow_name
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN AspNetUsers current_approver ON ra.current_approver_id = current_approver.Id
+        LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
+        WHERE ra.id = @approvalId
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+    
+    res.json({ success: true, data: result.recordset[0] });
+  } catch (error) {
+    console.error('Error fetching approval details:', error);
+    res.status(500).json({ error: 'Failed to fetch approval details', details: error.message });
+  }
+});
+
+// Get approval history
+app.get('/api/approvals/:approvalId/history', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const request = pool.request();
+    
+    const result = await request
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .query(`
+        SELECT 
+          ah.*,
+          action_user.FullName as action_by_name,
+          action_user.Role as action_by_designation,
+          from_user.FullName as forwarded_from_name,
+          to_user.FullName as forwarded_to_name
+        FROM approval_history ah
+        LEFT JOIN AspNetUsers action_user ON ah.action_by = action_user.Id
+        LEFT JOIN AspNetUsers from_user ON ah.forwarded_from = from_user.Id
+        LEFT JOIN AspNetUsers to_user ON ah.forwarded_to = to_user.Id
+        WHERE ah.request_approval_id = @approvalId
+        ORDER BY ah.step_number
+      `);
+    
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('Error fetching approval history:', error);
+    res.status(500).json({ error: 'Failed to fetch approval history', details: error.message });
+  }
+});
+
+// Get available forwarders
+app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const request = pool.request();
+    
+    // Get workflow from approval
+    const approvalResult = await request
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .query('SELECT workflow_id FROM request_approvals WHERE id = @approvalId');
+    
+    if (approvalResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+    
+    const workflowId = approvalResult.recordset[0].workflow_id;
+    
+    // Get available forwarders
+    const result = await request
+      .input('workflowId', sql.UniqueIdentifier, workflowId)
+      .query(`
+        SELECT 
+          wa.id,
+          wa.user_id,
+          u.FullName as user_name,
+          u.Role as user_designation,
+          wa.can_approve,
+          wa.can_forward,
+          wa.can_finalize,
+          wa.approver_role
+        FROM workflow_approvers wa
+        JOIN AspNetUsers u ON wa.user_id = u.Id
+        WHERE wa.workflow_id = @workflowId 
+        AND (wa.can_approve = 1 OR wa.can_forward = 1)
+        ORDER BY u.FullName
+      `);
+    
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('Error fetching available forwarders:', error);
+    res.status(500).json({ error: 'Failed to fetch available forwarders', details: error.message });
+  }
+});
+
+// Forward request
+app.post('/api/approvals/:approvalId/forward', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const { forwarded_to, comments } = req.body;
+    const userId = req.session?.userId || 'demo-user';
+    
+    const request = pool.request();
+    
+    // Update approval record
+    await request
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('forwarded_to', sql.NVarChar, forwarded_to)
+      .query(`
+        UPDATE request_approvals 
+        SET current_approver_id = @forwarded_to, updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+    
+    // Get next step number
+    const stepResult = await request
+      .query(`
+        SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
+        FROM approval_history 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    const nextStep = stepResult.recordset[0].next_step;
+    
+    // Update current step
+    await request
+      .query(`
+        UPDATE approval_history 
+        SET is_current_step = 0 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    // Add history entry
+    await request
+      .input('action_by', sql.NVarChar, userId)
+      .input('comments', sql.NVarChar, comments)
+      .input('step_number', sql.Int, nextStep)
+      .query(`
+        INSERT INTO approval_history 
+        (request_approval_id, action_type, action_by, forwarded_from, forwarded_to, comments, step_number, is_current_step)
+        VALUES (@approvalId, 'forwarded', @action_by, @action_by, @forwarded_to, @comments, @step_number, 1)
+      `);
+    
+    res.json({ success: true, message: 'Request forwarded successfully' });
+  } catch (error) {
+    console.error('Error forwarding request:', error);
+    res.status(500).json({ error: 'Failed to forward request', details: error.message });
+  }
+});
+
+// Approve request
+app.post('/api/approvals/:approvalId/approve', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const { comments } = req.body;
+    const userId = req.session?.userId || 'demo-user';
+    
+    const request = pool.request();
+    
+    // Update approval record
+    await request
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .query(`
+        UPDATE request_approvals 
+        SET current_status = 'approved', updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+    
+    // Get next step number
+    const stepResult = await request
+      .query(`
+        SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
+        FROM approval_history 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    const nextStep = stepResult.recordset[0].next_step;
+    
+    // Update current step
+    await request
+      .query(`
+        UPDATE approval_history 
+        SET is_current_step = 0 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    // Add history entry
+    await request
+      .input('action_by', sql.NVarChar, userId)
+      .input('comments', sql.NVarChar, comments)
+      .input('step_number', sql.Int, nextStep)
+      .query(`
+        INSERT INTO approval_history 
+        (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+        VALUES (@approvalId, 'approved', @action_by, @comments, @step_number, 1)
+      `);
+    
+    res.json({ success: true, message: 'Request approved successfully' });
+  } catch (error) {
+    console.error('Error approving request:', error);
+    res.status(500).json({ error: 'Failed to approve request', details: error.message });
+  }
+});
+
+// Reject request
+app.post('/api/approvals/:approvalId/reject', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const { comments } = req.body;
+    const userId = req.session?.userId || 'demo-user';
+    
+    if (!comments || !comments.trim()) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+    
+    const request = pool.request();
+    
+    // Update approval record
+    await request
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('rejected_by', sql.NVarChar, userId)
+      .input('rejection_reason', sql.NVarChar, comments)
+      .query(`
+        UPDATE request_approvals 
+        SET current_status = 'rejected', 
+            rejected_by = @rejected_by,
+            rejected_date = GETDATE(),
+            rejection_reason = @rejection_reason,
+            updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+    
+    // Get next step number
+    const stepResult = await request
+      .query(`
+        SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
+        FROM approval_history 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    const nextStep = stepResult.recordset[0].next_step;
+    
+    // Update current step
+    await request
+      .query(`
+        UPDATE approval_history 
+        SET is_current_step = 0 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    // Add history entry
+    await request
+      .input('action_by', sql.NVarChar, userId)
+      .input('comments', sql.NVarChar, comments)
+      .input('step_number', sql.Int, nextStep)
+      .query(`
+        INSERT INTO approval_history 
+        (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+        VALUES (@approvalId, 'rejected', @action_by, @comments, @step_number, 1)
+      `);
+    
+    res.json({ success: true, message: 'Request rejected successfully' });
+  } catch (error) {
+    console.error('Error rejecting request:', error);
+    res.status(500).json({ error: 'Failed to reject request', details: error.message });
+  }
+});
+
+// Finalize request
+app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const { comments } = req.body;
+    const userId = req.session?.userId || 'demo-user';
+    
+    const request = pool.request();
+    
+    // Check if user can finalize
+    const authResult = await request
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT wa.can_finalize
+        FROM request_approvals ra
+        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
+        WHERE ra.id = @approvalId AND wa.user_id = @userId
+      `);
+    
+    if (authResult.recordset.length === 0 || !authResult.recordset[0].can_finalize) {
+      return res.status(403).json({ error: 'You do not have permission to finalize this request' });
+    }
+    
+    // Update approval record
+    await request
+      .input('finalized_by', sql.NVarChar, userId)
+      .query(`
+        UPDATE request_approvals 
+        SET current_status = 'finalized',
+            finalized_by = @finalized_by,
+            finalized_date = GETDATE(),
+            updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+    
+    // Get next step number
+    const stepResult = await request
+      .query(`
+        SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
+        FROM approval_history 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    const nextStep = stepResult.recordset[0].next_step;
+    
+    // Update current step
+    await request
+      .query(`
+        UPDATE approval_history 
+        SET is_current_step = 0 
+        WHERE request_approval_id = @approvalId
+      `);
+    
+    // Add history entry
+    await request
+      .input('action_by', sql.NVarChar, userId)
+      .input('comments', sql.NVarChar, comments)
+      .input('step_number', sql.Int, nextStep)
+      .query(`
+        INSERT INTO approval_history 
+        (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+        VALUES (@approvalId, 'finalized', @action_by, @comments, @step_number, 1)
+      `);
+    
+    res.json({ success: true, message: 'Request finalized successfully' });
+  } catch (error) {
+    console.error('Error finalizing request:', error);
+    res.status(500).json({ error: 'Failed to finalize request', details: error.message });
+  }
+});
+
+// Get approval dashboard data
+app.get('/api/approvals/dashboard', async (req, res) => {
+  try {
+    const userId = req.session?.userId || 'demo-user';
+    const request = pool.request();
+    
+    // Get counts
+    const countsResult = await request
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          COUNT(CASE WHEN current_status = 'pending' THEN 1 END) as pending_count,
+          COUNT(CASE WHEN current_status = 'approved' THEN 1 END) as approved_count,
+          COUNT(CASE WHEN current_status = 'rejected' THEN 1 END) as rejected_count,
+          COUNT(CASE WHEN current_status = 'finalized' THEN 1 END) as finalized_count
+        FROM request_approvals ra
+        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
+        WHERE wa.user_id = @userId
+      `);
+    
+    // Get pending approvals
+    const pendingResult = await request
+      .query(`
+        SELECT TOP 5
+          ra.id,
+          ra.request_id,
+          ra.request_type,
+          ra.submitted_date,
+          submitter.FullName as submitted_by_name
+        FROM request_approvals ra
+        JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        WHERE ra.current_approver_id = @userId 
+        AND ra.current_status = 'pending'
+        ORDER BY ra.submitted_date DESC
+      `);
+    
+    // Get recent actions
+    const actionsResult = await request
+      .query(`
+        SELECT TOP 10
+          ah.action_type,
+          ah.action_date,
+          ah.comments,
+          action_user.FullName as action_by_name,
+          ra.request_type,
+          ra.request_id
+        FROM approval_history ah
+        JOIN request_approvals ra ON ah.request_approval_id = ra.id
+        JOIN AspNetUsers action_user ON ah.action_by = action_user.Id
+        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
+        WHERE wa.user_id = @userId
+        ORDER BY ah.action_date DESC
+      `);
+    
+    const dashboard = {
+      ...countsResult.recordset[0],
+      my_pending: pendingResult.recordset,
+      recent_actions: actionsResult.recordset
+    };
+    
+    res.json({ success: true, data: dashboard });
+  } catch (error) {
+    console.error('Error fetching approval dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch approval dashboard', details: error.message });
+  }
+});
+
+// Get request approval status
+app.get('/api/approvals/status', async (req, res) => {
+  try {
+    const { request_id, request_type } = req.query;
+    const request = pool.request();
+    
+    const result = await request
+      .input('request_id', sql.UniqueIdentifier, request_id)
+      .input('request_type', sql.NVarChar, request_type)
+      .query(`
+        SELECT 
+          ra.*,
+          submitter.FullName as submitted_by_name,
+          current_approver.FullName as current_approver_name,
+          wf.workflow_name
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN AspNetUsers current_approver ON ra.current_approver_id = current_approver.Id
+        LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
+        WHERE ra.request_id = @request_id AND ra.request_type = @request_type
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'No approval process found for this request' });
+    }
+    
+    res.json({ success: true, data: result.recordset[0] });
+  } catch (error) {
+    console.error('Error fetching request status:', error);
+    res.status(500).json({ error: 'Failed to fetch request status', details: error.message });
+  }
+});
+
 process.on('SIGINT', async () => {
   if (pool) {
     await pool.close();
