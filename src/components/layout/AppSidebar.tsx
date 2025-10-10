@@ -21,7 +21,11 @@ import {
   PackageOpen,
   Warehouse,
   Send,
-  Undo2
+  Undo2,
+  CheckCircle,
+  Users,
+  Settings,
+  ArrowRight
 } from "lucide-react";
 import {
   Sidebar,
@@ -95,11 +99,23 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/issuance",
       hasSubmenu: true,
       submenu: [
+        { title: "Stock Issuance", path: "/dashboard/stock-issuance" },
         { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard" },
         { title: "Stock Returns", path: "/dashboard/stock-return" },
-        { title: "Approval Management", path: "/dashboard/approval-management" },
         { title: "Issue Processing", path: "/dashboard/stock-issuance-processing" },
         { title: "Historical Issuances", path: "/dashboard/issuances" }
+      ]
+    },
+    {
+      title: "Approval System",
+      icon: CheckCircle,
+      path: "/approval",
+      hasSubmenu: true,
+      submenu: [
+        { title: "My Pending Approvals", path: "/dashboard/approval-dashboard" },
+        { title: "Workflow Configuration", path: "/dashboard/workflow-admin" },
+        { title: "Approval Manager", path: "/approval-manager" },
+        { title: "Approval Management", path: "/dashboard/approval-management" }
       ]
     },
     {
