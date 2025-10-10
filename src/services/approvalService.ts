@@ -152,7 +152,7 @@ export interface ItemApproval {
 }
 
 class ApprovalService {
-  private baseUrl = 'http://localhost:5000/api/stock-issuance';
+  private baseUrl = 'http://localhost:3001/api/stock-issuance';
 
   async getPendingRequests(): Promise<ApprovalRequest[]> {
     try {

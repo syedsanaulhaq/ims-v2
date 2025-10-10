@@ -116,11 +116,15 @@ export function StockIssuanceDashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      console.log('🔄 Loading stock issuance dashboard data...');
+      
       // Load requests
       const requestsResponse = await stockIssuanceService.getRequests(filters, {
         page: currentPage,
         limit: 10
       });
+      
+      console.log('📊 Requests response:', requestsResponse);
       
       setRequests(requestsResponse.data || []);
       setTotalPages(requestsResponse.totalPages || 1);
@@ -135,14 +139,19 @@ export function StockIssuanceDashboard() {
         });
       } else {
         // Fallback to separate stats call if counts not available
+        console.log('📈 Fallback: Loading dashboard stats separately...');
         const statsResponse = await stockIssuanceService.getDashboardStats();
+        console.log('📈 Stats response:', statsResponse);
         if (statsResponse.data) {
           setStats(statsResponse.data);
         }
       }
-    } catch (error) {toast({
+      console.log('✅ Stock issuance dashboard data loaded successfully');
+    } catch (error) {
+      console.error('❌ Error loading stock issuance dashboard data:', error);
+      toast({
         title: 'Error',
-        description: 'Failed to load dashboard data',
+        description: `Failed to load dashboard data: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: 'destructive',
       });
     } finally {

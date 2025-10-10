@@ -39,7 +39,7 @@ export interface StockIssuanceFilters {
 }
 
 class StockIssuanceService {
-  private baseUrl = 'http://localhost:5000/api/stock-issuance';
+  private baseUrl = 'http://localhost:3001/api/stock-issuance';
 
   async submitRequest(request: StockIssuanceRequest): Promise<{ id: string; request_number: string }> {
     try {
@@ -111,13 +111,19 @@ class StockIssuanceService {
       if (pagination?.limit) queryParams.append('limit', pagination.limit.toString());
       
       const url = `${this.baseUrl}/requests${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      console.log('🔗 Fetching stock issuance requests from:', url);
+      
       const response = await fetch(url);
+      console.log('📡 Response status:', response.status, response.statusText);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
+      console.log('📦 Full API Response:', result);
       console.log(`✅ Retrieved ${result.data?.length || 0} stock issuance requests from SQL Server`);
       
       // Extract data from the new API response structure  
