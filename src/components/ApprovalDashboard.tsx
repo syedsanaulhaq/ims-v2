@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   approvalForwardingService, 
   RequestApproval 
@@ -6,6 +7,7 @@ import {
 import ApprovalForwarding from './ApprovalForwarding';
 
 export const ApprovalDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [pendingApprovals, setPendingApprovals] = useState<RequestApproval[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     pending_count: 0,
@@ -46,6 +48,20 @@ export const ApprovalDashboard: React.FC = () => {
     // Refresh the dashboard when an action is completed
     setRefreshTrigger(prev => prev + 1);
     setSelectedApproval(null);
+  };
+
+  // Quick action handlers
+  const handleConfigureWorkflows = () => {
+    navigate('/dashboard/workflow-admin');
+  };
+
+  const handleManageApprovers = () => {
+    navigate('/dashboard/workflow-admin');
+  };
+
+  const handleViewAllRequests = () => {
+    // For now, just refresh the current view
+    setRefreshTrigger(prev => prev + 1);
   };
 
   const getStatusColor = (status: string) => {
@@ -196,19 +212,28 @@ export const ApprovalDashboard: React.FC = () => {
           Quick Actions
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50">
+          <button 
+            onClick={handleConfigureWorkflows}
+            className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors"
+          >
             <div className="font-medium text-gray-900">Configure Workflows</div>
             <div className="text-sm text-gray-600">Set up approval workflows for different request types</div>
           </button>
           
-          <button className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50">
+          <button 
+            onClick={handleManageApprovers}
+            className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors"
+          >
             <div className="font-medium text-gray-900">Manage Approvers</div>
             <div className="text-sm text-gray-600">Add or remove approvers from workflows</div>
           </button>
           
-          <button className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50">
-            <div className="font-medium text-gray-900">View All Requests</div>
-            <div className="text-sm text-gray-600">See all approval requests across the system</div>
+          <button 
+            onClick={handleViewAllRequests}
+            className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors"
+          >
+            <div className="font-medium text-gray-900">Refresh Dashboard</div>
+            <div className="text-sm text-gray-600">Refresh to see latest approval requests</div>
           </button>
         </div>
       </div>
