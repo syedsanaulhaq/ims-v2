@@ -1,7 +1,7 @@
 import { ApiResponse } from './api';
 import { DeliveryRecord } from './deliveryService';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'http://localhost:3001/api';
 
 // Local SQL Server delivery service
 export const deliveriesLocalService = {

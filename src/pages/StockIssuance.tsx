@@ -110,8 +110,12 @@ const StockIssuance: React.FC = () => {
 
   const fetchInitialData = async () => {
     try {
+      console.log('🔄 Loading stock issuance form data...');
+      
       // Fetch inventory items using the local service
+      console.log('📦 Fetching inventory items...');
       const inventory = await inventoryLocalService.getAll();
+      console.log('📦 Inventory response:', inventory);
 
       if (inventory && inventory.length > 0) {
         // Transform data to match the expected structure for StockIssuance
@@ -128,12 +132,15 @@ const StockIssuance: React.FC = () => {
           }));
 
         setInventoryItems(transformedItems);
+        console.log('✅ Inventory items loaded:', transformedItems.length);
       } else {
         setInventoryItems([]);
+        console.log('⚠️ No inventory items found');
       }
 
       // Fetch ERP data using ERP service
       try {
+        console.log('🏢 Fetching ERP data (offices, wings, decs, users)...');
         const [officesData, wingsData, decsData, usersData] = await Promise.all([
           erpDatabaseService.getActiveOffices(),
           erpDatabaseService.getActiveWings(),
@@ -141,16 +148,25 @@ const StockIssuance: React.FC = () => {
           erpDatabaseService.getActiveUsers()
         ]);
 
+        console.log('🏢 ERP Data loaded:', { 
+          offices: officesData.length, 
+          wings: wingsData.length, 
+          decs: decsData.length, 
+          users: usersData.length 
+        });
+
         setOffices(officesData);
         setWings(wingsData);
         setDecs(decsData);
         setUsers(usersData);
       } catch (erpError) {
-        console.error('Error loading ERP data:', erpError);
+        console.error('❌ Error loading ERP data:', erpError);
         setError('Failed to load office, wing, DEC, and user data');
       }
 
+      console.log('✅ Stock issuance form data loaded successfully');
     } catch (error: any) {
+      console.error('❌ Error loading stock issuance form data:', error);
       setError('Failed to load data: ' + error.message);
     }
   };

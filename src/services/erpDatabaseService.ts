@@ -202,7 +202,7 @@ class ERPDatabaseService {
   // Office services
   async getActiveOffices(): Promise<Office[]> {
     try {
-      const response = await fetch('http://localhost:5000/api/offices');
+      const response = await fetch('http://localhost:3001/api/offices');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -231,7 +231,7 @@ class ERPDatabaseService {
   // Wing services
   async getActiveWings(): Promise<Wing[]> {
     try {
-      const response = await fetch('http://localhost:5000/api/wings');
+      const response = await fetch('http://localhost:3001/api/wings');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -270,7 +270,7 @@ class ERPDatabaseService {
   // DEC services
   async getActiveDecs(): Promise<DEC[]> {
     try {
-      const response = await fetch('http://localhost:5000/api/decs');
+      const response = await fetch('http://localhost:3001/api/decs');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -309,7 +309,7 @@ class ERPDatabaseService {
   // Users services
   async getActiveUsers(): Promise<any[]> {
     try {
-      const response = await fetch('http://localhost:5000/api/users');
+      const response = await fetch('http://localhost:3001/api/users');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
