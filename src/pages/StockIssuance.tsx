@@ -22,6 +22,7 @@ import {
 import { inventoryLocalService } from '@/services/inventoryLocalService';
 import erpDatabaseService from '@/services/erpDatabaseService';
 import stockIssuanceService from '@/services/stockIssuanceService';
+import { approvalForwardingService } from '@/services/approvalForwardingService';
 import type { User as UserType } from '@/services/erpDatabaseService';
 import { Office as ERPOffice, Wing as ERPWing, DEC as ERPDEC } from '@/types/office';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -319,9 +320,32 @@ const StockIssuance: React.FC = () => {
 
       await stockIssuanceService.submitItems(requestResult.id, requestItems);
 
+      // Submit for approval workflow
+      try {
+        console.log('🔄 Submitting for approval workflow...');
+        
+        // Get stock issuance workflow
+        const workflows = await approvalForwardingService.getWorkflows();
+        const stockWorkflow = workflows.find(w => w.request_type === 'stock_issuance');
+        
+        if (stockWorkflow) {
+          await approvalForwardingService.submitForApproval(
+            requestResult.id, 
+            'stock_issuance', 
+            stockWorkflow.id
+          );
+          console.log('✅ Successfully submitted for approval');
+        } else {
+          console.warn('⚠️ No stock issuance workflow found - request submitted without approval process');
+        }
+      } catch (approvalError: any) {
+        console.error('❌ Error submitting for approval:', approvalError);
+        // Don't fail the entire submission if approval fails
+      }
+
       const successMessage = requestType === 'Individual' && selectedUser
-        ? `Stock issuance request ${requestNumber} submitted successfully to SQL Server for ${selectedUser.FullName}!`
-        : `Stock issuance request ${requestNumber} submitted successfully to SQL Server!`;
+        ? `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${selectedUser.FullName}!`
+        : `Stock issuance request ${requestNumber} submitted successfully and sent for approval!`;
       
       setSuccess(successMessage);
       
