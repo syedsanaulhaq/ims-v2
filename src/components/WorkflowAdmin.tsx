@@ -7,9 +7,9 @@ import {
 import { erpDatabaseService } from '../services/erpDatabaseService';
 
 interface User {
-  id: string;
-  fullName: string;
-  role: string;
+  Id: string;
+  FullName: string;
+  Role: string;
   intDesignationID?: number;
   intOfficeID?: number;
 }
@@ -54,6 +54,9 @@ export const WorkflowAdmin: React.FC = () => {
         approvalForwardingService.getWorkflows(),
         erpDatabaseService.getActiveUsers()
       ]);
+      
+      console.log('🔍 Workflows loaded:', workflowsData);
+      console.log('👥 Users loaded:', usersData);
       
       setWorkflows(workflowsData);
       setAvailableUsers(usersData);
@@ -104,7 +107,7 @@ export const WorkflowAdmin: React.FC = () => {
     if (!selectedWorkflow) return;
     
     try {
-      const selectedUser = availableUsers.find(u => u.id === newApprover.user_id);
+      const selectedUser = availableUsers.find(u => u.Id === newApprover.user_id);
       if (!selectedUser) {
         alert('Please select a valid user');
         return;
@@ -112,9 +115,9 @@ export const WorkflowAdmin: React.FC = () => {
 
       await approvalForwardingService.addWorkflowApprover(selectedWorkflow, {
         ...newApprover,
-        user_name: selectedUser.fullName,
+        user_name: selectedUser.FullName,
         user_designation: selectedUser.intDesignationID?.toString() || '',
-        user_role: selectedUser.role
+        user_role: selectedUser.Role
       });
       
       // Refresh approvers
@@ -346,7 +349,7 @@ export const WorkflowAdmin: React.FC = () => {
             <form onSubmit={handleAddApprover} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select User
+                  Select User ({availableUsers.length} users available)
                 </label>
                 <select
                   value={newApprover.user_id}
@@ -356,8 +359,8 @@ export const WorkflowAdmin: React.FC = () => {
                 >
                   <option value="">Select user...</option>
                   {availableUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.fullName} - {user.role}
+                    <option key={user.Id} value={user.Id}>
+                      {user.FullName} - {user.Role}
                     </option>
                   ))}
                 </select>
