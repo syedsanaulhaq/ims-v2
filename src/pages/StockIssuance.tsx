@@ -352,9 +352,9 @@ const StockIssuance: React.FC = () => {
       // Reset form
       resetForm();
 
-      // Navigate to dashboard after a short delay to show success message
+      // Navigate to approval dashboard to see the submitted request
       setTimeout(() => {
-        navigate('/stock-issuance-dashboard');
+        navigate('/dashboard/approval-dashboard');
       }, 3000);
 
     } catch (error: any) {
