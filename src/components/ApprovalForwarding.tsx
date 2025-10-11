@@ -6,6 +6,7 @@ import {
   WorkflowApprover,
   ApprovalAction 
 } from '../services/approvalForwardingService';
+import { sessionService } from '../services/sessionService';
 
 interface ApprovalForwardingProps {
   approvalId: string;
@@ -22,6 +23,14 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
+  // Session-based state
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userPermissions, setUserPermissions] = useState({
+    canApprove: false,
+    canForward: false,
+    canFinalize: false
+  });
+  
   // Form state
   const [selectedForwarder, setSelectedForwarder] = useState('');
   const [comments, setComments] = useState('');
@@ -34,6 +43,12 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
   const loadApprovalData = async () => {
     try {
       setLoading(true);
+      
+      // Get current user from session
+      const user = sessionService.getCurrentUser();
+      setCurrentUser(user);
+      console.log('👤 Current user:', user);
+      
       const [approvalData, historyData, forwardersData] = await Promise.all([
         approvalForwardingService.getApprovalDetails(approvalId),
         approvalForwardingService.getApprovalHistory(approvalId),
@@ -42,7 +57,26 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       
       setApproval(approvalData);
       setHistory(historyData);
-      setAvailableForwarders(forwardersData);
+      
+      // Filter forwarders to only include other users in the workflow (not current user)
+      const filteredForwarders = forwardersData.filter(f => f.user_id !== user?.user_id);
+      setAvailableForwarders(filteredForwarders);
+      
+      // Check current user permissions in this workflow
+      if (user) {
+        const userInWorkflow = forwardersData.find(f => f.user_id === user.user_id);
+        if (userInWorkflow) {
+          setUserPermissions({
+            canApprove: userInWorkflow.can_approve,
+            canForward: userInWorkflow.can_forward,
+            canFinalize: userInWorkflow.can_finalize
+          });
+          console.log('🔐 User permissions:', userInWorkflow);
+        } else {
+          console.warn('⚠️ Current user not found in workflow approvers');
+          setUserPermissions({ canApprove: false, canForward: false, canFinalize: false });
+        }
+      }
     } catch (error) {
       console.error('Error loading approval data:', error);
     } finally {
@@ -51,7 +85,19 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
   };
 
   const handleAction = async (actionType: 'forwarded' | 'approved' | 'rejected' | 'finalized') => {
-    if (!approval) return;
+    if (!approval || !currentUser) return;
+    
+    // Check permissions before proceeding
+    const hasPermission = 
+      (actionType === 'approved' && userPermissions.canApprove) ||
+      (actionType === 'rejected' && userPermissions.canApprove) ||
+      (actionType === 'forwarded' && userPermissions.canForward) ||
+      (actionType === 'finalized' && userPermissions.canFinalize);
+    
+    if (!hasPermission) {
+      alert(`You don't have permission to ${actionType} this request`);
+      return;
+    }
     
     try {
       setActionLoading(true);
@@ -231,37 +277,60 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                 </select>
               </div>
 
-              {/* Action Buttons */}
+              {/* Current User Info */}
+              {currentUser && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <h5 className="text-sm font-medium text-blue-800 mb-1">Acting as:</h5>
+                  <div className="text-sm text-blue-700">
+                    <span className="font-medium">{currentUser.user_name}</span>
+                    <span className="text-blue-600 ml-2">({currentUser.role})</span>
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    Permissions: 
+                    {userPermissions.canApprove && <span className="ml-1 bg-green-100 text-green-800 px-1 rounded">Approve</span>}
+                    {userPermissions.canForward && <span className="ml-1 bg-blue-100 text-blue-800 px-1 rounded">Forward</span>}
+                    {userPermissions.canFinalize && <span className="ml-1 bg-purple-100 text-purple-800 px-1 rounded">Finalize</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons - Based on Current User Permissions */}
               <div className="flex space-x-3 pt-4">
-                {/* Forward Button */}
-                <button
-                  onClick={() => handleAction('forwarded')}
-                  disabled={actionLoading || !selectedForwarder}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {actionLoading ? 'Processing...' : 'Forward'}
-                </button>
+                {/* Forward Button - Only show if user can forward */}
+                {userPermissions.canForward && (
+                  <button
+                    onClick={() => handleAction('forwarded')}
+                    disabled={actionLoading || !selectedForwarder}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading ? 'Processing...' : 'Forward'}
+                  </button>
+                )}
 
-                {/* Approve Button */}
-                <button
-                  onClick={() => handleAction('approved')}
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {actionLoading ? 'Processing...' : 'Approve'}
-                </button>
+                {/* Approve Button - Only show if user can approve */}
+                {userPermissions.canApprove && (
+                  <button
+                    onClick={() => handleAction('approved')}
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading ? 'Processing...' : 'Approve'}
+                  </button>
+                )}
 
-                {/* Reject Button */}
-                <button
-                  onClick={() => handleAction('rejected')}
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {actionLoading ? 'Processing...' : 'Reject'}
-                </button>
+                {/* Reject Button - Only show if user can approve (approve permission includes reject) */}
+                {userPermissions.canApprove && (
+                  <button
+                    onClick={() => handleAction('rejected')}
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading ? 'Processing...' : 'Reject'}
+                  </button>
+                )}
 
-                {/* Finalize Button - Only for authorized users */}
-                {currentUserCanFinalize && (
+                {/* Finalize Button - Only show if user can finalize */}
+                {userPermissions.canFinalize && (
                   <button
                     onClick={() => handleAction('finalized')}
                     disabled={actionLoading}
@@ -269,6 +338,13 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                   >
                     {actionLoading ? 'Processing...' : 'Finalize'}
                   </button>
+                )}
+                
+                {/* Show message if user has no permissions */}
+                {!userPermissions.canApprove && !userPermissions.canForward && !userPermissions.canFinalize && currentUser && (
+                  <div className="text-gray-600 py-2">
+                    You don't have permission to take actions on this request.
+                  </div>
                 )}
               </div>
             </div>
