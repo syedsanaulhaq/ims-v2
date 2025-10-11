@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { HierarchicalUserSelector } from '@/components/stock/HierarchicalUserSelector';
 import stockIssuanceService, { StockIssuanceRequest } from '@/services/stockIssuanceService';
+import { approvalForwardingService } from '@/services/approvalForwardingService';
 import { useToast } from '@/hooks/use-toast';
 
 // Form schema
@@ -121,10 +122,28 @@ export function StockIssuanceRequestForm({
         return;
       }
 
-      toast({
-        title: 'Success',
-        description: `Stock issuance request ${result.request_number} created successfully!`,
-      });
+      // Auto-submit for approval using Stock Issuance workflow
+      try {
+        console.log('📤 Submitting for approval...', result);
+        
+        await approvalForwardingService.submitForApproval(
+          result.id.toString(),
+          'stock_issuance',
+          'D806EC95-FB78-4187-8FC2-87B897C124A4' // Stock Issuance Approval workflow
+        );
+
+        toast({
+          title: 'Success',
+          description: `Stock issuance request ${result.request_number} created and submitted for approval!`,
+        });
+      } catch (approvalError) {
+        console.error('Error submitting for approval:', approvalError);
+        toast({
+          title: 'Partial Success',
+          description: `Stock issuance request ${result.request_number} created but could not submit for approval. Please submit manually.`,
+          variant: 'destructive',
+        });
+      }
 
       onSuccess?.(result);
     } catch (error) {

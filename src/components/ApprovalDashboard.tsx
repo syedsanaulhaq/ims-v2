@@ -5,6 +5,7 @@ import {
   RequestApproval 
 } from '../services/approvalForwardingService';
 import ApprovalForwarding from './ApprovalForwarding';
+import TestApprovalSubmission from './TestApprovalSubmission';
 
 export const ApprovalDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -105,6 +106,9 @@ export const ApprovalDashboard: React.FC = () => {
           Refresh
         </button>
       </div>
+
+      {/* Test Approval Submission - Remove this in production */}
+      <TestApprovalSubmission onSubmissionComplete={() => setRefreshTrigger(prev => prev + 1)} />
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
