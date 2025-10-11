@@ -29,6 +29,7 @@ export const WorkflowAdmin: React.FC = () => {
   const [showAddApprover, setShowAddApprover] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [newWorkflow, setNewWorkflow] = useState({
     workflow_name: '',
@@ -52,6 +53,11 @@ export const WorkflowAdmin: React.FC = () => {
       loadWorkflowApprovers(selectedWorkflow);
     }
   }, [selectedWorkflow]);
+
+  // Debug: Log when workflowApprovers state changes
+  useEffect(() => {
+    console.log('📊 workflowApprovers state changed:', workflowApprovers.length, 'items');
+  }, [workflowApprovers]);
 
   // Filter users based on search term
   const filteredUsers = availableUsers.filter(user =>
@@ -106,7 +112,9 @@ export const WorkflowAdmin: React.FC = () => {
       console.log('🔄 Loading approvers for workflow:', workflowId);
       const approvers = await approvalForwardingService.getWorkflowApprovers(workflowId);
       console.log('📋 Loaded approvers:', approvers);
+      console.log('📊 Current workflowApprovers state before update:', workflowApprovers.length);
       setWorkflowApprovers(approvers);
+      console.log('📊 Setting workflowApprovers to:', approvers.length, 'items');
     } catch (error) {
       console.error('❌ Error loading workflow approvers:', error);
     }
@@ -176,6 +184,10 @@ export const WorkflowAdmin: React.FC = () => {
       // Refresh approvers
       console.log('🔄 Refreshing approvers list...');
       await loadWorkflowApprovers(selectedWorkflow);
+      
+      // Force re-render
+      setRefreshCounter(prev => prev + 1);
+      console.log('🔄 Forced re-render with counter:', refreshCounter + 1);
       
       // Reset form
       setNewApprover({
@@ -355,7 +367,10 @@ export const WorkflowAdmin: React.FC = () => {
           
           {selectedWorkflow ? (
             <div className="divide-y divide-gray-200">
-              {workflowApprovers.map((approver) => (
+              {workflowApprovers.map((approver) => {
+                // Log when rendering each approver
+                console.log('🎨 Rendering approver:', approver.user_name);
+                return (
                 <div key={approver.id} className="p-4">
                   <div className="font-medium text-gray-900">
                     {approver.user_name}
@@ -384,7 +399,8 @@ export const WorkflowAdmin: React.FC = () => {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               
               {workflowApprovers.length === 0 && (
                 <div className="text-center py-8 text-gray-500">

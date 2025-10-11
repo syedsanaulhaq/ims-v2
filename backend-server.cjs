@@ -8460,10 +8460,16 @@ app.get('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
     const { workflowId } = req.params;
     console.log('🔍 Backend: Fetching approvers for workflow:', workflowId);
     
+    // Validate GUID format
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidRegex.test(workflowId)) {
+      return res.status(400).json({ error: 'Invalid workflow ID format' });
+    }
+    
     const request = pool.request();
     
     const result = await request
-      .input('workflowId', sql.UniqueIdentifier, workflowId)
+      .input('workflowId', sql.UniqueIdentifier, workflowId.toLowerCase())
       .query(`
         SELECT 
           wa.id,
@@ -8497,6 +8503,12 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
     const { workflowId } = req.params;
     const { user_id, can_approve, can_forward, can_finalize, approver_role } = req.body;
     
+    // Validate GUID format
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidRegex.test(workflowId)) {
+      return res.status(400).json({ error: 'Invalid workflow ID format' });
+    }
+    
     console.log('🔄 Backend: Adding approver to workflow:', {
       workflowId,
       user_id,
@@ -8509,7 +8521,7 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
     const request = pool.request();
     
     const result = await request
-      .input('workflowId', sql.UniqueIdentifier, workflowId)
+      .input('workflowId', sql.UniqueIdentifier, workflowId.toLowerCase())
       .input('user_id', sql.NVarChar, user_id)
       .input('can_approve', sql.Bit, can_approve)
       .input('can_forward', sql.Bit, can_forward)
