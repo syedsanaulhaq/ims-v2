@@ -169,23 +169,41 @@ export function StockIssuanceDashboard() {
   };
 
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      'Submitted': { variant: 'outline' as const, color: 'blue' },
-      'Under Review': { variant: 'secondary' as const, color: 'yellow' },
-      'Approved': { variant: 'default' as const, color: 'green' },
-      'Partially Approved': { variant: 'secondary' as const, color: 'orange' },
-      'Rejected': { variant: 'destructive' as const, color: 'red' },
-      'Issued': { variant: 'default' as const, color: 'purple' },
-      'Completed': { variant: 'outline' as const, color: 'gray' },
+    // Map database status to user-friendly display labels
+    const statusMapping = {
+      'Submitted': { label: 'Pending', variant: 'outline' as const, color: 'blue' },
+      'Under Review': { label: 'Under Review', variant: 'secondary' as const, color: 'yellow' },
+      'Approved': { label: 'Approved', variant: 'default' as const, color: 'green' },
+      'Partially Approved': { label: 'Partially Approved', variant: 'secondary' as const, color: 'orange' },
+      'Rejected': { label: 'Rejected', variant: 'destructive' as const, color: 'red' },
+      'Issued': { label: 'Issued', variant: 'default' as const, color: 'purple' },
+      'Completed': { label: 'Completed', variant: 'outline' as const, color: 'gray' },
+      'Pending': { label: 'Pending', variant: 'outline' as const, color: 'blue' },
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['Submitted'];
+    const config = statusMapping[status as keyof typeof statusMapping] || statusMapping['Submitted'];
     
     return (
       <Badge variant={config.variant}>
-        {status}
+        {config.label}
       </Badge>
     );
+  };
+
+  // Helper function to get display label for status
+  const getStatusLabel = (status: string): string => {
+    const statusMapping = {
+      'Submitted': 'Pending',
+      'Under Review': 'Under Review',
+      'Approved': 'Approved',
+      'Partially Approved': 'Partially Approved',
+      'Rejected': 'Rejected',
+      'Issued': 'Issued',
+      'Completed': 'Completed',
+      'Pending': 'Pending',
+    };
+    
+    return statusMapping[status as keyof typeof statusMapping] || status;
   };
 
   const getUrgencyBadge = (urgency: string) => {
@@ -695,7 +713,7 @@ export function StockIssuanceDashboard() {
                 <h4 className="font-medium mb-2">Request Details</h4>
                 <div className="space-y-1 text-sm">
                   <p><span className="font-medium">Request Number:</span> {requestToFinalize.request_number}</p>
-                  <p><span className="font-medium">Current Status:</span> {requestToFinalize.request_status}</p>
+                  <p><span className="font-medium">Current Status:</span> {getStatusLabel(requestToFinalize.request_status)}</p>
                   <p><span className="font-medium">Requester:</span> {requestToFinalize.requester?.full_name}</p>
                 </div>
               </div>
