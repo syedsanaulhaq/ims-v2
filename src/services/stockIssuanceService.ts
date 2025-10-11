@@ -126,14 +126,15 @@ class StockIssuanceService {
       console.log('📦 Full API Response:', result);
       console.log(`✅ Retrieved ${result.data?.length || 0} stock issuance requests from SQL Server`);
       
-      // Extract data from the new API response structure  
+      // Extract data from the new API response structure with summary
+      const summary = result.summary || {};
       return {
         data: result.data || [],
-        totalPages: result.totalPages || 1,
-        totalCount: result.totalCount || 0,
-        pendingCount: result.pendingCount || 0,
-        approvedCount: result.approvedCount || 0,
-        issuedCount: result.issuedCount || 0
+        totalPages: result.pagination?.totalPages || 1,
+        totalCount: summary.totalCount || 0,
+        pendingCount: summary.pendingCount || 0,
+        approvedCount: summary.approvedCount || 0,
+        issuedCount: summary.issuedCount || 0
       };
     } catch (error) {
       console.error('❌ Error fetching stock issuance requests:', error);
