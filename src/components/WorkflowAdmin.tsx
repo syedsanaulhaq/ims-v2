@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   approvalForwardingService, 
   ApprovalWorkflow, 
@@ -12,6 +12,8 @@ interface User {
   Role: string;
   intDesignationID?: number;
   intOfficeID?: number;
+  intWingID?: number;
+  wingName?: string;
 }
 
 export const WorkflowAdmin: React.FC = () => {
@@ -24,6 +26,9 @@ export const WorkflowAdmin: React.FC = () => {
   // Form states
   const [showCreateWorkflow, setShowCreateWorkflow] = useState(false);
   const [showAddApprover, setShowAddApprover] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [newWorkflow, setNewWorkflow] = useState({
     workflow_name: '',
     request_type: '',
@@ -47,19 +52,47 @@ export const WorkflowAdmin: React.FC = () => {
     }
   }, [selectedWorkflow]);
 
+  // Filter users based on search term
+  const filteredUsers = availableUsers.filter(user =>
+    user.FullName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+    user.wingName?.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [workflowsData, usersData] = await Promise.all([
+      const [workflowsData, usersData, wingsData] = await Promise.all([
         approvalForwardingService.getWorkflows(),
-        erpDatabaseService.getActiveUsers()
+        erpDatabaseService.getActiveUsers(),
+        erpDatabaseService.getWingsInformation()
       ]);
       
+      // Map wing names to users
+      const usersWithWings = usersData.map(user => ({
+        ...user,
+        wingName: wingsData.find(wing => wing.Id === user.intWingID)?.Name || 'Unknown Wing'
+      }));
+      
       console.log('🔍 Workflows loaded:', workflowsData);
-      console.log('👥 Users loaded:', usersData);
+      console.log('👥 Users loaded:', usersWithWings);
+      console.log('� Wings loaded:', wingsData);
       
       setWorkflows(workflowsData);
-      setAvailableUsers(usersData);
+      setAvailableUsers(usersWithWings);
     } catch (error) {
       console.error('Error loading initial data:', error);
     } finally {
@@ -131,6 +164,8 @@ export const WorkflowAdmin: React.FC = () => {
         can_finalize: false,
         approver_role: ''
       });
+      setUserSearchTerm('');
+      setShowUserDropdown(false);
       setShowAddApprover(false);
       
       alert('Approver added successfully!');
@@ -351,19 +386,43 @@ export const WorkflowAdmin: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Select User ({availableUsers.length} users available)
                 </label>
-                <select
-                  value={newApprover.user_id}
-                  onChange={(e) => setNewApprover({...newApprover, user_id: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select user...</option>
-                  {availableUsers.map((user) => (
-                    <option key={user.Id} value={user.Id}>
-                      {user.FullName} - {user.Role}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative" ref={dropdownRef}>
+                  <input
+                    type="text"
+                    placeholder="Search users by name or wing..."
+                    value={userSearchTerm}
+                    onChange={(e) => {
+                      setUserSearchTerm(e.target.value);
+                      setShowUserDropdown(true);
+                    }}
+                    onFocus={() => setShowUserDropdown(true)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {showUserDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {filteredUsers.length > 0 ? (
+                        filteredUsers.map((user) => (
+                          <div
+                            key={user.Id}
+                            onClick={() => {
+                              setNewApprover({...newApprover, user_id: user.Id});
+                              setUserSearchTerm(`${user.FullName} - ${user.wingName}`);
+                              setShowUserDropdown(false);
+                            }}
+                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900">{user.FullName}</div>
+                            <div className="text-sm text-gray-600">{user.wingName}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-gray-500">No users found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Hidden field to store selected user ID for form validation */}
+                <input type="hidden" value={newApprover.user_id} required />
               </div>
               
               <div>

@@ -247,6 +247,11 @@ class ERPDatabaseService {
     }
   }
 
+  // Alias method for WingsInformation table - same as getActiveWings
+  async getWingsInformation(): Promise<Wing[]> {
+    return this.getActiveWings();
+  }
+
   async getWingsByOffice(officeId: number): Promise<Wing[]> {
     try {
       await new Promise(resolve => setTimeout(resolve, 200));
