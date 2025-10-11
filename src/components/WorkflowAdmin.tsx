@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   approvalForwardingService, 
   ApprovalWorkflow, 
-  WorkflowApprover 
+  WorkflowApprover,
+  AddWorkflowApproverPayload 
 } from '../services/approvalForwardingService';
 import { erpDatabaseService } from '../services/erpDatabaseService';
 
@@ -102,10 +103,12 @@ export const WorkflowAdmin: React.FC = () => {
 
   const loadWorkflowApprovers = async (workflowId: string) => {
     try {
+      console.log('🔄 Loading approvers for workflow:', workflowId);
       const approvers = await approvalForwardingService.getWorkflowApprovers(workflowId);
+      console.log('📋 Loaded approvers:', approvers);
       setWorkflowApprovers(approvers);
     } catch (error) {
-      console.error('Error loading workflow approvers:', error);
+      console.error('❌ Error loading workflow approvers:', error);
     }
   };
 
@@ -146,14 +149,32 @@ export const WorkflowAdmin: React.FC = () => {
         return;
       }
 
-      await approvalForwardingService.addWorkflowApprover(selectedWorkflow, {
-        ...newApprover,
-        user_name: selectedUser.FullName,
-        user_designation: selectedUser.intDesignationID?.toString() || '',
-        user_role: selectedUser.Role
+      console.log('🔄 Adding approver with data:', {
+        workflowId: selectedWorkflow,
+        approver: {
+          user_id: newApprover.user_id,
+          can_approve: newApprover.can_approve,
+          can_forward: newApprover.can_forward,
+          can_finalize: newApprover.can_finalize,
+          approver_role: newApprover.approver_role
+        }
+      });
+
+      const result = await approvalForwardingService.addWorkflowApprover(selectedWorkflow, {
+        user_id: newApprover.user_id,
+        can_approve: newApprover.can_approve,
+        can_forward: newApprover.can_forward,
+        can_finalize: newApprover.can_finalize,
+        approver_role: newApprover.approver_role
       });
       
+      console.log('✅ Approver added successfully:', result);
+      
+      // Small delay to ensure database transaction is committed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Refresh approvers
+      console.log('🔄 Refreshing approvers list...');
       await loadWorkflowApprovers(selectedWorkflow);
       
       // Reset form
@@ -170,7 +191,7 @@ export const WorkflowAdmin: React.FC = () => {
       
       alert('Approver added successfully!');
     } catch (error: any) {
-      console.error('Error adding approver:', error);
+      console.error('❌ Error adding approver:', error);
       alert(`Failed to add approver: ${error.message}`);
     }
   };
@@ -284,7 +305,10 @@ export const WorkflowAdmin: React.FC = () => {
                 className={`p-4 cursor-pointer hover:bg-gray-50 ${
                   selectedWorkflow === workflow.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                 }`}
-                onClick={() => setSelectedWorkflow(workflow.id)}
+                onClick={() => {
+                  console.log('🎯 Selecting workflow:', workflow.id, workflow.workflow_name);
+                  setSelectedWorkflow(workflow.id);
+                }}
               >
                 <div className="font-medium text-gray-900">
                   {workflow.workflow_name}

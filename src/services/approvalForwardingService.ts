@@ -25,6 +25,14 @@ export interface WorkflowApprover {
   approver_role: string;
 }
 
+export interface AddWorkflowApproverPayload {
+  user_id: string;
+  can_approve: boolean;
+  can_forward: boolean;
+  can_finalize: boolean;
+  approver_role: string;
+}
+
 export interface RequestApproval {
   id: string;
   request_id: string;
@@ -124,7 +132,7 @@ class ApprovalForwardingService {
     }
   }
   
-  async addWorkflowApprover(workflowId: string, approver: Omit<WorkflowApprover, 'id' | 'workflow_id'>): Promise<WorkflowApprover> {
+  async addWorkflowApprover(workflowId: string, approver: AddWorkflowApproverPayload): Promise<WorkflowApprover> {
     try {
       const response = await fetch(`${API_BASE_URL}/approval-workflows/${workflowId}/approvers`, {
         method: 'POST',

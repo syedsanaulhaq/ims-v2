@@ -8458,6 +8458,8 @@ app.post('/api/approval-workflows', async (req, res) => {
 app.get('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
   try {
     const { workflowId } = req.params;
+    console.log('🔍 Backend: Fetching approvers for workflow:', workflowId);
+    
     const request = pool.request();
     
     const result = await request
@@ -8481,9 +8483,10 @@ app.get('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
         ORDER BY wa.added_date
       `);
     
+    console.log('📋 Backend: Found approvers:', result.recordset.length, 'records');
     res.json({ success: true, data: result.recordset });
   } catch (error) {
-    console.error('Error fetching workflow approvers:', error);
+    console.error('❌ Backend: Error fetching workflow approvers:', error);
     res.status(500).json({ error: 'Failed to fetch workflow approvers', details: error.message });
   }
 });
@@ -8493,6 +8496,16 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
   try {
     const { workflowId } = req.params;
     const { user_id, can_approve, can_forward, can_finalize, approver_role } = req.body;
+    
+    console.log('🔄 Backend: Adding approver to workflow:', {
+      workflowId,
+      user_id,
+      can_approve,
+      can_forward,
+      can_finalize,
+      approver_role
+    });
+    
     const request = pool.request();
     
     const result = await request
@@ -8508,9 +8521,10 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
         VALUES (@workflowId, @user_id, @can_approve, @can_forward, @can_finalize, @approver_role)
       `);
     
+    console.log('✅ Backend: Approver added successfully:', result.recordset[0]);
     res.json({ success: true, data: result.recordset[0] });
   } catch (error) {
-    console.error('Error adding workflow approver:', error);
+    console.error('❌ Backend: Error adding workflow approver:', error);
     res.status(500).json({ error: 'Failed to add workflow approver', details: error.message });
   }
 });
