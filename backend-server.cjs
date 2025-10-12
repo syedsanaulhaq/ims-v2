@@ -8709,6 +8709,97 @@ app.get('/api/approvals/my-pending', async (req, res) => {
   }
 });
 
+// Get approval dashboard data - MUST come before /:approvalId route
+app.get('/api/approvals/dashboard', async (req, res) => {
+  try {
+    // Get userId using the same logic as my-pending endpoint
+    let userId = req.query.userId;
+    
+    if (!userId) {
+      // Try to get the current logged-in user from AspNetUsers
+      try {
+        const userResult = await pool.request().query(`
+          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
+        `);
+        if (userResult.recordset.length > 0) {
+          userId = userResult.recordset[0].Id;
+          console.log('📊 Dashboard: Auto-detected logged-in user:', userId);
+        }
+      } catch (error) {
+        console.log('⚠️ Dashboard: Could not auto-detect user, using fallback');
+      }
+    }
+    
+    // Final fallback
+    if (!userId) {
+      userId = 'DEV-USER-001';
+    }
+    
+    console.log('📊 Dashboard: Fetching dashboard data for user:', userId);
+    const request = pool.request();
+    
+    // Get counts
+    const countsResult = await request
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          COUNT(CASE WHEN current_status = 'pending' THEN 1 END) as pending_count,
+          COUNT(CASE WHEN current_status = 'approved' THEN 1 END) as approved_count,
+          COUNT(CASE WHEN current_status = 'rejected' THEN 1 END) as rejected_count,
+          COUNT(CASE WHEN current_status = 'finalized' THEN 1 END) as finalized_count
+        FROM request_approvals ra
+        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
+        WHERE wa.user_id = @userId
+      `);
+    
+    // Get pending approvals
+    const pendingResult = await request
+      .query(`
+        SELECT TOP 5
+          ra.id,
+          ra.request_id,
+          ra.request_type,
+          ra.submitted_date,
+          submitter.FullName as submitted_by_name
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        WHERE ra.current_approver_id = @userId 
+        AND ra.current_status = 'pending'
+        ORDER BY ra.submitted_date DESC
+      `);
+    
+    // Get recent actions
+    const actionsResult = await request
+      .query(`
+        SELECT TOP 10
+          ah.action_type,
+          ah.action_date,
+          ah.comments,
+          action_user.FullName as action_by_name,
+          ra.request_type,
+          ra.request_id
+        FROM approval_history ah
+        JOIN request_approvals ra ON ah.request_approval_id = ra.id
+        LEFT JOIN AspNetUsers action_user ON ah.action_by = action_user.Id
+        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
+        WHERE wa.user_id = @userId
+        ORDER BY ah.action_date DESC
+      `);
+    
+    const dashboard = {
+      ...countsResult.recordset[0],
+      my_pending: pendingResult.recordset,
+      recent_actions: actionsResult.recordset
+    };
+    
+    console.log('📊 Dashboard: Returning dashboard data:', dashboard);
+    res.json({ success: true, data: dashboard });
+  } catch (error) {
+    console.error('❌ Dashboard: Error fetching approval dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch approval dashboard', details: error.message });
+  }
+});
+
 // Get approval details
 app.get('/api/approvals/:approvalId', async (req, res) => {
   try {
@@ -9057,73 +9148,6 @@ app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
   } catch (error) {
     console.error('Error finalizing request:', error);
     res.status(500).json({ error: 'Failed to finalize request', details: error.message });
-  }
-});
-
-// Get approval dashboard data
-app.get('/api/approvals/dashboard', async (req, res) => {
-  try {
-    const userId = req.session?.userId || 'demo-user';
-    const request = pool.request();
-    
-    // Get counts
-    const countsResult = await request
-      .input('userId', sql.NVarChar, userId)
-      .query(`
-        SELECT 
-          COUNT(CASE WHEN current_status = 'pending' THEN 1 END) as pending_count,
-          COUNT(CASE WHEN current_status = 'approved' THEN 1 END) as approved_count,
-          COUNT(CASE WHEN current_status = 'rejected' THEN 1 END) as rejected_count,
-          COUNT(CASE WHEN current_status = 'finalized' THEN 1 END) as finalized_count
-        FROM request_approvals ra
-        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
-        WHERE wa.user_id = @userId
-      `);
-    
-    // Get pending approvals
-    const pendingResult = await request
-      .query(`
-        SELECT TOP 5
-          ra.id,
-          ra.request_id,
-          ra.request_type,
-          ra.submitted_date,
-          submitter.FullName as submitted_by_name
-        FROM request_approvals ra
-        JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
-        WHERE ra.current_approver_id = @userId 
-        AND ra.current_status = 'pending'
-        ORDER BY ra.submitted_date DESC
-      `);
-    
-    // Get recent actions
-    const actionsResult = await request
-      .query(`
-        SELECT TOP 10
-          ah.action_type,
-          ah.action_date,
-          ah.comments,
-          action_user.FullName as action_by_name,
-          ra.request_type,
-          ra.request_id
-        FROM approval_history ah
-        JOIN request_approvals ra ON ah.request_approval_id = ra.id
-        JOIN AspNetUsers action_user ON ah.action_by = action_user.Id
-        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
-        WHERE wa.user_id = @userId
-        ORDER BY ah.action_date DESC
-      `);
-    
-    const dashboard = {
-      ...countsResult.recordset[0],
-      my_pending: pendingResult.recordset,
-      recent_actions: actionsResult.recordset
-    };
-    
-    res.json({ success: true, data: dashboard });
-  } catch (error) {
-    console.error('Error fetching approval dashboard:', error);
-    res.status(500).json({ error: 'Failed to fetch approval dashboard', details: error.message });
   }
 });
 
