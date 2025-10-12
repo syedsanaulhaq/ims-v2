@@ -8587,6 +8587,7 @@ app.post('/api/approvals/submit', async (req, res) => {
     const approvalResult = await request
       .input('request_id', sql.UniqueIdentifier, request_id)
       .input('request_type', sql.NVarChar, request_type)
+      .input('workflow_id', sql.UniqueIdentifier, workflow_id)
       .input('current_approver_id', sql.NVarChar, firstApproverId)
       .input('submitted_by', sql.NVarChar, userId)
       .query(`
