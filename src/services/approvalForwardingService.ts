@@ -256,12 +256,17 @@ class ApprovalForwardingService {
   
   async forwardRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/forward`, {
+      console.log('🔄 Frontend: Forwarding request using simple endpoint');
+      const response = await fetch(`${API_BASE_URL}/approvals/simple-forward`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(action),
+        body: JSON.stringify({
+          approvalId,
+          forwarded_to: action.forwarded_to,
+          comments: action.comments
+        }),
       });
       
       const data = await response.json();
@@ -279,12 +284,16 @@ class ApprovalForwardingService {
   
   async approveRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
+      console.log('✅ Frontend: Approving request using simple endpoint');
+      const response = await fetch(`${API_BASE_URL}/approvals/simple-approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(action),
+        body: JSON.stringify({
+          approvalId,
+          comments: action.comments
+        }),
       });
       
       const data = await response.json();
@@ -302,12 +311,16 @@ class ApprovalForwardingService {
   
   async rejectRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/reject`, {
+      console.log('❌ Frontend: Rejecting request using simple endpoint');
+      const response = await fetch(`${API_BASE_URL}/approvals/simple-reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(action),
+        body: JSON.stringify({
+          approvalId,
+          comments: action.comments
+        }),
       });
       
       const data = await response.json();

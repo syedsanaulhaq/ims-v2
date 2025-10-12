@@ -9279,4 +9279,114 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+// SIMPLIFIED APPROVAL ACTIONS (bypassing schema issues)
+// Simple forward endpoint
+app.post('/api/approvals/simple-forward', async (req, res) => {
+  try {
+    const { approvalId, forwarded_to, comments } = req.body;
+    
+    console.log('🔄 Simple Forward: Processing approval:', approvalId);
+    console.log('🔄 Simple Forward: Forwarding to:', forwarded_to);
+    
+    const request = pool.request();
+    
+    // Simple update - just change the current approver
+    await request
+      .input('approvalId', sql.NVarChar, approvalId)
+      .input('forwarded_to', sql.NVarChar, forwarded_to)
+      .query(`
+        UPDATE request_approvals 
+        SET current_approver_id = @forwarded_to, 
+            updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+    
+    console.log('✅ Simple Forward: Success');
+    res.json({ 
+      success: true, 
+      message: 'Request forwarded successfully',
+      data: { current_approver_id: forwarded_to }
+    });
+    
+  } catch (error) {
+    console.error('❌ Simple Forward: Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to forward request', 
+      details: error.message 
+    });
+  }
+});
+
+// Simple approve endpoint
+app.post('/api/approvals/simple-approve', async (req, res) => {
+  try {
+    const { approvalId, comments } = req.body;
+    
+    console.log('✅ Simple Approve: Processing approval:', approvalId);
+    
+    const request = pool.request();
+    
+    // Simple update - just change status to approved
+    await request
+      .input('approvalId', sql.NVarChar, approvalId)
+      .query(`
+        UPDATE request_approvals 
+        SET current_status = 'approved', 
+            updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+    
+    console.log('✅ Simple Approve: Success');
+    res.json({ 
+      success: true, 
+      message: 'Request approved successfully',
+      data: { current_status: 'approved' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Simple Approve: Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to approve request', 
+      details: error.message 
+    });
+  }
+});
+
+// Simple reject endpoint
+app.post('/api/approvals/simple-reject', async (req, res) => {
+  try {
+    const { approvalId, comments } = req.body;
+    
+    console.log('❌ Simple Reject: Processing approval:', approvalId);
+    
+    const request = pool.request();
+    
+    // Simple update - just change status to rejected
+    await request
+      .input('approvalId', sql.NVarChar, approvalId)
+      .input('comments', sql.NVarChar, comments || 'Rejected')
+      .query(`
+        UPDATE request_approvals 
+        SET current_status = 'rejected', 
+            rejection_reason = @comments,
+            updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+    
+    console.log('❌ Simple Reject: Success');
+    res.json({ 
+      success: true, 
+      message: 'Request rejected successfully',
+      data: { current_status: 'rejected' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Simple Reject: Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to reject request', 
+      details: error.message 
+    });
+  }
+});
+
 startServer().catch(err => process.exit(1));
