@@ -8620,7 +8620,7 @@ app.post('/api/approvals/submit', async (req, res) => {
 // Get my pending approvals
 app.get('/api/approvals/my-pending', async (req, res) => {
   try {
-    const userId = req.session?.userId || 'DEV-USER-001'; // Use same fallback as session service
+    const userId = req.query.userId || req.session?.userId || 'DEV-USER-001'; // Use query param first, then session, then fallback
     console.log('🔍 Backend: Fetching pending approvals for user:', userId);
     
     const request = pool.request();
