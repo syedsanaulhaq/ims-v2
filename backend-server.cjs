@@ -7510,7 +7510,24 @@ app.get('/api/view-stock-transactions-clean', async (req, res) => {
 // Get all approval forwards for a user (pending on them)
 app.get('/api/approvals/pending/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
+    let { userId } = req.params;
+    
+    // Auto-detect user if needed (for Simple Test User)
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      try {
+        const userResult = await pool.request().query(`
+          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
+        `);
+        if (userResult.recordset.length > 0) {
+          userId = userResult.recordset[0].Id;
+          console.log('📋 Pending Approvals: Auto-detected user:', userId);
+        }
+      } catch (error) {
+        console.log('⚠️ Pending Approvals: Could not auto-detect user');
+      }
+    }
+    
+    console.log('📋 Pending Approvals: Fetching for user:', userId);
     
     if (!pool) {
       // Return mock data when SQL Server is not connected
@@ -7534,26 +7551,26 @@ app.get('/api/approvals/pending/:userId', async (req, res) => {
       .input('userId', sql.NVarChar, userId)
       .query(`
         SELECT 
-          af.IssuanceId,
-          si.IssuanceNumber,
-          ru.FullName as RequestedByName,
-          ru.Email as RequestedByEmail,
-          ff.FullName as ForwardedFromName,
-          ff.Email as ForwardedFromEmail,
-          af.ForwardReason,
-          af.ForwardDate,
-          af.Priority,
-          af.DueDate,
-          af.Level,
-          si.CreatedDate as RequestDate,
-          si.ApprovalStatus
-        FROM IssuanceApprovalForwards af
-        INNER JOIN StockIssuances si ON af.IssuanceId = si.Id
-        INNER JOIN AspNetUsers ru ON si.RequestedBy = ru.Id
-        INNER JOIN AspNetUsers ff ON af.ForwardedFromUserId = ff.Id
-        WHERE af.ForwardedToUserId = @userId 
-          AND af.IsActive = 1
-        ORDER BY af.ForwardDate DESC
+          ra.request_id as IssuanceId,
+          sir.request_number as IssuanceNumber,
+          submitter.FullName as RequestedByName,
+          submitter.Email as RequestedByEmail,
+          approver.FullName as ForwardedFromName,
+          approver.Email as ForwardedFromEmail,
+          'Pending approval' as ForwardReason,
+          ra.submitted_date as ForwardDate,
+          'Normal' as Priority,
+          DATEADD(day, 7, ra.submitted_date) as DueDate,
+          1 as Level,
+          ra.submitted_date as RequestDate,
+          ra.current_status as ApprovalStatus
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN AspNetUsers approver ON ra.current_approver_id = approver.Id
+        LEFT JOIN stock_issuance_requests sir ON ra.request_id = sir.id AND ra.request_type = 'stock_issuance'
+        WHERE ra.current_approver_id = @userId 
+          AND ra.current_status = 'pending'
+        ORDER BY ra.submitted_date DESC
       `);
     
     res.json(result.recordset);
