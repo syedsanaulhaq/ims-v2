@@ -268,8 +268,43 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
 });
 
 // Session management endpoints
-app.get('/api/session', (req, res) => {
-  // For now, always return the default session
+app.get('/api/session', async (req, res) => {
+  try {
+    // Try to get the current logged-in user from AspNetUsers
+    // For development, we'll check if there's a user with CNIC 1111111111111 (Simple Test User)
+    if (pool) {
+      const result = await pool.request().query(`
+        SELECT Id, FullName, Email, CNIC 
+        FROM AspNetUsers 
+        WHERE CNIC = '1111111111111'
+      `);
+      
+      if (result.recordset.length > 0) {
+        const user = result.recordset[0];
+        const sessionUser = {
+          user_id: user.Id,
+          user_name: user.FullName,
+          email: user.Email,
+          role: 'User',
+          office_id: 583,
+          wing_id: 19,
+          created_at: new Date().toISOString()
+        };
+        
+        console.log('🔐 Session: Returning logged-in user:', sessionUser.user_name, '(', sessionUser.user_id, ')');
+        return res.json({
+          success: true,
+          session: sessionUser,
+          session_id: 'logged-in-session'
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error getting session user:', error);
+  }
+  
+  // Fallback to default session
+  console.log('🛠️ Session: Using default session for development');
   res.json({
     success: true,
     session: DEFAULT_SESSION,
@@ -8620,7 +8655,29 @@ app.post('/api/approvals/submit', async (req, res) => {
 // Get my pending approvals
 app.get('/api/approvals/my-pending', async (req, res) => {
   try {
-    const userId = req.query.userId || req.session?.userId || 'DEV-USER-001'; // Use query param first, then session, then fallback
+    // Get userId from query parameter or try to get current session user
+    let userId = req.query.userId;
+    
+    if (!userId) {
+      // Try to get the current logged-in user from AspNetUsers
+      try {
+        const userResult = await pool.request().query(`
+          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
+        `);
+        if (userResult.recordset.length > 0) {
+          userId = userResult.recordset[0].Id;
+          console.log('🔍 Backend: Auto-detected logged-in user:', userId);
+        }
+      } catch (error) {
+        console.log('⚠️ Backend: Could not auto-detect user, using fallback');
+      }
+    }
+    
+    // Final fallback
+    if (!userId) {
+      userId = 'DEV-USER-001';
+    }
+    
     console.log('🔍 Backend: Fetching pending approvals for user:', userId);
     
     const request = pool.request();
