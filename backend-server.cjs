@@ -8563,11 +8563,13 @@ app.get('/api/aspnet-users/active', async (req, res) => {
 app.post('/api/approvals/submit', async (req, res) => {
   try {
     const { request_id, request_type, workflow_id } = req.body;
-    const userId = req.session?.userId || 'system'; // Get from session
+    const userId = req.session?.userId || 'DEV-USER-001'; // Use same fallback as session service
+    
+    console.log('🔄 Backend: Submitting approval request:', { request_id, request_type, workflow_id, userId });
     
     const request = pool.request();
     
-    // Get first approver from workflow (you can customize this logic)
+    // Get first approver from workflow
     const workflowResult = await request
       .input('workflow_id', sql.UniqueIdentifier, workflow_id)
       .query(`
@@ -8578,22 +8580,25 @@ app.post('/api/approvals/submit', async (req, res) => {
       `);
     
     if (workflowResult.recordset.length === 0) {
+      console.error('❌ No approvers found for workflow:', workflow_id);
       return res.status(400).json({ error: 'No approvers found for this workflow' });
     }
     
     const firstApproverId = workflowResult.recordset[0].user_id;
+    console.log('👤 First approver assigned:', firstApproverId);
     
-    // Create approval record
+    // Create approval record with proper data types
     const approvalResult = await request
       .input('request_id', sql.UniqueIdentifier, request_id)
       .input('request_type', sql.NVarChar, request_type)
       .input('workflow_id', sql.UniqueIdentifier, workflow_id)
       .input('current_approver_id', sql.NVarChar, firstApproverId)
+      .input('current_status', sql.NVarChar, 'pending')
       .input('submitted_by', sql.NVarChar, userId)
       .query(`
-        INSERT INTO request_approvals (request_id, request_type, workflow_id, current_approver_id, submitted_by)
+        INSERT INTO request_approvals (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by)
         OUTPUT INSERTED.*
-        VALUES (@request_id, @request_type, @workflow_id, @current_approver_id, @submitted_by)
+        VALUES (@request_id, @request_type, @workflow_id, @current_approver_id, @current_status, @submitted_by)
       `);
     
     // Create history entry
@@ -8615,7 +8620,9 @@ app.post('/api/approvals/submit', async (req, res) => {
 // Get my pending approvals
 app.get('/api/approvals/my-pending', async (req, res) => {
   try {
-    const userId = req.session?.userId || 'demo-user'; // Get from session
+    const userId = req.session?.userId || 'DEV-USER-001'; // Use same fallback as session service
+    console.log('🔍 Backend: Fetching pending approvals for user:', userId);
+    
     const request = pool.request();
     
     const result = await request
@@ -8630,16 +8637,17 @@ app.get('/api/approvals/my-pending', async (req, res) => {
           submitter.FullName as submitted_by_name,
           wf.workflow_name
         FROM request_approvals ra
-        JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
         LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
         WHERE ra.current_approver_id = @userId 
         AND ra.current_status = 'pending'
         ORDER BY ra.submitted_date DESC
       `);
     
+    console.log('📋 Backend: Found', result.recordset.length, 'pending approvals for user:', userId);
     res.json({ success: true, data: result.recordset });
   } catch (error) {
-    console.error('Error fetching pending approvals:', error);
+    console.error('❌ Backend: Error fetching pending approvals:', error);
     res.status(500).json({ error: 'Failed to fetch pending approvals', details: error.message });
   }
 });
