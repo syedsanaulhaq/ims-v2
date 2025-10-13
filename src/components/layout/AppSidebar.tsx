@@ -120,8 +120,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       submenu: [
         { title: "My Pending Approvals", path: "/dashboard/approval-dashboard" },
         { title: "Workflow Configuration", path: "/dashboard/workflow-admin" },
-        { title: "Approval Manager", path: "/approval-manager" },
-        { title: "Approval Management", path: "/dashboard/approval-management" }
+        { title: "Approval Manager", path: "/approval-manager" }
       ]
     },
     {
