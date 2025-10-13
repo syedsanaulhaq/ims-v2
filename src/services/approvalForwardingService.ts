@@ -256,18 +256,23 @@ class ApprovalForwardingService {
   
   async forwardRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      console.log('🔄 Frontend: Forwarding request using simple endpoint');
-      const response = await fetch(`${API_BASE_URL}/approvals/simple-forward`, {
+      console.log('🔄 Frontend: Forwarding request using original endpoint');
+      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/forward`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          approvalId,
           forwarded_to: action.forwarded_to,
           comments: action.comments
         }),
       });
+      
+      // Check if response is HTML (404 page) instead of JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        throw new Error('Endpoint not found - server returned HTML instead of JSON');
+      }
       
       const data = await response.json();
       
@@ -284,17 +289,22 @@ class ApprovalForwardingService {
   
   async approveRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      console.log('✅ Frontend: Approving request using simple endpoint');
-      const response = await fetch(`${API_BASE_URL}/approvals/simple-approve`, {
+      console.log('✅ Frontend: Approving request using original endpoint');
+      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          approvalId,
           comments: action.comments
         }),
       });
+      
+      // Check if response is HTML (404 page) instead of JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        throw new Error('Endpoint not found - server returned HTML instead of JSON');
+      }
       
       const data = await response.json();
       
