@@ -30,7 +30,8 @@ class SessionService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'include'  // Include cookies for session
       });
       
       if (!response.ok) {
@@ -108,6 +109,13 @@ class SessionService {
   // Get user wing
   getUserWingId(): number {
     return this.currentUser?.wing_id || 19;
+  }
+
+  // Force refresh session from server
+  async refreshSession(): Promise<User | null> {
+    console.log('🔄 Force refreshing session...');
+    this.clearSession();
+    return this.initializeSession();
   }
 
   // Mock login for development

@@ -208,6 +208,29 @@ export const WorkflowAdmin: React.FC = () => {
     }
   };
 
+  const handleDeleteApprover = async (approverId: string) => {
+    if (!selectedWorkflow) return;
+    
+    const confirmed = confirm('Are you sure you want to remove this approver from the workflow?');
+    if (!confirmed) return;
+    
+    try {
+      console.log('🗑️ Deleting approver:', { workflowId: selectedWorkflow, approverId });
+      
+      await approvalForwardingService.deleteWorkflowApprover(selectedWorkflow, approverId);
+      
+      console.log('✅ Approver deleted successfully');
+      
+      // Refresh the approvers list
+      await loadWorkflowApprovers(selectedWorkflow);
+      
+      alert('Approver removed successfully!');
+    } catch (error: any) {
+      console.error('❌ Error deleting approver:', error);
+      alert(`Failed to remove approver: ${error.message}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -397,6 +420,15 @@ export const WorkflowAdmin: React.FC = () => {
                         Can Finalize
                       </span>
                     )}
+                  </div>
+                  <div className="flex justify-end mt-3">
+                    <button
+                      onClick={() => handleDeleteApprover(approver.id)}
+                      className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700"
+                      title="Remove this approver from the workflow"
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
                 );

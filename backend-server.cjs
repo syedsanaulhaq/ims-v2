@@ -80,6 +80,9 @@ const upload = multer({
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve HTML files from root directory (for session setter page)
+app.use(express.static(__dirname));
+
 // SQL Server configuration - Using exact server name from SSMS
 const sqlConfig = {
   server: 'SYED-FAZLI-LAPT', // Exact server name as used in SSMS
@@ -270,6 +273,27 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
 // Session management endpoints
 app.get('/api/session', async (req, res) => {
   try {
+    // Check if we have a session user
+    if (req.session && req.session.userId) {
+      // User is properly logged in via session
+      const sessionUser = {
+        user_id: req.session.userId,
+        user_name: req.session.user?.FullName || 'Unknown User',
+        email: req.session.user?.Email || '',
+        role: req.session.user?.Role || 'User',
+        office_id: req.session.user?.intOfficeID || 583,
+        wing_id: req.session.user?.intWingID || 19,
+        created_at: new Date().toISOString()
+      };
+      
+      console.log('🔐 Session: Returning logged-in user:', sessionUser.user_name, '(', sessionUser.user_id, ')');
+      return res.json({
+        success: true,
+        session: sessionUser,
+        session_id: req.sessionID
+      });
+    }
+    
     // Try to get the current logged-in user from AspNetUsers
     // For development, we'll check if there's a user with CNIC 1111111111111 (Simple Test User)
     if (pool) {
@@ -291,11 +315,10 @@ app.get('/api/session', async (req, res) => {
           created_at: new Date().toISOString()
         };
         
-        console.log('🔐 Session: Returning logged-in user:', sessionUser.user_name, '(', sessionUser.user_id, ')');
         return res.json({
           success: true,
           session: sessionUser,
-          session_id: 'logged-in-session'
+          session_id: 'auto-detected-session'
         });
       }
     }
@@ -983,6 +1006,63 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
           GETDATE(), GETDATE(), GETDATE()
         )
       `);
+
+    // Automatically submit for approval
+    const requestId = requestResult.recordset[0].id;
+    const workflowId = 'D806EC95-FB78-4187-8FC2-87B897C124A4'; // Stock Issuance Approval workflow
+    const userId = req.session?.userId || requester_user_id; // Use session user or requester
+
+    try {
+      // Get first approver from workflow
+      const workflowResult = await pool.request()
+        .input('workflow_id', sql.UniqueIdentifier, workflowId)
+        .query(`
+          SELECT TOP 1 user_id 
+          FROM workflow_approvers 
+          WHERE workflow_id = @workflow_id AND can_approve = 1
+          ORDER BY added_date
+        `);
+
+      if (workflowResult.recordset.length > 0) {
+        const firstApproverId = workflowResult.recordset[0].user_id;
+        console.log('👤 Auto-assigning stock issuance to approver:', firstApproverId);
+
+        // Create approval record
+        await pool.request()
+          .input('request_id', sql.UniqueIdentifier, requestId)
+          .input('request_type', sql.NVarChar, 'stock_issuance')
+          .input('workflow_id', sql.UniqueIdentifier, workflowId)
+          .input('current_approver_id', sql.NVarChar, firstApproverId)
+          .input('current_status', sql.NVarChar, 'pending')
+          .input('submitted_by', sql.NVarChar, userId)
+          .query(`
+            INSERT INTO request_approvals (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by)
+            VALUES (@request_id, @request_type, @workflow_id, @current_approver_id, @current_status, @submitted_by)
+          `);
+
+        console.log('✅ Approval record created for stock issuance request:', requestId);
+        
+        // Create notification for the assigned approver
+        try {
+          await createNotification(
+            firstApproverId,
+            '🔔 New Approval Request',
+            `A new stock issuance request requires your approval. Request ID: ${requestId}`,
+            'info',
+            `/dashboard/approval-dashboard`,
+            'View Request'
+          );
+        } catch (notificationError) {
+          console.error('Failed to create notification for approver:', notificationError);
+        }
+      } else {
+        console.warn('⚠️ No approvers found for stock issuance workflow');
+      }
+    } catch (approvalError) {
+      console.error('❌ Failed to create approval record:', approvalError);
+      // Don't fail the entire request, just log the error
+    }
+
     res.json({
       success: true,
       data: requestResult.recordset[0]
@@ -8035,38 +8115,28 @@ app.get('/api/approvals/status/:issuanceId', async (req, res) => {
 // Helper function to create system notifications
 async function createNotification(userId, title, message, type = 'info', actionUrl = null, actionText = null) {
   try {
-    // In a real application, you would store notifications in the database
-    // For now, we'll just log them and return the notification object
-    const notification = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      userId,
-      title,
-      message,
-      type,
-      actionUrl,
-      actionText,
-      isRead: false,
-      createdAt: new Date().toISOString()
-    };
+    if (!pool) {
+      console.warn('⚠️ Database not available, skipping notification creation');
+      return null;
+    }
+
+    // Save notification to database
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .input('title', sql.NVarChar, title)
+      .input('message', sql.NVarChar, message)
+      .input('type', sql.NVarChar, type)
+      .input('actionUrl', sql.NVarChar, actionUrl)
+      .input('actionText', sql.NVarChar, actionText)
+      .execute('CreateNotification');
     
-    console.log(`📧 Notification created for user ${userId}:`, notification);
-    
-    // TODO: In production, save to database
-    // await pool.request()
-    //   .input('userId', sql.NVarChar, userId)
-    //   .input('title', sql.NVarChar, title)
-    //   .input('message', sql.NVarChar, message)
-    //   .input('type', sql.NVarChar, type)
-    //   .input('actionUrl', sql.NVarChar, actionUrl)
-    //   .input('actionText', sql.NVarChar, actionText)
-    //   .query(`
-    //     INSERT INTO Notifications (UserId, Title, Message, Type, ActionUrl, ActionText, IsRead, CreatedAt)
-    //     VALUES (@userId, @title, @message, @type, @actionUrl, @actionText, 0, GETDATE())
-    //   `);
+    const notification = result.recordset[0];
+    console.log(`📧 Notification created for user ${userId}: ${title}`);
     
     return notification;
   } catch (error) {
     console.error('❌ Error creating notification:', error);
+    return null;
   }
 }
 
@@ -8074,24 +8144,82 @@ async function createNotification(userId, title, message, type = 'info', actionU
 app.get('/api/notifications/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
+    const { unreadOnly = false, limit = 50 } = req.query;
     
-    // TODO: In production, fetch from database
-    // const result = await pool.request()
-    //   .input('userId', sql.NVarChar, userId)
-    //   .query(`
-    //     SELECT * FROM Notifications 
-    //     WHERE UserId = @userId 
-    //     ORDER BY CreatedAt DESC
-    //   `);
+    if (!pool) {
+      return res.json({ success: false, error: 'Database not available' });
+    }
     
-    // For now, return empty array (frontend uses localStorage)
-    res.json([]);
+    // Fetch notifications from database
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .input('unreadOnly', sql.Bit, unreadOnly === 'true')
+      .input('limit', sql.Int, parseInt(limit))
+      .execute('GetUserNotifications');
     
+    res.json({
+      success: true,
+      notifications: result.recordset
+    });
   } catch (error) {
     console.error('❌ Error fetching notifications:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch notifications' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/notifications/:notificationId/read', async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    const userId = req.session?.userId || 'DEV-USER-001';
+    
+    if (!pool) {
+      return res.json({ success: false, error: 'Database not available' });
+    }
+    
+    await pool.request()
+      .input('notificationId', sql.UniqueIdentifier, notificationId)
+      .input('userId', sql.NVarChar, userId)
+      .execute('MarkNotificationRead');
+    
+    res.json({ success: true, message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('❌ Error marking notification as read:', error);
+    res.status(500).json({ success: false, error: 'Failed to mark notification as read' });
+  }
+});
+
+// Get current user's notifications (uses session)
+app.get('/api/my-notifications', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+    
+    const { unreadOnly = false, limit = 50 } = req.query;
+    
+    if (!pool) {
+      return res.json({ success: false, error: 'Database not available' });
+    }
+    
+    // Fetch notifications from database
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .input('unreadOnly', sql.Bit, unreadOnly === 'true')
+      .input('limit', sql.Int, parseInt(limit))
+      .execute('GetUserNotifications');
+    
+    res.json({
+      success: true,
+      notifications: result.recordset
+    });
+  } catch (error) {
+    console.error('❌ Error fetching my notifications:', error);
     res.status(500).json({ 
-      error: 'Failed to fetch notifications', 
-      details: error.message 
+      success: false,
+      error: 'Failed to fetch notifications',
+      details: error.message
     });
   }
 });
@@ -8593,6 +8721,41 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
   }
 });
 
+// Delete workflow approver
+app.delete('/api/approval-workflows/:workflowId/approvers/:approverId', async (req, res) => {
+  try {
+    const { workflowId, approverId } = req.params;
+    
+    // Validate GUID formats
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidRegex.test(workflowId) || !guidRegex.test(approverId)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+    
+    console.log('🗑️ Backend: Deleting approver:', { workflowId, approverId });
+    
+    const request = pool.request();
+    
+    const result = await request
+      .input('workflowId', sql.UniqueIdentifier, workflowId.toLowerCase())
+      .input('approverId', sql.UniqueIdentifier, approverId.toLowerCase())
+      .query(`
+        DELETE FROM workflow_approvers 
+        WHERE workflow_id = @workflowId AND id = @approverId
+      `);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Approver not found' });
+    }
+    
+    console.log('✅ Backend: Approver deleted successfully');
+    res.json({ success: true, message: 'Approver deleted successfully' });
+  } catch (error) {
+    console.error('❌ Backend: Error deleting workflow approver:', error);
+    res.status(500).json({ error: 'Failed to delete workflow approver', details: error.message });
+  }
+});
+
 // Get active AspNetUsers for approver selection
 app.get('/api/aspnet-users/active', async (req, res) => {
   try {
@@ -8676,17 +8839,23 @@ app.get('/api/approvals/my-pending', async (req, res) => {
     let userId = req.query.userId;
     
     if (!userId) {
-      // Try to get the current logged-in user from AspNetUsers
-      try {
-        const userResult = await pool.request().query(`
-          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-        `);
-        if (userResult.recordset.length > 0) {
-          userId = userResult.recordset[0].Id;
-          console.log('🔍 Backend: Auto-detected logged-in user:', userId);
+      // Try to get from session first
+      if (req.session && req.session.userId) {
+        userId = req.session.userId;
+        console.log('🔍 Backend: Using session user:', userId);
+      } else {
+        // For development, try to get the Simple Test User as fallback
+        try {
+          const userResult = await pool.request().query(`
+            SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
+          `);
+          if (userResult.recordset.length > 0) {
+            userId = userResult.recordset[0].Id;
+            console.log('🔍 Backend: Auto-detected Simple Test User as fallback:', userId);
+          }
+        } catch (error) {
+          console.log('⚠️ Backend: Could not auto-detect user, using fallback');
         }
-      } catch (error) {
-        console.log('⚠️ Backend: Could not auto-detect user, using fallback');
       }
     }
     
@@ -8726,30 +8895,110 @@ app.get('/api/approvals/my-pending', async (req, res) => {
   }
 });
 
+// Get stock issuance items for approval
+app.get('/api/approval-items/:approvalId', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    console.log('📋 Backend: Fetching items for approval:', approvalId);
+    
+    const request = pool.request();
+    
+    // Use the view to get all approval and item details
+    const result = await request
+      .input('approvalId', sql.NVarChar, approvalId)
+      .query(`
+        SELECT 
+          item_id,
+          nomenclature,
+          requested_quantity,
+          approved_quantity,
+          issued_quantity,
+          item_status,
+          item_code,
+          item_description,
+          unit,
+          request_purpose,
+          expected_return_date,
+          is_returnable
+        FROM vw_approval_requests_with_items 
+        WHERE approval_id = @approvalId
+        AND item_id IS NOT NULL
+        ORDER BY nomenclature
+      `);
+    
+    console.log('📋 Backend: Found', result.recordset.length, 'items for approval');
+    res.json({ success: true, data: result.recordset });
+    
+  } catch (error) {
+    console.error('❌ Backend: Error fetching approval items:', error);
+    res.status(500).json({ error: 'Failed to fetch approval items', details: error.message });
+  }
+});
+
+// Test endpoint for approval items
+app.get('/api/test-items/:approvalId', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    console.log('🧪 Test: Fetching items for approval:', approvalId);
+    
+    // Direct SQL query without using pool.request() to avoid conflicts
+    const result = await pool.request()
+      .input('approvalId', sql.NVarChar, approvalId)
+      .query(`
+        SELECT 
+          item_id,
+          nomenclature,
+          requested_quantity,
+          item_status
+        FROM vw_approval_requests_with_items 
+        WHERE approval_id = @approvalId
+        AND item_id IS NOT NULL
+        ORDER BY nomenclature
+      `);
+    
+    console.log('🧪 Test: Found', result.recordset.length, 'items');
+    res.json({ 
+      success: true, 
+      data: result.recordset,
+      approvalId: approvalId 
+    });
+    
+  } catch (error) {
+    console.error('🧪 Test: Error:', error);
+    res.status(500).json({ error: 'Test failed', details: error.message });
+  }
+});
+
 // Get approval dashboard data - MUST come before /:approvalId route
 app.get('/api/approvals/dashboard', async (req, res) => {
   try {
-    // Get userId using the same logic as my-pending endpoint
+    // Get userId from query parameter or try to get current session user
     let userId = req.query.userId;
     
     if (!userId) {
-      // Try to get the current logged-in user from AspNetUsers
-      try {
-        const userResult = await pool.request().query(`
-          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-        `);
-        if (userResult.recordset.length > 0) {
-          userId = userResult.recordset[0].Id;
-          console.log('📊 Dashboard: Auto-detected logged-in user:', userId);
+      // Try to get from session first
+      if (req.session && req.session.userId) {
+        userId = req.session.userId;
+        console.log('📊 Dashboard: Using session user:', userId);
+      } else {
+        // For development, try to get the Simple Test User as fallback
+        try {
+          const userResult = await pool.request().query(`
+            SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
+          `);
+          if (userResult.recordset.length > 0) {
+            userId = userResult.recordset[0].Id;
+            console.log('📊 Dashboard: Auto-detected Simple Test User as fallback:', userId);
+          }
+        } catch (error) {
+          console.log('⚠️ Dashboard: Could not auto-detect user, using fallback');
         }
-      } catch (error) {
-        console.log('⚠️ Dashboard: Could not auto-detect user, using fallback');
       }
-    }
-    
-    // Final fallback
-    if (!userId) {
-      userId = 'DEV-USER-001';
+      
+      // Final fallback
+      if (!userId) {
+        userId = 'DEV-USER-001';
+      }
     }
     
     console.log('📊 Dashboard: Fetching dashboard data for user:', userId);
@@ -8864,7 +9113,7 @@ app.get('/api/approvals/:approvalId', async (req, res) => {
     const request = pool.request();
     
     const result = await request
-      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('approvalId', sql.NVarChar, approvalId)
       .query(`
         SELECT 
           ra.*,
@@ -8896,20 +9145,26 @@ app.get('/api/approvals/:approvalId/history', async (req, res) => {
     const request = pool.request();
     
     const result = await request
-      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('approvalId', sql.NVarChar, approvalId)
       .query(`
         SELECT 
           ah.*,
-          action_user.FullName as action_by_name,
-          action_user.Role as action_by_designation,
-          from_user.FullName as forwarded_from_name,
-          to_user.FullName as forwarded_to_name
+          COALESCE(action_user.FullName, 
+            CASE 
+              WHEN ah.action_by = 'demo-user' THEN 'Demo User (System)'
+              WHEN ah.action_by = 'DEV-USER-001' THEN 'Development User'
+              ELSE ah.action_by 
+            END
+          ) as action_by_name,
+          COALESCE(action_user.Role, 'System User') as action_by_designation,
+          COALESCE(from_user.FullName, ah.forwarded_from) as forwarded_from_name,
+          COALESCE(to_user.FullName, ah.forwarded_to) as forwarded_to_name
         FROM approval_history ah
         LEFT JOIN AspNetUsers action_user ON ah.action_by = action_user.Id
         LEFT JOIN AspNetUsers from_user ON ah.forwarded_from = from_user.Id
         LEFT JOIN AspNetUsers to_user ON ah.forwarded_to = to_user.Id
         WHERE ah.request_approval_id = @approvalId
-        ORDER BY ah.step_number
+        ORDER BY ah.action_date DESC, ah.step_number DESC
       `);
     
     res.json({ success: true, data: result.recordset });
@@ -8927,7 +9182,7 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
     
     // Get workflow from approval
     const approvalResult = await request
-      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('approvalId', sql.NVarChar, approvalId)
       .query('SELECT workflow_id FROM request_approvals WHERE id = @approvalId');
     
     if (approvalResult.recordset.length === 0) {
@@ -9008,8 +9263,21 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
     
     console.log('✅ Forward: Request forwarded successfully from', userId, 'to', forwarded_to);
     
-    // Skip approval_history for now due to schema mismatch (uniqueidentifier vs nvarchar)
-    // TODO: Fix approval_history schema to use nvarchar for user_ids or create GUID mapping
+    // Now add history tracking (schema is fixed!)
+    try {
+      await request
+        .input('userId', sql.NVarChar, userId)
+        .input('comments', sql.NVarChar, comments || 'Forwarded')
+        .query(`
+          INSERT INTO approval_history 
+          (request_approval_id, action_type, action_by, forwarded_from, forwarded_to, comments, step_number, is_current_step, action_date)
+          VALUES (@approvalId, 'forwarded', @userId, @userId, @forwarded_to, @comments, 1, 1, GETDATE())
+        `);
+      console.log('📝 Forward: History recorded successfully');
+    } catch (historyError) {
+      console.warn('⚠️ Forward: Could not record history:', historyError.message);
+      // Don't fail the main operation if history fails
+    }
     
     res.json({ success: true, message: 'Request forwarded successfully' });
   } catch (error) {
@@ -9195,7 +9463,7 @@ app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
     
     // Check if user can finalize
     const authResult = await request
-      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('approvalId', sql.NVarChar, approvalId)
       .input('userId', sql.NVarChar, userId)
       .query(`
         SELECT wa.can_finalize
@@ -9403,6 +9671,77 @@ app.post('/api/approvals/simple-reject', async (req, res) => {
       error: 'Failed to reject request', 
       details: error.message 
     });
+  }
+});
+
+// Temporary endpoint to set session for specific user (development only)
+app.post('/api/dev/set-session/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Get user details from database
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT Id, FullName, UserName, Email, Role, intOfficeID, intWingID
+        FROM AspNetUsers 
+        WHERE Id = @userId
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.recordset[0];
+    
+    // Set session
+    req.session.userId = user.Id;
+    req.session.user = user;
+    
+    res.json({ 
+      success: true, 
+      message: 'Session set successfully',
+      user: user
+    });
+  } catch (error) {
+    console.error('Error setting session:', error);
+    res.status(500).json({ error: 'Failed to set session' });
+  }
+});
+
+// GET version for browser compatibility
+app.get('/api/dev/set-session/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Get user details from database
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT Id, FullName, UserName, Email, Role, intOfficeID, intWingID
+        FROM AspNetUsers 
+        WHERE Id = @userId
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = result.recordset[0];
+    
+    // Set session
+    req.session.userId = user.Id;
+    req.session.user = user;
+    
+    res.json({ 
+      success: true, 
+      message: 'Session set successfully via GET',
+      user: user,
+      instructions: 'Now refresh your approval page - you should be logged in as ' + user.FullName
+    });
+  } catch (error) {
+    console.error('Error setting session:', error);
+    res.status(500).json({ error: 'Failed to set session' });
   }
 });
 

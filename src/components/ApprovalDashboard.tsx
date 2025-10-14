@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   approvalForwardingService, 
   RequestApproval 
@@ -8,6 +9,7 @@ import ApprovalForwarding from './ApprovalForwarding';
 
 export const ApprovalDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Get current user from auth context
   const [pendingApprovals, setPendingApprovals] = useState<RequestApproval[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     pending_count: 0,
@@ -20,17 +22,24 @@ export const ApprovalDashboard: React.FC = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
+    console.log('🔍 ApprovalDashboard: Current user from auth context:', user);
     loadDashboardData();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, user]); // Also reload when user changes
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
+      
+      // Pass the current user's ID to get their pending approvals
+      const userId = user?.Id;
+      console.log('🔍 Loading dashboard for user:', user?.FullName, '(', userId, ')');
+      
       const [pendingData, dashboardData] = await Promise.all([
-        approvalForwardingService.getMyPendingApprovals(),
-        approvalForwardingService.getApprovalDashboard()
+        approvalForwardingService.getMyPendingApprovals(userId),
+        approvalForwardingService.getApprovalDashboard(userId)
       ]);
       
+      console.log('📋 Pending approvals loaded:', pendingData.length);
       setPendingApprovals(pendingData);
       setDashboardStats(dashboardData);
     } catch (error) {
@@ -174,7 +183,17 @@ export const ApprovalDashboard: React.FC = () => {
                     <div className="text-sm text-gray-600">
                       Submitted by: <span className="font-medium">{approval.submitted_by_name}</span>
                       {' • '}
-                      {new Date(approval.submitted_date).toLocaleDateString()}
+                      {(() => {
+                        const date = new Date(approval.submitted_date);
+                        return date.toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        });
+                      })()}
                     </div>
                   </div>
                   

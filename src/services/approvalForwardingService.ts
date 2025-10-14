@@ -1,6 +1,8 @@
 // Approval Forwarding Service
 // Handles the complete approval workflow system
 
+import { sessionService } from './sessionService';
+
 const API_BASE_URL = 'http://localhost:3001/api';
 
 export interface ApprovalWorkflow {
@@ -154,6 +156,23 @@ class ApprovalForwardingService {
       throw error;
     }
   }
+
+  async deleteWorkflowApprover(workflowId: string, approverId: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/approval-workflows/${workflowId}/approvers/${approverId}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete workflow approver');
+      }
+    } catch (error) {
+      console.error('Error deleting workflow approver:', error);
+      throw error;
+    }
+  }
   
   // ======================
   // REQUEST APPROVAL OPERATIONS
@@ -186,9 +205,26 @@ class ApprovalForwardingService {
     }
   }
   
-  async getMyPendingApprovals(): Promise<RequestApproval[]> {
+  async getMyPendingApprovals(userId?: string): Promise<RequestApproval[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/my-pending`);
+      // Use provided userId first, then session user, then let backend handle
+      let url = `${API_BASE_URL}/approvals/my-pending`;
+      
+      if (userId) {
+        url += `?userId=${encodeURIComponent(userId)}`;
+        console.log('📋 Using provided user ID for pending approvals:', userId);
+      } else {
+        // Get current user from session as fallback
+        const currentUser = sessionService.getCurrentUser();
+        if (currentUser?.user_id) {
+          url += `?userId=${encodeURIComponent(currentUser.user_id)}`;
+          console.log('📋 Using session user ID for pending approvals:', currentUser.user_id);
+        } else {
+          console.warn('⚠️ No user ID provided, using backend auto-detection');
+        }
+      }
+      
+      const response = await fetch(url);
       const data = await response.json();
       
       if (!response.ok) {
@@ -373,7 +409,7 @@ class ApprovalForwardingService {
   // DASHBOARD & REPORTING
   // ======================
   
-  async getApprovalDashboard(): Promise<{
+  async getApprovalDashboard(userId?: string): Promise<{
     pending_count: number;
     approved_count: number;
     rejected_count: number;
@@ -382,7 +418,11 @@ class ApprovalForwardingService {
     recent_actions: ApprovalHistory[];
   }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/dashboard`);
+      const url = userId 
+        ? `${API_BASE_URL}/approvals/dashboard?userId=${encodeURIComponent(userId)}`
+        : `${API_BASE_URL}/approvals/dashboard`;
+      
+      const response = await fetch(url);
       const data = await response.json();
       
       if (!response.ok) {

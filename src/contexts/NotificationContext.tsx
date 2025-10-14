@@ -59,12 +59,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     localStorage.setItem(`notifications_${user?.Id}`, JSON.stringify(stored.slice(0, 50))); // Keep only 50 latest
   };
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
+    // Update UI immediately
     setNotifications(prev => 
       prev.map(n => n.id === id ? { ...n, isRead: true } : n)
     );
     
-    // Update localStorage
+    try {
+      // Update backend
+      await fetch(`http://localhost:3001/api/notifications/${id}/read`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+    
+    // Update localStorage as backup
     const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
     const updated = stored.map((n: Notification) => n.id === id ? { ...n, isRead: true } : n);
     localStorage.setItem(`notifications_${user?.Id}`, JSON.stringify(updated));
@@ -96,27 +110,68 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   };
 
   const loadNotifications = async () => {
+    if (!user?.Id) return;
+    
     try {
-      // Load from localStorage first
+      // Load from backend API
+      const response = await fetch(`http://localhost:3001/api/my-notifications?limit=50`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.notifications) {
+          const apiNotifications = data.notifications.map((n: any) => ({
+            id: n.Id,
+            title: n.Title,
+            message: n.Message,
+            type: n.Type as 'info' | 'success' | 'warning' | 'error',
+            isRead: n.IsRead,
+            createdAt: new Date(n.CreatedAt),
+            actionUrl: n.ActionUrl,
+            actionText: n.ActionText
+          }));
+          
+          setNotifications(apiNotifications);
+          console.log('✅ Loaded notifications from API:', apiNotifications.length);
+          return;
+        }
+      }
+      
+      // Fallback to localStorage if API fails
+      console.warn('⚠️ Failed to load from API, using localStorage fallback');
       const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
       setNotifications(stored.map((n: any) => ({
         ...n,
         createdAt: new Date(n.createdAt)
       })));
-
-      // TODO: In future, load from backend API
-      // const response = await fetch(`/api/notifications/${user?.Id}`);
-      // const serverNotifications = await response.json();
-      // setNotifications(serverNotifications);
       
     } catch (error) {
       console.error('Failed to load notifications:', error);
+      
+      // Fallback to localStorage
+      const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
+      setNotifications(stored.map((n: any) => ({
+        ...n,
+        createdAt: new Date(n.createdAt)
+      })));
     }
   };
 
   useEffect(() => {
     if (user?.Id) {
       loadNotifications();
+      
+      // Refresh notifications every 30 seconds
+      const interval = setInterval(() => {
+        loadNotifications();
+      }, 30000);
+      
+      return () => clearInterval(interval);
     }
   }, [user?.Id]);
 
