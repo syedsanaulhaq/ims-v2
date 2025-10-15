@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import {
+import { 
   Home,
-  Package,
+  Package, 
   Boxes,
   ArrowRightLeft,
   Building2,
@@ -45,12 +45,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface AppSidebarProps {
   limitedMenu?: boolean;
@@ -58,64 +52,53 @@ interface AppSidebarProps {
 
 const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const location = useLocation();
-  const { state } = useSidebar();
 
-  const allMenuItems = [
-    {
-      title: "My Dashboard",
-      icon: Home,
-      path: "/",
-      hasSubmenu: false
-    },
-    {
-      title: "Inv. Dashboard",
-      icon: BarChart3,
+  const isActive = (path: string) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  const menuItems = [
+    { 
+      title: "Dashboard", 
+      icon: Home, 
       path: "/dashboard",
-      hasSubmenu: false
+      variant: "default" as const
     },
     {
-      title: "Inventory Manager",
+      title: "Inventory Management",
       icon: Package,
-      path: "/inventory",
-      hasSubmenu: true,
       submenu: [
-        { title: "Initial Setup", path: "/dashboard/initial-setup" },
-        { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard" },
-        { title: "Item Master", path: "/dashboard/item-master" },
-        { title: "Categories", path: "/dashboard/categories" },
-        { title: "Inventory Settings", path: "/dashboard/inventory-settings" }
+        { title: "Current Inventory Status", path: "/dashboard/inventory/current-status" },
+        { title: "Stock Inquiry", path: "/dashboard/stock-inquiry" },
+        { title: "Add New Items", path: "/dashboard/item-master" },
+        { title: "Ledger", path: "/dashboard/ledger" },
+        { title: "Analytics", path: "/dashboard/inventory-report" },
+        { title: "Transfer Stock", path: "/dashboard/stock-transfer" }
       ]
     },
     {
-      title: "Procurement Manager",
-      icon: Building2,
-      path: "/procurement",
-      hasSubmenu: true,
+      title: "Stock Transactions",
+      icon: ArrowRightLeft,
       submenu: [
-        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard" },
-        { title: "Contract/Tender", path: "/dashboard/contract-tender" },
-        { title: "Spot Purchase", path: "/dashboard/spot-purchases" },
-        { title: "Vendor Management", path: "/dashboard/vendors" }
+        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition" },
+        { title: "Issue / Return", path: "/dashboard/stock-issuance" },
+        { title: "Delivery", path: "/dashboard/delivery-management" },
+        { title: "Consumption", path: "/dashboard/consumption" },
+        { title: "View Transactions", path: "/dashboard/transactions" }
       ]
     },
     {
-      title: "Issuance Manager",
-      icon: Warehouse,
-      path: "/issuance",
-      hasSubmenu: true,
+      title: "Procurement & Tenders",
+      icon: Gavel,
       submenu: [
-        { title: "Stock Issuance", path: "/dashboard/stock-issuance" },
-        { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard" },
-        { title: "Stock Returns", path: "/dashboard/stock-return" },
-        { title: "Issue Processing", path: "/dashboard/stock-issuance-processing" },
-        { title: "Historical Issuances", path: "/dashboard/issuances" }
+        { title: "Create Tender", path: "/dashboard/tender-creation" },
+        { title: "View Tenders", path: "/dashboard/tenders" },
+        { title: "Tender Analytics", path: "/dashboard/tender-analytics" }
       ]
     },
     {
-      title: "Approval System",
+      title: "Approvals",
       icon: CheckCircle,
-      path: "/approval",
-      hasSubmenu: true,
       submenu: [
         { title: "My Pending Approvals", path: "/dashboard/approval-dashboard" },
         { title: "My Requests", path: "/dashboard/my-requests" },
@@ -126,61 +109,62 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     {
       title: "Reports & Analytics",
       icon: BarChart3,
-      path: "/reports",
-      hasSubmenu: true,
       submenu: [
-        { title: "Overview", path: "/reports?tab=overview" },
-        { title: "Inventory Report", path: "/reports?tab=inventory" },
-        { title: "Transaction Report", path: "/reports?tab=transactions" },
-        { title: "Analytics", path: "/reports?tab=analytics" }
+        { title: "Dashboard Analytics", path: "/dashboard/analytics" },
+        { title: "Inventory Reports", path: "/dashboard/reports/inventory" },
+        { title: "Transaction Reports", path: "/dashboard/reports/transactions" },
+        { title: "Procurement Reports", path: "/dashboard/reports/procurement" }
+      ]
+    },
+    {
+      title: "Organization Management",
+      icon: Building2,
+      submenu: [
+        { title: "Offices", path: "/dashboard/offices" },
+        { title: "Wings", path: "/dashboard/wings" },
+        { title: "Users", path: "/dashboard/users" }
+      ]
+    },
+    {
+      title: "System Administration",
+      icon: Settings,
+      submenu: [
+        { title: "System Settings", path: "/dashboard/settings" },
+        { title: "User Management", path: "/dashboard/user-management" },
+        { title: "Backup & Restore", path: "/dashboard/backup" }
       ]
     }
   ];
 
-  // Filter menu items based on limitedMenu prop
-  const menuItems = limitedMenu
-    ? allMenuItems.filter(item =>
-        item.title === "My Dashboard" || item.title === "Inv. Dashboard"
+  // Filter menu items if limited menu is enabled
+  const filteredMenuItems = limitedMenu 
+    ? menuItems.filter(item => 
+        item.title === "Dashboard" || 
+        item.title === "Inventory Management" || 
+        item.title === "Stock Transactions"
       )
-    : allMenuItems;
-
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
-
-  const isParentActive = (submenu: any[]) => {
-    return submenu?.some(item => location.pathname === item.path);
-  };
+    : menuItems;
 
   return (
-    <TooltipProvider>
-      <Sidebar
-        className="!bg-teal-600 border-r border-teal-500"
-        collapsible="icon"
-        style={{ backgroundColor: '#0d9488' }}
-      >
-      <SidebarHeader className="p-4 border-b border-teal-500 bg-teal-600">
-        <div className="flex items-center justify-center h-16">
-          <div className="w-full h-full flex items-center justify-center overflow-hidden">
-            <img
-              src="/ecp-logo.png"
-              alt="ECP Logo"
-              className={state === "collapsed"
-                ? "h-8 w-8 object-contain"
-                : "h-12 w-auto object-contain max-w-full"
-              }
-            />
+    <Sidebar className="border-r bg-gradient-to-b from-teal-800 to-teal-900">
+      <SidebarHeader className="bg-teal-900 border-b border-teal-700">
+        <div className="flex items-center space-x-2 px-4 py-3">
+          <Package className="w-8 h-8 text-teal-100" />
+          <div>
+            <h1 className="text-lg font-bold text-white">InvMIS</h1>
+            <p className="text-xs text-teal-200">Inventory Management</p>
           </div>
         </div>
       </SidebarHeader>
-
-      <SidebarContent className="p-4 bg-teal-600">
+      
+      <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {menuItems.map((item) => {
-                if (item.hasSubmenu) {
-                  const hasActiveChild = isParentActive(item.submenu);
+            <SidebarMenu>
+              {filteredMenuItems.map((item) => {
+                const hasActiveChild = item.submenu?.some(subItem => isActive(subItem.path)) ?? false;
+
+                if (item.submenu) {
                   return (
                     <SidebarMenuItem key={item.title}>
                       <Collapsible defaultOpen={hasActiveChild}>
@@ -191,14 +175,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                             }`}
                           >
                             <div className="flex items-center space-x-3">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <item.icon className="w-5 h-5" />
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="text-xs">
-                                  <p>{item.title}</p>
-                                </TooltipContent>
-                              </Tooltip>
+                              <item.icon className="w-5 h-5" />
                               <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                             </div>
                             <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
@@ -218,14 +195,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                   }`}
                                 >
                                   <Link to={subItem.path}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="ml-1">- {subItem.title}</span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="right" className="text-xs">
-                                        <p>{subItem.title}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
+                                    <span className="ml-1">- {subItem.title}</span>
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
@@ -249,14 +219,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                       }`}
                     >
                       <Link to={item.path}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <item.icon className="w-5 h-5" />
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="text-xs">
-                            <p>{item.title}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <item.icon className="w-5 h-5" />
                         <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -268,7 +231,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
-    </TooltipProvider>
   );
 };
 

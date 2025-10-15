@@ -27,16 +27,19 @@ const InventoryDetails = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all'); // all, low-stock, out-of-stock
 
-  // Fetch inventory data from InvMIS API
+  // Fetch inventory data from the correct API endpoint
   useEffect(() => {
     const fetchInventoryData = async () => {
       try {
         setDataLoading(true);
-        const response = await invmisApi.stock.getCurrent();
+        // Use the same endpoint as the main dashboard
+        const response = await fetch('http://localhost:3001/api/inventory-stock');
         
-        if (response.success) {
-          setInventoryStock(response.stock || []);
+        if (response.ok) {
+          const data = await response.json();
+          setInventoryStock(Array.isArray(data) ? data : []);
         } else {
+          console.error('Failed to fetch inventory data:', response.statusText);
           setInventoryStock([]);
         }
       } catch (error) {
@@ -72,7 +75,8 @@ const InventoryDetails = () => {
     ).length,
     outOfStock: inventoryStock.filter(item => item.current_quantity === 0).length,
     inStock: inventoryStock.filter(item => 
-      item.current_quantity > item.minimum_stock_level
+      item.current_quantity > 0 && 
+      (item.minimum_stock_level === 0 || item.current_quantity > item.minimum_stock_level)
     ).length
   };
 
@@ -233,10 +237,10 @@ const InventoryDetails = () => {
                       <CardTitle className="text-base">{item.item_name || 'Unknown Item'}</CardTitle>
                       <Badge variant={
                         item.current_quantity === 0 ? 'destructive' :
-                        item.current_quantity <= item.minimum_stock_level ? 'secondary' : 'default'
+                        (item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level) ? 'secondary' : 'default'
                       }>
                         {item.current_quantity === 0 ? 'Out of Stock' :
-                         item.current_quantity <= item.minimum_stock_level ? 'Low Stock' : 'In Stock'}
+                         (item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level) ? 'Low Stock' : 'In Stock'}
                       </Badge>
                     </div>
                     <CardDescription>

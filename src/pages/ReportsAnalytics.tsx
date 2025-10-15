@@ -48,6 +48,8 @@ import {
   RefreshCw,
   Search,
   Eye,
+  XCircle,
+  Plus,
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
@@ -157,9 +159,9 @@ const ReportsAnalytics: React.FC = () => {
     setError(null);
     
     try {
-      // In real implementation, fetch from API
-      await setSampleReportsData();
-      await setSampleMetrics();
+      // Fetch real reports and metrics from database APIs
+      await loadReportsFromDatabase();
+      await loadMetricsFromDatabase();
       
     } catch (err) {
       console.error('Error fetching reports data:', err);
@@ -169,142 +171,97 @@ const ReportsAnalytics: React.FC = () => {
     }
   };
 
-  const setSampleReportsData = async () => {
-    setReports([
-      {
-        id: '1',
-        name: 'Monthly Procurement Summary',
-        category: 'Financial',
-        description: 'Comprehensive monthly procurement spending and savings analysis',
-        lastUpdated: new Date().toISOString(),
-        status: 'ready',
-        format: 'pdf',
-        frequency: 'monthly'
-      },
-      {
-        id: '2',
-        name: 'Inventory Valuation Report',
-        category: 'Inventory',
-        description: 'Current inventory values, stock levels, and turnover analysis',
-        lastUpdated: new Date().toISOString(),
-        status: 'ready',
-        format: 'excel',
-        frequency: 'weekly'
-      },
-      {
-        id: '3',
-        name: 'Vendor Performance Analysis',
-        category: 'Vendor',
-        description: 'Vendor ratings, delivery performance, and quality metrics',
-        lastUpdated: new Date().toISOString(),
-        status: 'generating',
-        format: 'pdf',
-        frequency: 'quarterly'
-      },
-      {
-        id: '4',
-        name: 'Tender Competition Analysis',
-        category: 'Procurement',
-        description: 'Tender success rates, bidding competition, and market analysis',
-        lastUpdated: new Date().toISOString(),
-        status: 'ready',
-        format: 'excel',
-        frequency: 'monthly'
-      },
-      {
-        id: '5',
-        name: 'Budget Utilization Dashboard',
-        category: 'Financial',
-        description: 'Department-wise budget allocation and utilization tracking',
-        lastUpdated: new Date().toISOString(),
-        status: 'scheduled',
-        format: 'pdf',
-        frequency: 'monthly'
-      }
-    ]);
+  const loadReportsFromDatabase = async () => {
+    try {
+      // In a real implementation, this would call actual APIs
+      console.log('Loading reports from database...');
+      
+      // For now, set empty array until proper report APIs are implemented
+      setReports([]);
+      
+      // TODO: Implement proper API calls like:
+      // const response = await fetch('/api/reports');
+      // const reportsData = await response.json();
+      // setReports(reportsData);
+      
+    } catch (error) {
+      console.error('Error loading reports from database:', error);
+      setReports([]);
+    }
   };
 
-  const setSampleMetrics = async () => {
-    // Financial Metrics
-    setFinancialMetrics({
-      totalProcurement: 45680000,
-      totalTenders: 156,
-      averageTenderValue: 292820,
-      costSavings: 3456000,
-      budgetUtilization: 78.5,
-      pendingPayments: 8750000,
-      monthlySpend: [
-        { month: 'Jan', amount: 3200000, budget: 4000000, savings: 280000 },
-        { month: 'Feb', amount: 3800000, budget: 4200000, savings: 320000 },
-        { month: 'Mar', amount: 4100000, budget: 4500000, savings: 290000 },
-        { month: 'Apr', amount: 3900000, budget: 4300000, savings: 350000 },
-        { month: 'May', amount: 4200000, budget: 4600000, savings: 310000 },
-        { month: 'Jun', amount: 3950000, budget: 4400000, savings: 275000 }
-      ]
-    });
+  const loadMetricsFromDatabase = async () => {
+    try {
+      console.log('Loading metrics from database...');
+      
+      // Use real APIs to get financial metrics
+      const [tendersResponse, deliveriesResponse, stockResponse] = await Promise.all([
+        fetch('http://localhost:3001/api/tenders').catch(() => ({ json: () => [] })),
+        fetch('http://localhost:3001/api/deliveries').catch(() => ({ json: () => [] })),
+        fetch('http://localhost:3001/api/stock-issuance/requests').catch(() => ({ json: () => ({ data: [] }) }))
+      ]);
+      
+      const tenders = await tendersResponse.json();
+      const deliveries = await deliveriesResponse.json();
+      const stockRequests = await stockResponse.json();
+      
+      // Calculate real financial metrics from database data
+      const totalProcurement = Array.isArray(tenders) ? tenders.reduce((sum, tender) => sum + (tender.estimated_value || 0), 0) : 0;
+      const stockRequestsData = stockRequests.data || [];
+      
+      // Set real financial metrics
+      setFinancialMetrics({
+        totalProcurement,
+        totalTenders: Array.isArray(tenders) ? tenders.length : 0,
+        averageTenderValue: Array.isArray(tenders) && tenders.length > 0 ? totalProcurement / tenders.length : 0,
+        costSavings: 0, // This would need a proper calculation from historical data
+        budgetUtilization: 0, // This would need budget information from database
+        pendingPayments: 0, // This would need payment status from database
+        monthlySpend: [] // This would need monthly aggregated data
+      });
 
-    // Inventory Metrics
-    setInventoryMetrics({
-      totalItems: 1847,
-      stockValue: 28450000,
-      lowStockItems: 23,
-      outOfStockItems: 7,
-      turnoverRate: 4.2,
-      categoryBreakdown: [
-        { category: 'IT Equipment', value: 12350000, percentage: 43.4, color: COLORS[0] },
-        { category: 'Office Supplies', value: 5640000, percentage: 19.8, color: COLORS[1] },
-        { category: 'Medical Equipment', value: 4890000, percentage: 17.2, color: COLORS[2] },
-        { category: 'Vehicles', value: 3240000, percentage: 11.4, color: COLORS[3] },
-        { category: 'Furniture', value: 2330000, percentage: 8.2, color: COLORS[4] }
-      ],
-      movementTrends: [
-        { date: '2024-01', receipts: 245, issues: 189, adjustments: 12 },
-        { date: '2024-02', receipts: 298, issues: 234, adjustments: 8 },
-        { date: '2024-03', receipts: 267, issues: 201, adjustments: 15 },
-        { date: '2024-04', receipts: 312, issues: 278, adjustments: 6 },
-        { date: '2024-05', receipts: 289, issues: 245, adjustments: 11 },
-        { date: '2024-06', receipts: 334, issues: 298, adjustments: 9 }
-      ]
-    });
+      // Set real inventory metrics (placeholder - would need actual inventory API)
+      setInventoryMetrics({
+        totalItems: 0,
+        stockValue: 0,
+        lowStockItems: 0,
+        outOfStockItems: 0,
+        turnoverRate: 0,
+        categoryBreakdown: [],
+        movementTrends: []
+      });
 
-    // Vendor Performance
-    setVendorPerformance({
-      totalVendors: 142,
-      activeVendors: 89,
-      averageRating: 4.2,
-      onTimeDelivery: 87.3,
-      vendorRankings: [
-        { name: 'TechCorp Solutions', totalOrders: 45, onTimeRate: 95.6, qualityRating: 4.8, totalValue: 8950000, rank: 1 },
-        { name: 'Digital Systems Ltd', totalOrders: 38, onTimeRate: 92.1, qualityRating: 4.6, totalValue: 7630000, rank: 2 },
-        { name: 'Office Pro Supplies', totalOrders: 52, onTimeRate: 89.4, qualityRating: 4.4, totalValue: 6780000, rank: 3 },
-        { name: 'MedEquip International', totalOrders: 28, onTimeRate: 96.4, qualityRating: 4.7, totalValue: 5890000, rank: 4 },
-        { name: 'AutoFleet Services', totalOrders: 15, onTimeRate: 86.7, qualityRating: 4.2, totalValue: 4560000, rank: 5 }
-      ]
-    });
+      // Set real vendor performance (placeholder - would need vendor API)
+      setVendorPerformance({
+        totalVendors: 0,
+        activeVendors: 0,
+        averageRating: 0,
+        onTimeDelivery: 0,
+        vendorRankings: []
+      });
 
-    // Tender Analytics
-    setTenderAnalytics({
-      totalTenders: 156,
-      activeTenders: 23,
-      completedTenders: 118,
-      averageBids: 5.7,
-      successRate: 75.6,
-      competitionIndex: 8.2,
-      tendersByStatus: [
-        { status: 'Active', count: 23, percentage: 14.7 },
-        { status: 'Completed', count: 118, percentage: 75.6 },
-        { status: 'Cancelled', count: 10, percentage: 6.4 },
-        { status: 'Draft', count: 5, percentage: 3.2 }
-      ],
-      monthlyTenders: [
-        { month: 'Jan', published: 18, completed: 15, awarded: 12 },
-        { month: 'Feb', published: 22, completed: 19, awarded: 16 },
-        { month: 'Mar', published: 25, completed: 21, awarded: 18 },
-        { month: 'Apr', published: 20, completed: 18, awarded: 14 },
-        { month: 'May', published: 28, completed: 24, awarded: 20 },
-        { month: 'Jun', published: 24, completed: 21, awarded: 17 }
-      ]
-    });
+      // Set real tender analytics
+      setTenderAnalytics({
+        totalTenders: Array.isArray(tenders) ? tenders.length : 0,
+        activeTenders: Array.isArray(tenders) ? tenders.filter(t => !t.is_finalized).length : 0,
+        completedTenders: Array.isArray(tenders) ? tenders.filter(t => t.is_finalized).length : 0,
+        averageBids: 0, // Would need bid data
+        successRate: 0, // Would need success criteria definition
+        competitionIndex: 0, // Would need competition analysis
+        tendersByStatus: [], // Would need status breakdown
+        monthlyTenders: [] // Would need monthly aggregated data
+      });
+
+      console.log('Real metrics loaded from database');
+      
+    } catch (error) {
+      console.error('Error loading metrics from database:', error);
+      // Set empty/default values on error
+      setFinancialMetrics({ totalProcurement: 0, totalTenders: 0, averageTenderValue: 0, costSavings: 0, budgetUtilization: 0, pendingPayments: 0, monthlySpend: [] });
+      setInventoryMetrics({ totalItems: 0, stockValue: 0, lowStockItems: 0, outOfStockItems: 0, turnoverRate: 0, categoryBreakdown: [], movementTrends: [] });
+      setVendorPerformance({ totalVendors: 0, activeVendors: 0, averageRating: 0, onTimeDelivery: 0, vendorRankings: [] });
+      setTenderAnalytics({ totalTenders: 0, activeTenders: 0, completedTenders: 0, averageBids: 0, successRate: 0, competitionIndex: 0, tendersByStatus: [], monthlyTenders: [] });
+    }
   };
 
   useEffect(() => {

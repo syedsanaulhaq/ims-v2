@@ -51,7 +51,7 @@ const UserDashboard: React.FC = () => {
         subtitle: 'Workflow Management',
         description: 'Manage pending approvals and forwarding',
         icon: CheckCircle,
-        path: '/approval-manager',
+        path: '/dashboard/approval-dashboard',
         bgColor: 'bg-green-600',
         hoverColor: 'hover:bg-green-700'
       },

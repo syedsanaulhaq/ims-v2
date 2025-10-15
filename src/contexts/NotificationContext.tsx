@@ -175,98 +175,21 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   }, [user?.Id]);
 
-  // Simulate some system notifications for demo
+  // Load real notifications from database only
   useEffect(() => {
-    if (user?.Id && notifications.length === 0) {
-      // Add some sample notifications on first load
-      setTimeout(() => {
-        addNotification({
-          title: 'Welcome to IMS',
-          message: 'Your inventory management system is ready to use.',
-          type: 'success',
-          actionUrl: '/dashboard',
-          actionText: 'Go to Dashboard'
-        });
-        
-        if (user.Role === 'Admin' || user.Role === 'Manager') {
-          addNotification({
-            title: 'Pending Approvals',
-            message: 'You have 3 stock issuance requests awaiting approval.',
-            type: 'warning',
-            actionUrl: '/approval-manager',
-            actionText: 'Review Now'
-          });
-          
-          addNotification({
-            title: 'Low Stock Alert',
-            message: 'Office supplies inventory is running low. Consider restocking.',
-            type: 'warning',
-            actionUrl: '/dashboard/inventory-alerts',
-            actionText: 'View Details'
-          });
-        }
-        
-        // Add role-specific notifications
-        if (user.Role === 'User') {
-          addNotification({
-            title: 'Request Approved',
-            message: 'Your stock issuance request #12345 has been approved.',
-            type: 'success',
-            actionUrl: '/stock-issuance',
-            actionText: 'View Request'
-          });
-        }
-        
-        // General system notification
-        addNotification({
-          title: 'System Maintenance',
-          message: 'Scheduled maintenance will occur tonight from 2 AM to 4 AM.',
-          type: 'info',
-          actionUrl: '/notifications',
-          actionText: 'Learn More'
-        });
-        
-      }, 2000);
+    if (user?.Id) {
+      // No sample notifications - only load real data from database
+      console.log('Loading real notifications for user:', user.Id);
     }
   }, [user]);
 
-  // Simulate new notifications over time (for demo purposes)
+  // Remove the demo notification simulator - only use real-time updates from database
   useEffect(() => {
     if (!user?.Id) return;
     
-    const interval = setInterval(() => {
-      // Randomly add new notifications to simulate real-time updates
-      if (Math.random() < 0.3) { // 30% chance every 30 seconds
-        const sampleNotifications = [
-          {
-            title: 'New Stock Request',
-            message: `New stock request submitted by ${user.Role === 'Admin' ? 'John Doe' : 'Team Member'}.`,
-            type: 'info' as const,
-            actionUrl: '/approval-manager',
-            actionText: 'Review'
-          },
-          {
-            title: 'Delivery Received',
-            message: 'New inventory items have been delivered and added to stock.',
-            type: 'success' as const,
-            actionUrl: '/dashboard/stock-operations',
-            actionText: 'View Details'
-          },
-          {
-            title: 'Approval Required',
-            message: 'High-value stock request requires your approval.',
-            type: 'warning' as const,
-            actionUrl: '/approval-manager',
-            actionText: 'Approve Now'
-          }
-        ];
-        
-        const randomNotification = sampleNotifications[Math.floor(Math.random() * sampleNotifications.length)];
-        addNotification(randomNotification);
-      }
-    }, 30000); // Check every 30 seconds
-    
-    return () => clearInterval(interval);
+    // Real-time notifications would come from WebSocket or periodic API calls
+    // For now, just rely on the loadNotifications function called every 30 seconds above
+    console.log('Real-time notification system ready for user:', user.Id);
   }, [user?.Id]);
 
   const value: NotificationContextType = {

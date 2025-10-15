@@ -291,9 +291,9 @@ export const invmisApi = {
   // 📊 Stock Management APIs
   // ====================================================================
   stock: {
-    getCurrent: () => apiRequest<{ success: boolean; stock: CurrentStock[] }>('/current-stock'),
+    getCurrent: () => apiRequest<CurrentStock[]>('/inventory-stock'),
     updateQuantity: (stockId: number, data: any) => 
-      apiRequest(`/current-stock/${stockId}`, {
+      apiRequest(`/inventory-stock/${stockId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       }),

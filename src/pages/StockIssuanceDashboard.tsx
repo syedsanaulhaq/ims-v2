@@ -118,34 +118,35 @@ export function StockIssuanceDashboard() {
     try {
       console.log('🔄 Loading stock issuance dashboard data...');
       
-      // Load requests
-      const requestsResponse = await stockIssuanceService.getRequests(filters, {
-        page: currentPage,
-        limit: 10
-      });
+      // Try direct API call first
+      const directResponse = await fetch('http://localhost:3001/api/stock-issuance/requests');
+      if (!directResponse.ok) {
+        throw new Error(`API request failed: ${directResponse.status}`);
+      }
       
-      console.log('📊 Requests response:', requestsResponse);
+      const directData = await directResponse.json();
+      console.log('📊 Direct API response:', directData);
       
-      setRequests(requestsResponse.data || []);
-      setTotalPages(requestsResponse.totalPages || 1);
-
-      // Set stats from the requests response
-      if (requestsResponse.totalCount !== undefined) {
+      if (directData.success && directData.data && directData.summary) {
+        setRequests(directData.data || []);
         setStats({
-          totalRequests: requestsResponse.totalCount || 0,
-          pendingRequests: requestsResponse.pendingCount || 0,
-          approvedRequests: requestsResponse.approvedCount || 0,
-          issuedRequests: requestsResponse.issuedCount || 0
+          totalRequests: directData.summary.totalCount || 0,
+          pendingRequests: directData.summary.pendingCount || 0,
+          approvedRequests: directData.summary.approvedCount || 0,
+          issuedRequests: directData.summary.issuedCount || 0
+        });
+        
+        console.log('✅ Stats set successfully:', {
+          totalRequests: directData.summary.totalCount || 0,
+          pendingRequests: directData.summary.pendingCount || 0,
+          approvedRequests: directData.summary.approvedCount || 0,
+          issuedRequests: directData.summary.issuedCount || 0
         });
       } else {
-        // Fallback to separate stats call if counts not available
-        console.log('📈 Fallback: Loading dashboard stats separately...');
-        const statsResponse = await stockIssuanceService.getDashboardStats();
-        console.log('📈 Stats response:', statsResponse);
-        if (statsResponse.data) {
-          setStats(statsResponse.data);
-        }
+        console.error('❌ Invalid API response structure:', directData);
+        throw new Error('Invalid API response structure');
       }
+      
       console.log('✅ Stock issuance dashboard data loaded successfully');
     } catch (error) {
       console.error('❌ Error loading stock issuance dashboard data:', error);

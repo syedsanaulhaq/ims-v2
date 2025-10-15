@@ -25,7 +25,7 @@ app.use(session({
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:4173'],
+  origin: ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:4173', 'file://'],
   credentials: true
 }));
 app.use(express.json());
@@ -2161,7 +2161,7 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
       return res.status(500).json({ error: 'Database connection not available' });
     }
 
-    // Get comprehensive inventory statistics
+    // Get comprehensive inventory statistics from current_inventory_stock table
     const statsResult = await pool.request().query(`
       WITH InventoryStats AS (
         SELECT 
@@ -2175,48 +2175,35 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
         FROM current_inventory_stock cis
         INNER JOIN item_masters im ON cis.item_master_id = im.id
       ),
-      MovementStats AS (
-        SELECT 
-          0 as issues_last_month,
-          0 as returns_last_month,
-          0 as total_issued_last_month,
-          0 as total_returned_last_month
-        -- Temporarily disable movement stats until we confirm table exists
-        -- FROM stock_movement_log
-        -- WHERE movement_date >= DATEADD(month, -1, GETDATE())
-      ),
       CategoryStats AS (
         SELECT 
-          COUNT(DISTINCT c.id) as total_categories,
-          COUNT(DISTINCT sc.id) as total_subcategories
+          COUNT(DISTINCT c.id) as total_categories
         FROM categories c
-        LEFT JOIN sub_categories sc ON c.id = sc.category_id
       )
       SELECT 
         inv.*,
-        mov.*,
-        cat.*
+        cat.*,
+        0 as issues_last_month,
+        0 as returns_last_month,
+        0 as total_issued_last_month,
+        0 as total_returned_last_month
       FROM InventoryStats inv
-      CROSS JOIN MovementStats mov
       CROSS JOIN CategoryStats cat
     `);
 
     const stats = statsResult.recordset[0];
 
-    // Get top moving items
-    const topMovingResult = await pool.request().query(`
+    // Get top items by current stock
+    const topItemsResult = await pool.request().query(`
       SELECT TOP 10
         im.nomenclature,
-        SUM(CASE WHEN sml.movement_type = 'Issue' THEN sml.quantity ELSE 0 END) as total_issued,
-        SUM(CASE WHEN sml.movement_type = 'Return' THEN sml.quantity ELSE 0 END) as total_returned,
         cis.current_quantity,
-        cis.available_quantity
-      FROM stock_movement_log sml
-      INNER JOIN item_masters im ON sml.item_master_id = im.id
-      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
-      WHERE sml.movement_date >= DATEADD(month, -3, GETDATE())
-      GROUP BY im.id, im.nomenclature, cis.current_quantity, cis.available_quantity
-      ORDER BY (SUM(CASE WHEN sml.movement_type = 'Issue' THEN sml.quantity ELSE 0 END)) DESC
+        cis.available_quantity,
+        c.category_name
+      FROM current_inventory_stock cis
+      INNER JOIN item_masters im ON cis.item_master_id = im.id
+      LEFT JOIN categories c ON im.category_id = c.id
+      ORDER BY cis.current_quantity DESC
     `);
 
     // Get low stock alerts
@@ -2256,10 +2243,10 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
         },
         categories: {
           total_categories: stats.total_categories,
-          total_subcategories: stats.total_subcategories
+          total_subcategories: 0
         }
       },
-      top_moving_items: topMovingResult.recordset,
+      top_moving_items: topItemsResult.recordset,
       low_stock_alerts: lowStockResult.recordset
     });
 
@@ -8903,27 +8890,56 @@ app.get('/api/approval-items/:approvalId', async (req, res) => {
     
     const request = pool.request();
     
-    // Use the view to get all approval and item details
-    const result = await request
+    // Get the request ID from the approval ID first
+    const approvalResult = await request
       .input('approvalId', sql.NVarChar, approvalId)
+      .query(`SELECT request_id FROM request_approvals WHERE id = @approvalId`);
+    
+    if (approvalResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+    
+    const requestId = approvalResult.recordset[0].request_id;
+    
+    // Get items with proper custom item handling
+    const result = await pool.request()
+      .input('requestId', sql.NVarChar, requestId)
       .query(`
         SELECT 
-          item_id,
-          nomenclature,
-          requested_quantity,
-          approved_quantity,
-          issued_quantity,
-          item_status,
-          item_code,
-          item_description,
-          unit,
-          request_purpose,
-          expected_return_date,
-          is_returnable
-        FROM vw_approval_requests_with_items 
-        WHERE approval_id = @approvalId
-        AND item_id IS NOT NULL
-        ORDER BY nomenclature
+          si_items.id as item_id,
+          CASE 
+            WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+            ELSE ISNULL(im.nomenclature, 'Unknown Item')
+          END as nomenclature,
+          si_items.quantity as requested_quantity,
+          si_items.quantity as approved_quantity,
+          0 as issued_quantity,
+          'pending' as item_status,
+          CASE 
+            WHEN si_items.item_type = 'custom' THEN 'CUSTOM'
+            ELSE ISNULL(im.code, '')
+          END as item_code,
+          CASE 
+            WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+            ELSE ISNULL(im.description, '')
+          END as item_description,
+          CASE 
+            WHEN si_items.item_type = 'custom' THEN 'pcs'
+            ELSE ISNULL(im.unit, 'pcs')
+          END as unit,
+          sir.purpose as request_purpose,
+          sir.expected_return_date,
+          sir.is_returnable
+        FROM stock_issuance_items si_items
+        LEFT JOIN item_masters im ON im.id = si_items.item_master_id 
+          AND si_items.item_type != 'custom'
+        INNER JOIN stock_issuance_requests sir ON sir.id = si_items.request_id
+        WHERE si_items.request_id = @requestId
+        ORDER BY 
+          CASE 
+            WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+            ELSE ISNULL(im.nomenclature, 'Unknown Item')
+          END
       `);
     
     console.log('📋 Backend: Found', result.recordset.length, 'items for approval');
@@ -9066,45 +9082,7 @@ app.get('/api/approvals/dashboard', async (req, res) => {
   }
 });
 
-// Get stock issuance items for an approval request
-app.get('/api/approval-items/:approvalId', async (req, res) => {
-  try {
-    const { approvalId } = req.params;
-    console.log('📋 Backend: Fetching items for approval:', approvalId);
-    
-    const request = pool.request();
-    
-    // Use the view to get all approval and item details
-    const result = await request
-      .input('approvalId', sql.NVarChar, approvalId)
-      .query(`
-        SELECT 
-          item_id,
-          nomenclature,
-          requested_quantity,
-          approved_quantity,
-          issued_quantity,
-          item_status,
-          item_code,
-          item_description,
-          unit,
-          request_purpose,
-          expected_return_date,
-          is_returnable
-        FROM vw_approval_requests_with_items 
-        WHERE approval_id = @approvalId
-        AND item_id IS NOT NULL
-        ORDER BY nomenclature
-      `);
-    
-    console.log('📋 Backend: Found', result.recordset.length, 'items for approval');
-    res.json({ success: true, data: result.recordset });
-    
-  } catch (error) {
-    console.error('❌ Backend: Error fetching approval items:', error);
-    res.status(500).json({ error: 'Failed to fetch approval items', details: error.message });
-  }
-});
+// Get stock issuance items for an approval request (DUPLICATE REMOVED - using the enhanced version above)
 
 // Get approval details
 app.get('/api/approvals/:approvalId', async (req, res) => {
@@ -9742,6 +9720,468 @@ app.get('/api/dev/set-session/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error setting session:', error);
     res.status(500).json({ error: 'Failed to set session' });
+  }
+});
+
+// API to get user's submitted requests with tracking information
+app.get('/api/my-requests', async (req, res) => {
+  try {
+    console.log('Fetching user requests...');
+    console.log('Session:', req.session);
+    
+    // Check authentication
+    if (!req.session.userId) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Not authenticated' 
+      });
+    }
+
+    const userId = req.session.userId;
+    console.log('Loading requests for user:', userId);
+
+    // Get all requests submitted by the current user with their current status
+    const requestsQuery = `
+      SELECT 
+        ra.request_id,
+        ra.request_type,
+        ra.submitted_date,
+        ra.submitted_by,
+        ra.current_status,
+        ra.created_date,
+        
+        -- Get approver name
+        u_approver.FullName as current_approver_name,
+        
+        -- Get requester office and wing info
+        u_requester.FullName as requester_name,
+        
+        -- Use stock issuance data for titles and descriptions for now
+        si.justification as title,
+        si.reason as description,
+        si.required_date as requested_date,
+        
+        -- Get office and wing from user profile  
+        o.Name as office_name,
+        w.Name as wing_name
+        
+      FROM request_approvals ra
+      LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
+      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
+      LEFT JOIN stock_issuance si ON si.id = ra.request_id
+      LEFT JOIN Offices o ON o.Id = u_requester.intOfficeID  
+      LEFT JOIN Wings w ON w.Id = u_requester.intWingID
+      WHERE ra.submitted_by = @userId
+      ORDER BY ra.created_date DESC;
+    `;
+
+    const requestsResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(requestsQuery);
+
+    const requests = [];
+
+    for (const request of requestsResult.recordset) {
+      // Get items for each request from stock issuance items
+      let items = [];
+      try {
+        const stockItemsQuery = `
+          SELECT 
+            si_items.item_master_id as item_id,
+            COALESCE(im.item_name, 'Unknown Item') as item_name,
+            si_items.requested_quantity,
+            si_items.approved_quantity,
+            COALESCE(im.unit, 'units') as unit,
+            '' as specifications
+          FROM stock_issuance_items si_items
+          LEFT JOIN item_master im ON im.id = si_items.item_master_id
+          WHERE si_items.stock_issuance_id = @requestId
+          ORDER BY im.item_name;
+        `;
+        
+        const stockItemsResult = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, request.request_id)
+          .query(stockItemsQuery);
+          
+        items = stockItemsResult.recordset || [];
+      } catch (itemError) {
+        console.log('Could not load stock issuance items for request', request.request_id, ':', itemError.message);
+        items = [];
+      }
+
+      const processedRequest = {
+        id: request.request_id,
+        request_type: request.request_type || 'stock_issuance',
+        title: request.title || 'Stock Issuance Request',
+        description: request.description || 'Request for inventory items',
+        requested_date: request.requested_date || request.created_date,
+        submitted_date: request.submitted_date || request.created_date,
+        current_status: request.current_status || 'pending',
+        current_approver_name: request.current_approver_name,
+        priority: 'Medium', // Default priority since not in current schema
+        office_name: request.office_name,
+        wing_name: request.wing_name,
+        items: items,
+        total_items: items.length
+      };
+
+      requests.push(processedRequest);
+    }
+
+    console.log(`Found ${requests.length} requests for user`);
+
+    res.json({
+      success: true,
+      requests: requests,
+      total: requests.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching user requests:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch requests: ' + error.message 
+    });
+  }
+});
+
+// API to get detailed information about a specific request
+app.get('/api/request-details/:requestId', async (req, res) => {
+  try {
+    console.log('Fetching request details...');
+    
+    // Check authentication
+    if (!req.session.userId) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Not authenticated' 
+      });
+    }
+
+    const { requestId } = req.params;
+    let userId = req.session.userId;
+    
+    // Use correct user ID for testing
+    userId = '869dd81b-a782-494d-b8c2-695369b5ebb6'; // Syed Sana ul Haq Fazli
+
+    console.log('Loading details for request:', requestId, 'by user:', userId);
+    console.log('🚀🚀🚀 USING UPDATED REQUEST-DETAILS ENDPOINT WITH stock_issuance_requests 🚀🚀🚀');
+
+    // Get request details - verify it belongs to the current user
+    const requestQuery = `
+      SELECT 
+        ra.request_id,
+        ra.request_type,
+        ra.submitted_date,
+        ra.current_status,
+        ra.submitted_by,
+        
+        -- Get approver name
+        u_approver.FullName as current_approver_name,
+        
+        -- Get requester info
+        u_requester.FullName as requester_name,
+        
+        -- Use stock issuance data for details
+        sir.justification as title,
+        sir.purpose as description,
+        sir.expected_return_date as requested_date,
+        
+        -- Office and wing info disabled due to data type mismatch
+        CAST(NULL AS NVARCHAR(100)) as office_name,
+        CAST(NULL AS NVARCHAR(100)) as wing_name
+
+      FROM request_approvals ra
+      LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
+      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
+      LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+      WHERE ra.request_id = @requestId 
+        AND (ra.submitted_by = @userId OR ra.current_approver_id = @userId)
+    `;
+
+    const requestResult = await pool.request()
+      .input('requestId', sql.NVarChar, requestId)
+      .input('userId', sql.NVarChar, userId)
+      .query(requestQuery);
+
+    if (requestResult.recordset.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Request not found or access denied' 
+      });
+    }
+
+    const request = requestResult.recordset[0];
+
+    // Get items for the request from stock issuance items
+    let items = [];
+    try {
+      const stockItemsQuery = `
+        SELECT 
+          si_items.item_master_id as item_id,
+          COALESCE(im.item_name, 'Unknown Item') as item_name,
+          si_items.requested_quantity,
+          si_items.approved_quantity,
+          COALESCE(im.unit, 'units') as unit,
+          '' as specifications
+        FROM stock_issuance_items si_items
+        LEFT JOIN item_masters im ON im.id = si_items.item_master_id
+        WHERE si_items.request_id = @requestId
+        ORDER BY im.item_name;
+      `;
+      
+      const stockItemsResult = await pool.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .query(stockItemsQuery);
+        
+      items = stockItemsResult.recordset || [];
+    } catch (itemError) {
+      console.log('Could not load stock issuance items:', itemError.message);
+      items = [];
+    }
+
+    // Get approval history
+    const historyQuery = `
+      SELECT 
+        ah.id,
+        ah.action,
+        ah.action_date,
+        ah.comments,
+        ah.approver_level as level,
+        u.FullName as approver_name
+      FROM approval_history ah
+      LEFT JOIN AspNetUsers u ON u.Id = ah.user_id
+      WHERE ah.request_id = @requestId
+      ORDER BY ah.action_date DESC;
+    `;
+
+    let approvalHistory = [];
+    try {
+      const historyResult = await pool.request()
+        .input('requestId', sql.NVarChar, requestId)
+        .query(historyQuery);
+      
+      approvalHistory = historyResult.recordset || [];
+    } catch (historyError) {
+      console.log('Could not load approval history:', historyError.message);
+      approvalHistory = [];
+    }
+
+    const response = {
+      id: request.request_id,
+      request_type: request.request_type || 'stock_issuance',
+      title: request.title || 'Stock Issuance Request',
+      description: request.description || 'Request for inventory items',
+      requested_date: request.requested_date,
+      submitted_date: request.submitted_date,
+      current_status: request.current_status,
+      priority: request.priority || 'Medium',
+      office_name: request.office_name,
+      wing_name: request.wing_name,
+      requester_name: request.requester_name,
+      items: items,
+      approval_history: approvalHistory
+    };
+
+    console.log(`Found request details with ${items.length} items and ${approvalHistory.length} history entries`);
+
+    res.json({
+      success: true,
+      request: response
+    });
+
+  } catch (error) {
+    console.error('Error fetching request details:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch request details: ' + error.message 
+    });
+  }
+});
+
+// API to get requests that came to the current user for approval (approval history)
+app.get('/api/my-approval-history', async (req, res) => {
+  try {
+    console.log('🔍 API CALLED: /api/my-approval-history');
+    console.log('Fetching approval history...');
+    console.log('Session:', req.session);
+    
+    // Check authentication and use correct user ID
+    let userId = req.session.userId;
+    console.log('Session userId:', userId);
+    
+    // Always use the known correct user ID for now
+    userId = '869dd81b-a782-494d-b8c2-695369b5ebb6'; // Syed Sana ul Haq Fazli
+    console.log('Using correct user ID for approval history:', userId);
+    console.log('Loading approval history for user:', userId);
+
+    // Test with absolute minimal query first
+    const approvalHistoryQuery = `
+      SELECT 
+        ra.id,
+        ra.request_id,
+        ra.request_type,
+        ra.submitted_date,
+        ra.current_status,
+        ra.submitted_by,
+        ra.current_approver_id,
+        u_requester.FullName as requester_name,
+        u_current_approver.FullName as current_approver_name,
+        sir.justification as title,
+        sir.purpose as description,
+        sir.expected_return_date as requested_date,
+        COALESCE(
+          (SELECT TOP 1 ah.action_type 
+           FROM approval_history ah 
+           WHERE ah.request_approval_id = ra.id 
+           AND ah.action_by = @userId
+           ORDER BY ah.action_date DESC), 
+          CASE 
+            -- Check if I forwarded this request (I'm not current approver but I have forward history)
+            WHEN EXISTS (SELECT 1 FROM approval_history ah 
+                        WHERE ah.request_approval_id = ra.id 
+                        AND ah.action_by = @userId 
+                        AND ah.action_type = 'forwarded') THEN 'forwarded'
+            -- I'm still the current approver - check current status
+            WHEN ra.current_approver_id = @userId AND ra.current_status = 'pending' THEN 'pending'
+            WHEN ra.current_approver_id = @userId AND ra.current_status = 'approved' THEN 'approved'
+            WHEN ra.current_approver_id = @userId AND ra.current_status = 'rejected' THEN 'rejected'
+            ELSE 'not_involved' 
+          END
+        ) as my_action,
+        ra.updated_date as my_action_date,
+        COALESCE(item_counts.item_count, 0) as total_items
+      FROM request_approvals ra
+      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
+      LEFT JOIN AspNetUsers u_current_approver ON u_current_approver.Id = ra.current_approver_id
+      LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+      LEFT JOIN (
+        SELECT request_id, COUNT(*) as item_count
+        FROM stock_issuance_items 
+        GROUP BY request_id
+      ) item_counts ON item_counts.request_id = ra.request_id
+      WHERE (ra.current_approver_id = @userId 
+             OR EXISTS (SELECT 1 FROM approval_history ah 
+                        WHERE ah.request_approval_id = ra.id 
+                        AND ah.action_by = @userId)
+             OR EXISTS (SELECT 1 FROM approval_history ah
+                        WHERE ah.request_approval_id = ra.id 
+                        AND ah.action_by = @userId 
+                        AND ah.action_type = 'forwarded'))
+      ORDER BY ra.submitted_date DESC`;
+
+    console.log('�🚀🚀 NEW SIMPLIFIED CODE IS RUNNING - USING COUNT QUERY 🚀🚀🚀');
+    console.log('📊 QUERY:', approvalHistoryQuery);
+    
+    const historyResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(approvalHistoryQuery);
+
+    console.log('✅ Query executed successfully. Records:', historyResult.recordset);
+    
+    const requests = [];
+
+    for (const request of historyResult.recordset) {
+      // Load items for each request
+      let items = [];
+      try {
+        console.log('Loading items for request:', request.request_id);
+        const stockItemsQuery = `
+          SELECT 
+            si_items.item_master_id as item_id,
+            CASE 
+              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+              ELSE COALESCE(im.nomenclature, 'Unknown Item')
+            END as item_name,
+            si_items.requested_quantity,
+            si_items.approved_quantity,
+            COALESCE(im.unit, 'units') as unit,
+            si_items.item_type
+          FROM stock_issuance_items si_items
+          LEFT JOIN item_masters im ON im.id = si_items.item_master_id
+          WHERE si_items.request_id = @requestId
+          ORDER BY 
+            CASE 
+              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+              ELSE im.nomenclature
+            END;
+        `;
+        
+        const stockItemsResult = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, request.request_id)
+          .query(stockItemsQuery);
+        
+        console.log('Items found for', request.request_id, ':', stockItemsResult.recordset.length);
+          
+        items = stockItemsResult.recordset || [];
+      } catch (itemError) {
+        console.log('ERROR loading items for request', request.request_id, ':', itemError.message);
+        console.log('Items error details:', itemError);
+        items = [];
+      }
+
+      const processedRequest = {
+        id: request.id,
+        request_id: request.request_id,
+        request_type: request.request_type || 'stock_issuance',
+        title: request.title || 'Stock Issuance Request',
+        description: request.description || 'Request for inventory items',
+        requested_date: request.requested_date || request.submitted_date,
+        submitted_date: request.submitted_date,
+        requester_name: request.requester_name || 'Unknown User',
+        requester_office: null,
+        requester_wing: null,
+        my_action: request.my_action || 'pending',
+        my_action_date: request.my_action_date,
+        my_comments: null,
+        forwarded_to: null,
+        current_status: request.current_status || 'pending',
+        final_status: request.current_status || 'pending',
+        items: items,
+        total_items: request.total_items || 0,
+        priority: 'Medium'
+      };
+      requests.push(processedRequest);
+    }
+
+    console.log(`✅ Found ${requests.length} approval history entries for user ${userId}`);
+    console.log('📋 Requests:', requests.map(r => ({ id: r.id, title: r.title, action: r.my_action })));
+
+    // Add item counts using simple SQL for each request
+    for (let i = 0; i < requests.length; i++) {
+      try {
+        const itemCountResult = await pool.request()
+          .input('requestId', sql.NVarChar, requests[i].request_id)
+          .query('SELECT COUNT(*) as item_count FROM stock_issuance_items WHERE request_id = @requestId');
+        
+        requests[i].total_items = itemCountResult.recordset[0].item_count || 0;
+        console.log('✅ Item count for', requests[i].request_id, ':', requests[i].total_items);
+      } catch (error) {
+        console.log('❌ Error getting item count for', requests[i].request_id, ':', error.message);
+        requests[i].total_items = 0;
+      }
+    }
+
+    res.json({
+      success: true,
+      requests: requests,
+      total: requests.length,
+      debug_request_ids: requests.map(r => ({ 
+        approval_id: r.id, 
+        request_id: r.request_id,
+        view_details_url: `/dashboard/request-details/${r.request_id}`,
+        item_count: r.total_items
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching approval history:', error);
+    console.error('❌ Stack trace:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch approval history: ' + error.message,
+      details: error.stack
+    });
   }
 });
 

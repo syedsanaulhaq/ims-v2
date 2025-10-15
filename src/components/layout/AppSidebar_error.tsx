@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import {
+import { 
   Home,
-  Package,
+  Package, 
   Boxes,
   ArrowRightLeft,
   Building2,
@@ -138,8 +139,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   ];
 
   // Filter menu items based on limitedMenu prop
-  const menuItems = limitedMenu
-    ? allMenuItems.filter(item =>
+  const menuItems = limitedMenu 
+    ? allMenuItems.filter(item => 
         item.title === "My Dashboard" || item.title === "Inv. Dashboard"
       )
     : allMenuItems;
@@ -154,26 +155,26 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
   return (
     <TooltipProvider>
-      <Sidebar
-        className="!bg-teal-600 border-r border-teal-500"
+      <Sidebar 
+        className="!bg-teal-600 border-r border-teal-500" 
         collapsible="icon"
         style={{ backgroundColor: '#0d9488' }}
       >
       <SidebarHeader className="p-4 border-b border-teal-500 bg-teal-600">
         <div className="flex items-center justify-center h-16">
           <div className="w-full h-full flex items-center justify-center overflow-hidden">
-            <img
+            <img 
               src="/ecp-logo.png"
-              alt="ECP Logo"
-              className={state === "collapsed"
-                ? "h-8 w-8 object-contain"
+              alt="ECP Logo" 
+              className={state === "collapsed" 
+                ? "h-8 w-8 object-contain" 
                 : "h-12 w-auto object-contain max-w-full"
               }
             />
           </div>
         </div>
       </SidebarHeader>
-
+      
       <SidebarContent className="p-4 bg-teal-600">
         <SidebarGroup>
           <SidebarGroupContent>
@@ -184,24 +185,31 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                   return (
                     <SidebarMenuItem key={item.title}>
                       <Collapsible defaultOpen={hasActiveChild}>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            className={`w-full justify-between text-teal-100 hover:bg-teal-700 hover:text-white data-[state=open]:bg-teal-700 data-[state=open]:text-white ${
-                              hasActiveChild ? 'bg-teal-700 text-white' : ''
-                            }`}
-                          >
-                            <div className="flex items-center space-x-3">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuButton
+                                className={`w-full justify-between text-teal-100 hover:bg-teal-700 hover:text-white data-[state=open]:bg-teal-700 data-[state=open]:text-white ${
+                                  hasActiveChild ? 'bg-teal-700 text-white' : ''
+                                }`}
+                              >
+                                <div className="flex items-center space-x-3">
                                   <item.icon className="w-5 h-5" />
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="text-xs">
-                                  <p>{item.title}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
-                            </div>
-                            <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
+                                  <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
+                                </div>
+                                <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
+                              </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent 
+                            side="right" 
+                            className="text-xs z-50"
+                            sideOffset={15}
+                            avoidCollisions={true}
+                          >
+                            <p>{item.title}</p>
+                          </TooltipContent>
+                        </Tooltip>
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -222,7 +230,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                       <TooltipTrigger asChild>
                                         <span className="ml-1">- {subItem.title}</span>
                                       </TooltipTrigger>
-                                      <TooltipContent side="right" className="text-xs">
+                                      <TooltipContent 
+                                        side="right" 
+                                        className="text-xs z-50 ml-2"
+                                        sideOffset={10}
+                                        avoidCollisions={true}
+                                      >
                                         <p>{subItem.title}</p>
                                       </TooltipContent>
                                     </Tooltip>
@@ -239,27 +252,32 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.path)}
-                      className={`text-teal-100 hover:bg-teal-700 hover:text-white ${
-                        isActive(item.path)
-                          ? 'bg-teal-700 text-white'
-                          : ''
-                      }`}
-                    >
-                      <Link to={item.path}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive(item.path)}
+                          className={`text-teal-100 hover:bg-teal-700 hover:text-white ${
+                            isActive(item.path)
+                              ? 'bg-teal-700 text-white'
+                              : ''
+                          }`}
+                        >
+                          <Link to={item.path}>
                             <item.icon className="w-5 h-5" />
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="text-xs">
-                            <p>{item.title}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
+                            <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </TooltipTrigger>
+                      <TooltipContent 
+                        side="right" 
+                        className="text-xs z-50"
+                        sideOffset={15}
+                        avoidCollisions={true}
+                      >
+                        <p>{item.title}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </SidebarMenuItem>
                 );
               })}

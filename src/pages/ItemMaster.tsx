@@ -102,24 +102,11 @@ const ItemMasterManagement = () => {
       }
     } catch (err) {
       console.error('❌ Load categories error:', err);
-      // Fallback to mock data
-      const mockCategories = [
-        { id: '1', category_name: 'Information Technology' },
-        { id: '2', category_name: 'Furniture' },
-        { id: '3', category_name: 'Stationery' },
-        { id: '4', category_name: 'Office Equipment' },
-      ];
-      const mockSubCategories = [
-        { id: '1', sub_category_name: 'Computers', category_id: '1' },
-        { id: '2', sub_category_name: 'Printers', category_id: '1' },
-        { id: '3', sub_category_name: 'Office Chairs', category_id: '2' },
-        { id: '4', sub_category_name: 'Desks', category_id: '2' },
-        { id: '5', sub_category_name: 'Paper Products', category_id: '3' },
-        { id: '6', sub_category_name: 'Writing Instruments', category_id: '3' },
-      ];
-      setCategories(mockCategories);
-      setSubCategories(mockSubCategories);
-      setFilteredSubCategories(mockSubCategories);
+      // Set empty arrays if API fails - no fallback to mock data
+      setCategories([]);
+      setSubCategories([]);
+      setFilteredSubCategories([]);
+      console.error("Failed to load categories from database. Please try again.");
     }
   };
 

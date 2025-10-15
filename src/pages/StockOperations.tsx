@@ -35,9 +35,18 @@ const StockOperations = () => {
         setDataLoading(true);
         const response = await fetch('http://localhost:3001/api/stock-issuance/requests');
         const data = await response.json();
-        setStockRequests(Array.isArray(data) ? data : []);
+        
+        // Handle the API response structure
+        if (data.success && Array.isArray(data.data)) {
+          setStockRequests(data.data);
+        } else if (Array.isArray(data)) {
+          setStockRequests(data);
+        } else {
+          setStockRequests([]);
+        }
       } catch (error) {
         console.error('Error fetching stock operations data:', error);
+        setStockRequests([]);
       } finally {
         setDataLoading(false);
       }
@@ -50,7 +59,10 @@ const StockOperations = () => {
   const filteredRequests = stockRequests.filter(request => {
     const matchesSearch = request.purpose?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
                          request.request_type?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.requester_name?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+                         request.request_number?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         request.requester?.full_name?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         request.office?.name?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         request.wing?.name?.toString().toLowerCase().includes(searchTerm.toLowerCase());
     
     if (filterStatus === 'pending') {
       return matchesSearch && (request.request_status === 'Submitted' || request.request_status === 'Pending');
@@ -280,8 +292,15 @@ const StockOperations = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-gray-500" />
-                            <span className="text-gray-600">Requester:</span>
-                            <span className="font-medium">{request.requester_name || 'N/A'}</span>
+                            <span className="text-gray-600">
+                              {request.request_type === 'Individual' ? 'Requester:' : 'Department:'}
+                            </span>
+                            <span className="font-medium">
+                              {request.request_type === 'Individual' 
+                                ? (request.requester?.full_name || 'N/A')
+                                : (request.wing?.name || request.office?.name || 'N/A')
+                              }
+                            </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <ClipboardList className="h-4 w-4 text-gray-500" />
@@ -296,11 +315,11 @@ const StockOperations = () => {
                           <div className="flex items-center gap-2">
                             <Activity className="h-4 w-4 text-gray-500" />
                             <span className="text-gray-600">Priority:</span>
-                            <span className="font-medium">{request.priority || 'Normal'}</span>
+                            <span className="font-medium">{request.urgency_level || 'Normal'}</span>
                           </div>
                         </div>
-                        {request.description && (
-                          <p className="text-sm text-gray-600 mt-2">{request.description}</p>
+                        {request.justification && (
+                          <p className="text-sm text-gray-600 mt-2"><span className="font-medium">Justification:</span> {request.justification}</p>
                         )}
                       </div>
                     </div>

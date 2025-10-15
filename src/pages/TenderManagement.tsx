@@ -150,14 +150,15 @@ const TenderManagement: React.FC = () => {
     setError(null);
     
     try {
-      // Fetch tenders from API
-      const tendersResponse = await invmisApi.getTenders();
-      setTenders(tendersResponse);
+      // Fetch tenders from API using direct fetch
+      const response = await fetch('http://localhost:3001/api/tenders');
+      const tendersResponse = await response.json();
+      setTenders(Array.isArray(tendersResponse) ? tendersResponse : []);
 
-      // Sample additional data (in real app, fetch from specific APIs)
-      setSampleTenderItems();
-      setSampleBids();
-      setSampleDocuments();
+      // Set empty arrays for additional data until specific APIs are implemented
+      setTenderItems([]);
+      setBids([]);
+      setDocuments([]);
       
     } catch (err) {
       console.error('Error fetching tender data:', err);
@@ -165,95 +166,6 @@ const TenderManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const setSampleTenderItems = () => {
-    setTenderItems([
-      {
-        id: '1',
-        tender_id: '1',
-        item_code: 'LAP-001',
-        item_name: 'Laptop Computer',
-        description: 'High-performance laptop for office use',
-        unit_of_measure: 'pieces',
-        quantity: 50,
-        estimated_unit_price: 85000,
-        estimated_total_price: 4250000,
-        specifications: 'Intel i7, 16GB RAM, 512GB SSD'
-      },
-      {
-        id: '2',
-        tender_id: '1',
-        item_code: 'PRN-001',
-        item_name: 'Laser Printer',
-        description: 'Network-enabled laser printer',
-        unit_of_measure: 'pieces',
-        quantity: 10,
-        estimated_unit_price: 45000,
-        estimated_total_price: 450000,
-        specifications: 'A4, Duplex, Network, 30 PPM'
-      }
-    ]);
-  };
-
-  const setSampleBids = () => {
-    setBids([
-      {
-        id: '1',
-        tender_id: '1',
-        vendor_name: 'TechCorp Solutions',
-        vendor_email: 'bids@techcorp.com',
-        vendor_phone: '+92-300-1234567',
-        bid_amount: 4650000,
-        currency: 'PKR',
-        submission_date: new Date().toISOString(),
-        status: 'submitted',
-        documents_count: 5,
-        is_compliant: true,
-        technical_score: 85,
-        financial_score: 78,
-        total_score: 81.5
-      },
-      {
-        id: '2',
-        tender_id: '1',
-        vendor_name: 'Digital Systems Ltd',
-        vendor_email: 'procurement@digitalsys.com',
-        vendor_phone: '+92-301-7654321',
-        bid_amount: 4350000,
-        currency: 'PKR',
-        submission_date: new Date(Date.now() - 86400000).toISOString(),
-        status: 'under_review',
-        documents_count: 4,
-        is_compliant: true,
-        technical_score: 90,
-        financial_score: 92,
-        total_score: 91
-      }
-    ]);
-  };
-
-  const setSampleDocuments = () => {
-    setDocuments([
-      {
-        id: '1',
-        tender_id: '1',
-        document_name: 'Technical Specifications',
-        document_type: 'specification',
-        file_size: 2048576,
-        upload_date: new Date().toISOString(),
-        uploaded_by: 'admin'
-      },
-      {
-        id: '2',
-        tender_id: '1',
-        document_name: 'Terms and Conditions',
-        document_type: 'terms',
-        file_size: 1524288,
-        upload_date: new Date().toISOString(),
-        uploaded_by: 'admin'
-      }
-    ]);
   };
 
   useEffect(() => {

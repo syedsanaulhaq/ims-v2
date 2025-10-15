@@ -51,14 +51,24 @@ import StockQuantitiesPage from "./pages/StockQuantitiesPage";
 import ApprovalDashboard from "./components/ApprovalDashboard";
 import WorkflowAdmin from "./components/WorkflowAdmin";
 import ApprovalForwarding from "./components/ApprovalForwarding";
+import MyRequestsPage from "./pages/MyRequestsPage";
+import RequestDetailsPage from "./pages/RequestDetailsPage";
+import RequestHistoryPage from "./pages/RequestHistoryPage";
 import InventoryAlertsPage from "./pages/InventoryAlertsPage";
 import InventoryDetails from "./pages/InventoryDetails";
 import StockOperations from "./pages/StockOperations";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
+import { useParams } from "react-router-dom";
 
 const queryClient = new QueryClient();
+
+// Wrapper component to handle route parameters for ApprovalForwarding
+const ApprovalForwardingWrapper: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  return <ApprovalForwarding approvalId={id || ""} />;
+};
 
 function App() {
   return (
@@ -113,6 +123,10 @@ function App() {
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
+                  <Route path="my-requests" element={<MyRequestsPage />} />
+                  <Route path="request-details/:requestId" element={<RequestDetailsPage />} />
+                  <Route path="approval-forwarding/:id" element={<ApprovalForwardingWrapper />} />
+                  <Route path="request-history" element={<RequestHistoryPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
                   <Route path="categories" element={<Categories />} />
@@ -141,15 +155,6 @@ function App() {
                   <Route path="inventory/:id/report" element={<InventoryReportPage />} />
                   <Route path="item-master" element={<ItemMaster />} />
                 </Route>
-
-                {/* Approval Manager - Redirect to working dashboard */}
-                <Route path="/approval-manager" element={
-                  <ProtectedRoute>
-                    <Layout>
-                      <ApprovalDashboard />
-                    </Layout>
-                  </ProtectedRoute>
-                } />
 
                 {/* Stock Acquisition - Protected */}
                 <Route path="/stock-acquisition" element={

@@ -67,7 +67,7 @@ const Dashboard = () => {
           fetch('http://localhost:3001/api/tenders').then(res => res.ok ? res.json() : []),
           fetch('http://localhost:3001/api/deliveries').then(res => res.ok ? res.json() : []),
           fetch('http://localhost:3001/api/stock-issuance/requests').then(res => res.ok ? res.json() : []).catch(() => []),
-          fetch('http://localhost:3001/api/inventory/current-stock').then(res => res.ok ? res.json() : { data: [] }),
+          fetch('http://localhost:3001/api/inventory-stock').then(res => res.ok ? res.json() : []),
           fetch('http://localhost:3001/api/inventory/dashboard-stats').then(res => res.ok ? res.json() : null).catch(() => null),
           fetch('http://localhost:3001/api/offices').then(res => res.ok ? res.json() : []),
           fetch('http://localhost:3001/api/users').then(res => res.ok ? res.json() : []),
@@ -88,7 +88,7 @@ const Dashboard = () => {
         setTenders(Array.isArray(tendersRes) ? tendersRes : []);
         setDeliveries(Array.isArray(deliveriesRes) ? deliveriesRes : []);
         setStockIssuanceRequests(Array.isArray(stockIssuanceRes) ? stockIssuanceRes : (stockIssuanceRes?.data ? stockIssuanceRes.data : []));
-        setInventoryStock(inventoryStockRes?.data || []);
+        setInventoryStock(Array.isArray(inventoryStockRes) ? inventoryStockRes : []);
         setInventoryStats(inventoryStatsRes?.success ? inventoryStatsRes : null);
         setOffices(Array.isArray(officesRes) ? officesRes : []);
         setUsers(Array.isArray(usersRes) ? usersRes : []);
@@ -149,13 +149,17 @@ const Dashboard = () => {
       r.ApprovalStatus === 'APPROVED'
     ).length,
     
-    // Inventory Management (using real inventory statistics)
+    // Inventory Management (using real inventory statistics or calculating from inventory stock)
     totalInventoryItems: inventoryStats?.stats?.inventory?.total_items || inventoryStock.length,
-    totalInventoryQuantity: inventoryStats?.stats?.inventory?.total_quantity || 0,
-    availableQuantity: inventoryStats?.stats?.inventory?.available_quantity || 0,
-    reservedQuantity: inventoryStats?.stats?.inventory?.reserved_quantity || 0,
-    lowStockItems: inventoryStats?.stats?.inventory?.low_stock_items || inventoryStock.filter(item => item.stock_status === 'Low Stock').length,
-    outOfStockItems: inventoryStats?.stats?.inventory?.out_of_stock_items || inventoryStock.filter(item => item.stock_status === 'Out of Stock').length,
+    totalInventoryQuantity: inventoryStats?.stats?.inventory?.total_quantity || inventoryStock.reduce((sum, item) => sum + (item.current_quantity || 0), 0),
+    availableQuantity: inventoryStats?.stats?.inventory?.available_quantity || inventoryStock.reduce((sum, item) => sum + (item.available_quantity || 0), 0),
+    reservedQuantity: inventoryStats?.stats?.inventory?.reserved_quantity || inventoryStock.reduce((sum, item) => sum + (item.reserved_quantity || 0), 0),
+    lowStockItems: inventoryStats?.stats?.inventory?.low_stock_items || inventoryStock.filter(item => 
+      item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level
+    ).length,
+    outOfStockItems: inventoryStats?.stats?.inventory?.out_of_stock_items || inventoryStock.filter(item => 
+      item.current_quantity === 0
+    ).length,
     
     // Movement Statistics
     issuesLastMonth: inventoryStats?.stats?.movements?.issues_last_month || 0,
@@ -172,11 +176,15 @@ const Dashboard = () => {
 
   // Process data for charts
   const processChartData = () => {
-    // Stock Status Distribution - using real inventory data
+    // Stock Status Distribution - calculated from inventory data
     const stockStatusData = [
       { 
         name: 'Normal Stock', 
-        value: inventoryStock.filter(item => item.stock_status === 'Normal').length,
+        value: inventoryStock.filter(item => 
+          item.current_quantity > 0 && 
+          (item.minimum_stock_level === 0 || item.current_quantity > item.minimum_stock_level) &&
+          (item.maximum_stock_level === 0 || item.current_quantity <= item.maximum_stock_level)
+        ).length,
         color: '#00C49F' 
       },
       { 
@@ -191,7 +199,9 @@ const Dashboard = () => {
       },
       { 
         name: 'Overstock', 
-        value: inventoryStock.filter(item => item.stock_status === 'Overstock').length,
+        value: inventoryStock.filter(item => 
+          item.maximum_stock_level > 0 && item.current_quantity > item.maximum_stock_level
+        ).length,
         color: '#8884D8' 
       }
     ];
@@ -354,7 +364,7 @@ const Dashboard = () => {
         </Card>
 
         {/* Tender Management */}
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/tenders')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/tenders')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <FileText className="h-5 w-5" />
@@ -380,7 +390,7 @@ const Dashboard = () => {
         </Card>
 
         {/* Delivery Management */}
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/deliveries')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/stock-acquisition-dashboard')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-orange-700">
               <Truck className="h-5 w-5" />
@@ -648,7 +658,7 @@ const Dashboard = () => {
             <Button
               variant="outline"
               className="h-auto p-4 flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300"
-              onClick={() => navigate('/tenders')}
+              onClick={() => navigate('/dashboard/tenders')}
             >
               <FileText className="h-6 w-6 text-blue-600" />
               <div className="text-center">
@@ -660,7 +670,7 @@ const Dashboard = () => {
             <Button
               variant="outline"
               className="h-auto p-4 flex flex-col items-center gap-2 hover:bg-green-50 hover:border-green-300"
-              onClick={() => navigate('/deliveries')}
+              onClick={() => navigate('/dashboard/stock-acquisition-dashboard')}
             >
               <Truck className="h-6 w-6 text-green-600" />
               <div className="text-center">
