@@ -45,12 +45,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface AppSidebarProps {
   limitedMenu?: boolean;
@@ -153,12 +147,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   };
 
   return (
-    <TooltipProvider>
-      <Sidebar
-        className="!bg-teal-600 border-r border-teal-500"
-        collapsible="icon"
-        style={{ backgroundColor: '#0d9488' }}
-      >
+    <Sidebar
+      className="!bg-teal-600 border-r border-teal-500"
+      collapsible="icon"
+      style={{ backgroundColor: '#0d9488' }}
+    >
       <SidebarHeader className="p-4 border-b border-teal-500 bg-teal-600">
         <div className="flex items-center justify-center h-16">
           <div className="w-full h-full flex items-center justify-center overflow-hidden">
@@ -191,14 +184,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                             }`}
                           >
                             <div className="flex items-center space-x-3">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <item.icon className="w-5 h-5" />
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="text-xs">
-                                  <p>{item.title}</p>
-                                </TooltipContent>
-                              </Tooltip>
+                              <item.icon className="w-5 h-5" />
                               <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                             </div>
                             <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
@@ -218,14 +204,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                   }`}
                                 >
                                   <Link to={subItem.path}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="ml-1">- {subItem.title}</span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="right" className="text-xs">
-                                        <p>{subItem.title}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
+                                    <span className="ml-1">- {subItem.title}</span>
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
@@ -249,14 +228,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                       }`}
                     >
                       <Link to={item.path}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <item.icon className="w-5 h-5" />
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="text-xs">
-                            <p>{item.title}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <item.icon className="w-5 h-5" />
                         <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -268,7 +240,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
-    </TooltipProvider>
   );
 };
 
