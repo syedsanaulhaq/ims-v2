@@ -137,10 +137,19 @@ GO
 IF OBJECT_ID('InventoryManagementDB.dbo.AspNetUsers', 'U') IS NOT NULL
 BEGIN
     DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    INSERT INTO InventoryManagementDB_TEST.dbo.AspNetUsers 
-    SELECT * FROM InventoryManagementDB.dbo.AspNetUsers;
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'AspNetUsers' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.AspNetUsers'), COLUMN_NAME, 'IsComputed') = 0;
     
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.AspNetUsers (' + @columns + ') ' +
+               'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.AspNetUsers';
+    
+    EXEC sp_executesql @sql;
     SET @rowCount = @@ROWCOUNT;
     PRINT '  ✓ Copied AspNetUsers (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
