@@ -57,6 +57,7 @@ import StockOperationRequestDetails from "./pages/StockOperationRequestDetails";
 import RequestHistoryPage from "./pages/RequestHistoryPage";
 import InventoryAlertsPage from "./pages/InventoryAlertsPage";
 import InventoryDetails from "./pages/InventoryDetails";
+import ItemDetailsPage from "./pages/ItemDetailsPage";
 import StockOperations from "./pages/StockOperations";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -112,6 +113,7 @@ function App() {
                   <Route index element={<Dashboard />} />
                   <Route path="initial-setup" element={<InitialSetupPageFresh />} />
                   <Route path="inventory-details" element={<InventoryDetails />} />
+                  <Route path="item-details/:itemId" element={<ItemDetailsPage />} />
                   <Route path="stock-operations" element={<StockOperations />} />
                   <Route path="procurement-details" element={<ProcurementDetails />} />
                   <Route path="inventory-dashboard" element={<InventoryDashboard />} />

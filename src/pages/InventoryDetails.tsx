@@ -14,7 +14,8 @@ import {
   XCircle,
   TrendingUp,
   Search,
-  Filter
+  Filter,
+  Eye
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -238,6 +239,7 @@ const InventoryDetails = () => {
                     <th className="text-center p-3 font-semibold text-gray-700">Current Stock</th>
                     <th className="text-center p-3 font-semibold text-gray-700">Status</th>
                     <th className="text-left p-3 font-semibold text-gray-700">Last Updated</th>
+                    <th className="text-center p-3 font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -288,6 +290,17 @@ const InventoryDetails = () => {
                       </td>
                       <td className="p-3 text-gray-600 text-sm">
                         {item.last_updated ? formatDateDMY(item.last_updated) : 'N/A'}
+                      </td>
+                      <td className="p-3 text-center">
+                        <Button
+                          onClick={() => navigate(`/dashboard/item-details/${item.id}`)}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </Button>
                       </td>
                     </tr>
                   ))}
