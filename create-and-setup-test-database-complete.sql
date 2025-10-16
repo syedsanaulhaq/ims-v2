@@ -136,111 +136,196 @@ GO
 -- Copy AspNetUsers (Authentication)
 IF OBJECT_ID('InventoryManagementDB.dbo.AspNetUsers', 'U') IS NOT NULL
 BEGIN
-    SET IDENTITY_INSERT AspNetUsers ON;
+    DECLARE @rowCount INT;
     
     INSERT INTO InventoryManagementDB_TEST.dbo.AspNetUsers 
     SELECT * FROM InventoryManagementDB.dbo.AspNetUsers;
     
-    SET IDENTITY_INSERT AspNetUsers OFF;
-    PRINT '  ✓ Copied AspNetUsers (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    SET @rowCount = @@ROWCOUNT;
+    PRINT '  ✓ Copied AspNetUsers (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
 GO
 
 -- Copy Users
 IF OBJECT_ID('InventoryManagementDB.dbo.Users', 'U') IS NOT NULL
 BEGIN
-    SET IDENTITY_INSERT Users ON;
+    DECLARE @rowCount INT;
     
-    INSERT INTO InventoryManagementDB_TEST.dbo.Users 
-    SELECT * FROM InventoryManagementDB.dbo.Users;
+    -- Get list of columns (excluding computed columns)
+    DECLARE @columns NVARCHAR(MAX);
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'users' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.users'), COLUMN_NAME, 'IsComputed') = 0;
     
-    SET IDENTITY_INSERT Users OFF;
-    PRINT '  ✓ Copied Users (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.users (' + @columns + ') ' +
+               'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.users';
+    
+    EXEC sp_executesql @sql;
+    SET @rowCount = @@ROWCOUNT;
+    PRINT '  ✓ Copied Users (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
 GO
 
 -- Copy Offices
 IF OBJECT_ID('InventoryManagementDB.dbo.Offices', 'U') IS NOT NULL
 BEGIN
-    SET IDENTITY_INSERT Offices ON;
+    DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    INSERT INTO InventoryManagementDB_TEST.dbo.Offices 
-    SELECT * FROM InventoryManagementDB.dbo.Offices;
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'offices' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.offices'), COLUMN_NAME, 'IsComputed') = 0;
     
-    SET IDENTITY_INSERT Offices OFF;
-    PRINT '  ✓ Copied Offices (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.offices (' + @columns + ') ' +
+               'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.offices';
+    
+    EXEC sp_executesql @sql;
+    SET @rowCount = @@ROWCOUNT;
+    PRINT '  ✓ Copied Offices (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
 GO
 
 -- Copy Wings
 IF OBJECT_ID('InventoryManagementDB.dbo.Wings', 'U') IS NOT NULL
 BEGIN
-    SET IDENTITY_INSERT Wings ON;
+    DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    INSERT INTO InventoryManagementDB_TEST.dbo.Wings 
-    SELECT * FROM InventoryManagementDB.dbo.Wings;
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'wings' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.wings'), COLUMN_NAME, 'IsComputed') = 0;
     
-    SET IDENTITY_INSERT Wings OFF;
-    PRINT '  ✓ Copied Wings (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.wings (' + @columns + ') ' +
+               'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.wings';
+    
+    EXEC sp_executesql @sql;
+    SET @rowCount = @@ROWCOUNT;
+    PRINT '  ✓ Copied Wings (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
 GO
 
 -- Copy DECs (Data Entry Centers)
 IF OBJECT_ID('InventoryManagementDB.dbo.DECs', 'U') IS NOT NULL
 BEGIN
-    SET IDENTITY_INSERT DECs ON;
+    DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    INSERT INTO InventoryManagementDB_TEST.dbo.DECs 
-    SELECT * FROM InventoryManagementDB.dbo.DECs;
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'decs' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.decs'), COLUMN_NAME, 'IsComputed') = 0;
     
-    SET IDENTITY_INSERT DECs OFF;
-    PRINT '  ✓ Copied DECs (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.decs (' + @columns + ') ' +
+               'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.decs';
+    
+    EXEC sp_executesql @sql;
+    SET @rowCount = @@ROWCOUNT;
+    PRINT '  ✓ Copied DECs (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
 GO
 
--- Copy Branches
+-- Copy Branches (if exists)
 IF OBJECT_ID('InventoryManagementDB.dbo.Branches', 'U') IS NOT NULL
 BEGIN
-    INSERT INTO InventoryManagementDB_TEST.dbo.Branches 
-    SELECT * FROM InventoryManagementDB.dbo.Branches;
+    DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    PRINT '  ✓ Copied Branches (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'Branches' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.Branches'), COLUMN_NAME, 'IsComputed') = 0;
+    
+    IF @columns IS NOT NULL
+    BEGIN
+        DECLARE @sql NVARCHAR(MAX);
+        SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.Branches (' + @columns + ') ' +
+                   'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.Branches';
+        
+        EXEC sp_executesql @sql;
+        SET @rowCount = @@ROWCOUNT;
+        PRINT '  ✓ Copied Branches (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
+    END
 END
 GO
 
--- Copy ItemCategories
-IF OBJECT_ID('InventoryManagementDB.dbo.ItemCategories', 'U') IS NOT NULL
+-- Copy Categories (item categories)
+IF OBJECT_ID('InventoryManagementDB.dbo.categories', 'U') IS NOT NULL
 BEGIN
-    SET IDENTITY_INSERT ItemCategories ON;
+    DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    INSERT INTO InventoryManagementDB_TEST.dbo.ItemCategories 
-    SELECT * FROM InventoryManagementDB.dbo.ItemCategories;
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'categories' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.categories'), COLUMN_NAME, 'IsComputed') = 0;
     
-    SET IDENTITY_INSERT ItemCategories OFF;
-    PRINT '  ✓ Copied ItemCategories (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.categories (' + @columns + ') ' +
+               'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.categories';
+    
+    EXEC sp_executesql @sql;
+    SET @rowCount = @@ROWCOUNT;
+    PRINT '  ✓ Copied Categories (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
 GO
 
--- Copy Designations
+-- Copy Designations (if exists)
 IF OBJECT_ID('InventoryManagementDB.dbo.Designations', 'U') IS NOT NULL
 BEGIN
-    SET IDENTITY_INSERT Designations ON;
+    DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    INSERT INTO InventoryManagementDB_TEST.dbo.Designations 
-    SELECT * FROM InventoryManagementDB.dbo.Designations;
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'Designations' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.Designations'), COLUMN_NAME, 'IsComputed') = 0;
     
-    SET IDENTITY_INSERT Designations OFF;
-    PRINT '  ✓ Copied Designations (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    IF @columns IS NOT NULL
+    BEGIN
+        DECLARE @sql NVARCHAR(MAX);
+        SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.Designations (' + @columns + ') ' +
+                   'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.Designations';
+        
+        EXEC sp_executesql @sql;
+        SET @rowCount = @@ROWCOUNT;
+        PRINT '  ✓ Copied Designations (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
+    END
 END
 GO
 
 -- Copy Vendors
-IF OBJECT_ID('InventoryManagementDB.dbo.Vendors', 'U') IS NOT NULL
+IF OBJECT_ID('InventoryManagementDB.dbo.vendors', 'U') IS NOT NULL
 BEGIN
-    INSERT INTO InventoryManagementDB_TEST.dbo.Vendors 
-    SELECT * FROM InventoryManagementDB.dbo.Vendors;
+    DECLARE @rowCount INT;
+    DECLARE @columns NVARCHAR(MAX);
     
-    PRINT '  ✓ Copied Vendors (' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' rows)';
+    SELECT @columns = STRING_AGG(QUOTENAME(COLUMN_NAME), ', ')
+    FROM InventoryManagementDB.INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'vendors' 
+      AND TABLE_SCHEMA = 'dbo'
+      AND COLUMNPROPERTY(OBJECT_ID('InventoryManagementDB.dbo.vendors'), COLUMN_NAME, 'IsComputed') = 0;
+    
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = 'INSERT INTO InventoryManagementDB_TEST.dbo.vendors (' + @columns + ') ' +
+               'SELECT ' + @columns + ' FROM InventoryManagementDB.dbo.vendors';
+    
+    EXEC sp_executesql @sql;
+    SET @rowCount = @@ROWCOUNT;
+    PRINT '  ✓ Copied Vendors (' + CAST(@rowCount AS VARCHAR(10)) + ' rows)';
 END
 GO
 
@@ -291,23 +376,25 @@ GO
 
 -- Quick verification query
 SELECT 
-    'AspNetUsers' as TableName, COUNT(*) as RowCount FROM AspNetUsers
+    'AspNetUsers' as TableName, COUNT(*) as RecordCount FROM AspNetUsers
 UNION ALL
-SELECT 'Users', COUNT(*) FROM Users
+SELECT 'users', COUNT(*) FROM users
 UNION ALL
-SELECT 'Offices', COUNT(*) FROM Offices
+SELECT 'offices', COUNT(*) FROM offices
 UNION ALL
-SELECT 'Wings', COUNT(*) FROM Wings
+SELECT 'wings', COUNT(*) FROM wings
 UNION ALL
-SELECT 'ItemCategories', COUNT(*) FROM ItemCategories
+SELECT 'decs', COUNT(*) FROM decs
 UNION ALL
-SELECT 'Vendors', COUNT(*) FROM Vendors
+SELECT 'categories', COUNT(*) FROM categories
 UNION ALL
-SELECT 'ItemMasters', COUNT(*) FROM ItemMasters
+SELECT 'vendors', COUNT(*) FROM vendors
 UNION ALL
-SELECT 'Tenders', COUNT(*) FROM Tenders
+SELECT 'item_masters', COUNT(*) FROM item_masters
 UNION ALL
-SELECT 'StockIssuance', COUNT(*) FROM StockIssuance;
+SELECT 'tenders', COUNT(*) FROM tenders
+UNION ALL
+SELECT 'stock_issuance_requests', COUNT(*) FROM stock_issuance_requests;
 
 PRINT '';
 PRINT '✅ Test database is ready for testing!';
