@@ -69,7 +69,7 @@ let pool;
 async function initializeDatabase() {
   try {
     pool = await sql.connect(config);
-    console.log('✅ Connected to InvMISDB SQL Server');
+    console.log(`✅ Connected to SQL Server: ${config.database}`);
     
     // Test query
     const result = await pool.request().query('SELECT COUNT(*) as userCount FROM AspNetUsers');
