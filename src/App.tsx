@@ -53,6 +53,7 @@ import WorkflowAdmin from "./components/WorkflowAdmin";
 import ApprovalForwarding from "./components/ApprovalForwarding";
 import MyRequestsPage from "./pages/MyRequestsPage";
 import RequestDetailsPage from "./pages/RequestDetailsPage";
+import StockOperationRequestDetails from "./pages/StockOperationRequestDetails";
 import RequestHistoryPage from "./pages/RequestHistoryPage";
 import InventoryAlertsPage from "./pages/InventoryAlertsPage";
 import InventoryDetails from "./pages/InventoryDetails";
@@ -125,6 +126,7 @@ function App() {
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />
                   <Route path="request-details/:requestId" element={<RequestDetailsPage />} />
+                  <Route path="stock-operation-request-details/:requestId" element={<StockOperationRequestDetails />} />
                   <Route path="approval-forwarding/:id" element={<ApprovalForwardingWrapper />} />
                   <Route path="request-history" element={<RequestHistoryPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />

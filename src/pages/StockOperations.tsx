@@ -338,7 +338,7 @@ const StockOperations = () => {
                       </div>
                       <div className="flex flex-col gap-2 md:w-auto">
                         <Button
-                          onClick={() => navigate(`/dashboard/request-details/${request.id}`)}
+                          onClick={() => navigate(`/dashboard/stock-operation-request-details/${request.id}`)}
                           variant="default"
                           size="sm"
                           className="w-full md:w-auto flex items-center gap-2"
