@@ -28,15 +28,14 @@ app.use(express.json());
 
 // SQL Server configuration
 const config = {
-  user: process.env.SQL_SERVER_USER,
-  password: process.env.SQL_SERVER_PASSWORD,
-  server: process.env.SQL_SERVER_HOST,
+  server: process.env.SQL_SERVER_HOST || 'localhost',
   database: process.env.SQL_SERVER_DATABASE,
   port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
   options: {
     encrypt: process.env.SQL_SERVER_ENCRYPT === 'true',
     trustServerCertificate: process.env.SQL_SERVER_TRUST_CERT === 'true',
     enableArithAbort: true,
+    trustedConnection: false, // Will be set based on authentication type
   },
   pool: {
     max: 10,
@@ -44,6 +43,17 @@ const config = {
     idleTimeoutMillis: 30000
   }
 };
+
+// Check authentication type
+if (process.env.SQL_SERVER_USER && process.env.SQL_SERVER_PASSWORD) {
+  // SQL Server Authentication
+  config.user = process.env.SQL_SERVER_USER;
+  config.password = process.env.SQL_SERVER_PASSWORD;
+  config.options.trustedConnection = false;
+} else {
+  // Windows Authentication
+  config.options.trustedConnection = true;
+}
 
 let pool;
 
