@@ -8,17 +8,37 @@ import {
   Package, 
   ArrowLeft, 
   Search,
-  Filter,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
-import { InventoryService, type InventoryItem } from '@/services/inventoryService';
+
+interface InventoryItem {
+  id: string;
+  item_code: string;
+  item_name: string;
+  category_name: string;
+  unit: string;
+  specifications: string;
+  description: string;
+  status: string;
+  current_quantity: number;
+  available_quantity: number;
+  reserved_quantity: number;
+  minimum_stock_level: number;
+  reorder_point: number;
+  maximum_stock_level: number;
+  last_updated: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const AllInventoryItemsPage: React.FC = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,15 +47,29 @@ const AllInventoryItemsPage: React.FC = () => {
 
   useEffect(() => {
     filterItems();
-  }, [items, searchTerm, selectedStatus]);
+  }, [items, searchTerm, selectedCategory]);
 
   const loadItems = async () => {
     try {
       setLoading(true);
-      const result = await InventoryService.getInventoryData();
-      setItems(result.data);
+      setError(null);
+      
+      const response = await fetch('http://localhost:3001/api/inventory/all-items', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch inventory: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setItems(data);
     } catch (error) {
       console.error('Error loading inventory items:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load inventory items');
     } finally {
       setLoading(false);
     }
@@ -44,34 +78,80 @@ const AllInventoryItemsPage: React.FC = () => {
   const filterItems = () => {
     let filtered = items;
 
-    // Filter by search term
+    // Filter by search term (item code, name, specifications)
     if (searchTerm) {
+      const search = searchTerm.toLowerCase();
       filtered = filtered.filter(item =>
-        item.item_name.toLowerCase().includes(searchTerm.toLowerCase())
+        item.item_code.toLowerCase().includes(search) ||
+        item.item_name.toLowerCase().includes(search) ||
+        (item.specifications && item.specifications.toLowerCase().includes(search))
       );
     }
 
-    // Filter by status
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter(item => item.status === selectedStatus);
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(item => item.category_name === selectedCategory);
     }
 
     setFilteredItems(filtered);
   };
 
   const formatNumber = (num: number): string => {
-    return new Intl.NumberFormat().format(num);
+    return new Intl.NumberFormat().format(num || 0);
   };
 
-  const statusOptions = [
-    { value: 'all', label: 'All Status' },
-    { value: 'Active', label: 'Available in Stock' },
-  ];
+  const formatDate = (dateString: string): string => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getStockStatus = (item: InventoryItem): { label: string; color: string } => {
+    const qty = item.current_quantity || 0;
+    const reorder = item.reorder_point || 0;
+    const max = item.maximum_stock_level || 999999;
+
+    if (qty === 0) {
+      return { label: 'Out of Stock', color: 'bg-red-100 text-red-800' };
+    } else if (qty <= reorder) {
+      return { label: 'Low Stock', color: 'bg-yellow-100 text-yellow-800' };
+    } else if (qty >= max) {
+      return { label: 'Overstock', color: 'bg-purple-100 text-purple-800' };
+    } else {
+      return { label: 'In Stock', color: 'bg-green-100 text-green-800' };
+    }
+  };
+
+  // Get unique categories for filter
+  const categories = ['all', ...new Set(items.map(item => item.category_name).filter(Boolean))];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <RefreshCw className="h-8 w-8 animate-spin" />
+        <div className="text-center space-y-4">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto" />
+          <p className="text-gray-600">Loading inventory items...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+              <h3 className="text-lg font-semibold">Error Loading Inventory</h3>
+              <p className="text-gray-600">{error}</p>
+              <Button onClick={loadItems}>Try Again</Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -114,7 +194,7 @@ const AllInventoryItemsPage: React.FC = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search items by name or code..."
+                  placeholder="Search by item code, name, or specifications..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -123,13 +203,13 @@ const AllInventoryItemsPage: React.FC = () => {
             </div>
             <div className="min-w-[150px]">
               <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {statusOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {categories.map(category => (
+                  <option key={category} value={category}>
+                    {category === 'all' ? 'All Categories' : category}
                   </option>
                 ))}
               </select>
@@ -139,68 +219,105 @@ const AllInventoryItemsPage: React.FC = () => {
       </Card>
 
       {/* Items List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Inventory Items</span>
-            <Badge variant="outline">{filteredItems.length} items</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {/* Header Row */}
-            <div className="grid grid-cols-10 gap-4 py-3 border-b font-medium text-sm text-gray-600">
-              <div className="col-span-4">Item Name</div>
-              <div className="col-span-2">Current Stock</div>
-              <div className="col-span-1">Unit</div>
-              <div className="col-span-2">Status</div>
-              <div className="col-span-1">Last Updated</div>
+      {filteredItems.length === 0 ? (
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center text-gray-500">
+              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No inventory items found</p>
+              {searchTerm && <p className="text-sm mt-2">Try adjusting your search criteria</p>}
             </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredItems.map((item) => {
+            const stockStatus = getStockStatus(item);
+            return (
+              <Card key={item.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-3">
+                      {/* Item Header */}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-semibold">{item.item_name}</h3>
+                            <Badge variant="outline" className={stockStatus.color}>
+                              {stockStatus.label}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Code: {item.item_code} | Category: {item.category_name || 'Uncategorized'}
+                          </p>
+                        </div>
+                      </div>
 
-            {/* Items */}
-            {filteredItems.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No items found matching your criteria</p>
-              </div>
-            ) : (
-              filteredItems.map((item, index) => (
-                <div 
-                  key={index} 
-                  className="grid grid-cols-10 gap-4 py-3 border-b hover:bg-gray-50 transition-colors"
-                >
-                  <div className="col-span-4">
-                    <div className="font-medium">{item.item_name}</div>
-                    <div className="text-xs text-gray-500 mt-1">ID: {item.item_id}</div>
-                  </div>
-                  <div className="col-span-2">
-                    <div className="font-medium text-lg">
-                      {formatNumber(item.current_stock)}
+                      {/* Item Details Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t">
+                        <div>
+                          <p className="text-xs text-gray-500">Current Quantity</p>
+                          <p className="font-semibold text-lg">{formatNumber(item.current_quantity)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Available</p>
+                          <p className="font-semibold text-green-600">{formatNumber(item.available_quantity)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Reserved</p>
+                          <p className="font-semibold text-orange-600">{formatNumber(item.reserved_quantity)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Unit</p>
+                          <p className="font-semibold">{item.unit || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      {/* Stock Levels */}
+                      <div className="grid grid-cols-3 gap-4 pt-2">
+                        <div>
+                          <p className="text-xs text-gray-500">Minimum Level</p>
+                          <p className="text-sm font-medium">{formatNumber(item.minimum_stock_level)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Reorder Point</p>
+                          <p className="text-sm font-medium">{formatNumber(item.reorder_point)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Maximum Level</p>
+                          <p className="text-sm font-medium">{formatNumber(item.maximum_stock_level)}</p>
+                        </div>
+                      </div>
+
+                      {/* Specifications */}
+                      {item.specifications && (
+                        <div className="pt-2">
+                          <p className="text-xs text-gray-500">Specifications</p>
+                          <p className="text-sm text-gray-700">{item.specifications}</p>
+                        </div>
+                      )}
+
+                      {/* Description */}
+                      {item.description && (
+                        <div className="pt-2">
+                          <p className="text-xs text-gray-500">Description</p>
+                          <p className="text-sm text-gray-700">{item.description}</p>
+                        </div>
+                      )}
+
+                      {/* Footer Info */}
+                      <div className="flex items-center justify-between pt-3 border-t text-xs text-gray-500">
+                        <span>Last Updated: {formatDate(item.last_updated)}</span>
+                        <span>Created: {formatDate(item.created_at)}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="col-span-1">
-                    <span className="text-sm text-gray-600">{item.unit}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <Badge 
-                      variant={
-                        item.status === 'Active' ? 'default' : 'secondary'
-                      }
-                    >
-                      {item.status === 'Active' ? 'Available in Stock' : item.status}
-                    </Badge>
-                  </div>
-                  <div className="col-span-1">
-                    <span className="text-xs text-gray-500">
-                      {new Date(item.last_movement_date).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

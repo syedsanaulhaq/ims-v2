@@ -341,41 +341,84 @@ app.get('/api/tenders', requireAuth, async (req, res) => {
   }
 });
 
-// Inventory endpoints
-app.get('/api/inventory', requireAuth, async (req, res) => {
+// Inventory endpoints - All Items
+app.get('/api/inventory/all-items', requireAuth, async (req, res) => {
   try {
-    // Mock inventory data
-    const mockInventory = [
-      {
-        id: '1',
-        item_code: 'LAP-001',
-        item_name: 'Laptop Computer',
-        category: 'IT Equipment',
-        current_stock: 45,
-        unit_price: 85000,
-        total_value: 3825000,
-        status: 'In Stock',
-        location: 'IT Store',
-        last_updated: new Date().toISOString()
-      },
-      {
-        id: '2', 
-        item_code: 'PRN-001',
-        item_name: 'Laser Printer',
-        category: 'IT Equipment',
-        current_stock: 8,
-        unit_price: 45000,
-        total_value: 360000,
-        status: 'Low Stock',
-        location: 'IT Store',
-        last_updated: new Date().toISOString()
-      }
-    ];
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT 
+        im.id,
+        im.item_code,
+        im.nomenclature as item_name,
+        c.category_name,
+        im.unit,
+        im.specifications,
+        im.description,
+        im.status,
+        cis.current_quantity,
+        cis.available_quantity,
+        cis.reserved_quantity,
+        cis.minimum_stock_level,
+        cis.reorder_point,
+        cis.maximum_stock_level,
+        cis.last_updated,
+        im.created_at,
+        im.updated_at
+      FROM item_masters im
+      LEFT JOIN categories c ON im.category_id = c.id
+      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+      WHERE im.status = 'active'
+      ORDER BY im.item_code
+    `);
 
-    res.json(mockInventory);
+    res.json(result.recordset);
   } catch (err) {
-    console.error('Inventory fetch error:', err);
-    res.status(500).json({ error: 'Failed to fetch inventory' });
+    console.error('Inventory all items fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch inventory items', details: err.message });
+  }
+});
+
+// Inventory endpoints - Stock Quantities
+app.get('/api/inventory/stock-quantities', requireAuth, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT 
+        im.id,
+        im.item_code,
+        im.nomenclature as item_name,
+        c.category_name,
+        im.unit,
+        ISNULL(cis.current_quantity, 0) as current_quantity,
+        ISNULL(cis.available_quantity, 0) as available_quantity,
+        ISNULL(cis.reserved_quantity, 0) as reserved_quantity,
+        ISNULL(cis.minimum_stock_level, 0) as minimum_stock_level,
+        ISNULL(cis.reorder_point, 0) as reorder_point,
+        ISNULL(cis.maximum_stock_level, 0) as maximum_stock_level,
+        CASE 
+          WHEN ISNULL(cis.current_quantity, 0) = 0 THEN 'Out of Stock'
+          WHEN ISNULL(cis.current_quantity, 0) <= ISNULL(cis.reorder_point, 0) THEN 'Low Stock'
+          WHEN ISNULL(cis.current_quantity, 0) >= ISNULL(cis.maximum_stock_level, 999999) THEN 'Overstock'
+          ELSE 'In Stock'
+        END as stock_status,
+        cis.last_updated
+      FROM item_masters im
+      LEFT JOIN categories c ON im.category_id = c.id
+      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+      WHERE im.status = 'active'
+      ORDER BY 
+        CASE 
+          WHEN ISNULL(cis.current_quantity, 0) = 0 THEN 1
+          WHEN ISNULL(cis.current_quantity, 0) <= ISNULL(cis.reorder_point, 0) THEN 2
+          ELSE 3
+        END,
+        im.item_code
+    `);
+
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Inventory stock quantities fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch stock quantities', details: err.message });
   }
 });
 
