@@ -101,6 +101,40 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Session endpoint - Get current session
+app.get('/api/session', (req, res) => {
+  if (req.session && req.session.userId) {
+    return res.json({
+      success: true,
+      session: {
+        user_id: req.session.userId,
+        user_name: req.session.userName,
+        email: req.session.email,
+        role: req.session.role,
+        office_id: req.session.officeId,
+        wing_id: req.session.wingId,
+        full_name: req.session.fullName
+      },
+      session_id: req.sessionID
+    });
+  } else {
+    // No active session - return fallback for development
+    return res.json({
+      success: true,
+      session: {
+        user_id: '1',
+        user_name: 'admin',
+        email: 'admin@ecp.gov.pk',
+        role: 'Admin',
+        office_id: 1,
+        wing_id: 1,
+        full_name: 'System Administrator'
+      },
+      session_id: 'dev-session'
+    });
+  }
+});
+
 // Authentication endpoints
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -127,13 +161,13 @@ app.post('/api/auth/login', async (req, res) => {
           u.FullName,
           u.intOfficeID,
           u.intWingID,
-          u.Status,
-          o.OfficeName,
-          w.WingName
+          u.ISACT,
+          o.strOfficeName AS OfficeName,
+          w.Name AS WingName
         FROM AspNetUsers u
         LEFT JOIN tblOffices o ON u.intOfficeID = o.intOfficeID
-        LEFT JOIN tblWings w ON u.intWingID = w.intWingID
-        WHERE u.UserName = @username AND u.Status = 'Active'
+        LEFT JOIN WingsInformation w ON u.intWingID = w.Id
+        WHERE u.UserName = @username AND u.ISACT = 1
       `);
 
     if (userResult.recordset.length === 0) {
@@ -224,13 +258,13 @@ app.get('/api/users', requireAuth, async (req, res) => {
         u.Role,
         u.intOfficeID,
         u.intWingID,
-        u.Status,
+        u.ISACT,
         u.CreatedDate,
-        o.OfficeName,
-        w.WingName
+        o.strOfficeName AS OfficeName,
+        w.Name AS WingName
       FROM AspNetUsers u
       LEFT JOIN tblOffices o ON u.intOfficeID = o.intOfficeID  
-      LEFT JOIN tblWings w ON u.intWingID = w.intWingID
+      LEFT JOIN WingsInformation w ON u.intWingID = w.Id
       ORDER BY u.FullName
     `);
 
@@ -250,9 +284,9 @@ app.get('/api/dashboard/summary', requireAuth, async (req, res) => {
 
     // Get basic counts from the database
     const results = await Promise.all([
-      pool.request().query('SELECT COUNT(*) as totalUsers FROM AspNetUsers WHERE Status = \'Active\''),
+      pool.request().query('SELECT COUNT(*) as totalUsers FROM AspNetUsers WHERE ISACT = 1'),
       pool.request().query('SELECT COUNT(*) as totalOffices FROM tblOffices WHERE IsActive = 1'),
-      pool.request().query('SELECT COUNT(*) as totalWings FROM tblWings WHERE IsActive = 1'),
+      pool.request().query('SELECT COUNT(*) as totalWings FROM WingsInformation WHERE IsActive = 1'),
       pool.request().query('SELECT COUNT(*) as totalRoles FROM AspNetUsers WHERE Role IS NOT NULL GROUP BY Role')
     ]);
 
@@ -282,13 +316,13 @@ app.get('/api/offices', requireAuth, async (req, res) => {
     const result = await pool.request().query(`
       SELECT 
         intOfficeID,
-        OfficeName,
+        strOfficeName AS OfficeName,
         OfficeCode,
         IsActive,
         CreatedDate
       FROM tblOffices 
       WHERE IsActive = 1
-      ORDER BY OfficeName
+      ORDER BY strOfficeName
     `);
 
     res.json(result.recordset);
@@ -307,14 +341,14 @@ app.get('/api/wings', requireAuth, async (req, res) => {
 
     const result = await pool.request().query(`
       SELECT 
-        intWingID,
-        WingName,
-        WingCode,
+        Id AS intWingID,
+        Name AS WingName,
+        Code AS WingCode,
         IsActive,
         CreatedDate
-      FROM tblWings 
+      FROM WingsInformation 
       WHERE IsActive = 1
-      ORDER BY WingName
+      ORDER BY Name
     `);
 
     res.json(result.recordset);
