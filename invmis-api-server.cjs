@@ -3,7 +3,7 @@ const cors = require('cors');
 const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
-require('dotenv').config({ path: '.env.invmisdb' });
+require('dotenv').config(); // Use default .env file
 
 const app = express();
 const PORT = process.env.PORT || 5000;

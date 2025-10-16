@@ -21,13 +21,12 @@ $source = ".env-$env"
 $target = ".env"
 
 # Color output functions
-function Write-Success { param($Message) Write-Host "✅ $Message" -ForegroundColor Green }
-function Write-Error { param($Message) Write-Host "❌ $Message" -ForegroundColor Red }
-function Write-Info { param($Message) Write-Host "ℹ️  $Message" -ForegroundColor Cyan }
-function Write-Warning { param($Message) Write-Host "⚠️  $Message" -ForegroundColor Yellow }
+function Write-Success { param($Message) Write-Host "[SUCCESS] $Message" -ForegroundColor Green }
+function Write-Error { param($Message) Write-Host "[ERROR] $Message" -ForegroundColor Red }
+function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Cyan }
+function Write-Warning { param($Message) Write-Host "[WARNING] $Message" -ForegroundColor Yellow }
 
-Write-Host "`n🔄 Environment Switcher" -ForegroundColor Magenta
-Write-Host "======================" -ForegroundColor Magenta
+Write-Host "`n=== Environment Switcher ===" -ForegroundColor Magenta
 Write-Host ""
 
 # Check if source file exists
@@ -50,10 +49,10 @@ if (Test-Path $target) {
 try {
     Copy-Item $source $target -Force
     Write-Success "Switched to $env environment!"
-    Write-Info "Active file: $source → .env"
+    Write-Info "Active file: $source -> .env"
     
     # Display key settings
-    Write-Host "`n📊 Environment Settings:" -ForegroundColor Yellow
+    Write-Host "`n=== Environment Settings ===" -ForegroundColor Yellow
     $content = Get-Content $target
     
     $dbName = ($content | Select-String "DB_NAME=").ToString().Split("=")[1]
@@ -66,7 +65,7 @@ try {
     Write-Info "  Backend Port: $port"
     Write-Info "  Frontend Port: $frontendPort"
     
-    Write-Host "`n🎯 Next Steps:" -ForegroundColor Yellow
+    Write-Host "`n=== Next Steps ===" -ForegroundColor Yellow
     Write-Info "1. Restart your backend server"
     Write-Info "2. Restart your frontend (if running)"
     Write-Info "3. Backend will connect to: $dbName"
@@ -76,18 +75,18 @@ try {
     if ($env -eq "test") {
         Write-Host ""
         Write-Warning "TEST Environment Notes:"
-        Write-Info "• Uses InventoryManagementDB_TEST database"
-        Write-Info "• Run create-full-clone-test-database.sql if needed"
-        Write-Info "• Safe for testing without affecting production"
+        Write-Info "- Uses InventoryManagementDB_TEST database"
+        Write-Info "- Run create-full-clone-test-database.sql if needed"
+        Write-Info "- Safe for testing without affecting production"
     }
     
     if ($env -eq "production") {
         Write-Host ""
         Write-Warning "PRODUCTION Environment - Important:"
-        Write-Info "• Review security settings before deployment"
-        Write-Info "• Change JWT_SECRET and SESSION_SECRET"
-        Write-Info "• Update domain URLs"
-        Write-Info "• Enable SSL/TLS encryption"
+        Write-Info "- Review security settings before deployment"
+        Write-Info "- Change JWT_SECRET and SESSION_SECRET"
+        Write-Info "- Update domain URLs"
+        Write-Info "- Enable SSL/TLS encryption"
     }
     
     Write-Host ""
