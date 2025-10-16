@@ -35,7 +35,6 @@ const config = {
     encrypt: process.env.SQL_SERVER_ENCRYPT === 'true',
     trustServerCertificate: process.env.SQL_SERVER_TRUST_CERT === 'true',
     enableArithAbort: true,
-    trustedConnection: false, // Will be set based on authentication type
   },
   pool: {
     max: 10,
@@ -49,10 +48,19 @@ if (process.env.SQL_SERVER_USER && process.env.SQL_SERVER_PASSWORD) {
   // SQL Server Authentication
   config.user = process.env.SQL_SERVER_USER;
   config.password = process.env.SQL_SERVER_PASSWORD;
-  config.options.trustedConnection = false;
+  config.authentication = {
+    type: 'default'
+  };
 } else {
   // Windows Authentication
-  config.options.trustedConnection = true;
+  config.authentication = {
+    type: 'ntlm',
+    options: {
+      domain: process.env.SQL_SERVER_DOMAIN || '',
+      userName: process.env.SQL_SERVER_WINDOWS_USER || process.env.USERNAME || '',
+      password: process.env.SQL_SERVER_WINDOWS_PASSWORD || ''
+    }
+  };
 }
 
 let pool;
