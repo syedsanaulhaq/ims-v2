@@ -16,7 +16,9 @@ import {
   Search,
   Filter,
   User,
-  Calendar
+  Calendar,
+  Eye,
+  Plus
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -152,6 +154,18 @@ const StockOperations = () => {
               {filteredRequests.length} of {stats.total} Requests
             </Badge>
           </div>
+        </div>
+        
+        {/* Create New Request Button */}
+        <div className="flex gap-2">
+          <Button
+            onClick={() => navigate('/dashboard/stock-issuance')}
+            className="flex items-center gap-2"
+            size="lg"
+          >
+            <Plus className="h-5 w-5" />
+            Create New Request
+          </Button>
         </div>
       </div>
 
@@ -321,6 +335,17 @@ const StockOperations = () => {
                         {request.justification && (
                           <p className="text-sm text-gray-600 mt-2"><span className="font-medium">Justification:</span> {request.justification}</p>
                         )}
+                      </div>
+                      <div className="flex flex-col gap-2 md:w-auto">
+                        <Button
+                          onClick={() => navigate(`/dashboard/stock-issuance/${request.id}`)}
+                          variant="default"
+                          size="sm"
+                          className="w-full md:w-auto flex items-center gap-2"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View Details
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
