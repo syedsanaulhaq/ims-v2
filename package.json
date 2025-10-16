@@ -9,8 +9,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "backend": "node backend-server.cjs",
+    "backend": "node invmis-api-server.cjs",
     "dev:full": "concurrently \"npm run backend\" \"npm run dev\"",
+    "test:full": "powershell -Command \"./switch-env.ps1 test; npm run build\" && concurrently \"npm run backend\" \"npm run preview\"",
+    "prod:full": "powershell -Command \"./switch-env.ps1 prod; npm run build\" && concurrently \"npm run backend\" \"npm run preview\"",
     "dev:clean": "taskkill /f /im node.exe 2>nul & npm run dev:full",
     "start:production": "node scripts/switch-environment.js production && concurrently \"npm run backend\" \"npm run preview\"",
     "perf:clean": "node dev-performance.js clean",
@@ -24,9 +26,10 @@
     "staging:start": "echo Starting STAGING environment... && npm run build && concurrently \"npm run backend\" \"npm run preview\"",
     "prod:start": "echo Starting PRODUCTION environment... && npm run build && concurrently \"npm run backend\" \"npm run preview\"",
     "status": "node scripts/check-environment.js",
-    "switch:dev": "echo Switching to DEVELOPMENT... && npm run dev:start",
-    "switch:staging": "echo Switching to STAGING... && npm run staging:start",
-    "switch:prod": "echo Switching to PRODUCTION... && npm run prod:start"
+    "switch:dev": "powershell -Command \"./switch-env.ps1 dev\"",
+    "switch:test": "powershell -Command \"./switch-env.ps1 test\"",
+    "switch:staging": "powershell -Command \"./switch-env.ps1 test\"",
+    "switch:prod": "powershell -Command \"./switch-env.ps1 prod\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
