@@ -83,16 +83,16 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Serve HTML files from root directory (for session setter page)
 app.use(express.static(__dirname));
 
-// SQL Server configuration - Using exact server name from SSMS
+// SQL Server configuration - Using environment variables from .env.sqlserver
 const sqlConfig = {
-  server: 'SYED-FAZLI-LAPT', // Exact server name as used in SSMS
-  database: 'InventoryManagementDB',
-  user: 'inventoryuser',
-  password: '1978Jupiter87@#',
-  port: 1433,
+  server: process.env.SQL_SERVER_HOST || 'SYED-FAZLI-LAPT',
+  database: process.env.SQL_SERVER_DATABASE || 'InventoryManagementDB_TEST',
+  user: process.env.SQL_SERVER_USER || 'inventorymanagementuser',
+  password: process.env.SQL_SERVER_PASSWORD || '2016Wfp61@',
+  port: parseInt(process.env.SQL_SERVER_PORT) || 1433,
   options: {
-    encrypt: false,
-    trustServerCertificate: true,
+    encrypt: process.env.SQL_SERVER_ENCRYPT === 'true',
+    trustServerCertificate: process.env.SQL_SERVER_TRUST_CERT === 'true' || true,
     enableArithAbort: true
   },
   requestTimeout: 30000,
