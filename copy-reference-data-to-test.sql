@@ -15,7 +15,7 @@ PRINT 'Copying reference data from INVMIS to INVMIS_TEST...';
 GO
 
 -- Copy AspNetUsers (Authentication users)
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'AspNetUsers')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'AspNetUsers')
 BEGIN
     INSERT INTO INVMIS_TEST.dbo.AspNetUsers 
     SELECT * FROM INVMIS.dbo.AspNetUsers;
@@ -25,7 +25,7 @@ END
 GO
 
 -- Copy Users (with passwords)
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Users')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'Users')
 BEGIN
     SET IDENTITY_INSERT Users ON;
     
@@ -38,7 +38,7 @@ END
 GO
 
 -- Copy Offices
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Offices')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'Offices')
 BEGIN
     SET IDENTITY_INSERT Offices ON;
     
@@ -51,7 +51,7 @@ END
 GO
 
 -- Copy Wings
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Wings')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'Wings')
 BEGIN
     SET IDENTITY_INSERT Wings ON;
     
@@ -64,7 +64,7 @@ END
 GO
 
 -- Copy Branches
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Branches')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'Branches')
 BEGIN
     INSERT INTO INVMIS_TEST.dbo.Branches 
     SELECT * FROM INVMIS.dbo.Branches;
@@ -74,7 +74,7 @@ END
 GO
 
 -- Copy Categories
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ItemCategories')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'ItemCategories')
 BEGIN
     SET IDENTITY_INSERT ItemCategories ON;
     
@@ -87,7 +87,7 @@ END
 GO
 
 -- Copy Designations
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Designations')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'Designations')
 BEGIN
     SET IDENTITY_INSERT Designations ON;
     
@@ -100,7 +100,7 @@ END
 GO
 
 -- Copy Vendors (if needed for testing)
-IF EXISTS (SELECT * FROM INVMIS.INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Vendors')
+IF EXISTS (SELECT * FROM INVMIS.sys.tables WHERE name = 'Vendors')
 BEGIN
     INSERT INTO INVMIS_TEST.dbo.Vendors 
     SELECT * FROM INVMIS.dbo.Vendors;
