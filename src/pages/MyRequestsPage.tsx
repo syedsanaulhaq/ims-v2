@@ -50,7 +50,9 @@ const RequestTrackingPage: React.FC = () => {
   const loadMyRequests = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/my-requests', {
+      
+      // Use the same API that works for other components
+      const response = await fetch('http://localhost:3001/api/stock-issuance/requests', {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -61,7 +63,30 @@ const RequestTrackingPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setRequests(data.requests || []);
+          // Map the stock issuance data to our request format
+          const mappedRequests = data.data.map((request: any) => ({
+            id: request.id,
+            request_type: request.request_type || 'Individual',
+            title: request.purpose || 'Stock Issuance Request',
+            description: request.justification || request.purpose || 'Request for inventory items',
+            requested_date: request.created_at,
+            submitted_date: request.submitted_at,
+            current_status: request.request_status?.toLowerCase() || 'pending',
+            current_approver_name: 'N/A',
+            items: request.items?.map((item: any) => ({
+              id: item.id,
+              item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
+              requested_quantity: item.requested_quantity || 1,
+              approved_quantity: item.approved_quantity,
+              unit: 'units'
+            })) || [],
+            total_items: request.items?.length || 0,
+            priority: request.urgency_level || 'Medium',
+            office_name: request.office?.name,
+            wing_name: request.wing?.name
+          }));
+          
+          setRequests(mappedRequests);
         } else {
           console.error('Failed to load requests:', data.error);
         }
@@ -77,6 +102,7 @@ const RequestTrackingPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
+      'submitted': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: Clock },
       'pending': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: Clock },
       'approved': { color: 'bg-green-100 text-green-800 border-green-300', icon: CheckCircle },
       'rejected': { color: 'bg-red-100 text-red-800 border-red-300', icon: XCircle },
@@ -84,7 +110,7 @@ const RequestTrackingPage: React.FC = () => {
       'in_progress': { color: 'bg-purple-100 text-purple-800 border-purple-300', icon: RefreshCw }
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+    const config = statusConfig[status.toLowerCase() as keyof typeof statusConfig] || statusConfig.pending;
     const Icon = config.icon;
 
     return (
@@ -160,8 +186,8 @@ const RequestTrackingPage: React.FC = () => {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {['pending', 'approved', 'rejected', 'finalized'].map(status => {
-          const count = requests.filter(r => r.current_status === status).length;
+        {['submitted', 'approved', 'rejected', 'finalized'].map(status => {
+          const count = requests.filter(r => r.current_status.toLowerCase() === status).length;
           return (
             <Card key={status}>
               <CardContent className="p-4">
@@ -210,6 +236,7 @@ const RequestTrackingPage: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
@@ -225,9 +252,8 @@ const RequestTrackingPage: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="stock_issuance">Stock Issuance</SelectItem>
-                  <SelectItem value="procurement">Procurement</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="Individual">Individual</SelectItem>
+                  <SelectItem value="Organizational">Organizational</SelectItem>
                 </SelectContent>
               </Select>
             </div>

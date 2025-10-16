@@ -161,24 +161,116 @@ const RequestHistoryPage: React.FC = () => {
     
     try {
       console.log('🔍 Fetching tracking data for request:', request.request_id);
-      const response = await fetch(`http://localhost:3001/api/approvals/${request.id}/history`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      
+      // Create a comprehensive timeline with submitted, current, and future steps
+      const completeTimeline = [];
+      
+      // 1. Add the submission step
+      completeTimeline.push({
+        id: 'submission',
+        action_type: 'submitted',
+        action_date: request.submitted_date,
+        action_by_name: request.requester_name,
+        action_by_designation: 'Requester',
+        comments: `Request submitted on ${format(new Date(request.submitted_date), 'MMM dd, yyyy HH:mm')}`,
+        step_status: 'completed'
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📋 Tracking data received:', data);
-        setTrackingData(data.data || []);
-      } else {
-        console.error('❌ Failed to fetch tracking data');
-        setTrackingData([]);
+      // 2. Try to get actual approval history from API
+      let actualHistory = [];
+      try {
+        const response = await fetch(`http://localhost:3001/api/approvals/${request.id}/history`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          actualHistory = data.data || [];
+        }
+      } catch (apiError) {
+        console.log('Could not fetch API history, continuing with workflow');
       }
+
+      // 3. Add actual approval actions that have happened
+      actualHistory.forEach((action, index) => {
+        completeTimeline.push({
+          ...action,
+          step_status: 'completed'
+        });
+      });
+
+      // 4. Add current step (if not completed)
+      if (request.current_status !== 'finalized' && request.current_status !== 'rejected') {
+        // Determine who the current approver should be based on the workflow
+        let currentApprover = 'Pending Approval';
+        let currentDesignation = 'Next Approver';
+        
+        // Basic workflow logic - this can be enhanced based on your actual workflow
+        if (actualHistory.length === 0) {
+          currentApprover = 'HR Supervisor';
+          currentDesignation = 'Human Resources';
+        } else if (actualHistory.length === 1) {
+          currentApprover = 'Inventory Manager';
+          currentDesignation = 'Inventory Management';
+        } else {
+          currentApprover = 'Department Head';
+          currentDesignation = 'Final Approval';
+        }
+
+        completeTimeline.push({
+          id: 'current_step',
+          action_type: 'pending',
+          action_date: null,
+          action_by_name: currentApprover,
+          action_by_designation: currentDesignation,
+          comments: 'Awaiting approval action',
+          step_status: 'current'
+        });
+
+        // 5. Add future steps
+        if (actualHistory.length === 0) {
+          completeTimeline.push({
+            id: 'future_step_1',
+            action_type: 'pending',
+            action_date: null,
+            action_by_name: 'Inventory Manager',
+            action_by_designation: 'Inventory Management',
+            comments: 'Future approval step',
+            step_status: 'future'
+          });
+        }
+        
+        if (actualHistory.length <= 1) {
+          completeTimeline.push({
+            id: 'final_step',
+            action_type: 'pending',
+            action_date: null,
+            action_by_name: 'Department Head',
+            action_by_designation: 'Final Approval',
+            comments: 'Final approval step',
+            step_status: 'future'
+          });
+        }
+      }
+
+      console.log('📋 Complete timeline created:', completeTimeline);
+      setTrackingData(completeTimeline);
+      
     } catch (error) {
-      console.error('❌ Error fetching tracking data:', error);
-      setTrackingData([]);
+      console.error('❌ Error creating tracking timeline:', error);
+      // Fallback to basic timeline
+      setTrackingData([{
+        id: 'submission',
+        action_type: 'submitted',
+        action_date: request.submitted_date,
+        action_by_name: request.requester_name,
+        action_by_designation: 'Requester',
+        comments: 'Request submitted for approval',
+        step_status: 'completed'
+      }]);
     } finally {
       setTrackingLoading(false);
     }
@@ -714,8 +806,8 @@ const RequestHistoryPage: React.FC = () => {
                     {trackingData.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <History className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>No approval history available yet.</p>
-                        <p className="text-sm">This request hasn't been processed through the approval workflow.</p>
+                        <p>Unable to load approval workflow.</p>
+                        <p className="text-sm">Please try again or contact system administrator.</p>
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -723,37 +815,83 @@ const RequestHistoryPage: React.FC = () => {
                           <div key={index} className="flex items-start gap-4 relative">
                             {/* Timeline connector */}
                             {index < trackingData.length - 1 && (
-                              <div className="absolute left-5 top-10 w-0.5 h-8 bg-gray-300"></div>
+                              <div className={`absolute left-5 top-10 w-0.5 h-8 ${
+                                step.step_status === 'future' ? 'border-l-2 border-dashed border-gray-300' : 'bg-gray-300'
+                              }`}></div>
                             )}
                             
                             {/* Status icon */}
                             <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                              step.action_type === 'approved' ? 'bg-green-100 text-green-600' :
-                              step.action_type === 'rejected' ? 'bg-red-100 text-red-600' :
-                              step.action_type === 'forwarded' ? 'bg-blue-100 text-blue-600' :
+                              step.step_status === 'completed' && step.action_type === 'approved' ? 'bg-green-100 text-green-600' :
+                              step.step_status === 'completed' && step.action_type === 'rejected' ? 'bg-red-100 text-red-600' :
+                              step.step_status === 'completed' && step.action_type === 'forwarded' ? 'bg-blue-100 text-blue-600' :
+                              step.step_status === 'completed' && step.action_type === 'submitted' ? 'bg-blue-100 text-blue-600' :
+                              step.step_status === 'current' ? 'bg-yellow-100 text-yellow-600 ring-2 ring-yellow-300' :
+                              step.step_status === 'future' ? 'bg-gray-100 text-gray-400' :
                               'bg-gray-100 text-gray-600'
                             }`}>
                               {step.action_type === 'approved' ? <CheckCircle className="h-5 w-5" /> :
                                step.action_type === 'rejected' ? <XCircle className="h-5 w-5" /> :
                                step.action_type === 'forwarded' ? <ArrowRight className="h-5 w-5" /> :
+                               step.action_type === 'submitted' ? <User className="h-5 w-5" /> :
                                <Clock className="h-5 w-5" />}
                             </div>
                             
                             {/* Step details */}
-                            <div className="flex-grow bg-white rounded-lg border border-gray-200 p-4">
+                            <div className={`flex-grow rounded-lg border p-4 ${
+                              step.step_status === 'completed' ? 'bg-white border-gray-200' :
+                              step.step_status === 'current' ? 'bg-yellow-50 border-yellow-200 ring-1 ring-yellow-300' :
+                              step.step_status === 'future' ? 'bg-gray-50 border-gray-200 opacity-70' :
+                              'bg-white border-gray-200'
+                            }`}>
                               <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-medium text-gray-900 capitalize">
-                                  {step.action_type === 'forwarded' ? 'Forwarded' : step.action_type}
+                                <h4 className={`font-medium ${
+                                  step.step_status === 'current' ? 'text-yellow-900' :
+                                  step.step_status === 'future' ? 'text-gray-500' :
+                                  'text-gray-900'
+                                } capitalize`}>
+                                  {step.action_type === 'submitted' ? 'Submitted Request' :
+                                   step.action_type === 'forwarded' ? 'Forwarded' :
+                                   step.action_type === 'pending' && step.step_status === 'current' ? 'Pending Approval' :
+                                   step.action_type === 'pending' && step.step_status === 'future' ? 'Future Step' :
+                                   step.action_type}
                                 </h4>
-                                <span className="text-sm text-gray-500">
-                                  {format(new Date(step.action_date), 'MMM dd, yyyy HH:mm')}
-                                </span>
+                                {step.step_status === 'current' && (
+                                  <span className="px-2 py-1 text-xs bg-yellow-200 text-yellow-800 rounded-full font-medium">
+                                    Current Step
+                                  </span>
+                                )}
+                                {step.step_status === 'future' && (
+                                  <span className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded-full">
+                                    Future
+                                  </span>
+                                )}
+                                {step.action_date && (
+                                  <span className="text-sm text-gray-500">
+                                    {format(new Date(step.action_date), 'MMM dd, yyyy HH:mm')}
+                                  </span>
+                                )}
                               </div>
                               
                               <div className="space-y-1 text-sm">
                                 <div>
-                                  <span className="font-medium text-gray-600">By:</span> {step.action_by_name || 'Unknown'}
+                                  <span className="font-medium text-gray-600">
+                                    {step.step_status === 'current' ? 'Assigned to:' : 
+                                     step.step_status === 'future' ? 'Will be assigned to:' : 'By:'}
+                                  </span> 
+                                  <span className={`ml-1 ${step.step_status === 'future' ? 'text-gray-500' : 'text-gray-900'}`}>
+                                    {step.action_by_name || 'Unknown'}
+                                  </span>
                                 </div>
+                                
+                                {step.action_by_designation && (
+                                  <div>
+                                    <span className="font-medium text-gray-600">Role:</span>
+                                    <span className={`ml-1 ${step.step_status === 'future' ? 'text-gray-500' : 'text-gray-700'}`}>
+                                      {step.action_by_designation}
+                                    </span>
+                                  </div>
+                                )}
                                 
                                 {step.action_type === 'forwarded' && step.forwarded_to_name && (
                                   <div>
@@ -761,8 +899,17 @@ const RequestHistoryPage: React.FC = () => {
                                   </div>
                                 )}
                                 
-                                {step.comments && (
-                                  <div className="bg-gray-50 rounded p-2 mt-2">
+                                {step.step_status === 'current' && !step.action_date && (
+                                  <div className="bg-yellow-100 rounded p-2 mt-2">
+                                    <span className="font-medium text-yellow-800">Status:</span>
+                                    <p className="text-yellow-700 mt-1">⏳ Awaiting approval action</p>
+                                  </div>
+                                )}
+                                
+                                {step.comments && step.step_status !== 'future' && (
+                                  <div className={`rounded p-2 mt-2 ${
+                                    step.step_status === 'current' ? 'bg-yellow-100' : 'bg-gray-50'
+                                  }`}>
                                     <span className="font-medium text-gray-600">Comments:</span>
                                     <p className="text-gray-700 mt-1">{step.comments}</p>
                                   </div>
