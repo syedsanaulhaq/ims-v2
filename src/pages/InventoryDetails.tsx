@@ -210,7 +210,7 @@ const InventoryDetails = () => {
         </CardContent>
       </Card>
 
-      {/* Inventory Items Grid */}
+      {/* Inventory Items Table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -229,48 +229,70 @@ const InventoryDetails = () => {
               <p className="text-sm">Try adjusting your search or filter criteria</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredItems.map((item) => (
-                <Card key={item.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-base">{item.item_name || 'Unknown Item'}</CardTitle>
-                      <Badge variant={
-                        item.current_quantity === 0 ? 'destructive' :
-                        (item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level) ? 'secondary' : 'default'
-                      }>
-                        {item.current_quantity === 0 ? 'Out of Stock' :
-                         (item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level) ? 'Low Stock' : 'In Stock'}
-                      </Badge>
-                    </div>
-                    <CardDescription>
-                      Code: {item.item_code || 'N/A'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Current Stock:</span>
-                        <span className="font-semibold">{item.current_quantity || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Min Level:</span>
-                        <span className="font-semibold">{item.minimum_stock_level || 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Max Level:</span>
-                        <span className="font-semibold">{item.maximum_stock_level || 0}</span>
-                      </div>
-                      {item.last_updated && (
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Last Updated:</span>
-                          <span className="text-sm">{formatDateDMY(item.last_updated)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b-2 border-gray-200">
+                    <th className="text-left p-3 font-semibold text-gray-700">Item Code</th>
+                    <th className="text-left p-3 font-semibold text-gray-700">Item Name</th>
+                    <th className="text-center p-3 font-semibold text-gray-700">Current Stock</th>
+                    <th className="text-center p-3 font-semibold text-gray-700">Status</th>
+                    <th className="text-left p-3 font-semibold text-gray-700">Last Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item, index) => (
+                    <tr 
+                      key={item.id} 
+                      className={`border-b hover:bg-gray-50 transition-colors ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                      }`}
+                    >
+                      <td className="p-3 font-medium text-gray-900">{item.item_code || 'N/A'}</td>
+                      <td className="p-3 text-gray-900">{item.item_name || 'Unknown Item'}</td>
+                      <td className="p-3 text-center">
+                        <span className={`font-semibold ${
+                          item.current_quantity === 0 ? 'text-red-600' :
+                          (item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level) ? 'text-yellow-600' :
+                          'text-green-600'
+                        }`}>
+                          {item.current_quantity || 0}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <Badge 
+                          variant={
+                            item.current_quantity === 0 ? 'destructive' :
+                            (item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level) ? 'secondary' : 
+                            'default'
+                          }
+                          className="inline-flex items-center gap-1"
+                        >
+                          {item.current_quantity === 0 ? (
+                            <>
+                              <XCircle className="h-3 w-3" />
+                              Out of Stock
+                            </>
+                          ) : (item.minimum_stock_level > 0 && item.current_quantity <= item.minimum_stock_level) ? (
+                            <>
+                              <AlertTriangle className="h-3 w-3" />
+                              Low Stock
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-3 w-3" />
+                              In Stock
+                            </>
+                          )}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-gray-600 text-sm">
+                        {item.last_updated ? formatDateDMY(item.last_updated) : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
