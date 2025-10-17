@@ -3516,13 +3516,16 @@ app.put('/api/tenders/:id/finalize', async (req, res) => {
         for (const item of tenderItemsResult.recordset) {
             console.log('📥 Adding item to stock_transactions_clean:', item.nomenclature);
             
+            // Auto-populate actual_unit_price with estimated_unit_price by default
+            const estimatedPrice = item.estimated_unit_price || 0;
+            
             await transaction.request()
                 .input('tender_id', sql.UniqueIdentifier, id)
                 .input('item_master_id', sql.VarChar(50), item.item_master_id)
-                .input('estimated_unit_price', sql.Decimal(18, 2), item.estimated_unit_price || 0)
-                .input('actual_unit_price', sql.Decimal(18, 2), 0) // Will be updated later when actual pricing is confirmed
+                .input('estimated_unit_price', sql.Decimal(18, 2), estimatedPrice)
+                .input('actual_unit_price', sql.Decimal(18, 2), estimatedPrice) // Auto-populate with estimated price, can be updated later
                 .input('total_quantity_received', sql.Int, item.quantity || 0)
-                .input('pricing_confirmed', sql.Bit, false)
+                .input('pricing_confirmed', sql.Bit, true) // Auto-confirm pricing since actual = estimated
                 .input('type', sql.VarChar(10), 'IN')
                 .input('remarks', sql.Text, `Added from tender finalization - ${item.nomenclature}`)
                 .query(`
@@ -6195,6 +6198,63 @@ app.put('/api/item-serial-numbers/:id', async (req, res) => {
   }
 });
 
+// POST create delivery item serial numbers
+app.post('/api/delivery-item-serial-numbers', async (req, res) => {
+  try {
+    const { delivery_item_id, delivery_id, item_master_id, serial_numbers } = req.body;
+
+    if (!delivery_item_id || !Array.isArray(serial_numbers) || serial_numbers.length === 0) {
+      return res.status(400).json({ error: 'delivery_item_id and serial_numbers array are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      const insertedIds = [];
+      const now = new Date().toISOString();
+
+      for (const serialNumber of serial_numbers) {
+        const id = require('crypto').randomUUID();
+
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, id)
+          .input('delivery_id', sql.UniqueIdentifier, delivery_id)
+          .input('delivery_item_id', sql.UniqueIdentifier, delivery_item_id)
+          .input('item_master_id', sql.UniqueIdentifier, item_master_id)
+          .input('serial_number', sql.NVarChar, serialNumber)
+          .input('notes', sql.NVarChar, null)
+          .input('created_at', sql.DateTime2, now)
+          .input('updated_at', sql.DateTime2, now)
+          .query(`
+            INSERT INTO delivery_item_serial_numbers (
+              id, delivery_id, delivery_item_id, item_master_id, serial_number, notes, created_at, updated_at
+            ) VALUES (
+              @id, @delivery_id, @delivery_item_id, @item_master_id, @serial_number, @notes, @created_at, @updated_at
+            )
+          `);
+
+        insertedIds.push(id);
+      }
+
+      await transaction.commit();
+      res.json({ 
+        success: true, 
+        ids: insertedIds,
+        count: serial_numbers.length,
+        message: `${serial_numbers.length} serial number(s) added successfully`
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create delivery item serial numbers', details: error.message });
+  }
+});
+
 // DELETE serial number by ID
 app.delete('/api/item-serial-numbers/:id', async (req, res) => {
   try {
@@ -6766,11 +6826,25 @@ app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
           THEN (CAST(COUNT(CASE WHEN stc.pricing_confirmed = 1 THEN 1 END) AS FLOAT) / COUNT(stc.id)) * 100 
           ELSE 0 
         END as pricing_completion_rate,
-        CASE WHEN COUNT(d.id) > 0 THEN 1 ELSE 0 END as has_deliveries,
+        CASE 
+          WHEN SUM(ti.quantity) = 0 THEN 0
+          WHEN SUM(ti.quantity) = SUM(COALESCE(delivered.total_delivered, 0)) THEN 2  -- Fully delivered
+          WHEN SUM(COALESCE(delivered.total_delivered, 0)) > 0 THEN 1  -- Partially delivered
+          ELSE 0  -- No deliveries
+        END as has_deliveries,
         MAX(stc.created_at) as created_at
       FROM stock_transactions_clean stc
       LEFT JOIN tenders t ON stc.tender_id = t.id
-      LEFT JOIN deliveries d ON stc.tender_id = d.tender_id
+      LEFT JOIN tender_items ti ON ti.tender_id = t.id
+      LEFT JOIN (
+        SELECT 
+          d.tender_id,
+          di.item_master_id,
+          SUM(di.delivery_qty) as total_delivered
+        FROM deliveries d
+        INNER JOIN delivery_items di ON d.id = di.delivery_id
+        GROUP BY d.tender_id, di.item_master_id
+      ) delivered ON t.id = delivered.tender_id AND ti.item_master_id = delivered.item_master_id
       WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
       GROUP BY stc.tender_id, t.title, t.reference_number
       ORDER BY created_at DESC

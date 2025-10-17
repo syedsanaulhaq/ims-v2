@@ -568,13 +568,18 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {tender.has_deliveries ? (
-                          <Badge className="bg-green-100 text-green-800">
+                        {tender.has_deliveries === 2 ? (
+                          <Badge className="bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Complete
+                          </Badge>
+                        ) : tender.has_deliveries === 1 ? (
+                          <Badge className="bg-amber-500 text-white border-amber-600 hover:bg-amber-600">
                             <Truck className="w-3 h-3 mr-1" />
-                            Active
+                            Partial
                           </Badge>
                         ) : (
-                          <Badge variant="outline">
+                          <Badge className="bg-slate-400 text-white border-slate-500 hover:bg-slate-500">
                             <Clock className="w-3 h-3 mr-1" />
                             Pending
                           </Badge>

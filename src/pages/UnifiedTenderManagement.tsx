@@ -124,6 +124,24 @@ const UnifiedTenderManagement: React.FC = () => {
     delivery_chalan: ''
   });
 
+  // Serial number dialog state
+  const [serialNumberDialog, setSerialNumberDialog] = useState<{
+    isOpen: boolean;
+    deliveryId: string;
+    deliveryItemId: string;
+    itemMasterId: string;
+    itemName: string;
+    quantity: number;
+  }>({
+    isOpen: false,
+    deliveryId: '',
+    deliveryItemId: '',
+    itemMasterId: '',
+    itemName: '',
+    quantity: 0
+  });
+  const [serialNumberInput, setSerialNumberInput] = useState('');
+
   // Load data
   useEffect(() => {
     if (tenderId) {
@@ -209,6 +227,21 @@ const UnifiedTenderManagement: React.FC = () => {
     if (received < estimated) return { status: 'partial', color: 'text-yellow-600' };
     if (received === estimated) return { status: 'complete', color: 'text-green-600' };
     return { status: 'excess', color: 'text-red-600' };
+  };
+
+  const getDeliveryStatus = (delivery: Delivery) => {
+    if (delivery.is_finalized) return 'Finalized';
+    
+    // Check if all items in this delivery are fully accounted for
+    if (!delivery.items || delivery.items.length === 0) return 'Pending';
+    
+    // Calculate if all tender items have been delivered considering this delivery
+    const allItemsDelivered = tenderItems.every(tenderItem => {
+      const receivedQty = calculateReceivedQuantity(tenderItem.item_master_id);
+      return receivedQty >= tenderItem.quantity;
+    });
+    
+    return allItemsDelivered ? 'Complete' : 'Pending';
   };
 
   const updateItemPrice = async (itemId: string, newPrice: number) => {
@@ -378,6 +411,62 @@ const UnifiedTenderManagement: React.FC = () => {
     }
   };
 
+  const handleAddSerialNumbers = async () => {
+    if (!serialNumberInput.trim()) {
+      alert('Please enter at least one serial number');
+      return;
+    }
+
+    // Split by newlines or commas, trim whitespace, and filter empty strings
+    const serialNumbers = serialNumberInput
+      .split(/[\n,]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    if (serialNumbers.length === 0) {
+      alert('Please enter valid serial numbers');
+      return;
+    }
+
+    if (serialNumbers.length > serialNumberDialog.quantity) {
+      alert(`You can only add ${serialNumberDialog.quantity} serial number(s) for this item`);
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/delivery-item-serial-numbers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          delivery_id: serialNumberDialog.deliveryId,
+          delivery_item_id: serialNumberDialog.deliveryItemId,
+          item_master_id: serialNumberDialog.itemMasterId,
+          serial_numbers: serialNumbers
+        })
+      });
+
+      if (response.ok) {
+        await loadTenderData(); // Reload to show the new serial numbers
+        setSerialNumberDialog({
+          isOpen: false,
+          deliveryId: '',
+          deliveryItemId: '',
+          itemMasterId: '',
+          itemName: '',
+          quantity: 0
+        });
+        setSerialNumberInput('');
+        alert(`${serialNumbers.length} serial number(s) added successfully!`);
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to add serial numbers: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error adding serial numbers:', error);
+      alert('Failed to add serial numbers');
+    }
+  };
+
   const deleteDelivery = async (deliveryId: string, deliveryNumber: string) => {
     if (!confirm(`Are you sure you want to delete Delivery #${deliveryNumber}? This action cannot be undone.`)) {
       return;
@@ -436,11 +525,11 @@ const UnifiedTenderManagement: React.FC = () => {
           open={!deliveriesCollapsed}
           onOpenChange={(open) => setDeliveriesCollapsed(!open)}
         >
-          <Card>
+          <Card className="border-l-4 border-l-emerald-500 bg-emerald-50/30">
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-gray-50">
+              <CardHeader className="cursor-pointer hover:bg-emerald-50">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-emerald-700">
                     {deliveriesCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     <Truck className="w-5 h-5" />
                     Deliveries ({deliveries.length})
@@ -548,8 +637,8 @@ const UnifiedTenderManagement: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant={delivery.is_finalized ? 'default' : 'secondary'}>
-                            {delivery.is_finalized ? 'Finalized' : 'Pending'}
+                          <Badge variant={delivery.is_finalized ? 'default' : getDeliveryStatus(delivery) === 'Complete' ? 'default' : 'secondary'}>
+                            {getDeliveryStatus(delivery)}
                           </Badge>
                           <Badge variant="outline">
                             {delivery.items?.length || 0} items
@@ -632,7 +721,17 @@ const UnifiedTenderManagement: React.FC = () => {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => {/* Add serial number */}}
+                                        onClick={() => {
+                                          setSerialNumberDialog({
+                                            isOpen: true,
+                                            deliveryId: delivery.id,
+                                            deliveryItemId: item.id,
+                                            itemMasterId: item.item_master_id,
+                                            itemName: item.item_name,
+                                            quantity: item.delivery_qty
+                                          });
+                                        }}
+                                        title="Add Serial Numbers"
                                       >
                                         <Plus className="w-3 h-3" />
                                       </Button>
@@ -966,6 +1065,74 @@ const UnifiedTenderManagement: React.FC = () => {
               <Button onClick={addItemToDelivery}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Item
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Serial Number Dialog */}
+      <Dialog 
+        open={serialNumberDialog.isOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setSerialNumberDialog({
+              isOpen: false,
+              deliveryId: '',
+              deliveryItemId: '',
+              itemMasterId: '',
+              itemName: '',
+              quantity: 0
+            });
+            setSerialNumberInput('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Serial Numbers</DialogTitle>
+            <DialogDescription>
+              Add serial numbers for <strong>{serialNumberDialog.itemName}</strong> (Quantity: {serialNumberDialog.quantity})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="serial-numbers">Serial Numbers</Label>
+              <p className="text-sm text-gray-500 mb-2">
+                Enter one serial number per line or separate with commas (max {serialNumberDialog.quantity})
+              </p>
+              <Textarea
+                id="serial-numbers"
+                placeholder="SN001&#10;SN002&#10;SN003"
+                value={serialNumberInput}
+                onChange={(e) => setSerialNumberInput(e.target.value)}
+                rows={6}
+                className="font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {serialNumberInput.split(/[\n,]+/).filter(s => s.trim()).length} / {serialNumberDialog.quantity} serial numbers entered
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSerialNumberDialog({
+                    isOpen: false,
+                    deliveryId: '',
+                    deliveryItemId: '',
+                    itemMasterId: '',
+                    itemName: '',
+                    quantity: 0
+                  });
+                  setSerialNumberInput('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleAddSerialNumbers}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Serial Numbers
               </Button>
             </div>
           </div>
