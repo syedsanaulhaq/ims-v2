@@ -163,9 +163,8 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
     }
   };
 
-  const handleViewDetails = (tender: Tender) => {
-    setSelectedTender(tender);
-    setShowDetails(true);
+  const handleViewDetails = async (tender: Tender) => {
+    navigate(`/dashboard/tender-details/${tender.id}`);
   };
 
   const handleCreateNew = () => {
@@ -472,14 +471,19 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-purple-100 rounded-lg">
-                <AlertCircle className="w-6 h-6 text-purple-600" />
+                <Calendar className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Total Estimated Value</p>
+                <p className="text-sm font-medium text-gray-500">Recent Tenders</p>
                 <h3 className="text-2xl font-bold">
-                  {formatCurrency(tenders.reduce((sum, t) => sum + (t.estimated_value || 0), 0))}
+                  {tenders.filter(t => {
+                    const createdDate = new Date(t.created_at);
+                    const weekAgo = new Date();
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    return createdDate >= weekAgo;
+                  }).length}
                 </h3>
-                <p className="text-xs text-gray-500">Combined tender value</p>
+                <p className="text-xs text-gray-500">Created in last 7 days</p>
               </div>
             </div>
           </CardContent>
@@ -602,6 +606,51 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <div>
                   <label className="text-sm font-medium text-gray-500">Description</label>
                   <p className="mt-1 text-gray-700 whitespace-pre-wrap">{selectedTender.description}</p>
+                </div>
+              )}
+
+              {/* Tender Items Table */}
+              {selectedTender.items && selectedTender.items.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500 block mb-3">Tender Items ({selectedTender.items.length})</label>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead>#</TableHead>
+                          <TableHead>Nomenclature</TableHead>
+                          <TableHead>Quantity</TableHead>
+                          <TableHead>Unit Price</TableHead>
+                          <TableHead>Total Amount</TableHead>
+                          <TableHead>Specifications</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedTender.items.map((item, index) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell className="font-medium">{item.nomenclature}</TableCell>
+                            <TableCell>{item.quantity}</TableCell>
+                            <TableCell>{item.estimated_unit_price ? formatCurrency(item.estimated_unit_price) : 'N/A'}</TableCell>
+                            <TableCell className="font-semibold">
+                              {item.total_amount ? formatCurrency(item.total_amount) : 'N/A'}
+                            </TableCell>
+                            <TableCell className="max-w-xs truncate" title={item.specifications || ''}>
+                              {item.specifications || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="mt-2 text-right">
+                    <span className="text-sm font-medium text-gray-500">Total Items: </span>
+                    <span className="text-lg font-bold text-blue-600">{selectedTender.items.length}</span>
+                    <span className="ml-4 text-sm font-medium text-gray-500">Total Quantity: </span>
+                    <span className="text-lg font-bold text-green-600">
+                      {selectedTender.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                    </span>
+                  </div>
                 </div>
               )}
 

@@ -1,13 +1,19 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  // Load env file based on `mode` in the current working directory.
+  const env = loadEnv(mode, process.cwd(), '');
+  
+  return {
   define: {
     // Properly set NODE_ENV for the application
     'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
+    // Make VITE_API_URL available
+    'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || 'http://localhost:3001'),
   },
   server: {
     host: "::",
@@ -76,4 +82,5 @@ export default defineConfig(({ mode }) => ({
     jsxImportSource: 'react',
     jsxDev: false, // Ensure production JSX runtime
   }
-}));
+  };
+});
