@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import jsPDF from 'jspdf';
+// @ts-ignore - jspdf-autotable doesn't have proper types
+import autoTable from 'jspdf-autotable';
 import { 
   ShoppingCart,
   Package, 
@@ -26,7 +29,10 @@ import {
   MapPin,
   User,
   CalendarDays,
-  Receipt
+  Receipt,
+  Printer,
+  Download,
+  FileDown
 } from 'lucide-react';
 import {
   Table,
@@ -112,7 +118,7 @@ interface TenderStockSummary {
   total_estimated_value: number;
   total_actual_value: number;
   pricing_completion_rate: number;
-  has_deliveries: boolean;
+  has_deliveries: number; // 0 = Pending, 1 = Partial, 2 = Complete
   created_at: string;
 }
 
@@ -409,8 +415,201 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
     );
   }
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const generatePDF = (preview: boolean = false) => {
+    const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Stock Acquisition Report', pageWidth / 2, 20, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Finalized Tenders', pageWidth / 2, 28, { align: 'center' });
+    
+    // Date and time
+    doc.setFontSize(10);
+    const now = new Date().toLocaleDateString('en-PK', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.text(`Generated on: ${now}`, pageWidth / 2, 35, { align: 'center' });
+    
+    // Summary Statistics
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Summary Statistics', 14, 45);
+    
+    const summaryData = [
+      ['Total Tenders', stats.total_tenders.toString()],
+      ['Total Items', `${stats.total_items} (${stats.confirmed_pricing_items} confirmed)`],
+      ['Estimated Value', formatCurrency(stats.total_estimated_value)],
+      ['Actual Value', formatCurrency(stats.total_actual_value)]
+    ];
+    
+    autoTable(doc, {
+      startY: 50,
+      head: [['Metric', 'Value']],
+      body: summaryData,
+      theme: 'grid',
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      margin: { left: 14, right: 14 }
+    });
+    
+    // Tenders Table
+    const finalY = (doc as any).lastAutoTable.finalY || 80;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tender Details', 14, finalY + 10);
+    
+    const tableData = filteredTenders.map(tender => [
+      `${tender.tender_title || 'N/A'}\n${tender.tender_number || ''}`,
+      `${tender.total_items} items\n(${tender.confirmed_items} confirmed, ${tender.pending_items} pending)`,
+      formatCurrency(tender.total_estimated_value),
+      formatCurrency(tender.total_actual_value),
+      `${tender.pricing_completion_rate.toFixed(1)}%`,
+      tender.has_deliveries === 2 ? 'Complete' : tender.has_deliveries === 1 ? 'Partial' : 'Pending',
+      formatDate(tender.created_at)
+    ]);
+    
+    autoTable(doc, {
+      startY: finalY + 15,
+      head: [['Tender', 'Items', 'Est. Value', 'Actual Value', 'Completion', 'Deliveries', 'Created']],
+      body: tableData,
+      theme: 'striped',
+      styles: { 
+        fontSize: 8,
+        cellPadding: 3
+      },
+      headStyles: { 
+        fillColor: [52, 152, 219],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      columnStyles: {
+        0: { cellWidth: 60 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 25 },
+        5: { cellWidth: 25 },
+        6: { cellWidth: 30 }
+      },
+      margin: { left: 14, right: 14 },
+      didDrawPage: function (data) {
+        // Footer
+        doc.setFontSize(8);
+        doc.setTextColor(128);
+        doc.text(
+          `Page ${data.pageNumber}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+      }
+    });
+    
+    if (preview) {
+      // Open in new tab for preview
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, '_blank');
+    } else {
+      // Download
+      const filename = `Stock_Acquisition_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+    }
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <>
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          @page {
+            size: landscape;
+            margin: 0.5cm;
+          }
+          
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-container, .print-container * {
+            visibility: visible;
+          }
+          
+          .print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          
+          .print\\:hidden {
+            display: none !important;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
+          
+          /* Hide UI elements */
+          button, .search-input, nav, aside, footer {
+            display: none !important;
+          }
+          
+          /* Adjust layout for print */
+          .print-container {
+            padding: 20px;
+          }
+          
+          /* Table styling for print */
+          table {
+            page-break-inside: auto;
+            width: 100%;
+            border-collapse: collapse;
+          }
+          
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          
+          thead {
+            display: table-header-group;
+          }
+          
+          /* Card adjustments */
+          .print-card {
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            page-break-inside: avoid;
+          }
+          
+          /* Text color adjustments */
+          * {
+            color: black !important;
+          }
+          
+          .badge {
+            border: 1px solid #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+          }
+        }
+      `}</style>
+      <div className="p-6 space-y-6 print-container">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -418,6 +617,20 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
           <p className="text-muted-foreground">
             Manage pricing for finalized tenders, track deliveries, and update actual costs
           </p>
+        </div>
+        <div className="flex gap-2 print:hidden">
+          <Button onClick={() => generatePDF(true)} variant="outline">
+            <Eye className="w-4 h-4 mr-2" />
+            Preview PDF
+          </Button>
+          <Button onClick={() => generatePDF(false)} variant="outline">
+            <Download className="w-4 h-4 mr-2" />
+            Download PDF
+          </Button>
+          <Button onClick={handlePrint} variant="outline">
+            <Printer className="w-4 h-4 mr-2" />
+            Print
+          </Button>
         </div>
       </div>
 
@@ -485,7 +698,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
       </div>
 
       {/* Search */}
-      <Card>
+      <Card className="no-print">
         <CardContent className="pt-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -493,15 +706,43 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
               placeholder="Search by tender title or number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 search-input"
             />
           </div>
         </CardContent>
       </Card>
 
+      {/* Print Header - Only visible when printing */}
+      <div className="hidden print:block mb-6">
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-bold mb-2">Stock Acquisition Report</h1>
+          <h2 className="text-xl mb-1">Finalized Tenders</h2>
+          <p className="text-sm text-gray-600">Generated on {new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+        </div>
+        <div className="grid grid-cols-4 gap-4 mb-6 text-sm">
+          <div className="border p-3 rounded">
+            <div className="font-semibold">Total Tenders</div>
+            <div className="text-2xl">{stats.total_tenders}</div>
+          </div>
+          <div className="border p-3 rounded">
+            <div className="font-semibold">Total Items</div>
+            <div className="text-2xl">{stats.total_items}</div>
+            <div className="text-xs">{stats.confirmed_pricing_items} confirmed</div>
+          </div>
+          <div className="border p-3 rounded">
+            <div className="font-semibold">Estimated Value</div>
+            <div className="text-xl">{formatCurrency(stats.total_estimated_value)}</div>
+          </div>
+          <div className="border p-3 rounded">
+            <div className="font-semibold">Actual Value</div>
+            <div className="text-xl">{formatCurrency(stats.total_actual_value)}</div>
+          </div>
+        </div>
+      </div>
+
       {/* Tender Summaries Table */}
-      <Card>
-        <CardHeader>
+      <Card className="print-card">
+        <CardHeader className="print:hidden">
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5" />
             Finalized Tenders in Stock Acquisition
@@ -521,7 +762,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
                   <TableHead>Completion</TableHead>
                   <TableHead>Deliveries</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="no-print">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -586,7 +827,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
                         )}
                       </TableCell>
                       <TableCell>{formatDate(tender.created_at)}</TableCell>
-                      <TableCell>
+                      <TableCell className="no-print">
                         <div className="flex items-center gap-2">
                           <Button
                             variant="outline"
@@ -609,7 +850,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
 
       {/* Add Delivery Item Modal */}
       <Dialog open={showAddDeliveryItem} onOpenChange={setShowAddDeliveryItem}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl no-print">
           <DialogHeader>
             <DialogTitle>Add Delivery Item</DialogTitle>
             <DialogDescription>
@@ -727,6 +968,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 };
 

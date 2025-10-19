@@ -13,6 +13,7 @@ import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import Categories from "./pages/Categories";
+import SubCategories from "./pages/SubCategories";
 import Offices from "./pages/Offices";
 import Reports from "./pages/Reports";
 import StockTransactions from "./pages/StockTransactions";
@@ -135,6 +136,7 @@ function App() {
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
                   <Route path="categories" element={<Categories />} />
+                  <Route path="sub-categories" element={<SubCategories />} />
                   <Route path="vendors" element={<VendorManagementEnhanced />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="stock-transactions" element={<StockTransactions />} />

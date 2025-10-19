@@ -222,49 +222,72 @@ const Dashboard = () => {
         .slice(0, 6); // Top 6 categories
     };
 
-    // Monthly trends from stock issuance requests and deliveries
+    // Monthly trends from stock issuance requests and deliveries (Fiscal Year: July to June)
     const monthlyTrends = () => {
-      const currentYear = new Date().getFullYear();
+      const now = new Date();
+      const currentMonth = now.getMonth(); // 0-11
+      const currentYear = now.getFullYear();
+      
+      // Determine fiscal year: if current month is before July (6), use previous year as start
+      const fiscalYearStart = currentMonth >= 6 ? currentYear : currentYear - 1;
+      
       const monthlyData: Record<string, { requests: number; deliveries: number; tenders: number }> = {};
       
-      // Initialize months
-      for (let i = 0; i < 12; i++) {
-        const month = new Date(currentYear, i, 1).toLocaleDateString('en', { month: 'short' });
+      // Initialize 12 months starting from July of fiscal year
+      const monthNames = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+      monthNames.forEach(month => {
         monthlyData[month] = { requests: 0, deliveries: 0, tenders: 0 };
-      }
+      });
+
+      // Helper function to get fiscal month name
+      const getFiscalMonth = (date: Date) => {
+        const month = date.getMonth(); // 0-11
+        const year = date.getFullYear();
+        
+        // Check if date is within current fiscal year
+        if (year === fiscalYearStart && month >= 6) {
+          // July-Dec of fiscal year start
+          return monthNames[month - 6];
+        } else if (year === fiscalYearStart + 1 && month < 6) {
+          // Jan-Jun of fiscal year end
+          return monthNames[month + 6];
+        }
+        return null;
+      };
 
       // Process stock requests
       stockIssuanceRequests.forEach(request => {
         const date = new Date(request.created_at);
-        if (date.getFullYear() === currentYear) {
-          const month = date.toLocaleDateString('en', { month: 'short' });
-          if (monthlyData[month]) monthlyData[month].requests += 1;
+        const fiscalMonth = getFiscalMonth(date);
+        if (fiscalMonth && monthlyData[fiscalMonth]) {
+          monthlyData[fiscalMonth].requests += 1;
         }
       });
 
       // Process deliveries
       deliveries.forEach(delivery => {
         const date = new Date(delivery.created_at);
-        if (date.getFullYear() === currentYear) {
-          const month = date.toLocaleDateString('en', { month: 'short' });
-          if (monthlyData[month]) monthlyData[month].deliveries += 1;
+        const fiscalMonth = getFiscalMonth(date);
+        if (fiscalMonth && monthlyData[fiscalMonth]) {
+          monthlyData[fiscalMonth].deliveries += 1;
         }
       });
 
       // Process tenders
       tenders.forEach(tender => {
         const date = new Date(tender.created_at);
-        if (date.getFullYear() === currentYear) {
-          const month = date.toLocaleDateString('en', { month: 'short' });
-          if (monthlyData[month]) monthlyData[month].tenders += 1;
+        const fiscalMonth = getFiscalMonth(date);
+        if (fiscalMonth && monthlyData[fiscalMonth]) {
+          monthlyData[fiscalMonth].tenders += 1;
         }
       });
 
-      return Object.entries(monthlyData).map(([month, data]) => ({
+      // Return in fiscal year order (Jul, Aug, Sep... Jun)
+      return monthNames.map(month => ({
         month,
-        'Stock Requests': data.requests,
-        'Deliveries': data.deliveries,
-        'Tenders': data.tenders
+        'Stock Requests': monthlyData[month].requests,
+        'Deliveries': monthlyData[month].deliveries,
+        'Tenders': monthlyData[month].tenders
       }));
     };
 
@@ -290,7 +313,7 @@ const Dashboard = () => {
     <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
       {/* Page Header */}
       <div>
-        <h1 className="text-4xl font-bold text-gray-900">System Dashboard</h1>
+        <h1 className="text-4xl font-bold text-gray-900">Complete Stock</h1>
         <p className="text-lg text-gray-600 mt-2">
           Comprehensive Inventory Management System Overview
         </p>
@@ -418,14 +441,14 @@ const Dashboard = () => {
 
       {/* Advanced Analytics & Performance Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Monthly Activity Trends */}
+        {/* Yearly Activity Trends */}
         <Card className="hover:shadow-xl transition-all duration-300">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-blue-600" />
-              Monthly Activity Trends
+              Yearly Activity Trends
             </CardTitle>
-            <CardDescription>System activities over the past year</CardDescription>
+            <CardDescription>System activities over the fiscal year</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-80">

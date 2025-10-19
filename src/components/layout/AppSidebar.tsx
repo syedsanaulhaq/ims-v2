@@ -56,13 +56,13 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
   const allMenuItems = [
     {
-      title: "My Dashboard",
+      title: "Main Dashboard",
       icon: Home,
       path: "/",
       hasSubmenu: false
     },
     {
-      title: "Inv. Dashboard",
+      title: "Complete Stock",
       icon: BarChart3,
       path: "/dashboard",
       hasSubmenu: false
@@ -73,10 +73,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/inventory",
       hasSubmenu: true,
       submenu: [
-        { title: "Initial Setup", path: "/dashboard/initial-setup" },
+        { title: "Initial Stock", path: "/dashboard/initial-setup" },
         { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard" },
-        { title: "Item Master", path: "/dashboard/item-master" },
+        { title: "Base Items", path: "/dashboard/item-master" },
         { title: "Categories", path: "/dashboard/categories" },
+        { title: "Sub-Categories", path: "/dashboard/sub-categories" },
         { title: "Inventory Settings", path: "/dashboard/inventory-settings" }
       ]
     },
@@ -134,7 +135,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   // Filter menu items based on limitedMenu prop
   const menuItems = limitedMenu
     ? allMenuItems.filter(item =>
-        item.title === "My Dashboard" || item.title === "Inv. Dashboard"
+        item.title === "Main Dashboard" || item.title === "Complete Stock"
       )
     : allMenuItems;
 

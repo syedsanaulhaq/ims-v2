@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 interface ItemMaster {
   id: string; // UUID in database
   item_code: string;
+  manufacturer?: string;
   nomenclature: string;
   category_id: string; // UUID in database
   sub_category_id: string; // UUID in database
@@ -23,6 +24,7 @@ interface ItemMaster {
 // Interface for form data
 interface ItemFormData {
   item_code: string;
+  manufacturer: string;
   nomenclature: string;
   category_id: string;
   sub_category_id: string;
@@ -63,6 +65,7 @@ const ItemMasterManagement = () => {
   const [editingItem, setEditingItem] = useState<ItemMaster | null>(null);
   const [formData, setFormData] = useState<ItemFormData>({
     item_code: '',
+    manufacturer: '',
     nomenclature: '',
     category_id: '',
     sub_category_id: '',
@@ -126,6 +129,7 @@ const ItemMasterManagement = () => {
   const resetForm = () => {
     setFormData({
       item_code: '',
+      manufacturer: '',
       nomenclature: '',
       category_id: '',
       sub_category_id: '',
@@ -149,6 +153,7 @@ const ItemMasterManagement = () => {
   const openEditModal = (item: ItemMaster) => {
     setFormData({
       item_code: item.item_code,
+      manufacturer: item.manufacturer || '',
       nomenclature: item.nomenclature,
       category_id: item.category_id,
       sub_category_id: item.sub_category_id,
@@ -181,6 +186,7 @@ const ItemMasterManagement = () => {
     try {
       const payload = {
         item_code: formData.item_code,
+        manufacturer: formData.manufacturer || null,
         nomenclature: formData.nomenclature,
         category_id: formData.category_id,
         sub_category_id: formData.sub_category_id,
@@ -305,7 +311,7 @@ const ItemMasterManagement = () => {
   if (loading) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Item Master Management</h1>
+        <h1 className="text-2xl font-bold mb-4">Base Items Management</h1>
         <div className="text-gray-600">Loading items...</div>
       </div>
     );
@@ -315,7 +321,7 @@ const ItemMasterManagement = () => {
   if (error) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Item Master Management</h1>
+        <h1 className="text-2xl font-bold mb-4">Base Items Management</h1>
         <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
           <strong>Error:</strong> {error}
         </div>
@@ -332,7 +338,7 @@ const ItemMasterManagement = () => {
   // Main UI
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Item Master Management</h1>
+      <h1 className="text-2xl font-bold mb-6">Base Items Management</h1>
       
       {/* Stats */}
       <div className="bg-white p-6 rounded shadow mb-6">
@@ -467,7 +473,7 @@ const ItemMasterManagement = () => {
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold">
-                {editingItem ? 'Edit Item Master' : 'Add New Item Master'}
+                {editingItem ? 'Edit Base Item' : 'Add New Base Item'}
               </h2>
               <button
                 onClick={closeModal}
@@ -480,7 +486,7 @@ const ItemMasterManagement = () => {
             </div>
 
             <form onSubmit={handleFormSubmit} className="space-y-4">
-              {/* Row 1: Item Code and Nomenclature */}
+              {/* Row 1: Item Code and Manufacturer */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -497,20 +503,37 @@ const ItemMasterManagement = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nomenclature *
+                    Manufacturer
                   </label>
                   <input
                     type="text"
-                    required
-                    value={formData.nomenclature}
-                    onChange={(e) => setFormData({...formData, nomenclature: e.target.value})}
+                    value={formData.manufacturer}
+                    onChange={(e) => setFormData({...formData, manufacturer: e.target.value})}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Desktop Computer"
+                    placeholder="e.g., Dell, HP, Lenovo"
                   />
                 </div>
               </div>
 
-              {/* Row 2: Categories and Unit */}
+              {/* Row 2: Nomenclature (Full Width) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nomenclature *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.nomenclature}
+                  onChange={(e) => setFormData({...formData, nomenclature: e.target.value})}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Desktop Computer"
+                />
+              </div>
+
+              {/* Separator Line */}
+              <div className="border-t-2 border-gray-300 my-6"></div>
+
+              {/* Row 3: Categories and Unit */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

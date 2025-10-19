@@ -20,7 +20,7 @@ const UserDashboard: React.FC = () => {
   const getDashboardItems = () => {
     const commonItems = [
       {
-        title: 'IMS',
+        title: 'Stock Register',
         subtitle: 'Inventory Management System',
         description: 'Complete inventory tracking and management',
         icon: Package,
@@ -33,7 +33,7 @@ const UserDashboard: React.FC = () => {
         subtitle: 'Procurement & Tenders',
         description: 'Manage stock acquisitions and tenders',
         icon: ClipboardList,
-        path: '/stock-acquisition',
+        path: '/dashboard/stock-acquisition-dashboard',
         bgColor: 'bg-red-500',
         hoverColor: 'hover:bg-red-600'
       },
@@ -103,7 +103,7 @@ const UserDashboard: React.FC = () => {
                   <Package className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">My IMS Dashboard</h1>
+                  <h1 className="text-2xl font-bold text-gray-900">Main Dashboard</h1>
                   <p className="text-sm text-gray-500">Welcome back, {user?.FullName}</p>
                 </div>
               </div>

@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import jsPDF from 'jspdf';
+// @ts-ignore - jspdf-autotable doesn't have proper types
+import autoTable from 'jspdf-autotable';
 import { 
   ArrowLeft,
   Package, 
@@ -16,7 +19,10 @@ import {
   Edit,
   Trash2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Printer,
+  Download,
+  Eye
 } from 'lucide-react';
 import {
   Collapsible,
@@ -491,6 +497,157 @@ const UnifiedTenderManagement: React.FC = () => {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const generatePDF = (preview: boolean = false) => {
+    if (!tenderInfo) return;
+
+    const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tender Detail Report', pageWidth / 2, 20, { align: 'center' });
+    
+    // Tender Info
+    doc.setFontSize(14);
+    doc.text(tenderInfo.title, pageWidth / 2, 28, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Reference: ${tenderInfo.reference_number}`, pageWidth / 2, 35, { align: 'center' });
+    
+    const now = new Date().toLocaleDateString('en-PK', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.text(`Generated on: ${now}`, pageWidth / 2, 42, { align: 'center' });
+    
+    // Summary Section
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tender Summary', 14, 52);
+    
+    const summaryData = [
+      ['Tender Reference', tenderInfo.reference_number],
+      ['Status', tenderInfo.status],
+      ['Estimated Value', formatCurrency(tenderInfo.estimated_value)],
+      ['Total Items', tenderItems.length.toString()],
+      ['Total Deliveries', deliveries.length.toString()]
+    ];
+    
+    autoTable(doc, {
+      startY: 57,
+      head: [['Field', 'Value']],
+      body: summaryData,
+      theme: 'grid',
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      margin: { left: 14, right: 14 }
+    });
+    
+    // Tender Items Table
+    const finalY1 = (doc as any).lastAutoTable.finalY || 100;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tender Items', 14, finalY1 + 10);
+    
+    const itemsData = tenderItems.map(item => {
+      const receivedQty = calculateReceivedQuantity(item.item_master_id);
+      return [
+        item.nomenclature,
+        item.quantity.toString(),
+        receivedQty.toString(),
+        formatCurrency(item.estimated_unit_price),
+        formatCurrency(item.actual_unit_price || item.estimated_unit_price),
+        formatCurrency((item.actual_unit_price || item.estimated_unit_price) * item.quantity)
+      ];
+    });
+    
+    autoTable(doc, {
+      startY: finalY1 + 15,
+      head: [['Item', 'Quantity', 'Received', 'Est. Price', 'Actual Price', 'Total']],
+      body: itemsData,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 25, halign: 'center' },
+        3: { cellWidth: 35, halign: 'right' },
+        4: { cellWidth: 35, halign: 'right' },
+        5: { cellWidth: 40, halign: 'right' }
+      },
+      margin: { left: 14, right: 14 }
+    });
+    
+    // Deliveries Section
+    if (deliveries.length > 0) {
+      const finalY2 = (doc as any).lastAutoTable.finalY || 150;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Deliveries', 14, finalY2 + 10);
+      
+      const deliveriesData = deliveries.map(delivery => [
+        `#${delivery.delivery_number}`,
+        delivery.delivery_personnel,
+        formatDate(delivery.delivery_date),
+        `${delivery.items?.length || 0} items`,
+        getDeliveryStatus(delivery),
+        delivery.delivery_notes || '-'
+      ]);
+      
+      autoTable(doc, {
+        startY: finalY2 + 15,
+        head: [['Delivery #', 'Personnel', 'Date', 'Items', 'Status', 'Notes']],
+        body: deliveriesData,
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [46, 204, 113], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 45 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 25, halign: 'center' },
+          4: { cellWidth: 30, halign: 'center' },
+          5: { cellWidth: 85 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+    }
+    
+    // Footer on all pages
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(128);
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    }
+    
+    if (preview) {
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, '_blank');
+    } else {
+      const filename = `Tender_${tenderInfo.reference_number}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -503,21 +660,82 @@ const UnifiedTenderManagement: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" onClick={() => navigate('/dashboard/stock-acquisition-dashboard')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Stock Acquisition
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{tenderInfo?.title}</h1>
-          <p className="text-gray-600">{tenderInfo?.reference_number}</p>
+    <>
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          @page {
+            size: landscape;
+            margin: 0.5cm;
+          }
+          
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-container, .print-container * {
+            visibility: visible;
+          }
+          
+          .print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          
+          .print\\:hidden, .no-print {
+            display: none !important;
+          }
+          
+          button, nav, aside, footer {
+            display: none !important;
+          }
+          
+          * {
+            color: black !important;
+          }
+        }
+      `}</style>
+      <div className="container mx-auto p-6 max-w-6xl print-container">
+        {/* Print Header */}
+        <div className="hidden print:block mb-6">
+          <div className="text-center mb-4">
+            <h1 className="text-3xl font-bold mb-2">Tender Detail Report</h1>
+            <h2 className="text-xl mb-1">{tenderInfo?.title}</h2>
+            <p className="text-sm text-gray-600">Reference: {tenderInfo?.reference_number}</p>
+            <p className="text-sm text-gray-600">Generated on {new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
         </div>
-        <Badge variant="outline" className="ml-auto">
-          {tenderInfo?.status}
-        </Badge>
-      </div>
+
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-6 print:hidden">
+          <Button variant="outline" onClick={() => navigate('/dashboard/stock-acquisition-dashboard')}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Stock Acquisition
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">{tenderInfo?.title}</h1>
+            <p className="text-gray-600">{tenderInfo?.reference_number}</p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => generatePDF(true)} variant="outline" size="sm">
+              <Eye className="w-4 h-4 mr-2" />
+              Preview PDF
+            </Button>
+            <Button onClick={() => generatePDF(false)} variant="outline" size="sm">
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
+            <Button onClick={handlePrint} variant="outline" size="sm">
+              <Printer className="w-4 h-4 mr-2" />
+              Print
+            </Button>
+          </div>
+          <Badge variant="outline">
+            {tenderInfo?.status}
+          </Badge>
+        </div>
 
       <div className="space-y-6">
         {/* Deliveries Section */}
@@ -534,7 +752,7 @@ const UnifiedTenderManagement: React.FC = () => {
                     <Truck className="w-5 h-5" />
                     Deliveries ({deliveries.length})
                   </CardTitle>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 print:hidden">
                     <Button 
                       onClick={(e) => {
                         e.stopPropagation(); // Prevent collapsible trigger
@@ -604,7 +822,7 @@ const UnifiedTenderManagement: React.FC = () => {
                       rows={2}
                     />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 print:hidden">
                     <Button onClick={createNewDelivery} size="sm">
                       <Save className="w-4 h-4 mr-2" />
                       Create
@@ -678,7 +896,7 @@ const UnifiedTenderManagement: React.FC = () => {
 
                       {/* Delivery Actions */}
                       {!delivery.is_finalized && (
-                        <div className="flex justify-end mb-4">
+                        <div className="flex justify-end mb-4 print:hidden">
                           <Button
                             variant="outline"
                             size="sm"
@@ -700,6 +918,7 @@ const UnifiedTenderManagement: React.FC = () => {
                               variant="outline" 
                               size="sm"
                               onClick={() => openAddItemDialog(delivery.id)}
+                              className="print:hidden"
                             >
                               <Plus className="w-4 h-4 mr-1" />
                               Add Item
@@ -717,7 +936,7 @@ const UnifiedTenderManagement: React.FC = () => {
                                     <p className="text-sm text-gray-600">Quantity: {item.delivery_qty}</p>
                                   </div>
                                   {!delivery.is_finalized && (
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 print:hidden">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1139,6 +1358,7 @@ const UnifiedTenderManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 };
 
