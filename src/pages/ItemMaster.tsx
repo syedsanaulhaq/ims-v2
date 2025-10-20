@@ -60,6 +60,11 @@ const ItemMasterManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [subCategoryFilter, setSubCategoryFilter] = useState('all');
+  
   // Form state
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemMaster | null>(null);
@@ -311,7 +316,7 @@ const ItemMasterManagement = () => {
   if (loading) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Base Items Management</h1>
+        <h1 className="text-2xl font-bold mb-4">Items Management</h1>
         <div className="text-gray-600">Loading items...</div>
       </div>
     );
@@ -321,7 +326,7 @@ const ItemMasterManagement = () => {
   if (error) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Base Items Management</h1>
+        <h1 className="text-2xl font-bold mb-4">Items Management</h1>
         <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
           <strong>Error:</strong> {error}
         </div>
@@ -338,7 +343,7 @@ const ItemMasterManagement = () => {
   // Main UI
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Base Items Management</h1>
+      <h1 className="text-2xl font-bold mb-6">Items Management</h1>
       
       {/* Stats */}
       <div className="bg-white p-6 rounded shadow mb-6">
@@ -368,12 +373,68 @@ const ItemMasterManagement = () => {
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white p-4 rounded shadow mb-6">
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 min-w-[200px]">
+            <input
+              type="text"
+              placeholder="Search by code, nomenclature, or specifications..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="min-w-[150px]">
+            <select
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setSubCategoryFilter('all'); // Reset sub-category when category changes
+              }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Categories</option>
+              {Array.from(new Set(items.map(item => item.category_name))).sort().map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[150px]">
+            <select
+              value={subCategoryFilter}
+              onChange={(e) => setSubCategoryFilter(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Sub-Categories</option>
+              {Array.from(new Set(
+                items
+                  .filter(item => categoryFilter === 'all' || item.category_name === categoryFilter)
+                  .map(item => item.sub_category_name)
+              )).sort().map(subCat => (
+                <option key={subCat} value={subCat}>{subCat}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Items Table */}
       <div className="bg-white rounded shadow">
         <div className="p-4 border-b flex justify-between items-center">
           <div>
             <h2 className="text-lg font-semibold">Items List</h2>
-            <p className="text-sm text-gray-600">Data from vw_item_masters_with_categories view</p>
+            <p className="text-sm text-gray-600">
+              Showing {items.filter(item => {
+                const matchesSearch = searchTerm === '' || 
+                  item.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  (item.specifications && item.specifications.toLowerCase().includes(searchTerm.toLowerCase()));
+                const matchesCategory = categoryFilter === 'all' || item.category_name === categoryFilter;
+                const matchesSubCategory = subCategoryFilter === 'all' || item.sub_category_name === subCategoryFilter;
+                return matchesSearch && matchesCategory && matchesSubCategory;
+              }).length} of {items.length} items
+            </p>
           </div>
           <button
             onClick={handleAddNew}
@@ -401,12 +462,21 @@ const ItemMasterManagement = () => {
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Sub-Category</th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Unit</th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Specifications</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Status</th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {items.map((item) => (
+                {items
+                  .filter(item => {
+                    const matchesSearch = searchTerm === '' || 
+                      item.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      (item.specifications && item.specifications.toLowerCase().includes(searchTerm.toLowerCase()));
+                    const matchesCategory = categoryFilter === 'all' || item.category_name === categoryFilter;
+                    const matchesSubCategory = subCategoryFilter === 'all' || item.sub_category_name === subCategoryFilter;
+                    return matchesSearch && matchesCategory && matchesSubCategory;
+                  })
+                  .map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm font-mono font-medium text-blue-600">
                       {item.item_code}
@@ -427,26 +497,17 @@ const ItemMasterManagement = () => {
                       {item.specifications || '-'}
                     </td>
                     <td className="px-4 py-2 text-sm">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        item.status === 'Active'
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-sm">
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(item)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1 transition-colors"
+                          className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-sm flex items-center gap-1.5 transition-colors"
                           title="Edit Item"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                          Edit
                         </button>
+                        {/* Delete button hidden
                         <button
                           onClick={() => handleDelete(item)}
                           className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1 transition-colors"
@@ -457,6 +518,7 @@ const ItemMasterManagement = () => {
                           </svg>
                           Delete
                         </button>
+                        */}
                       </div>
                     </td>
                   </tr>

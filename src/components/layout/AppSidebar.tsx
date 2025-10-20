@@ -73,12 +73,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/inventory",
       hasSubmenu: true,
       submenu: [
-        { title: "Initial Stock", path: "/dashboard/initial-setup" },
+        // { title: "Initial Stock", path: "/dashboard/initial-setup" },
         { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard" },
-        { title: "Base Items", path: "/dashboard/item-master" },
+        { title: "Item Manager", path: "/dashboard/item-master" },
         { title: "Categories", path: "/dashboard/categories" },
         { title: "Sub-Categories", path: "/dashboard/sub-categories" },
-        { title: "Inventory Settings", path: "/dashboard/inventory-settings" }
+        // { title: "Inventory Settings", path: "/dashboard/inventory-settings" }
       ]
     },
     {

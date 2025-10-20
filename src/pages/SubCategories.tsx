@@ -247,25 +247,32 @@ const SubCategories = () => {
   };
 
   // Filter sub-categories based on search term and stock filter
-  const filteredSubCategories = subCategories.filter(subCategory => {
-    // Apply search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch = (
-        subCategory.sub_category_name.toLowerCase().includes(search) ||
-        (subCategory.description && subCategory.description.toLowerCase().includes(search)) ||
-        getCategoryName(subCategory.category_id).toLowerCase().includes(search)
-      );
-      if (!matchesSearch) return false;
-    }
+  const filteredSubCategories = subCategories
+    .filter(subCategory => {
+      // Apply search filter
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = (
+          subCategory.sub_category_name.toLowerCase().includes(search) ||
+          (subCategory.description && subCategory.description.toLowerCase().includes(search)) ||
+          getCategoryName(subCategory.category_id).toLowerCase().includes(search)
+        );
+        if (!matchesSearch) return false;
+      }
 
-    // Apply stock filter
-    const itemCount = subCategory.item_count || 0;
-    if (stockFilter === 'with-stock' && itemCount === 0) return false;
-    if (stockFilter === 'without-stock' && itemCount > 0) return false;
+      // Apply stock filter
+      const itemCount = subCategory.item_count || 0;
+      if (stockFilter === 'with-stock' && itemCount === 0) return false;
+      if (stockFilter === 'without-stock' && itemCount > 0) return false;
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by parent category name
+      const categoryA = getCategoryName(a.category_id).toLowerCase();
+      const categoryB = getCategoryName(b.category_id).toLowerCase();
+      return categoryA.localeCompare(categoryB);
+    });
 
   if (isLoading) {
     return (
@@ -451,7 +458,7 @@ const SubCategories = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Parent Category</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Sub-Category Name</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Total Items</TableHead>
