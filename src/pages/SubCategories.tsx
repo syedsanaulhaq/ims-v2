@@ -474,11 +474,11 @@ const SubCategories = () => {
                 </TableRow>
               ) : (
                 filteredSubCategories.map((subCategory) => (
-                  <TableRow key={subCategory.id}>
-                    <TableCell className="font-medium">{getCategoryName(subCategory.category_id)}</TableCell>
-                    <TableCell>{subCategory.sub_category_name}</TableCell>
-                    <TableCell>{subCategory.description || '-'}</TableCell>
-                    <TableCell>
+                  <TableRow key={subCategory.id} className="h-12">
+                    <TableCell className="font-medium py-2">{getCategoryName(subCategory.category_id)}</TableCell>
+                    <TableCell className="py-2">{subCategory.sub_category_name}</TableCell>
+                    <TableCell className="py-2">{subCategory.description || '-'}</TableCell>
+                    <TableCell className="py-2">
                       <Button
                         variant="link"
                         className="text-blue-600 hover:text-blue-800 font-semibold p-0 h-auto flex items-center gap-1"
@@ -489,7 +489,7 @@ const SubCategories = () => {
                         <ExternalLink className="w-3 h-3" />
                       </Button>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">
                       <div className="flex space-x-2">
                         <Button 
                           variant="outline" 

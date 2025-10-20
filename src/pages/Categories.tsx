@@ -625,10 +625,10 @@ const Categories = () => {
                 </TableRow>
               ) : (
                 filteredCategories.map((category) => (
-                  <TableRow key={category.id}>
-                  <TableCell className="font-medium">{category.category_name}</TableCell>
-                  <TableCell>{category.description || '-'}</TableCell>
-                  <TableCell>
+                  <TableRow key={category.id} className="h-12">
+                  <TableCell className="font-medium py-2">{category.category_name}</TableCell>
+                  <TableCell className="py-2">{category.description || '-'}</TableCell>
+                  <TableCell className="py-2">
                     <Button
                       variant="link"
                       className="text-blue-600 hover:text-blue-800 font-semibold p-0 h-auto flex items-center gap-1"
@@ -639,7 +639,7 @@ const Categories = () => {
                       <ExternalLink className="w-3 h-3" />
                     </Button>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-2">
                     <div className="flex space-x-2">
                       <Button 
                         variant="outline" 
