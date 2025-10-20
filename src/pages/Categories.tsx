@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash2, FolderOpen, Tag, Save, X } from "lucide-react";
+import { Plus, Edit, Trash2, FolderOpen, Tag, Save, X, ExternalLink, Package, CheckCircle, XCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDateDMY } from '@/utils/dateUtils';
@@ -16,6 +17,7 @@ interface Category {
   status: string;
   created_at: string;
   updated_at: string;
+  item_count: number;
 }
 
 interface SubCategory {
@@ -30,9 +32,12 @@ interface SubCategory {
 
 const Categories = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'with-stock' | 'without-stock'>('all');
 
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showSubCategoryForm, setShowSubCategoryForm] = useState(false);
@@ -421,6 +426,26 @@ const Categories = () => {
     return category?.category_name || 'Unknown Category';
   };
 
+  // Filter categories based on search term and stock filter
+  const filteredCategories = categories.filter(category => {
+    // Apply search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const matchesSearch = (
+        category.category_name.toLowerCase().includes(search) ||
+        (category.description && category.description.toLowerCase().includes(search))
+      );
+      if (!matchesSearch) return false;
+    }
+
+    // Apply stock filter
+    const itemCount = category.item_count || 0;
+    if (stockFilter === 'with-stock' && itemCount === 0) return false;
+    if (stockFilter === 'without-stock' && itemCount > 0) return false;
+
+    return true;
+  });
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -439,10 +464,68 @@ const Categories = () => {
         </div>
       </div>
 
+      {/* Stats Boxes */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${stockFilter === 'all' ? 'ring-2 ring-blue-500' : ''}`}
+          onClick={() => setStockFilter('all')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Categories</p>
+                <h3 className="text-3xl font-bold mt-2">{categories.length}</h3>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <FolderOpen className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${stockFilter === 'with-stock' ? 'ring-2 ring-green-500' : ''}`}
+          onClick={() => setStockFilter('with-stock')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">With Stock</p>
+                <h3 className="text-3xl font-bold mt-2 text-green-600">
+                  {categories.filter(cat => (cat.item_count || 0) > 0).length}
+                </h3>
+              </div>
+              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${stockFilter === 'without-stock' ? 'ring-2 ring-orange-500' : ''}`}
+          onClick={() => setStockFilter('without-stock')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Without Stock</p>
+                <h3 className="text-3xl font-bold mt-2 text-orange-600">
+                  {categories.filter(cat => (cat.item_count || 0) === 0).length}
+                </h3>
+              </div>
+              <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center">
+                <XCircle className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Categories Section */}
       <Card>
         <CardHeader className="pb-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <div className="flex items-center space-x-2">
               <FolderOpen className="w-5 h-5" />
               <CardTitle>Categories</CardTitle>
@@ -454,6 +537,17 @@ const Categories = () => {
               <Plus className="w-4 h-4" />
               <span>Add Category</span>
             </Button>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search categories by name or description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -518,26 +612,33 @@ const Categories = () => {
               <TableRow>
                 <TableHead>Category Name</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created Date</TableHead>
+                <TableHead>Total Items</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories.map((category) => (
-                <TableRow key={category.id}>
+              {filteredCategories.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                    {searchTerm ? 'No categories found matching your search.' : 'No categories found. Click "Add Category" to create one.'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredCategories.map((category) => (
+                  <TableRow key={category.id}>
                   <TableCell className="font-medium">{category.category_name}</TableCell>
                   <TableCell>{category.description || '-'}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      category.status === 'Active' 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {category.status}
-                    </span>
+                    <Button
+                      variant="link"
+                      className="text-blue-600 hover:text-blue-800 font-semibold p-0 h-auto flex items-center gap-1"
+                      onClick={() => navigate(`/dashboard/inventory-all-items?category=${category.id}`)}
+                      title={`View ${category.item_count || 0} items in this category`}
+                    >
+                      {category.item_count || 0}
+                      <ExternalLink className="w-3 h-3" />
+                    </Button>
                   </TableCell>
-                  <TableCell>{formatDateDMY(category.created_at)}</TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
                       <Button 
@@ -559,7 +660,8 @@ const Categories = () => {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

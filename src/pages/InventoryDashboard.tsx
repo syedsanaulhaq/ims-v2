@@ -76,6 +76,7 @@ const InventoryDashboard: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('analytics');
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -140,6 +141,7 @@ const InventoryDashboard: React.FC = () => {
         })
         .sort((a, b) => a.currentStock - b.currentStock)
         .slice(0, 15);
+      console.log('📊 Low stock items found:', lowStockData.length, lowStockData);
       setLowStockItems(lowStockData);
 
       const reorderData = inventoryItems
@@ -222,6 +224,7 @@ const InventoryDashboard: React.FC = () => {
   const handleQuickFilter = (filterType: string) => {
     setStockFilter(filterType);
     setSearchTerm('');
+    setActiveTab('analytics'); // Switch to analytics tab to show filtered graphs
   };
 
   const handleItemEdit = (item: InventoryItem) => {
@@ -301,7 +304,9 @@ const InventoryDashboard: React.FC = () => {
   };
 
   const getTopItemsChartData = () => {
-    return topItems.slice(0, 10).map(item => ({
+    // Use filteredItems when a filter is active, otherwise use topItems
+    const itemsToShow = stockFilter !== 'all' ? filteredItems : topItems;
+    return itemsToShow.slice(0, 10).map(item => ({
       name: item.itemName.length > 15 ? item.itemName.substring(0, 15) + '...' : item.itemName,
       stock: item.currentStock
     }));
@@ -460,7 +465,7 @@ const InventoryDashboard: React.FC = () => {
       </div>
 
       {/* Charts and Analytics Section */}
-      <Tabs defaultValue="analytics" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="alerts">Alerts & Actions</TabsTrigger>
@@ -472,7 +477,11 @@ const InventoryDashboard: React.FC = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="w-5 h-5" />
-                  Top Items by Stock Level
+                  {stockFilter === 'all' && 'Top Items by Stock Level'}
+                  {stockFilter === 'normal-stock' && 'Normal Stock Items'}
+                  {stockFilter === 'low-stock' && 'Low Stock Items'}
+                  {stockFilter === 'out-of-stock' && 'Out of Stock Items'}
+                  {stockFilter === 'overstock' && 'Overstocked Items'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -566,125 +575,6 @@ const InventoryDashboard: React.FC = () => {
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Enhanced Data Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package2 className="w-5 h-5" />
-            Inventory Items ({filteredItems.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item Details</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Current Stock</TableHead>
-                  <TableHead className="text-right">Min/Max</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p>No items match your search criteria</p>
-                      <Button variant="outline" size="sm" className="mt-2" onClick={() => { setSearchTerm(''); setStockFilter('all'); }}>
-                        Clear Filters
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredItems.slice(0, 20).map((item, index) => (
-                    <TableRow key={index} className="hover:bg-muted/50">
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="font-medium">{item.itemName}</p>
-                          {item.itemCode && (
-                            <p className="text-sm text-muted-foreground">Code: {item.itemCode}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {item.category && (
-                            <Badge variant="outline" className="text-xs">
-                              {item.category}
-                            </Badge>
-                          )}
-                          {item.subCategory && (
-                            <p className="text-xs text-muted-foreground">{item.subCategory}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        <div className="space-y-1">
-                          <p className="font-medium">{formatNumber(item.currentStock)}</p>
-                          {item.unit && (
-                            <p className="text-xs text-muted-foreground">{item.unit}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        <div className="space-y-1">
-                          <p>Min: {formatNumber(item.minimumStock)}</p>
-                          {item.maximumStock && (
-                            <p className="text-muted-foreground">Max: {formatNumber(item.maximumStock)}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getStockStatusBadge(item)}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleItemEdit(item)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Activity className="w-4 h-4 mr-2" />
-                              View History
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleItemDelete(item)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {filteredItems.length > 20 && (
-            <div className="mt-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                Showing 20 of {filteredItems.length} items
-              </p>
-              <Button variant="outline" size="sm" className="mt-2">
-                Load More
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Edit Item Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

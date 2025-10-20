@@ -4917,37 +4917,40 @@ app.get('/api/categories', async (req, res) => {
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockCategories = [
-        { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active' },
-        { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active' },
-        { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active' },
-        { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active' },
-        { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active' }
+        { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active', item_count: 0 },
+        { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active', item_count: 0 },
+        { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active', item_count: 0 },
+        { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active', item_count: 0 },
+        { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active', item_count: 0 }
       ];
       return res.json(mockCategories);
     }
 
     const result = await pool.request().query(`
       SELECT 
-        id,
-        category_name,
-        description,
-        status,
-        created_at,
-        updated_at
-      FROM categories 
-      WHERE status != 'Deleted'
-      ORDER BY category_name
+        c.id,
+        c.category_name,
+        c.description,
+        c.status,
+        c.created_at,
+        c.updated_at,
+        COUNT(DISTINCT im.id) as item_count
+      FROM categories c
+      LEFT JOIN item_masters im ON c.id = im.category_id
+      WHERE c.status != 'Deleted'
+      GROUP BY c.id, c.category_name, c.description, c.status, c.created_at, c.updated_at
+      ORDER BY c.category_name
     `);
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching categories:', error);
     // Fallback to mock data on any error
     const mockCategories = [
-      { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active' },
-      { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active' },
-      { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active' },
-      { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active' },
-      { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active' }
+      { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active', item_count: 0 },
+      { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active', item_count: 0 },
+      { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active', item_count: 0 },
+      { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active', item_count: 0 },
+      { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active', item_count: 0 }
     ];
     res.json(mockCategories);
   }
@@ -4999,28 +5002,31 @@ app.get('/api/sub-categories', async (req, res) => {
     
     if (!pool) {
       const mockSubCategories = [
-        { id: 1, sub_category_name: 'Computers', category_id: 1, description: 'Desktop and laptop computers', status: 'Active' },
-        { id: 2, sub_category_name: 'Printers', category_id: 1, description: 'All types of printers', status: 'Active' },
-        { id: 3, sub_category_name: 'Office Chairs', category_id: 2, description: 'Office seating furniture', status: 'Active' },
-        { id: 4, sub_category_name: 'Desks', category_id: 2, description: 'Office desks and tables', status: 'Active' },
-        { id: 5, sub_category_name: 'Paper Products', category_id: 3, description: 'All paper-based stationery', status: 'Active' },
-        { id: 6, sub_category_name: 'Writing Instruments', category_id: 3, description: 'Pens, pencils, markers', status: 'Active' }
+        { id: 1, sub_category_name: 'Computers', category_id: 1, description: 'Desktop and laptop computers', status: 'Active', item_count: 0 },
+        { id: 2, sub_category_name: 'Printers', category_id: 1, description: 'All types of printers', status: 'Active', item_count: 0 },
+        { id: 3, sub_category_name: 'Office Chairs', category_id: 2, description: 'Office seating furniture', status: 'Active', item_count: 0 },
+        { id: 4, sub_category_name: 'Desks', category_id: 2, description: 'Office desks and tables', status: 'Active', item_count: 0 },
+        { id: 5, sub_category_name: 'Paper Products', category_id: 3, description: 'All paper-based stationery', status: 'Active', item_count: 0 },
+        { id: 6, sub_category_name: 'Writing Instruments', category_id: 3, description: 'Pens, pencils, markers', status: 'Active', item_count: 0 }
       ];
       return res.json(mockSubCategories);
     }
 
     const result = await pool.request().query(`
       SELECT 
-        id,
-        sub_category_name,
-        category_id,
-        description,
-        status,
-        created_at,
-        updated_at
-      FROM sub_categories 
-      WHERE status != 'Deleted'
-      ORDER BY sub_category_name
+        sc.id,
+        sc.sub_category_name,
+        sc.category_id,
+        sc.description,
+        sc.status,
+        sc.created_at,
+        sc.updated_at,
+        COUNT(DISTINCT im.id) as item_count
+      FROM sub_categories sc
+      LEFT JOIN item_masters im ON sc.id = im.sub_category_id
+      WHERE sc.status != 'Deleted'
+      GROUP BY sc.id, sc.sub_category_name, sc.category_id, sc.description, sc.status, sc.created_at, sc.updated_at
+      ORDER BY sc.sub_category_name
     `);
     
     console.log('✅ Sub-categories fetched:', result.recordset.length);
@@ -5075,6 +5081,183 @@ app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching sub-categories by category:', error);
     res.status(500).json({ error: 'Failed to fetch sub-categories', details: error.message });
+  }
+});
+
+// POST - Create new category
+app.post('/api/categories', async (req, res) => {
+  try {
+    const { category_name, description, status } = req.body;
+    
+    if (!category_name) {
+      return res.status(400).json({ error: 'Category name is required' });
+    }
+
+    const result = await pool.request()
+      .input('category_name', sql.NVarChar, category_name)
+      .input('description', sql.NVarChar, description || null)
+      .input('status', sql.NVarChar, status || 'Active')
+      .query(`
+        INSERT INTO categories (category_name, description, status, created_at, updated_at)
+        OUTPUT INSERTED.*
+        VALUES (@category_name, @description, @status, GETDATE(), GETDATE())
+      `);
+
+    console.log('✅ Category created:', result.recordset[0]);
+    res.json({ message: 'Category created successfully', data: result.recordset[0] });
+  } catch (error) {
+    console.error('❌ Error creating category:', error);
+    res.status(500).json({ error: 'Failed to create category', details: error.message });
+  }
+});
+
+// PUT - Update category
+app.put('/api/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_name, description, status } = req.body;
+
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .input('category_name', sql.NVarChar, category_name)
+      .input('description', sql.NVarChar, description || null)
+      .input('status', sql.NVarChar, status)
+      .query(`
+        UPDATE categories
+        SET category_name = @category_name,
+            description = @description,
+            status = @status,
+            updated_at = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE id = @id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    console.log('✅ Category updated:', result.recordset[0]);
+    res.json({ message: 'Category updated successfully', data: result.recordset[0] });
+  } catch (error) {
+    console.error('❌ Error updating category:', error);
+    res.status(500).json({ error: 'Failed to update category', details: error.message });
+  }
+});
+
+// DELETE - Delete category
+app.delete('/api/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if category has sub-categories
+    const checkResult = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT COUNT(*) as count FROM sub_categories WHERE category_id = @id');
+
+    if (checkResult.recordset[0].count > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete category with existing sub-categories',
+        details: 'Please delete all sub-categories first'
+      });
+    }
+
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM categories OUTPUT DELETED.* WHERE id = @id');
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    console.log('✅ Category deleted:', result.recordset[0]);
+    res.json({ message: 'Category deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting category:', error);
+    res.status(500).json({ error: 'Failed to delete category', details: error.message });
+  }
+});
+
+// POST - Create new sub-category
+app.post('/api/sub-categories', async (req, res) => {
+  try {
+    const { category_id, sub_category_name, description, status } = req.body;
+    
+    if (!category_id || !sub_category_name) {
+      return res.status(400).json({ error: 'Category ID and sub-category name are required' });
+    }
+
+    const result = await pool.request()
+      .input('category_id', sql.Int, category_id)
+      .input('sub_category_name', sql.NVarChar, sub_category_name)
+      .input('description', sql.NVarChar, description || null)
+      .input('status', sql.NVarChar, status || 'Active')
+      .query(`
+        INSERT INTO sub_categories (category_id, sub_category_name, description, status, created_at, updated_at)
+        OUTPUT INSERTED.*
+        VALUES (@category_id, @sub_category_name, @description, @status, GETDATE(), GETDATE())
+      `);
+
+    console.log('✅ Sub-category created:', result.recordset[0]);
+    res.json({ message: 'Sub-category created successfully', data: result.recordset[0] });
+  } catch (error) {
+    console.error('❌ Error creating sub-category:', error);
+    res.status(500).json({ error: 'Failed to create sub-category', details: error.message });
+  }
+});
+
+// PUT - Update sub-category
+app.put('/api/sub-categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_id, sub_category_name, description, status } = req.body;
+
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .input('category_id', sql.Int, category_id)
+      .input('sub_category_name', sql.NVarChar, sub_category_name)
+      .input('description', sql.NVarChar, description || null)
+      .input('status', sql.NVarChar, status)
+      .query(`
+        UPDATE sub_categories
+        SET category_id = @category_id,
+            sub_category_name = @sub_category_name,
+            description = @description,
+            status = @status,
+            updated_at = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE id = @id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Sub-category not found' });
+    }
+
+    console.log('✅ Sub-category updated:', result.recordset[0]);
+    res.json({ message: 'Sub-category updated successfully', data: result.recordset[0] });
+  } catch (error) {
+    console.error('❌ Error updating sub-category:', error);
+    res.status(500).json({ error: 'Failed to update sub-category', details: error.message });
+  }
+});
+
+// DELETE - Delete sub-category
+app.delete('/api/sub-categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM sub_categories OUTPUT DELETED.* WHERE id = @id');
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Sub-category not found' });
+    }
+
+    console.log('✅ Sub-category deleted:', result.recordset[0]);
+    res.json({ message: 'Sub-category deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting sub-category:', error);
+    res.status(500).json({ error: 'Failed to delete sub-category', details: error.message });
   }
 });
 

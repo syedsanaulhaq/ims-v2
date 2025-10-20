@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Tag, Save, X } from "lucide-react";
+import { Plus, Edit, Trash2, Tag, Save, X, ExternalLink, Package, CheckCircle, XCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDateDMY } from '@/utils/dateUtils';
@@ -26,13 +27,17 @@ interface SubCategory {
   status: string;
   created_at: string;
   updated_at: string;
+  item_count: number;
 }
 
 const SubCategories = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'with-stock' | 'without-stock'>('all');
 
   const [showSubCategoryForm, setShowSubCategoryForm] = useState(false);
   const [editingSubCategory, setEditingSubCategory] = useState<string | null>(null);
@@ -241,6 +246,27 @@ const SubCategories = () => {
     return category?.category_name || 'Unknown Category';
   };
 
+  // Filter sub-categories based on search term and stock filter
+  const filteredSubCategories = subCategories.filter(subCategory => {
+    // Apply search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const matchesSearch = (
+        subCategory.sub_category_name.toLowerCase().includes(search) ||
+        (subCategory.description && subCategory.description.toLowerCase().includes(search)) ||
+        getCategoryName(subCategory.category_id).toLowerCase().includes(search)
+      );
+      if (!matchesSearch) return false;
+    }
+
+    // Apply stock filter
+    const itemCount = subCategory.item_count || 0;
+    if (stockFilter === 'with-stock' && itemCount === 0) return false;
+    if (stockFilter === 'without-stock' && itemCount > 0) return false;
+
+    return true;
+  });
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -259,10 +285,68 @@ const SubCategories = () => {
         </div>
       </div>
 
+      {/* Stats Boxes */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${stockFilter === 'all' ? 'ring-2 ring-blue-500' : ''}`}
+          onClick={() => setStockFilter('all')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Sub-Categories</p>
+                <h3 className="text-3xl font-bold mt-2">{subCategories.length}</h3>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Tag className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${stockFilter === 'with-stock' ? 'ring-2 ring-green-500' : ''}`}
+          onClick={() => setStockFilter('with-stock')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">With Stock</p>
+                <h3 className="text-3xl font-bold mt-2 text-green-600">
+                  {subCategories.filter(subCat => (subCat.item_count || 0) > 0).length}
+                </h3>
+              </div>
+              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${stockFilter === 'without-stock' ? 'ring-2 ring-orange-500' : ''}`}
+          onClick={() => setStockFilter('without-stock')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Without Stock</p>
+                <h3 className="text-3xl font-bold mt-2 text-orange-600">
+                  {subCategories.filter(subCat => (subCat.item_count || 0) === 0).length}
+                </h3>
+              </div>
+              <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center">
+                <XCircle className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Sub-Categories Section */}
       <Card>
         <CardHeader className="pb-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <div className="flex items-center space-x-2">
               <Tag className="w-5 h-5" />
               <CardTitle>Sub-Categories</CardTitle>
@@ -274,6 +358,17 @@ const SubCategories = () => {
               <Plus className="w-4 h-4" />
               <span>Add Sub-Category</span>
             </Button>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search sub-categories by name, description, or parent category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -359,34 +454,34 @@ const SubCategories = () => {
                 <TableHead>Parent Category</TableHead>
                 <TableHead>Sub-Category Name</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created Date</TableHead>
+                <TableHead>Total Items</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subCategories.length === 0 ? (
+              {filteredSubCategories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-gray-500 py-8">
-                    No sub-categories found. Click "Add Sub-Category" to create one.
+                  <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    {searchTerm ? 'No sub-categories found matching your search.' : 'No sub-categories found. Click "Add Sub-Category" to create one.'}
                   </TableCell>
                 </TableRow>
               ) : (
-                subCategories.map((subCategory) => (
+                filteredSubCategories.map((subCategory) => (
                   <TableRow key={subCategory.id}>
                     <TableCell className="font-medium">{getCategoryName(subCategory.category_id)}</TableCell>
                     <TableCell>{subCategory.sub_category_name}</TableCell>
                     <TableCell>{subCategory.description || '-'}</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        subCategory.status === 'Active' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-red-100 text-red-700'
-                      }`}>
-                        {subCategory.status}
-                      </span>
+                      <Button
+                        variant="link"
+                        className="text-blue-600 hover:text-blue-800 font-semibold p-0 h-auto flex items-center gap-1"
+                        onClick={() => navigate(`/dashboard/inventory-all-items?subCategory=${subCategory.id}`)}
+                        title={`View ${subCategory.item_count || 0} items in this sub-category`}
+                      >
+                        {subCategory.item_count || 0}
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
                     </TableCell>
-                    <TableCell>{formatDateDMY(subCategory.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
                         <Button 

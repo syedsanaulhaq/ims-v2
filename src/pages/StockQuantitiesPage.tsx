@@ -53,7 +53,7 @@ const StockQuantitiesPage: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:3001/api/inventory/stock-quantities', {
+      const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -65,7 +65,36 @@ const StockQuantitiesPage: React.FC = () => {
       }
 
       const data = await response.json();
-      setQuantities(data);
+      
+      // Map the response and calculate stock status
+      const mappedData = data.map((item: any) => {
+        const current = item.current_quantity || 0;
+        const min = item.minimum_stock_level || 0;
+        const max = item.maximum_stock_level || 0;
+        
+        let stock_status = 'Normal';
+        if (current === 0) stock_status = 'Out of Stock';
+        else if (current < min) stock_status = 'Low Stock';
+        else if (max > 0 && current > max) stock_status = 'Overstocked';
+        
+        return {
+          id: item.item_master_id,
+          item_code: item.item_code,
+          item_name: item.nomenclature,
+          category_name: item.category_name,
+          unit: item.unit || 'N/A',
+          current_quantity: current,
+          available_quantity: item.available_quantity || 0,
+          reserved_quantity: item.reserved_quantity || 0,
+          minimum_stock_level: min,
+          reorder_point: item.reorder_point || 0,
+          maximum_stock_level: max,
+          stock_status: stock_status,
+          last_updated: item.last_updated
+        };
+      });
+      
+      setQuantities(mappedData);
     } catch (error) {
       console.error('Error loading stock quantities:', error);
       setError(error instanceof Error ? error.message : 'Failed to load stock quantities');

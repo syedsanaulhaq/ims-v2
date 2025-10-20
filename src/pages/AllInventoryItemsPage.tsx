@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,10 @@ interface InventoryItem {
   id: string;
   item_code: string;
   item_name: string;
+  category_id: string;
   category_name: string;
+  sub_category_id: string;
+  sub_category_name: string;
   unit: string;
   specifications: string;
   description: string;
@@ -40,9 +43,24 @@ const AllInventoryItemsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     loadItems();
+  }, []);
+
+  // Apply filter from URL parameters when items load
+  useEffect(() => {
+    const categoryId = searchParams.get('category');
+    const subCategoryId = searchParams.get('subCategory');
+    
+    if (categoryId || subCategoryId) {
+      // Filter will be applied in filterItems function
+    }
+  }, [searchParams, items]);
+
+  useEffect(() => {
+    filterItems();
   }, []);
 
   useEffect(() => {
@@ -54,7 +72,7 @@ const AllInventoryItemsPage: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:3001/api/inventory/all-items', {
+      const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -66,7 +84,32 @@ const AllInventoryItemsPage: React.FC = () => {
       }
 
       const data = await response.json();
-      setItems(data);
+      
+      // Map the response to match our interface
+      const mappedData = data.map((item: any) => ({
+        id: item.item_master_id,
+        item_code: item.item_code,
+        item_name: item.nomenclature,
+        category_id: item.category_id,
+        category_name: item.category_name,
+        sub_category_id: item.sub_category_id,
+        sub_category_name: item.sub_category_name,
+        unit: item.unit || 'N/A',
+        specifications: item.specifications || '',
+        description: item.description || '',
+        status: item.status || 'Active',
+        current_quantity: item.current_quantity || 0,
+        available_quantity: item.available_quantity || 0,
+        reserved_quantity: item.reserved_quantity || 0,
+        minimum_stock_level: item.minimum_stock_level || 0,
+        reorder_point: item.reorder_point || 0,
+        maximum_stock_level: item.maximum_stock_level || 0,
+        last_updated: item.last_updated,
+        created_at: item.created_at,
+        updated_at: item.updated_at || item.last_updated
+      }));
+      
+      setItems(mappedData);
     } catch (error) {
       console.error('Error loading inventory items:', error);
       setError(error instanceof Error ? error.message : 'Failed to load inventory items');
@@ -78,6 +121,20 @@ const AllInventoryItemsPage: React.FC = () => {
   const filterItems = () => {
     let filtered = items;
 
+    // Check for URL parameters
+    const categoryId = searchParams.get('category');
+    const subCategoryId = searchParams.get('subCategory');
+
+    // Filter by URL category parameter
+    if (categoryId) {
+      filtered = filtered.filter(item => item.category_id === categoryId);
+    }
+
+    // Filter by URL sub-category parameter
+    if (subCategoryId) {
+      filtered = filtered.filter(item => item.sub_category_id === subCategoryId);
+    }
+
     // Filter by search term (item code, name, specifications)
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
@@ -88,8 +145,8 @@ const AllInventoryItemsPage: React.FC = () => {
       );
     }
 
-    // Filter by category
-    if (selectedCategory !== 'all') {
+    // Filter by category dropdown (if no URL param)
+    if (!categoryId && !subCategoryId && selectedCategory !== 'all') {
       filtered = filtered.filter(item => item.category_name === selectedCategory);
     }
 
@@ -174,7 +231,11 @@ const AllInventoryItemsPage: React.FC = () => {
               <Package className="h-6 w-6" />
               All Inventory Items
             </h1>
-            <p className="text-gray-600">Complete inventory list ({filteredItems.length} items)</p>
+            <p className="text-gray-600">
+              Complete inventory list ({filteredItems.length} items)
+              {searchParams.get('category') && <Badge variant="secondary" className="ml-2">Filtered by Category</Badge>}
+              {searchParams.get('subCategory') && <Badge variant="secondary" className="ml-2">Filtered by Sub-Category</Badge>}
+            </p>
           </div>
         </div>
         <Button onClick={loadItems} className="flex items-center gap-2">
