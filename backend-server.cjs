@@ -6993,43 +6993,32 @@ app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
 // Get tender summaries from stock transactions
 app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
   try {
+    console.log('📋 GET /api/stock-acquisition/tender-summaries - Fetching tender summaries');
     const query = `
       SELECT 
-        stc.tender_id,
+        t.id as tender_id,
         t.title as tender_title,
         t.reference_number as tender_number,
-        COUNT(stc.id) as total_items,
-        COUNT(CASE WHEN stc.pricing_confirmed = 1 THEN 1 END) as confirmed_items,
-        COUNT(CASE WHEN stc.pricing_confirmed = 0 THEN 1 END) as pending_items,
-        SUM(stc.estimated_unit_price * stc.total_quantity_received) as total_estimated_value,
-        SUM(stc.actual_unit_price * stc.total_quantity_received) as total_actual_value,
+        (SELECT COUNT(*) FROM tender_items WHERE tender_id = t.id) as total_items,
+        (SELECT COUNT(*) FROM stock_transactions_clean WHERE tender_id = t.id AND pricing_confirmed = 1 AND (is_deleted = 0 OR is_deleted IS NULL)) as confirmed_items,
+        (SELECT COUNT(*) FROM tender_items WHERE tender_id = t.id) - 
+        (SELECT COUNT(*) FROM stock_transactions_clean WHERE tender_id = t.id AND pricing_confirmed = 1 AND (is_deleted = 0 OR is_deleted IS NULL)) as pending_items,
+        (SELECT SUM(estimated_unit_price * total_quantity_received) FROM stock_transactions_clean WHERE tender_id = t.id AND (is_deleted = 0 OR is_deleted IS NULL)) as total_estimated_value,
+        (SELECT SUM(actual_unit_price * total_quantity_received) FROM stock_transactions_clean WHERE tender_id = t.id AND (is_deleted = 0 OR is_deleted IS NULL)) as total_actual_value,
         CASE 
-          WHEN COUNT(stc.id) > 0 
-          THEN (CAST(COUNT(CASE WHEN stc.pricing_confirmed = 1 THEN 1 END) AS FLOAT) / COUNT(stc.id)) * 100 
+          WHEN (SELECT COUNT(*) FROM tender_items WHERE tender_id = t.id) > 0 
+          THEN (CAST((SELECT COUNT(*) FROM stock_transactions_clean WHERE tender_id = t.id AND pricing_confirmed = 1 AND (is_deleted = 0 OR is_deleted IS NULL)) AS FLOAT) / 
+                (SELECT COUNT(*) FROM tender_items WHERE tender_id = t.id)) * 100 
           ELSE 0 
         END as pricing_completion_rate,
         CASE 
-          WHEN SUM(ti.quantity) = 0 THEN 0
-          WHEN SUM(ti.quantity) = SUM(COALESCE(delivered.total_delivered, 0)) THEN 2  -- Fully delivered
-          WHEN SUM(COALESCE(delivered.total_delivered, 0)) > 0 THEN 1  -- Partially delivered
-          ELSE 0  -- No deliveries
+          WHEN EXISTS(SELECT 1 FROM deliveries WHERE tender_id = t.id) THEN 1
+          ELSE 0
         END as has_deliveries,
-        MAX(stc.created_at) as created_at
-      FROM stock_transactions_clean stc
-      LEFT JOIN tenders t ON stc.tender_id = t.id
-      LEFT JOIN tender_items ti ON ti.tender_id = t.id
-      LEFT JOIN (
-        SELECT 
-          d.tender_id,
-          di.item_master_id,
-          SUM(di.delivery_qty) as total_delivered
-        FROM deliveries d
-        INNER JOIN delivery_items di ON d.id = di.delivery_id
-        GROUP BY d.tender_id, di.item_master_id
-      ) delivered ON t.id = delivered.tender_id AND ti.item_master_id = delivered.item_master_id
-      WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
-      GROUP BY stc.tender_id, t.title, t.reference_number
-      ORDER BY created_at DESC
+        t.created_at
+      FROM tenders t
+      WHERE t.is_finalized = 1
+      ORDER BY t.created_at DESC
     `;
 
     const result = await pool.request().query(query);
@@ -8667,76 +8656,78 @@ app.get('/api/acquisition/recent-deliveries', async (req, res) => {
 // =====================================================
 
 // GET /api/stock-acquisition/dashboard-stats - Get stock acquisition dashboard statistics
-app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        COUNT(DISTINCT tender_id) as total_tenders,
-        COUNT(*) as total_items,
-        SUM(CASE WHEN pricing_confirmed = 1 THEN 1 ELSE 0 END) as confirmed_pricing_items,
-        SUM(CASE WHEN pricing_confirmed = 0 OR pricing_confirmed IS NULL THEN 1 ELSE 0 END) as pending_pricing_items,
-        SUM(estimated_unit_price) as total_estimated_value,
-        SUM(actual_unit_price) as total_actual_value,
-        CASE 
-          WHEN SUM(estimated_unit_price) > 0 
-          THEN ((SUM(actual_unit_price) - SUM(estimated_unit_price)) / SUM(estimated_unit_price)) * 100
-          ELSE 0 
-        END as average_price_variance
-      FROM stock_transactions_clean 
-      WHERE (is_deleted = 0 OR is_deleted IS NULL)
-    `;
-
-    const result = await pool.request().query(query);
-    res.json(result.recordset[0] || {
-      total_tenders: 0,
-      total_items: 0,
-      confirmed_pricing_items: 0,
-      pending_pricing_items: 0,
-      total_estimated_value: 0,
-      total_actual_value: 0,
-      average_price_variance: 0
-    });
-  } catch (error) {
-    console.error('Failed to fetch stock acquisition stats:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard statistics', details: error.message });
-  }
-});
+// DUPLICATE ROUTE REMOVED - Using the updated version at line ~6940
+// app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
+//   try {
+//     const query = `
+//       SELECT 
+//         COUNT(DISTINCT tender_id) as total_tenders,
+//         COUNT(*) as total_items,
+//         SUM(CASE WHEN pricing_confirmed = 1 THEN 1 ELSE 0 END) as confirmed_pricing_items,
+//         SUM(CASE WHEN pricing_confirmed = 0 OR pricing_confirmed IS NULL THEN 1 ELSE 0 END) as pending_pricing_items,
+//         SUM(estimated_unit_price) as total_estimated_value,
+//         SUM(actual_unit_price) as total_actual_value,
+//         CASE 
+//           WHEN SUM(estimated_unit_price) > 0 
+//           THEN ((SUM(actual_unit_price) - SUM(estimated_unit_price)) / SUM(estimated_unit_price)) * 100
+//           ELSE 0 
+//         END as average_price_variance
+//       FROM stock_transactions_clean 
+//       WHERE (is_deleted = 0 OR is_deleted IS NULL)
+//     `;
+//
+//     const result = await pool.request().query(query);
+//     res.json(result.recordset[0] || {
+//       total_tenders: 0,
+//       total_items: 0,
+//       confirmed_pricing_items: 0,
+//       pending_pricing_items: 0,
+//       total_estimated_value: 0,
+//       total_actual_value: 0,
+//       average_price_variance: 0
+//     });
+//   } catch (error) {
+//     console.error('Failed to fetch stock acquisition stats:', error);
+//     res.status(500).json({ error: 'Failed to fetch dashboard statistics', details: error.message });
+//   }
+// });
 
 // GET /api/stock-acquisition/tender-summaries - Get tender summaries from stock transactions
-app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        stc.tender_id,
-        t.title as tender_title,
-        t.reference_number as tender_number,
-        COUNT(*) as total_items,
-        SUM(CASE WHEN stc.pricing_confirmed = 1 THEN 1 ELSE 0 END) as confirmed_items,
-        SUM(CASE WHEN stc.pricing_confirmed = 0 OR stc.pricing_confirmed IS NULL THEN 1 ELSE 0 END) as pending_items,
-        SUM(stc.estimated_unit_price) as total_estimated_value,
-        SUM(stc.actual_unit_price) as total_actual_value,
-        CASE 
-          WHEN COUNT(*) > 0 
-          THEN (CAST(SUM(CASE WHEN stc.pricing_confirmed = 1 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*)) * 100
-          ELSE 0 
-        END as pricing_completion_rate,
-        CASE WHEN d.tender_id IS NOT NULL THEN 1 ELSE 0 END as has_deliveries,
-        MIN(stc.created_at) as created_at
-      FROM stock_transactions_clean stc
-      LEFT JOIN tenders t ON stc.tender_id = t.id
-      LEFT JOIN (SELECT DISTINCT tender_id FROM deliveries) d ON stc.tender_id = d.tender_id
-      WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
-      GROUP BY stc.tender_id, t.title, t.reference_number, d.tender_id
-      ORDER BY MIN(stc.created_at) DESC
-    `;
-
-    const result = await pool.request().query(query);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('Failed to fetch tender summaries:', error);
-    res.status(500).json({ error: 'Failed to fetch tender summaries', details: error.message });
-  }
-});
+// DUPLICATE ROUTE REMOVED - Using the updated version at line ~6994
+// app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
+//   try {
+//     const query = `
+//       SELECT 
+//         stc.tender_id,
+//         t.title as tender_title,
+//         t.reference_number as tender_number,
+//         COUNT(*) as total_items,
+//         SUM(CASE WHEN stc.pricing_confirmed = 1 THEN 1 ELSE 0 END) as confirmed_items,
+//         SUM(CASE WHEN stc.pricing_confirmed = 0 OR stc.pricing_confirmed IS NULL THEN 1 ELSE 0 END) as pending_items,
+//         SUM(stc.estimated_unit_price) as total_estimated_value,
+//         SUM(stc.actual_unit_price) as total_actual_value,
+//         CASE 
+//           WHEN COUNT(*) > 0 
+//           THEN (CAST(SUM(CASE WHEN stc.pricing_confirmed = 1 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*)) * 100
+//           ELSE 0 
+//         END as pricing_completion_rate,
+//         CASE WHEN d.tender_id IS NOT NULL THEN 1 ELSE 0 END as has_deliveries,
+//         MIN(stc.created_at) as created_at
+//       FROM stock_transactions_clean stc
+//       LEFT JOIN tenders t ON stc.tender_id = t.id
+//       LEFT JOIN (SELECT DISTINCT tender_id FROM deliveries) d ON stc.tender_id = d.tender_id
+//       WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+//       GROUP BY stc.tender_id, t.title, t.reference_number, d.tender_id
+//       ORDER BY MIN(stc.created_at) DESC
+//     `;
+//
+//     const result = await pool.request().query(query);
+//     res.json(result.recordset);
+//   } catch (error) {
+//     console.error('Failed to fetch tender summaries:', error);
+//     res.status(500).json({ error: 'Failed to fetch tender summaries', details: error.message });
+//   }
+// });
 
 // GET /api/stock-acquisition/items/:tenderId - Get stock transaction items for a specific tender
 app.get('/api/stock-acquisition/items/:tenderId', async (req, res) => {
