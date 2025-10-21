@@ -11,16 +11,13 @@ import {
   ArrowLeft,
   Printer,
   Download,
-  Truck,
   CheckCircle2,
   DollarSign,
   TrendingUp,
-  TrendingDown,
-  Minus
+  TrendingDown
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useOfficeHierarchy } from '@/hooks/useOfficeHierarchy';
 import { createNameResolver } from '@/utils/nameResolver';
 
@@ -40,34 +37,6 @@ interface TenderItem {
   remarks?: string;
   brand?: string;
   model?: string;
-}
-
-interface SerialNumber {
-  id: string;
-  serial_number: string;
-  item_master_id: string;
-  delivery_item_id: string;
-}
-
-interface DeliveryItem {
-  id: string;
-  delivery_id: string;
-  item_name: string;
-  item_master_id: string;
-  delivery_qty: number;
-  serial_numbers: SerialNumber[];
-}
-
-interface Delivery {
-  id: string;
-  tender_id: string;
-  delivery_number: string;
-  delivery_date: string;
-  receiving_personnel: string;
-  is_finalized: boolean;
-  finalized_at?: string;
-  finalized_by?: string;
-  items: DeliveryItem[];
 }
 
 interface TenderData {
@@ -104,12 +73,11 @@ const TenderReportEnhanced: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tenderData, setTenderData] = useState<TenderData | null>(null);
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { offices, wings, decs, loading: hierarchyLoading } = useOfficeHierarchy();
 
-  // Fetch tender and delivery data
+  // Fetch tender data only (no deliveries for contract tenders)
   useEffect(() => {
     if (id) {
       loadTenderData(id);
@@ -129,12 +97,8 @@ const TenderReportEnhanced: React.FC = () => {
       const tender = await tenderResponse.json();
       setTenderData(tender);
 
-      // Fetch deliveries for this tender
-      const deliveriesResponse = await fetch(`http://localhost:3001/api/deliveries/by-tender/${tenderId}`);
-      if (deliveriesResponse.ok) {
-        const deliveriesData = await deliveriesResponse.json();
-        setDeliveries(deliveriesData);
-      }
+      // Note: Contract tenders don't have deliveries in the delivery system
+      // Deliveries are only for stock acquisition tenders
     } catch (err) {
       console.error('Error loading tender data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load tender data');
@@ -222,13 +186,6 @@ const TenderReportEnhanced: React.FC = () => {
   // Calculations
   const calculateItemTotal = (item: TenderItem) => {
     return item.calculated_total_amount || (item.quantity * item.estimated_unit_price) || item.total_amount || 0;
-  };
-
-  const calculateReceivedQuantity = (itemMasterId: string) => {
-    return deliveries.reduce((total, delivery) => {
-      const deliveryItem = delivery.items.find(di => di.item_master_id === itemMasterId);
-      return total + (deliveryItem?.delivery_qty || 0);
-    }, 0);
   };
 
   const calculateActualTotal = () => {
@@ -325,14 +282,13 @@ const TenderReportEnhanced: React.FC = () => {
     const itemsData = tenderData.items.map(item => [
       item.nomenclature || item.item_name || 'N/A',
       item.quantity.toString(),
-      calculateReceivedQuantity(item.item_master_id).toString(),
       formatCurrency(item.estimated_unit_price),
       formatCurrency(calculateItemTotal(item))
     ]);
 
     autoTable(doc, {
       startY: yPos,
-      head: [['Item Name', 'Ordered Qty', 'Received Qty', 'Unit Price', 'Total Amount']],
+      head: [['Item Name', 'Quantity', 'Unit Price', 'Total Amount']],
       body: itemsData,
       theme: 'grid',
       headStyles: { fillColor: [34, 197, 94], textColor: 255 },
@@ -340,58 +296,11 @@ const TenderReportEnhanced: React.FC = () => {
       foot: [[
         'Total',
         tenderData.items.reduce((sum, item) => sum + item.quantity, 0).toString(),
-        tenderData.items.reduce((sum, item) => sum + calculateReceivedQuantity(item.item_master_id), 0).toString(),
         '',
         formatCurrency(actualValue)
       ]],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] }
     });
-
-    // Deliveries (if any)
-    if (deliveries.length > 0) {
-      doc.addPage();
-      yPos = 20;
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Delivery Details', 14, yPos);
-      yPos += 8;
-
-      deliveries.forEach((delivery, index) => {
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Delivery #${index + 1}: ${delivery.delivery_number}`, 14, yPos);
-        yPos += 6;
-
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Date: ${formatDate(delivery.delivery_date)} | Personnel: ${delivery.receiving_personnel}`, 14, yPos);
-        yPos += 6;
-
-        const deliveryItemsData = delivery.items.map(item => [
-          item.item_name,
-          item.delivery_qty.toString(),
-          item.serial_numbers.map(sn => sn.serial_number).join(', ') || 'N/A'
-        ]);
-
-        autoTable(doc, {
-          startY: yPos,
-          head: [['Item Name', 'Quantity', 'Serial Numbers']],
-          body: deliveryItemsData,
-          theme: 'striped',
-          headStyles: { fillColor: [34, 197, 94], textColor: 255 },
-          styles: { fontSize: 9 },
-          margin: { left: 20 }
-        });
-
-        yPos = (doc as any).lastAutoTable.finalY + 10;
-
-        if (yPos > 180) {
-          doc.addPage();
-          yPos = 20;
-        }
-      });
-    }
 
     // Save PDF
     doc.save(`Tender_Report_${tenderData.reference_number || tenderData.id}.pdf`);
@@ -623,10 +532,7 @@ const TenderReportEnhanced: React.FC = () => {
                     Nomenclature
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider">
-                    Ordered Qty
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider">
-                    Received Qty
+                    Quantity
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider">
                     Unit Price
@@ -641,9 +547,6 @@ const TenderReportEnhanced: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {tenderData.items.map((item, index) => {
-                  const receivedQty = calculateReceivedQuantity(item.item_master_id);
-                  const isComplete = receivedQty >= item.quantity;
-                  
                   return (
                     <tr key={item.id || index} className="hover:bg-green-50">
                       <td className="px-6 py-4 text-sm text-gray-900">
@@ -654,12 +557,6 @@ const TenderReportEnhanced: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.quantity} {item.item_unit || ''}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={isComplete ? 'text-green-700 font-semibold' : 'text-orange-700'}>
-                          {receivedQty}
-                        </span>
-                        {isComplete && <CheckCircle2 className="inline w-4 h-4 ml-1 text-green-600" />}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatCurrency(item.estimated_unit_price)}
@@ -689,85 +586,6 @@ const TenderReportEnhanced: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-
-      {/* Deliveries Section */}
-      {deliveries.length > 0 && (
-        <Card className="border-green-200">
-          <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
-            <CardTitle className="flex items-center space-x-2 text-green-800">
-              <Truck className="h-5 w-5" />
-              <span>Delivery Details ({deliveries.length})</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            {deliveries.map((delivery, index) => (
-              <Collapsible key={delivery.id} defaultOpen className="border border-green-200 rounded-lg overflow-hidden">
-                <CollapsibleTrigger className="w-full bg-gradient-to-r from-green-100 to-emerald-100 p-4 hover:from-green-200 hover:to-emerald-200 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-green-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-semibold">
-                        {index + 1}
-                      </div>
-                      <div className="text-left">
-                        <p className="font-semibold text-green-900">{delivery.delivery_number}</p>
-                        <p className="text-sm text-green-700">
-                          {formatDate(delivery.delivery_date)} • {delivery.receiving_personnel}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {delivery.is_finalized ? (
-                        <Badge className="bg-green-600 text-white hover:bg-green-700">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />
-                          Finalized
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                          Pending
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent className="p-4 bg-white">
-                  <div className="space-y-4">
-                    {delivery.items.map((item) => (
-                      <div key={item.id} className="border-l-4 border-green-500 pl-4 py-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">{item.item_name}</h4>
-                          <Badge variant="outline" className="bg-green-50">
-                            Qty: {item.delivery_qty}
-                          </Badge>
-                        </div>
-                        {item.serial_numbers && item.serial_numbers.length > 0 && (
-                          <div className="mt-2">
-                            <p className="text-sm text-gray-600 mb-2">Serial Numbers:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {item.serial_numbers.map((sn) => (
-                                <Badge key={sn.id} variant="secondary" className="bg-gray-100 text-gray-700">
-                                  {sn.serial_number}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {delivery.is_finalized && delivery.finalized_at && (
-                    <div className="mt-4 pt-4 border-t border-green-200 text-sm text-gray-600">
-                      <p>Finalized on {formatDateTime(delivery.finalized_at)}</p>
-                      {delivery.finalized_by && <p>By: {delivery.finalized_by}</p>}
-                    </div>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {/* System Information */}
       <Card className="border-gray-200 print:hidden">
