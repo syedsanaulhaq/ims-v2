@@ -139,6 +139,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeDeliveryTab, setActiveDeliveryTab] = useState<'all' | 'finalized' | 'pending'>('all');
   
   // State for dashboard data
   const [stats, setStats] = useState<AcquisitionStats>({
@@ -399,10 +400,23 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
     );
   };
 
-  const filteredTenders = tenderSummaries.filter(tender =>
-    (tender.tender_title?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
-    (tender.tender_number?.toLowerCase().includes(searchTerm.toLowerCase()) || '')
-  );
+  const filteredTenders = tenderSummaries.filter(tender => {
+    // Search filter
+    const matchesSearch = (tender.tender_title?.toLowerCase().includes(searchTerm.toLowerCase()) || '') ||
+      (tender.tender_number?.toLowerCase().includes(searchTerm.toLowerCase()) || '');
+    
+    // Delivery status filter
+    if (activeDeliveryTab === 'finalized') {
+      // has_deliveries === 2 means all deliveries are finalized (Complete)
+      return matchesSearch && tender.has_deliveries === 2;
+    } else if (activeDeliveryTab === 'pending') {
+      // has_deliveries === 0 (Pending) or 1 (Partial) means not all deliveries are finalized
+      return matchesSearch && (tender.has_deliveries === 0 || tender.has_deliveries === 1);
+    }
+    
+    // 'all' tab - show everything
+    return matchesSearch;
+  });
 
   if (loading) {
     return (
@@ -714,6 +728,37 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Delivery Status Tabs */}
+      <Card className="no-print">
+        <CardContent className="pt-6">
+          <Tabs value={activeDeliveryTab} onValueChange={(value) => setActiveDeliveryTab(value as any)}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all" className="flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                All Tenders
+                <Badge variant="secondary" className="ml-1">
+                  {tenderSummaries.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="finalized" className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Finalized
+                <Badge variant="secondary" className="ml-1 bg-green-100 text-green-800">
+                  {tenderSummaries.filter(t => t.has_deliveries === 2).length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="pending" className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Pending
+                <Badge variant="secondary" className="ml-1 bg-yellow-100 text-yellow-800">
+                  {tenderSummaries.filter(t => t.has_deliveries === 0 || t.has_deliveries === 1).length}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
+
       {/* Print Header - Only visible when printing */}
       <div className="hidden print:block mb-6">
         <div className="text-center mb-4">
@@ -747,7 +792,9 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         <CardHeader className="print:hidden">
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5" />
-            Finalized Tenders in Stock Acquisition
+            {activeDeliveryTab === 'finalized' && 'Finalized Tenders'}
+            {activeDeliveryTab === 'pending' && 'Pending Tenders (Deliveries Not Finalized)'}
+            {activeDeliveryTab === 'all' && 'All Finalized Tenders in Stock Acquisition'}
             <Badge variant="outline">{filteredTenders.length}</Badge>
           </CardTitle>
         </CardHeader>
