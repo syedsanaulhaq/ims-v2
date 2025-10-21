@@ -336,16 +336,26 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                     )}
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewDetails(tender)}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        
-                        {!isFinalized && (
+                        {isFinalized ? (
+                          // Show View Report button for finalized tenders
+                          <Button
+                            onClick={() => navigate(`/dashboard/tenders/${tender.id}/report`)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            size="sm"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Report
+                          </Button>
+                        ) : (
                           <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewDetails(tender)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            
                             <Button
                               variant="outline"
                               size="sm"

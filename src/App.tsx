@@ -30,6 +30,7 @@ import VendorInfo from "./pages/VendorInfo";
 import VendorManagementEnhanced from "./pages/VendorManagementEnhanced";
 import NotFound from "./pages/NotFound";
 import TenderReport from "./pages/TenderReport";
+import TenderReportEnhanced from "./pages/TenderReportEnhanced";
 import InventoryReportPage from "./pages/InventoryReportPage";
 import StockAcquisitionReport from "./pages/StockAcquisitionReport";
 import DeliveryReport from "./pages/DeliveryReport";
@@ -158,7 +159,7 @@ function App() {
                   <Route path="tenders/edit/:id" element={<EditTender />} />
                   <Route path="tenders/new" element={<TenderFormFresh2 />} />
                   <Route path="tenders/:id/edit" element={<EditTender />} />
-                  <Route path="tenders/:id/report" element={<TenderReport />} />
+                  <Route path="tenders/:id/report" element={<TenderReportEnhanced />} />
                   <Route path="tenders/:id/stock-acquisition" element={<IntegratedStockAcquisition />} />
                   <Route path="stock-acquisition/:id/report" element={<StockAcquisitionReport />} />
                   <Route path="tenders/:tenderId/expandable-receiving" element={<ExpandableReceivingForm />} />
