@@ -200,10 +200,12 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
 
   const loadTenderDetails = async (tenderId: string) => {
     try {
+      let items: StockTransactionItem[] = [];
+      
       // Load stock transaction items
       const itemsResponse = await fetch(`http://localhost:3001/api/stock-acquisition/items/${tenderId}`);
       if (itemsResponse.ok) {
-        const items = await itemsResponse.json();
+        items = await itemsResponse.json();
         setStockTransactionItems(items);
       }
 
