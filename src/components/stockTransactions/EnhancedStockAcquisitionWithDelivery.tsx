@@ -882,7 +882,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => navigate(`/dashboard/stock-acquisition/${tender.tender_id}`)}
+                              onClick={() => navigate(`/dashboard/stock-acquisition-report/${tender.tender_id}`)}
                               className="border-blue-300 text-blue-700 hover:bg-blue-50"
                             >
                               <Eye className="w-4 h-4 mr-1" />

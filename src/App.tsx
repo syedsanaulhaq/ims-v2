@@ -48,6 +48,7 @@ import StockAcquisitionDashboard from "./components/stockTransactions/StockAcqui
 import EnhancedStockAcquisitionDashboard from "./components/stockTransactions/EnhancedStockAcquisitionDashboard";
 import EnhancedStockAcquisitionWithDelivery from "./components/stockTransactions/EnhancedStockAcquisitionWithDelivery";
 import UnifiedTenderManagement from "./pages/UnifiedTenderManagement";
+import TenderAcquisitionReport from "./pages/TenderAcquisitionReport";
 import AllInventoryItemsPage from "./pages/AllInventoryItemsPage";
 import StockQuantitiesPage from "./pages/StockQuantitiesPage";
 import ApprovalDashboard from "./components/ApprovalDashboard";
@@ -142,6 +143,7 @@ function App() {
                   <Route path="stock-transactions" element={<StockTransactions />} />
                   <Route path="stock-acquisition-dashboard" element={<EnhancedStockAcquisitionWithDelivery />} />
                   <Route path="stock-acquisition/:tenderId" element={<UnifiedTenderManagement />} />
+                  <Route path="stock-acquisition-report/:tenderId" element={<TenderAcquisitionReport />} />
                   <Route path="stock-transaction-list" element={<StockTransactionList />} />
                   <Route path="transaction-manager" element={<TransactionManager />} />
                   <Route path="transaction-manager/:tenderId" element={<TransactionManager />} />
