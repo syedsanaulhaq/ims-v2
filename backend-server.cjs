@@ -6938,24 +6938,23 @@ app.put('/api/stock-acquisition/update-multiple-prices', async (req, res) => {
 // Get stock acquisition dashboard statistics
 app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
   try {
+    console.log('📊 GET /api/stock-acquisition/dashboard-stats - Fetching stock acquisition stats');
     const statsQuery = `
       SELECT 
-        COUNT(DISTINCT stc.tender_id) as total_tenders,
-        COUNT(stc.id) as total_items,
-        COUNT(CASE WHEN stc.pricing_confirmed = 1 THEN 1 END) as confirmed_pricing_items,
-        COUNT(CASE WHEN stc.pricing_confirmed = 0 THEN 1 END) as pending_pricing_items,
-        SUM(stc.estimated_unit_price * stc.total_quantity_received) as total_estimated_value,
-        SUM(stc.actual_unit_price * stc.total_quantity_received) as total_actual_value,
-        AVG(CASE 
-          WHEN stc.estimated_unit_price > 0 
-          THEN ((stc.actual_unit_price - stc.estimated_unit_price) / stc.estimated_unit_price) * 100 
+        (SELECT COUNT(*) FROM tenders WHERE is_finalized = 1) as total_tenders,
+        (SELECT COUNT(DISTINCT item_master_id) FROM tender_items ti JOIN tenders t ON ti.tender_id = t.id WHERE t.is_finalized = 1) as total_items,
+        (SELECT COUNT(*) FROM stock_transactions_clean WHERE pricing_confirmed = 1 AND (is_deleted = 0 OR is_deleted IS NULL)) as confirmed_pricing_items,
+        (SELECT COUNT(DISTINCT item_master_id) FROM tender_items ti JOIN tenders t ON ti.tender_id = t.id WHERE t.is_finalized = 1) - 
+        (SELECT COUNT(*) FROM stock_transactions_clean WHERE pricing_confirmed = 1 AND (is_deleted = 0 OR is_deleted IS NULL)) as pending_pricing_items,
+        (SELECT SUM(estimated_unit_price * total_quantity_received) FROM stock_transactions_clean WHERE (is_deleted = 0 OR is_deleted IS NULL)) as total_estimated_value,
+        (SELECT SUM(actual_unit_price * total_quantity_received) FROM stock_transactions_clean WHERE (is_deleted = 0 OR is_deleted IS NULL)) as total_actual_value,
+        (SELECT AVG(CASE 
+          WHEN estimated_unit_price > 0 
+          THEN ((actual_unit_price - estimated_unit_price) / estimated_unit_price) * 100 
           ELSE 0 
-        END) as average_price_variance,
-        COUNT(DISTINCT d.id) as total_deliveries,
-        COUNT(CASE WHEN d.delivery_status = 'Pending' THEN 1 END) as pending_deliveries
-      FROM stock_transactions_clean stc
-      LEFT JOIN deliveries d ON stc.tender_id = d.tender_id
-      WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
+        END) FROM stock_transactions_clean WHERE (is_deleted = 0 OR is_deleted IS NULL)) as average_price_variance,
+        (SELECT COUNT(*) FROM deliveries) as total_deliveries,
+        (SELECT COUNT(*) FROM deliveries WHERE is_finalized = 0 OR is_finalized IS NULL) as pending_deliveries
     `;
 
     const result = await pool.request().query(statsQuery);
