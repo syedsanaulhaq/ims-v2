@@ -3786,6 +3786,366 @@ app.delete('/api/tenders/:id', async (req, res) => {
 });
 
 // =============================================================================
+// TENDER VENDORS ENDPOINTS - Multiple vendors per tender with proposals
+// =============================================================================
+
+// Configure multer for proposal document uploads
+const proposalStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const tenderId = req.params.tenderId;
+    const vendorId = req.params.vendorId;
+    const uploadPath = path.join(__dirname, 'uploads', 'tender-proposals', tenderId, vendorId);
+    
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    // Keep original filename with timestamp to prevent conflicts
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    const nameWithoutExt = path.basename(file.originalname, ext);
+    cb(null, `${nameWithoutExt}_${timestamp}${ext}`);
+  }
+});
+
+const proposalUpload = multer({
+  storage: proposalStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Accept only specific file types
+    const allowedTypes = /pdf|doc|docx|xls|xlsx/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (extname && mimetype) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only PDF, DOC, DOCX, XLS, and XLSX files are allowed!'));
+    }
+  }
+});
+
+// POST - Add a vendor to a tender
+app.post('/api/tenders/:tenderId/vendors', async (req, res) => {
+  const { tenderId } = req.params;
+  const { vendor_id, vendor_name, quoted_amount, remarks } = req.body;
+  
+  console.log('📦 Adding vendor to tender:', { tenderId, vendor_id, vendor_name });
+  
+  try {
+    // Check if vendor already exists for this tender
+    const checkResult = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendor_id)
+      .query('SELECT id FROM tender_vendors WHERE tender_id = @tender_id AND vendor_id = @vendor_id');
+    
+    if (checkResult.recordset.length > 0) {
+      return res.status(400).json({ error: 'This vendor is already added to this tender' });
+    }
+    
+    // Insert new tender vendor
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendor_id)
+      .input('vendor_name', sql.NVarChar(200), vendor_name)
+      .input('quoted_amount', sql.Decimal(15, 2), quoted_amount || null)
+      .input('remarks', sql.NVarChar(500), remarks || null)
+      .input('created_by', sql.NVarChar(100), req.session?.user?.username || 'System')
+      .query(`
+        INSERT INTO tender_vendors (
+          tender_id, vendor_id, vendor_name, quoted_amount, remarks, created_by
+        )
+        OUTPUT INSERTED.*
+        VALUES (
+          @tender_id, @vendor_id, @vendor_name, @quoted_amount, @remarks, @created_by
+        )
+      `);
+    
+    console.log('✅ Vendor added successfully:', result.recordset[0]);
+    res.status(201).json(result.recordset[0]);
+    
+  } catch (error) {
+    console.error('❌ Error adding vendor to tender:', error);
+    res.status(500).json({ error: 'Failed to add vendor', details: error.message });
+  }
+});
+
+// GET - Get all vendors for a tender
+app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
+  const { tenderId } = req.params;
+  
+  try {
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query(`
+        SELECT 
+          tv.*,
+          v.vendor_code,
+          v.contact_person,
+          v.email,
+          v.phone,
+          v.address,
+          v.city,
+          v.country
+        FROM tender_vendors tv
+        LEFT JOIN vendors v ON tv.vendor_id = v.id
+        WHERE tv.tender_id = @tender_id
+        ORDER BY tv.created_at DESC
+      `);
+    
+    res.json(result.recordset);
+    
+  } catch (error) {
+    console.error('❌ Error fetching tender vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch vendors', details: error.message });
+  }
+});
+
+// PUT - Update vendor information (quoted amount, remarks)
+app.put('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
+  const { tenderId, vendorId } = req.params;
+  const { quoted_amount, remarks } = req.body;
+  
+  try {
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendorId)
+      .input('quoted_amount', sql.Decimal(15, 2), quoted_amount || null)
+      .input('remarks', sql.NVarChar(500), remarks || null)
+      .query(`
+        UPDATE tender_vendors 
+        SET 
+          quoted_amount = @quoted_amount,
+          remarks = @remarks,
+          updated_at = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Vendor not found for this tender' });
+    }
+    
+    res.json(result.recordset[0]);
+    
+  } catch (error) {
+    console.error('❌ Error updating vendor:', error);
+    res.status(500).json({ error: 'Failed to update vendor', details: error.message });
+  }
+});
+
+// POST - Upload proposal document for a vendor
+app.post('/api/tenders/:tenderId/vendors/:vendorId/proposal', 
+  proposalUpload.single('proposal'), 
+  async (req, res) => {
+    const { tenderId, vendorId } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    console.log('📄 Uploading proposal:', {
+      tenderId,
+      vendorId,
+      filename: req.file.filename,
+      size: req.file.size
+    });
+    
+    try {
+      // Update tender vendor with proposal information
+      const result = await pool.request()
+        .input('tender_id', sql.UniqueIdentifier, tenderId)
+        .input('vendor_id', sql.UniqueIdentifier, vendorId)
+        .input('proposal_document_path', sql.NVarChar(500), req.file.path)
+        .input('proposal_document_name', sql.NVarChar(200), req.file.originalname)
+        .input('proposal_file_size', sql.BigInt, req.file.size)
+        .query(`
+          UPDATE tender_vendors 
+          SET 
+            proposal_document_path = @proposal_document_path,
+            proposal_document_name = @proposal_document_name,
+            proposal_upload_date = GETDATE(),
+            proposal_file_size = @proposal_file_size,
+            updated_at = GETDATE()
+          OUTPUT INSERTED.*
+          WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+        `);
+      
+      if (result.recordset.length === 0) {
+        // Delete uploaded file if vendor not found
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({ error: 'Vendor not found for this tender' });
+      }
+      
+      console.log('✅ Proposal uploaded successfully');
+      res.json({
+        success: true,
+        message: 'Proposal uploaded successfully',
+        vendor: result.recordset[0]
+      });
+      
+    } catch (error) {
+      console.error('❌ Error uploading proposal:', error);
+      // Delete uploaded file on error
+      if (req.file && req.file.path) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ error: 'Failed to upload proposal', details: error.message });
+    }
+});
+
+// GET - Download proposal document
+app.get('/api/tenders/:tenderId/vendors/:vendorId/proposal/download', async (req, res) => {
+  const { tenderId, vendorId } = req.params;
+  
+  try {
+    // Get proposal document path
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendorId)
+      .query(`
+        SELECT 
+          proposal_document_path,
+          proposal_document_name
+        FROM tender_vendors 
+        WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+      `);
+    
+    if (result.recordset.length === 0 || !result.recordset[0].proposal_document_path) {
+      return res.status(404).json({ error: 'Proposal not found' });
+    }
+    
+    const filePath = result.recordset[0].proposal_document_path;
+    const fileName = result.recordset[0].proposal_document_name;
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Proposal file not found on server' });
+    }
+    
+    // Send file
+    res.download(filePath, fileName, (err) => {
+      if (err) {
+        console.error('❌ Error downloading file:', err);
+        res.status(500).json({ error: 'Failed to download file' });
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching proposal:', error);
+    res.status(500).json({ error: 'Failed to fetch proposal', details: error.message });
+  }
+});
+
+// PUT - Mark vendor as awarded
+app.put('/api/tenders/:tenderId/vendors/:vendorId/award', async (req, res) => {
+  const { tenderId, vendorId } = req.params;
+  const transaction = new sql.Transaction(pool);
+  
+  try {
+    await transaction.begin();
+    
+    // Unmark all vendors for this tender
+    await transaction.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query(`
+        UPDATE tender_vendors 
+        SET is_awarded = 0, updated_at = GETDATE()
+        WHERE tender_id = @tender_id
+      `);
+    
+    // Mark the selected vendor as awarded
+    const result = await transaction.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendorId)
+      .query(`
+        UPDATE tender_vendors 
+        SET is_awarded = 1, updated_at = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+      `);
+    
+    if (result.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Vendor not found for this tender' });
+    }
+    
+    // Update tender table with awarded vendor
+    await transaction.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('awarded_vendor_id', sql.UniqueIdentifier, vendorId)
+      .query(`
+        UPDATE tenders 
+        SET awarded_vendor_id = @awarded_vendor_id, updated_at = GETDATE()
+        WHERE id = @tender_id
+      `);
+    
+    await transaction.commit();
+    
+    console.log('✅ Vendor awarded successfully');
+    res.json({
+      success: true,
+      message: 'Vendor awarded successfully',
+      vendor: result.recordset[0]
+    });
+    
+  } catch (error) {
+    await transaction.rollback();
+    console.error('❌ Error awarding vendor:', error);
+    res.status(500).json({ error: 'Failed to award vendor', details: error.message });
+  }
+});
+
+// DELETE - Remove vendor from tender
+app.delete('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
+  const { tenderId, vendorId } = req.params;
+  
+  try {
+    // Get proposal file path before deleting
+    const fileResult = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendorId)
+      .query(`
+        SELECT proposal_document_path 
+        FROM tender_vendors 
+        WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+      `);
+    
+    // Delete from database
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendorId)
+      .query(`
+        DELETE FROM tender_vendors 
+        WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+      `);
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Vendor not found for this tender' });
+    }
+    
+    // Delete proposal file if exists
+    if (fileResult.recordset.length > 0 && fileResult.recordset[0].proposal_document_path) {
+      const filePath = fileResult.recordset[0].proposal_document_path;
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log('🗑️ Deleted proposal file:', filePath);
+      }
+    }
+    
+    console.log('✅ Vendor removed from tender');
+    res.json({ success: true, message: 'Vendor removed successfully' });
+    
+  } catch (error) {
+    console.error('❌ Error removing vendor:', error);
+    res.status(500).json({ error: 'Failed to remove vendor', details: error.message });
+  }
+});
+
+// =============================================================================
 // DELIVERY ENDPOINTS
 // =============================================================================
 
