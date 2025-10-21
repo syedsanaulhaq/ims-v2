@@ -724,6 +724,10 @@ const UnifiedTenderManagement: React.FC = () => {
     );
   }
 
+  // Check if all deliveries are finalized (Report Mode)
+  const allDeliveriesFinalized = deliveries.length > 0 && deliveries.every(d => d.is_finalized);
+  const isReportMode = allDeliveriesFinalized;
+
   return (
     <>
       {/* Print Styles */}
@@ -782,10 +786,16 @@ const UnifiedTenderManagement: React.FC = () => {
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{tenderInfo?.title}</h1>
             <p className="text-gray-600">{tenderInfo?.reference_number}</p>
+            {isReportMode && (
+              <Badge className="mt-2 bg-green-100 text-green-800 border-green-300">
+                <CheckCircle className="w-3 h-3 mr-1" />
+                All Deliveries Finalized - Report View
+              </Badge>
+            )}
           </div>
           <div className="flex gap-2">
-            {/* Finalize All Deliveries Button */}
-            {deliveries.filter(d => !d.is_finalized).length > 0 && (
+            {/* Finalize All Deliveries Button - Only show if not in report mode */}
+            {!isReportMode && deliveries.filter(d => !d.is_finalized).length > 0 && (
               <Button 
                 onClick={finalizeAllDeliveries} 
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -808,9 +818,11 @@ const UnifiedTenderManagement: React.FC = () => {
               Print
             </Button>
           </div>
-          <Badge variant="outline">
-            {tenderInfo?.status}
-          </Badge>
+          {!isReportMode && (
+            <Badge variant="outline">
+              {tenderInfo?.status}
+            </Badge>
+          )}
         </div>
 
       <div className="space-y-6">
@@ -827,18 +839,25 @@ const UnifiedTenderManagement: React.FC = () => {
                     {deliveriesCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     <Truck className="w-5 h-5" />
                     Deliveries ({deliveries.length})
+                    {isReportMode && (
+                      <Badge className="ml-2 bg-green-100 text-green-800 border-green-300">
+                        All Finalized
+                      </Badge>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2 print:hidden">
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent collapsible trigger
-                        setShowNewDelivery(true);
-                      }} 
-                      size="sm"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      New Delivery
-                    </Button>
+                    {!isReportMode && (
+                      <Button 
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent collapsible trigger
+                          setShowNewDelivery(true);
+                        }} 
+                        size="sm"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        New Delivery
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -846,8 +865,8 @@ const UnifiedTenderManagement: React.FC = () => {
             
             <CollapsibleContent>
               <CardContent className="space-y-4">
-            {/* New Delivery Form */}
-            {showNewDelivery && (
+            {/* New Delivery Form - Only show if not in report mode */}
+            {!isReportMode && showNewDelivery && (
               <Card className="border-dashed">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg">Create New Delivery</CardTitle>
@@ -916,28 +935,29 @@ const UnifiedTenderManagement: React.FC = () => {
             {deliveries.map((delivery) => (
               <Collapsible
                 key={delivery.id}
-                open={openDeliveries[delivery.id]}
-                onOpenChange={(open) => setOpenDeliveries(prev => ({...prev, [delivery.id]: open}))}
+                open={isReportMode || openDeliveries[delivery.id]}
+                onOpenChange={(open) => !isReportMode && setOpenDeliveries(prev => ({...prev, [delivery.id]: open}))}
               >
-                <Card>
+                <Card className={isReportMode ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' : ''}>
                   <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover:bg-gray-50">
+                    <CardHeader className={isReportMode ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50'}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          {openDeliveries[delivery.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          {!isReportMode && (openDeliveries[delivery.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}
                           <div>
                             <h3 className="font-medium">Delivery #{delivery.delivery_number}</h3>
                             <p className="text-sm text-gray-600">{delivery.delivery_personnel} - {formatDate(delivery.delivery_date)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant={delivery.is_finalized ? 'default' : getDeliveryStatus(delivery) === 'Complete' ? 'default' : 'secondary'}>
+                          <Badge variant={delivery.is_finalized ? 'default' : getDeliveryStatus(delivery) === 'Complete' ? 'default' : 'secondary'} 
+                                 className={isReportMode ? 'bg-green-600 text-white border-green-700' : ''}>
                             {getDeliveryStatus(delivery)}
                           </Badge>
                           <Badge variant="outline">
                             {delivery.items?.length || 0} items
                           </Badge>
-                          {!delivery.is_finalized && (
+                          {!isReportMode && !delivery.is_finalized && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -970,8 +990,8 @@ const UnifiedTenderManagement: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Delivery Actions */}
-                      {!delivery.is_finalized && (
+                      {/* Delivery Actions - Only show if not in report mode and not finalized */}
+                      {!isReportMode && !delivery.is_finalized && (
                         <div className="flex justify-end mb-4 print:hidden">
                           <Button
                             variant="outline"
@@ -989,7 +1009,7 @@ const UnifiedTenderManagement: React.FC = () => {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="font-medium">Items in this delivery</h4>
-                          {!delivery.is_finalized && (
+                          {!isReportMode && !delivery.is_finalized && (
                             <Button 
                               variant="outline" 
                               size="sm"
@@ -1005,13 +1025,13 @@ const UnifiedTenderManagement: React.FC = () => {
                         {delivery.items && delivery.items.length > 0 ? (
                           <div className="space-y-2">
                             {delivery.items.map((item) => (
-                              <div key={item.id} className="border rounded p-3">
+                              <div key={item.id} className={`border rounded p-3 ${isReportMode ? 'bg-white border-green-200' : ''}`}>
                                 <div className="flex items-center justify-between">
                                   <div>
                                     <h5 className="font-bold">{item.item_name}</h5>
                                     <p className="text-sm text-gray-600">Quantity: {item.delivery_qty}</p>
                                   </div>
-                                  {!delivery.is_finalized && (
+                                  {!isReportMode && !delivery.is_finalized && (
                                     <div className="flex gap-1 print:hidden">
                                       <Button
                                         variant="outline"
