@@ -7012,7 +7012,9 @@ app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
           ELSE 0 
         END as pricing_completion_rate,
         CASE 
-          WHEN EXISTS(SELECT 1 FROM deliveries WHERE tender_id = t.id) THEN 1
+          WHEN NOT EXISTS(SELECT 1 FROM deliveries WHERE tender_id = t.id) THEN 0
+          WHEN EXISTS(SELECT 1 FROM deliveries WHERE tender_id = t.id AND is_finalized = 0) THEN 1
+          WHEN NOT EXISTS(SELECT 1 FROM deliveries WHERE tender_id = t.id AND is_finalized = 0) THEN 2
           ELSE 0
         END as has_deliveries,
         t.created_at

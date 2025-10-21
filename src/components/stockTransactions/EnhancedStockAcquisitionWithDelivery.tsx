@@ -878,14 +878,26 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
                       <TableCell>{formatDate(tender.created_at)}</TableCell>
                       <TableCell className="no-print">
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/dashboard/stock-acquisition/${tender.tender_id}`)}
-                          >
-                            <Edit className="w-4 h-4" />
-                            Manage
-                          </Button>
+                          {tender.has_deliveries === 2 ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/dashboard/stock-acquisition/${tender.tender_id}`)}
+                              className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Report
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/dashboard/stock-acquisition/${tender.tender_id}`)}
+                            >
+                              <Edit className="w-4 h-4 mr-1" />
+                              Manage
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
