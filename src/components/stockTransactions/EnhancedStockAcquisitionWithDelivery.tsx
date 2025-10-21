@@ -672,26 +672,26 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estimated Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pending Deliveries</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.total_estimated_value)}</div>
+            <div className="text-2xl font-bold">{stats.pending_deliveries || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Initial tender pricing
+              Awaiting finalization
             </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Deliveries</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Deliveries</CardTitle>
             <Truck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total_deliveries || 0}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.pending_deliveries || 0} pending
+              Completed deliveries
             </p>
           </CardContent>
         </Card>
