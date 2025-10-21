@@ -22,7 +22,8 @@ import {
   ChevronRight,
   Printer,
   Download,
-  Eye
+  Eye,
+  CheckCircle
 } from 'lucide-react';
 import {
   Collapsible,
@@ -497,6 +498,70 @@ const UnifiedTenderManagement: React.FC = () => {
     }
   };
 
+  const finalizeAllDeliveries = async () => {
+    // Get all non-finalized deliveries
+    const pendingDeliveries = deliveries.filter(d => !d.is_finalized);
+    
+    if (pendingDeliveries.length === 0) {
+      alert('ℹ️ No pending deliveries to finalize.');
+      return;
+    }
+
+    const deliveryList = pendingDeliveries.map(d => `  • Delivery #${d.delivery_number}`).join('\n');
+    
+    if (!confirm(`Are you sure you want to FINALIZE ALL DELIVERIES for this tender?\n\n${pendingDeliveries.length} pending deliveries will be finalized:\n${deliveryList}\n\nThis will:\n- Mark all deliveries as complete\n- Add ALL items to inventory\n- Create stock movement logs\n- CANNOT be undone\n\nProceed with finalization?`)) {
+      return;
+    }
+
+    try {
+      // Get current user ID from session/auth
+      const currentUserId = 'SYSTEM-USER-ID'; // TODO: Get from auth context
+      
+      let successCount = 0;
+      let totalItemsAdded = 0;
+      const errors: string[] = [];
+
+      // Finalize each delivery
+      for (const delivery of pendingDeliveries) {
+        try {
+          const response = await fetch(`http://localhost:3001/api/deliveries/${delivery.id}/finalize`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              finalized_by: currentUserId
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            successCount++;
+            totalItemsAdded += result.items_added || 0;
+          } else {
+            const errorData = await response.json();
+            errors.push(`Delivery #${delivery.delivery_number}: ${errorData.details || errorData.error}`);
+          }
+        } catch (error) {
+          errors.push(`Delivery #${delivery.delivery_number}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Reload data
+      await loadTenderData();
+
+      // Show results
+      if (successCount === pendingDeliveries.length) {
+        alert(`✅ ALL ${successCount} DELIVERIES FINALIZED SUCCESSFULLY!\n\n${totalItemsAdded} items added to inventory.`);
+      } else if (successCount > 0) {
+        alert(`⚠️ PARTIALLY COMPLETED\n\n✅ ${successCount} deliveries finalized (${totalItemsAdded} items added)\n❌ ${errors.length} failed:\n\n${errors.join('\n')}`);
+      } else {
+        alert(`❌ FINALIZATION FAILED\n\nNo deliveries were finalized.\n\nErrors:\n${errors.join('\n')}`);
+      }
+    } catch (error) {
+      console.error('Error finalizing deliveries:', error);
+      alert('❌ Failed to finalize deliveries. Please try again.');
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -719,6 +784,17 @@ const UnifiedTenderManagement: React.FC = () => {
             <p className="text-gray-600">{tenderInfo?.reference_number}</p>
           </div>
           <div className="flex gap-2">
+            {/* Finalize All Deliveries Button */}
+            {deliveries.filter(d => !d.is_finalized).length > 0 && (
+              <Button 
+                onClick={finalizeAllDeliveries} 
+                className="bg-green-600 hover:bg-green-700 text-white"
+                size="sm"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Finalize All Deliveries ({deliveries.filter(d => !d.is_finalized).length})
+              </Button>
+            )}
             <Button onClick={() => generatePDF(true)} variant="outline" size="sm">
               <Eye className="w-4 h-4 mr-2" />
               Preview PDF
