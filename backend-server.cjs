@@ -8526,7 +8526,10 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
 // Get acquisition dashboard overview stats
 app.get('/api/acquisition/dashboard-stats', async (req, res) => {
   try {
+    console.log('📊 GET /api/acquisition/dashboard-stats - Fetching acquisition stats');
+    
     if (!pool) {
+      console.error('❌ Database connection not available');
       return res.status(500).json({ error: 'Database connection not available' });
     }
 
@@ -8537,7 +8540,7 @@ app.get('/api/acquisition/dashboard-stats', async (req, res) => {
           COUNT(*) as totalTenders,
           COUNT(CASE WHEN is_finalized = 0 THEN 1 END) as activeTenders,
           COUNT(CASE WHEN is_finalized = 1 THEN 1 END) as completedTenders,
-          SUM(CASE WHEN estimated_total_cost IS NOT NULL THEN estimated_total_cost ELSE 0 END) as totalValue,
+          SUM(CASE WHEN estimated_value IS NOT NULL THEN estimated_value ELSE 0 END) as totalValue,
           COUNT(CASE WHEN created_at >= DATEADD(month, -1, GETDATE()) THEN 1 END) as monthlyAcquisitions
         FROM tenders
       ),
@@ -8545,10 +8548,10 @@ app.get('/api/acquisition/dashboard-stats', async (req, res) => {
         SELECT 
           COUNT(DISTINCT d.id) as pendingDeliveries,
           COUNT(DISTINCT di.item_master_id) as totalItems,
-          SUM(di.quantity_delivered) as totalQuantity
+          SUM(di.delivery_qty) as totalQuantity
         FROM deliveries d
         INNER JOIN delivery_items di ON d.id = di.delivery_id
-        WHERE d.finalized = 0 OR d.finalized IS NULL
+        WHERE d.is_finalized = 0 OR d.is_finalized IS NULL
       )
       SELECT 
         ts.*,
@@ -8560,10 +8563,13 @@ app.get('/api/acquisition/dashboard-stats', async (req, res) => {
     `;
 
     const result = await pool.request().query(statsQuery);
+    console.log('✅ Query executed, rows returned:', result.recordset.length);
     
     if (result.recordset.length > 0) {
+      console.log('📈 Stats data:', result.recordset[0]);
       res.json(result.recordset[0]);
     } else {
+      console.log('⚠️ No data found, returning zeros');
       res.json({
         totalTenders: 0,
         activeTenders: 0,

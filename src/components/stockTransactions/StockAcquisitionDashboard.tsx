@@ -28,6 +28,7 @@ interface AcquisitionStats {
   pendingDeliveries: number;
   totalItems: number;
   totalQuantity: number;
+  totalValue?: number;
   monthlyAcquisitions: number;
 }
 
@@ -65,6 +66,7 @@ const StockAcquisitionDashboard: React.FC = () => {
     pendingDeliveries: 0,
     totalItems: 0,
     totalQuantity: 0,
+    totalValue: 0,
     monthlyAcquisitions: 0
   });
   
@@ -81,28 +83,42 @@ const StockAcquisitionDashboard: React.FC = () => {
       setLoading(true);
       
       // Fetch acquisition overview stats
+      console.log('📊 Fetching acquisition dashboard stats...');
       const statsResponse = await fetch('http://localhost:3001/api/acquisition/dashboard-stats');
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
+        console.log('✅ Stats data received:', statsData);
         setStats(statsData);
+      } else {
+        console.error('❌ Stats API error:', statsResponse.status, statsResponse.statusText);
+        const errorText = await statsResponse.text();
+        console.error('Error details:', errorText);
       }
 
       // Fetch active tenders
+      console.log('📋 Fetching active tenders...');
       const tendersResponse = await fetch('http://localhost:3001/api/acquisition/active-tenders');
       if (tendersResponse.ok) {
         const tendersData = await tendersResponse.json();
+        console.log('✅ Active tenders received:', tendersData.length, 'tenders');
         setActiveTenders(tendersData);
+      } else {
+        console.error('❌ Active tenders API error:', tendersResponse.status);
       }
 
       // Fetch recent deliveries
+      console.log('🚚 Fetching recent deliveries...');
       const deliveriesResponse = await fetch('http://localhost:3001/api/acquisition/recent-deliveries');
       if (deliveriesResponse.ok) {
         const deliveriesData = await deliveriesResponse.json();
+        console.log('✅ Recent deliveries received:', deliveriesData.length, 'deliveries');
         setRecentDeliveries(deliveriesData);
+      } else {
+        console.error('❌ Recent deliveries API error:', deliveriesResponse.status);
       }
 
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('💥 Error loading dashboard data:', error);
     } finally {
       setLoading(false);
     }
@@ -223,6 +239,21 @@ const StockAcquisitionDashboard: React.FC = () => {
             <div className="text-2xl font-bold">{stats.totalItems.toLocaleString()}</div>
             <p className="text-xs text-gray-600">
               {stats.totalQuantity.toLocaleString()} total quantity
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Estimated Value</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(stats.totalValue || 0)}
+            </div>
+            <p className="text-xs text-gray-600">
+              Total acquisition value
             </p>
           </CardContent>
         </Card>
