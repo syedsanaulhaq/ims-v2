@@ -71,7 +71,7 @@ const VendorsPage: React.FC = () => {
               <td className="p-2 border">{v.status}</td>
               <td className="p-2 border">
                 <button className="mr-2 text-blue-600" onClick={() => handleEdit(v)}>Edit</button>
-                <button className="text-red-600" onClick={() => handleDelete(v.id)}>Delete</button>
+                {/* <button className="text-red-600" onClick={() => handleDelete(v.id)}>Delete</button> */}
               </td>
             </tr>
           ))}
