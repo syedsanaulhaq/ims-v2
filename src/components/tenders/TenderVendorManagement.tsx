@@ -291,7 +291,14 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   };
 
   const handleMarkSuccessful = async (vendorId: string, isSuccessful: boolean) => {
-    if (!tenderId) return;
+    if (!tenderId) {
+      // For new tenders, just update local state
+      setTenderVendors(tenderVendors.map(tv => ({
+        ...tv,
+        is_successful: tv.vendor_id === vendorId ? isSuccessful : false
+      })));
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -603,7 +610,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                           type="checkbox"
                           checked={vendor.is_successful || false}
                           onChange={(e) => handleMarkSuccessful(vendor.vendor_id, e.target.checked)}
-                          disabled={readOnly || !tenderId}
+                          disabled={readOnly}
                           className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                         />
                         {vendor.is_successful && (
