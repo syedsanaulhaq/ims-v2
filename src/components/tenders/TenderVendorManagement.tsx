@@ -120,6 +120,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Loaded vendors:', data);
         setTenderVendors(data);
       } else {
         throw new Error('Failed to load vendors');
@@ -604,27 +605,33 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                     </TableCell>
                     <TableCell>
                       {vendor.proposal_document_name ? (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-green-50 text-green-700">
+                        <div className="flex flex-col gap-2">
+                          <Badge variant="outline" className="bg-green-50 text-green-700 w-fit">
                             <CheckCircle className="w-3 h-3 mr-1" />
                             Uploaded
                           </Badge>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewProposal(vendor.vendor_id)}
-                            title="View Proposal"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDownloadProposal(vendor.vendor_id)}
-                            title="Download Proposal"
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleViewProposal(vendor.vendor_id)}
+                              title="View Proposal"
+                              className="text-xs"
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDownloadProposal(vendor.vendor_id)}
+                              title="Download Proposal"
+                              className="text-xs"
+                            >
+                              <Download className="w-3 h-3 mr-1" />
+                              Download
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
