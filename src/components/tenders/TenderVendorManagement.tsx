@@ -100,8 +100,8 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     description: ''
   });
   
-  // Proposal file state for add dialog
-  const [proposalFile, setProposalFile] = useState<File | null>(null);
+  // Proposal files state for add dialog (support multiple files)
+  const [proposalFiles, setProposalFiles] = useState<File[]>([]);
 
   // Load tender vendors if tender ID is provided (editing mode)
   useEffect(() => {
@@ -199,9 +199,11 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         if (response.ok) {
           const savedVendor = await response.json();
           
-          // If proposal file is selected, upload it
-          if (proposalFile && savedVendor.vendor_id) {
-            await handleUploadProposalForVendor(savedVendor.vendor_id, proposalFile);
+          // If proposal files are selected, upload them all
+          if (proposalFiles.length > 0 && savedVendor.vendor_id) {
+            for (const file of proposalFiles) {
+              await handleUploadProposalForVendor(savedVendor.vendor_id, file);
+            }
           }
           
           // Reload vendors to get updated data
@@ -448,7 +450,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       remarks: '',
       description: ''
     });
-    setProposalFile(null);
+    setProposalFiles([]);
     setError(null);
   };
 
@@ -538,24 +540,25 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                   </div>
 
                   <div>
-                    <Label htmlFor="proposal_file">Proposal Document</Label>
+                    <Label htmlFor="proposal_file">Proposal Documents (Multiple allowed)</Label>
                     <div className="flex items-center gap-2">
                       <Input
                         id="proposal_file"
                         type="file"
                         accept=".pdf,.doc,.docx,.xls,.xlsx"
+                        multiple
                         onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setProposalFile(file);
+                          const files = e.target.files;
+                          if (files) {
+                            setProposalFiles(Array.from(files));
                           }
                         }}
                         className="flex-1"
                       />
-                      {proposalFile && (
+                      {proposalFiles.length > 0 && (
                         <Badge variant="outline" className="bg-green-50">
                           <FileText className="w-3 h-3 mr-1" />
-                          {proposalFile.name}
+                          {proposalFiles.length} file{proposalFiles.length > 1 ? 's' : ''} selected
                         </Badge>
                       )}
                     </div>
@@ -715,9 +718,14 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                                 type="file"
                                 className="hidden"
                                 accept=".pdf,.doc,.docx,.xls,.xlsx"
+                                multiple
                                 onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleUploadProposal(vendor.vendor_id, file);
+                                  const files = e.target.files;
+                                  if (files) {
+                                    Array.from(files).forEach(file => {
+                                      handleUploadProposal(vendor.vendor_id, file);
+                                    });
+                                  }
                                 }}
                                 disabled={uploadingProposal === vendor.vendor_id}
                               />
