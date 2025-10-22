@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
 
 interface TenderItem {
   id?: string;
@@ -1125,6 +1126,15 @@ const CreateTender: React.FC = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Vendor Management Section */}
+          <TenderVendorManagement
+            tenderId={tenderId}
+            vendors={vendors}
+            onVendorsChange={(updatedVendors) => {
+              console.log('Vendors updated:', updatedVendors);
+            }}
+          />
 
           {/* Submit Section */}
           <Card>

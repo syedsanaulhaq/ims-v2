@@ -20,6 +20,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useOfficeHierarchy } from '@/hooks/useOfficeHierarchy';
 import { createNameResolver } from '@/utils/nameResolver';
+import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
 
 interface TenderItem {
   id: string;
@@ -586,6 +587,13 @@ const TenderReportEnhanced: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Participating Vendors */}
+      <TenderVendorManagement
+        tenderId={id}
+        vendors={[]}
+        readOnly={true}
+      />
 
       {/* System Information */}
       <Card className="border-gray-200 print:hidden">
