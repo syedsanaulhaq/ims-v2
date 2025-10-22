@@ -453,8 +453,9 @@ const CreateTender: React.FC = () => {
                       ...prev,
                       tender_type: value
                     }))}
+                    disabled
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-gray-50">
                       <SelectValue placeholder="Select tender type" />
                     </SelectTrigger>
                     <SelectContent>
