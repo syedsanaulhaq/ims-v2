@@ -1129,7 +1129,7 @@ const CreateTender: React.FC = () => {
 
           {/* Vendor Management Section */}
           <TenderVendorManagement
-            tenderId={tenderId}
+            tenderId={location.state?.tenderId}
             vendors={vendors}
             onVendorsChange={(updatedVendors) => {
               console.log('Vendors updated:', updatedVendors);

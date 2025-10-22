@@ -4079,7 +4079,9 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/award', async (req, res) => {
       .input('awarded_vendor_id', sql.UniqueIdentifier, vendorId)
       .query(`
         UPDATE tenders 
-        SET awarded_vendor_id = @awarded_vendor_id, updated_at = GETDATE()
+        SET awarded_vendor_id = @awarded_vendor_id, 
+            vendor_id = @awarded_vendor_id,
+            updated_at = GETDATE()
         WHERE id = @tender_id
       `);
     

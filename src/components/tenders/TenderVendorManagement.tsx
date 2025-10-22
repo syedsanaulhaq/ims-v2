@@ -90,8 +90,12 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   const [formData, setFormData] = useState({
     vendor_id: '',
     quoted_amount: '',
-    remarks: ''
+    remarks: '',
+    description: ''
   });
+  
+  // Proposal file state for add dialog
+  const [proposalFile, setProposalFile] = useState<File | null>(null);
 
   // Load tender vendors if tender ID is provided (editing mode)
   useEffect(() => {
@@ -147,7 +151,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       vendor_name: selectedVendorInfo.vendor_name,
       vendor_code: selectedVendorInfo.vendor_code,
       quoted_amount: formData.quoted_amount ? parseFloat(formData.quoted_amount) : undefined,
-      remarks: formData.remarks,
+      remarks: formData.description || formData.remarks, // Use description as primary remarks
       is_awarded: false
     };
 
@@ -162,7 +166,14 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
         if (response.ok) {
           const savedVendor = await response.json();
-          setTenderVendors([...tenderVendors, savedVendor]);
+          
+          // If proposal file is selected, upload it
+          if (proposalFile && savedVendor.vendor_id) {
+            await handleUploadProposalForVendor(savedVendor.vendor_id, proposalFile);
+          }
+          
+          // Reload vendors to get updated data
+          await loadTenderVendors();
           resetForm();
           setShowAddDialog(false);
         } else {
@@ -177,6 +188,11 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       setTenderVendors([...tenderVendors, newVendor]);
       resetForm();
       setShowAddDialog(false);
+      
+      // Notify parent component
+      if (onVendorsChange) {
+        onVendorsChange([...tenderVendors, newVendor]);
+      }
     }
   };
 
@@ -232,19 +248,20 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       );
 
       if (response.ok) {
-        const result = await response.json();
-        setTenderVendors(tenderVendors.map(tv => 
-          tv.vendor_id === vendorId ? result.vendor : tv
-        ));
+        await loadTenderVendors(); // Reload to show updated proposal
+        setUploadingProposal(null);
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to upload proposal');
+        throw new Error('Failed to upload proposal');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload proposal');
-    } finally {
       setUploadingProposal(null);
     }
+  };
+  
+  // Helper function for uploading proposal during add
+  const handleUploadProposalForVendor = async (vendorId: string, file: File) => {
+    return handleUploadProposal(vendorId, file);
   };
 
   const handleDownloadProposal = async (vendorId: string) => {
@@ -325,7 +342,8 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     setFormData({
       vendor_id: vendor.vendor_id,
       quoted_amount: vendor.quoted_amount?.toString() || '',
-      remarks: vendor.remarks || ''
+      remarks: vendor.remarks || '',
+      description: vendor.remarks || '' // Use remarks as description
     });
     setShowEditDialog(true);
   };
@@ -334,8 +352,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     setFormData({
       vendor_id: '',
       quoted_amount: '',
-      remarks: ''
+      remarks: '',
+      description: ''
     });
+    setProposalFile(null);
     setError(null);
   };
 
@@ -410,7 +430,49 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                   </div>
 
                   <div>
-                    <Label htmlFor="quoted_amount">Quoted Amount (Rs)</Label>
+                    <Label htmlFor="description">Description *</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      placeholder="Enter vendor proposal description..."
+                      rows={4}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Provide details about the vendor's proposal
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="proposal_file">Proposal Document</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="proposal_file"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setProposalFile(file);
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      {proposalFile && (
+                        <Badge variant="outline" className="bg-green-50">
+                          <FileText className="w-3 h-3 mr-1" />
+                          {proposalFile.name}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Upload proposal (PDF, DOC, DOCX, XLS, XLSX - Max 10MB)
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="quoted_amount">Quoted Amount (Rs) <span className="text-gray-400 text-xs">(Optional)</span></Label>
                     <Input
                       id="quoted_amount"
                       type="number"
@@ -422,7 +484,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                   </div>
 
                   <div>
-                    <Label htmlFor="remarks">Remarks</Label>
+                    <Label htmlFor="remarks">Additional Remarks <span className="text-gray-400 text-xs">(Optional)</span></Label>
                     <Textarea
                       id="remarks"
                       value={formData.remarks}
@@ -461,7 +523,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                 <TableRow>
                   <TableHead>Vendor Name</TableHead>
                   <TableHead>Vendor Code</TableHead>
-                  <TableHead>Quoted Amount</TableHead>
+                  <TableHead>Description</TableHead>
                   <TableHead>Proposal</TableHead>
                   <TableHead>Status</TableHead>
                   {!readOnly && <TableHead>Actions</TableHead>}
@@ -480,7 +542,22 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                       )}
                     </TableCell>
                     <TableCell>{vendor.vendor_code || 'N/A'}</TableCell>
-                    <TableCell>{formatCurrency(vendor.quoted_amount)}</TableCell>
+                    <TableCell>
+                      <div className="max-w-xs">
+                        {vendor.remarks ? (
+                          <p className="text-sm truncate" title={vendor.remarks}>
+                            {vendor.remarks}
+                          </p>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No description</span>
+                        )}
+                        {vendor.quoted_amount && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Amount: {formatCurrency(vendor.quoted_amount)}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {vendor.proposal_document_name ? (
                         <div className="flex items-center gap-2">
