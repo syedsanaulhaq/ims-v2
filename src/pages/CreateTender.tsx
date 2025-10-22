@@ -107,7 +107,7 @@ const CreateTender: React.FC = () => {
     submission_deadline: '',
     opening_date: '',
     tender_type: tenderType,
-    status: 'draft',
+    status: tenderType === 'spot-purchase' ? 'published' : 'draft',
     vendor_id: '',
     office_ids: [] as string[],
     wing_ids: [] as string[],
@@ -440,7 +440,7 @@ const CreateTender: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <FileText className="h-5 w-5 mr-2" />
-                Tender Type
+                Type
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -465,25 +465,27 @@ const CreateTender: React.FC = () => {
                   </Select>
                 </div>
                 
-                <div>
-                  <label className="text-sm font-medium">Status</label>
-                  <Select 
-                    value={tenderData.status} 
-                    onValueChange={(value) => setTenderData(prev => ({
-                      ...prev,
-                      status: value
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="published">Published</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {tenderType !== 'spot-purchase' && (
+                  <div>
+                    <label className="text-sm font-medium">Status</label>
+                    <Select 
+                      value={tenderData.status} 
+                      onValueChange={(value) => setTenderData(prev => ({
+                        ...prev,
+                        status: value
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="published">Published</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -493,7 +495,7 @@ const CreateTender: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <FileText className="h-5 w-5 mr-2" />
-                Tender Information
+                {tenderType === 'spot-purchase' ? 'Spot Purchase Information' : 'Tender Information'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -576,15 +578,16 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Location Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FileText className="h-5 w-5 mr-2" />
-                Tender Request Form
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {/* Location Selection - Only for Contract Tenders */}
+          {tenderType !== 'spot-purchase' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <FileText className="h-5 w-5 mr-2" />
+                  Tender Request Form
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium">Offices *</label>
@@ -656,6 +659,7 @@ const CreateTender: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Additional Tender Details */}
           <Card>
@@ -882,21 +886,23 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Participating Bidders Section */}
-          <TenderVendorManagement
-            tenderId={location.state?.tenderId}
-            vendors={vendors}
-            onVendorsChange={(updatedVendors) => {
-              console.log('Vendors updated:', updatedVendors);
-            }}
-          />
+          {/* Participating Bidders Section - Only for Contract Tenders */}
+          {tenderType !== 'spot-purchase' && (
+            <TenderVendorManagement
+              tenderId={location.state?.tenderId}
+              vendors={vendors}
+              onVendorsChange={(updatedVendors) => {
+                console.log('Vendors updated:', updatedVendors);
+              }}
+            />
+          )}
 
           {/* Tender Items Section */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Plus className="h-5 w-5 mr-2" />
-                Tender Items ({tenderItems.length})
+                {tenderType === 'spot-purchase' ? 'Spot Purchase Items' : 'Tender Items'} ({tenderItems.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1021,7 +1027,9 @@ const CreateTender: React.FC = () => {
               {/* Items Table */}
               {tenderItems.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-medium mb-4">Tender Items List</h3>
+                  <h3 className="text-lg font-medium mb-4">
+                    {tenderType === 'spot-purchase' ? 'Spot Purchase Items List' : 'Tender Items List'}
+                  </h3>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
