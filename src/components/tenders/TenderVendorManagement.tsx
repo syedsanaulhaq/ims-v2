@@ -134,7 +134,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
   const handleAddVendor = async () => {
     if (!formData.vendor_id) {
-      setError('Please select a vendor');
+      setError('Please select a bidder');
       return;
     }
 
@@ -143,7 +143,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
     // Check if vendor already added
     if (tenderVendors.some(tv => tv.vendor_id === formData.vendor_id)) {
-      setError('This vendor is already added');
+      setError('This bidder is already added');
       return;
     }
 
@@ -179,10 +179,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
           setShowAddDialog(false);
         } else {
           const errorData = await response.json();
-          setError(errorData.error || 'Failed to add vendor');
+          setError(errorData.error || 'Failed to add bidder');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to add vendor');
+        setError(err instanceof Error ? err.message : 'Failed to add bidder');
       }
     } else {
       // If tender doesn't exist yet, just add to local state
@@ -222,10 +222,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         setShowEditDialog(false);
         setSelectedVendor(null);
       } else {
-        throw new Error('Failed to update vendor');
+        throw new Error('Failed to update bidder');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update vendor');
+      setError(err instanceof Error ? err.message : 'Failed to update bidder');
     }
   };
 
@@ -307,10 +307,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
           is_awarded: tv.vendor_id === vendorId
         })));
       } else {
-        throw new Error('Failed to award vendor');
+        throw new Error('Failed to award bidder');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to award vendor');
+      setError(err instanceof Error ? err.message : 'Failed to award bidder');
     }
   };
 
@@ -334,15 +334,15 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
           is_successful: tv.vendor_id === vendorId ? isSuccessful : false
         })));
       } else {
-        throw new Error('Failed to mark vendor as successful');
+        throw new Error('Failed to mark bidder as successful');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark vendor as successful');
+      setError(err instanceof Error ? err.message : 'Failed to mark bidder as successful');
     }
   };
 
   const handleRemoveVendor = async (vendorId: string) => {
-    if (!confirm('Are you sure you want to remove this vendor?')) return;
+    if (!confirm('Are you sure you want to remove this bidder?')) return;
 
     if (tenderId) {
       try {
@@ -354,10 +354,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         if (response.ok) {
           setTenderVendors(tenderVendors.filter(tv => tv.vendor_id !== vendorId));
         } else {
-          throw new Error('Failed to remove vendor');
+          throw new Error('Failed to remove bidder');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to remove vendor');
+        setError(err instanceof Error ? err.message : 'Failed to remove bidder');
       }
     } else {
       // Just remove from local state
@@ -417,14 +417,14 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
               <DialogTrigger asChild>
                 <Button size="sm" onClick={() => resetForm()}>
                   <Plus className="w-4 h-4 mr-1" />
-                  Add Vendor
+                  Add Bidder
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add Vendor to Tender</DialogTitle>
+                  <DialogTitle>Add Bidder to Tender</DialogTitle>
                   <DialogDescription>
-                    Select a vendor and optionally add their quoted amount and remarks
+                    Select a bidder and optionally add their quoted amount and remarks
                   </DialogDescription>
                 </DialogHeader>
 
@@ -437,13 +437,13 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="vendor">Vendor *</Label>
+                    <Label htmlFor="vendor">Bidder *</Label>
                     <Select 
                       value={formData.vendor_id} 
                       onValueChange={(value) => setFormData({...formData, vendor_id: value})}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a vendor" />
+                        <SelectValue placeholder="Select a bidder" />
                       </SelectTrigger>
                       <SelectContent>
                         {vendors
@@ -463,12 +463,12 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                       id="description"
                       value={formData.description}
                       onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      placeholder="Enter vendor proposal description..."
+                      placeholder="Enter bidder proposal description..."
                       rows={4}
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Provide details about the vendor's proposal
+                      Provide details about the bidder's proposal
                     </p>
                   </div>
 
@@ -517,7 +517,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                       id="remarks"
                       value={formData.remarks}
                       onChange={(e) => setFormData({...formData, remarks: e.target.value})}
-                      placeholder="Additional notes about this vendor's proposal..."
+                      placeholder="Additional notes about this bidder's proposal..."
                       rows={3}
                     />
                   </div>
@@ -528,7 +528,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                     Cancel
                   </Button>
                   <Button onClick={handleAddVendor}>
-                    Add Vendor
+                    Add Bidder
                   </Button>
                 </div>
               </DialogContent>
@@ -541,16 +541,16 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         {tenderVendors.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-            <p>No vendors added yet</p>
-            {!readOnly && <p className="text-sm">Click "Add Vendor" to get started</p>}
+            <p>No bidders added yet</p>
+            {!readOnly && <p className="text-sm">Click "Add Bidder" to get started</p>}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Vendor Name</TableHead>
-                  <TableHead>Vendor Code</TableHead>
+                  <TableHead>Bidder Name</TableHead>
+                  <TableHead>Bidder Code</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Proposal</TableHead>
                   <TableHead>Successful Bidder</TableHead>
