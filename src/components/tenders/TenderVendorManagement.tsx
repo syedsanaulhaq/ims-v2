@@ -581,7 +581,15 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tenderVendors.map((vendor) => (
+                {tenderVendors.map((vendor) => {
+                  // Debug log for proposal data
+                  console.log('Vendor proposal data:', vendor.vendor_name, {
+                    proposal_document_name: vendor.proposal_document_name,
+                    proposal_document_path: vendor.proposal_document_path,
+                    proposal_upload_date: vendor.proposal_upload_date
+                  });
+                  
+                  return (
                   <TableRow key={vendor.vendor_id}>
                     <TableCell className="font-medium">
                       {vendor.vendor_name}
@@ -606,10 +614,15 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                     <TableCell>
                       {vendor.proposal_document_name ? (
                         <div className="flex flex-col gap-2">
-                          <Badge variant="outline" className="bg-green-50 text-green-700 w-fit">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Uploaded
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-green-50 text-green-700 w-fit">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Uploaded
+                            </Badge>
+                            <span className="text-xs text-gray-500 truncate max-w-[150px]" title={vendor.proposal_document_name}>
+                              {vendor.proposal_document_name}
+                            </span>
+                          </div>
                           <div className="flex gap-1">
                             <Button 
                               variant="outline" 
@@ -700,7 +713,8 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                       </TableCell>
                     )}
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
