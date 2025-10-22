@@ -70,6 +70,7 @@ interface TenderVendorManagementProps {
   tenderId?: string; // Optional - for editing existing tender
   vendors: Vendor[]; // All available vendors
   onVendorsChange?: (vendors: TenderVendor[]) => void; // Callback for parent component
+  onPendingProposalsChange?: (hasPending: boolean) => void; // Callback when pending proposals change
   readOnly?: boolean;
 }
 
@@ -77,6 +78,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   tenderId,
   vendors,
   onVendorsChange,
+  onPendingProposalsChange,
   readOnly = false
 }) => {
   const [tenderVendors, setTenderVendors] = useState<TenderVendor[]>([]);
@@ -86,6 +88,9 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   const [uploadingProposal, setUploadingProposal] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Store pending proposal files for vendors (before tender is saved)
+  const [pendingProposals, setPendingProposals] = useState<{ [vendorId: string]: File }>({});
 
   // Form state for add/edit dialog
   const [formData, setFormData] = useState({
@@ -111,6 +116,31 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       onVendorsChange(tenderVendors);
     }
   }, [tenderVendors, onVendorsChange]);
+
+  // Notify parent when pending proposals change
+  useEffect(() => {
+    if (onPendingProposalsChange) {
+      onPendingProposalsChange(Object.keys(pendingProposals).length > 0);
+    }
+  }, [pendingProposals, onPendingProposalsChange]);
+
+  // Upload all pending proposals after tender is saved
+  useEffect(() => {
+    if (tenderId && Object.keys(pendingProposals).length > 0) {
+      console.log(`📤 Tender saved! Uploading ${Object.keys(pendingProposals).length} pending proposals...`);
+      uploadPendingProposals();
+    }
+  }, [tenderId]);
+
+  const uploadPendingProposals = async () => {
+    const vendorIds = Object.keys(pendingProposals);
+    
+    for (const vendorId of vendorIds) {
+      const file = pendingProposals[vendorId];
+      console.log(`📤 Uploading proposal for vendor ${vendorId}:`, file.name);
+      await handleUploadProposal(vendorId, file);
+    }
+  };
 
   const loadTenderVendors = async () => {
     if (!tenderId) return;
@@ -232,7 +262,12 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
   const handleUploadProposal = async (vendorId: string, file: File) => {
     if (!tenderId) {
-      setError('Please save the tender first before uploading proposals');
+      // Store file temporarily for upload after tender is saved
+      setPendingProposals(prev => ({
+        ...prev,
+        [vendorId]: file
+      }));
+      console.log(`📁 Proposal file stored temporarily for vendor ${vendorId}:`, file.name);
       return;
     }
 
@@ -265,6 +300,13 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
               }
             : tv
         ));
+        
+        // Remove from pending proposals
+        setPendingProposals(prev => {
+          const updated = { ...prev };
+          delete updated[vendorId];
+          return updated;
+        });
         
         setUploadingProposal(null);
       } else {
@@ -646,12 +688,27 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                             </Button>
                           </div>
                         </div>
+                      ) : pendingProposals[vendor.vendor_id] ? (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 w-fit">
+                              <FileText className="w-3 h-3 mr-1" />
+                              Ready to Upload
+                            </Badge>
+                            <span className="text-xs text-gray-500 truncate max-w-[150px]" title={pendingProposals[vendor.vendor_id].name}>
+                              {pendingProposals[vendor.vendor_id].name}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Will be uploaded when tender is saved
+                          </p>
+                        </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
                             Pending
                           </Badge>
-                          {!readOnly && tenderId && (
+                          {!readOnly && (
                             <label className="cursor-pointer">
                               <Upload className="w-4 h-4 text-blue-600" />
                               <input
