@@ -881,7 +881,7 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Vendor Management Section */}
+          {/* Participating Bidders Section */}
           <TenderVendorManagement
             tenderId={location.state?.tenderId}
             vendors={vendors}

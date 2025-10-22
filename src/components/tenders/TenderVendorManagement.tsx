@@ -409,7 +409,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         <CardTitle className="flex items-center justify-between">
           <span className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
-            Participating Vendors
+            Participating Bidders
             <Badge variant="outline">{tenderVendors.length}</Badge>
           </span>
           {!readOnly && (

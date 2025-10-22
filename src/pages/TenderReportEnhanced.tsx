@@ -588,7 +588,7 @@ const TenderReportEnhanced: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Participating Vendors */}
+      {/* Participating Bidders */}
       <TenderVendorManagement
         tenderId={id}
         vendors={[]}
