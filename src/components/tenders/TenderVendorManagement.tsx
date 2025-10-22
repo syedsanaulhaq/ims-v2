@@ -37,6 +37,7 @@ import {
   FileText,
   CheckCircle,
   AlertCircle,
+  Eye,
   X
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -302,6 +303,29 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to download proposal');
+    }
+  };
+
+  const handleViewProposal = async (vendorId: string) => {
+    if (!tenderId) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/proposal/download`
+      );
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        // Open in new window/tab
+        window.open(url, '_blank');
+        // Clean up after a delay to ensure the window has loaded
+        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      } else {
+        throw new Error('Failed to view proposal');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to view proposal');
     }
   };
 
@@ -588,7 +612,16 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                           <Button 
                             variant="ghost" 
                             size="sm"
+                            onClick={() => handleViewProposal(vendor.vendor_id)}
+                            title="View Proposal"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
                             onClick={() => handleDownloadProposal(vendor.vendor_id)}
+                            title="Download Proposal"
                           >
                             <Download className="w-4 h-4" />
                           </Button>
