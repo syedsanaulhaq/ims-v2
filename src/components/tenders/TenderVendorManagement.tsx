@@ -37,7 +37,6 @@ import {
   FileText,
   CheckCircle,
   AlertCircle,
-  Award,
   X
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -291,29 +290,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     }
   };
 
-  const handleAwardVendor = async (vendorId: string) => {
-    if (!tenderId) return;
-
-    try {
-      const response = await fetch(
-        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/award`,
-        { method: 'PUT' }
-      );
-
-      if (response.ok) {
-        // Mark all vendors as not awarded except the selected one
-        setTenderVendors(tenderVendors.map(tv => ({
-          ...tv,
-          is_awarded: tv.vendor_id === vendorId
-        })));
-      } else {
-        throw new Error('Failed to award bidder');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to award bidder');
-    }
-  };
-
   const handleMarkSuccessful = async (vendorId: string, isSuccessful: boolean) => {
     if (!tenderId) return;
 
@@ -562,12 +538,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                   <TableRow key={vendor.vendor_id}>
                     <TableCell className="font-medium">
                       {vendor.vendor_name}
-                      {vendor.is_awarded && (
-                        <Badge className="ml-2 bg-green-600 text-white">
-                          <Award className="w-3 h-3 mr-1" />
-                          Awarded
-                        </Badge>
-                      )}
                     </TableCell>
                     <TableCell>{vendor.vendor_code || 'N/A'}</TableCell>
                     <TableCell>
@@ -655,17 +625,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
-                          {tenderId && !vendor.is_awarded && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleAwardVendor(vendor.vendor_id)}
-                              className="text-green-600 hover:text-green-700"
-                              title="Award Tender"
-                            >
-                              <Award className="w-4 h-4" />
-                            </Button>
-                          )}
                           <Button
                             variant="ghost"
                             size="sm"
