@@ -535,36 +535,6 @@ const CreateTender: React.FC = () => {
                 />
               </div>
 
-              {/* Vendor Selection */}
-              <div>
-                <label className="text-sm font-medium">Vendor *</label>
-                <Select 
-                  value={tenderData.vendor_id} 
-                  onValueChange={(value) => setTenderData(prev => ({
-                    ...prev,
-                    vendor_id: value
-                  }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vendor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendors.map(vendor => (
-                      <SelectItem key={vendor.id} value={vendor.id}>
-                        <span className="font-medium">
-                          {vendor.vendor_code && `${vendor.vendor_code} - `}
-                          {vendor.vendor_name}
-                          {vendor.contact_person && ` (${vendor.contact_person})`}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {vendors.length} vendors available
-                </p>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium">Publish Date</label>

@@ -4101,6 +4101,81 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/award', async (req, res) => {
   }
 });
 
+// PUT - Mark vendor as successful bidder
+app.put('/api/tenders/:tenderId/vendors/:vendorId/successful', async (req, res) => {
+  const { tenderId, vendorId } = req.params;
+  const { is_successful } = req.body;
+  
+  const transaction = new sql.Transaction(pool);
+  
+  try {
+    await transaction.begin();
+    
+    if (is_successful) {
+      // Unmark all vendors as successful for this tender
+      await transaction.request()
+        .input('tender_id', sql.UniqueIdentifier, tenderId)
+        .query(`
+          UPDATE tender_vendors 
+          SET is_successful = 0, updated_at = GETDATE()
+          WHERE tender_id = @tender_id
+        `);
+    }
+    
+    // Mark the selected vendor as successful (or unmark if is_successful is false)
+    const result = await transaction.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendorId)
+      .input('is_successful', sql.Bit, is_successful ? 1 : 0)
+      .query(`
+        UPDATE tender_vendors 
+        SET is_successful = @is_successful, updated_at = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+      `);
+    
+    if (result.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Vendor not found for this tender' });
+    }
+    
+    // Update tender table with successful vendor_id
+    if (is_successful) {
+      await transaction.request()
+        .input('tender_id', sql.UniqueIdentifier, tenderId)
+        .input('vendor_id', sql.UniqueIdentifier, vendorId)
+        .query(`
+          UPDATE tenders 
+          SET vendor_id = @vendor_id, updated_at = GETDATE()
+          WHERE id = @tender_id
+        `);
+    } else {
+      // If unmarking, set vendor_id to NULL
+      await transaction.request()
+        .input('tender_id', sql.UniqueIdentifier, tenderId)
+        .query(`
+          UPDATE tenders 
+          SET vendor_id = NULL, updated_at = GETDATE()
+          WHERE id = @tender_id
+        `);
+    }
+    
+    await transaction.commit();
+    
+    console.log(`✅ Vendor ${is_successful ? 'marked' : 'unmarked'} as successful`);
+    res.json({
+      success: true,
+      message: `Vendor ${is_successful ? 'marked' : 'unmarked'} as successful`,
+      vendor: result.recordset[0]
+    });
+    
+  } catch (error) {
+    await transaction.rollback();
+    console.error('❌ Error marking vendor as successful:', error);
+    res.status(500).json({ error: 'Failed to mark vendor as successful', details: error.message });
+  }
+});
+
 // DELETE - Remove vendor from tender
 app.delete('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
   const { tenderId, vendorId } = req.params;

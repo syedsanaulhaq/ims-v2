@@ -62,6 +62,7 @@ interface TenderVendor {
   proposal_upload_date?: string;
   proposal_file_size?: number;
   is_awarded: boolean;
+  is_successful?: boolean; // Added for successful bidder
   remarks?: string;
 }
 
@@ -313,6 +314,33 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     }
   };
 
+  const handleMarkSuccessful = async (vendorId: string, isSuccessful: boolean) => {
+    if (!tenderId) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/successful`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_successful: isSuccessful })
+        }
+      );
+
+      if (response.ok) {
+        // Mark all vendors as not successful except the selected one
+        setTenderVendors(tenderVendors.map(tv => ({
+          ...tv,
+          is_successful: tv.vendor_id === vendorId ? isSuccessful : false
+        })));
+      } else {
+        throw new Error('Failed to mark vendor as successful');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark vendor as successful');
+    }
+  };
+
   const handleRemoveVendor = async (vendorId: string) => {
     if (!confirm('Are you sure you want to remove this vendor?')) return;
 
@@ -525,7 +553,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                   <TableHead>Vendor Code</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Proposal</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Successful Bidder</TableHead>
                   {!readOnly && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -600,9 +628,21 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                       )}
                     </TableCell>
                     <TableCell>
-                      {vendor.remarks && (
-                        <span className="text-sm text-gray-600">{vendor.remarks}</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={vendor.is_successful || false}
+                          onChange={(e) => handleMarkSuccessful(vendor.vendor_id, e.target.checked)}
+                          disabled={readOnly || !tenderId}
+                          className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                        />
+                        {vendor.is_successful && (
+                          <Badge className="bg-blue-600 text-white">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Successful
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     {!readOnly && (
                       <TableCell>
