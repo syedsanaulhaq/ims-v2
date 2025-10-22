@@ -248,7 +248,22 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       );
 
       if (response.ok) {
-        await loadTenderVendors(); // Reload to show updated proposal
+        const data = await response.json();
+        console.log('Upload response:', data);
+        
+        // Update the vendor in local state immediately
+        setTenderVendors(tenderVendors.map(tv => 
+          tv.vendor_id === vendorId 
+            ? {
+                ...tv,
+                proposal_document_name: data.vendor.proposal_document_name,
+                proposal_document_path: data.vendor.proposal_document_path,
+                proposal_upload_date: data.vendor.proposal_upload_date,
+                proposal_file_size: data.vendor.proposal_file_size
+              }
+            : tv
+        ));
+        
         setUploadingProposal(null);
       } else {
         throw new Error('Failed to upload proposal');
