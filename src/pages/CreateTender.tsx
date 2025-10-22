@@ -911,6 +911,15 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
+          {/* Vendor Management Section */}
+          <TenderVendorManagement
+            tenderId={location.state?.tenderId}
+            vendors={vendors}
+            onVendorsChange={(updatedVendors) => {
+              console.log('Vendors updated:', updatedVendors);
+            }}
+          />
+
           {/* Tender Items Section */}
           <Card>
             <CardHeader>
@@ -1126,15 +1135,6 @@ const CreateTender: React.FC = () => {
               )}
             </CardContent>
           </Card>
-
-          {/* Vendor Management Section */}
-          <TenderVendorManagement
-            tenderId={location.state?.tenderId}
-            vendors={vendors}
-            onVendorsChange={(updatedVendors) => {
-              console.log('Vendors updated:', updatedVendors);
-            }}
-          />
 
           {/* Submit Section */}
           <Card>
