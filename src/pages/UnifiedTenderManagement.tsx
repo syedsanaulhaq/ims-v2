@@ -955,29 +955,27 @@ const UnifiedTenderManagement: React.FC = () => {
                             {getDeliveryStatus(delivery)}
                           </Badge>
                           <Badge variant="outline">
-                            {delivery.items?.length || 0} items
-                          </Badge>
-                          {!isReportMode && !delivery.is_finalized && (
-                            {/* Delete button hidden */}
-                            {/* <Button
-                              variant="outline"
-                              size="sm"
-                              {/* Delete button hidden */} {/* onClick={(e) => {
-                                e.stopPropagation(); // Prevent collapsible trigger
-                                deleteDelivery(delivery.id, delivery.delivery_number);
-                              }}
-                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              title="Delete delivery"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button> */}
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent>
+                        {delivery.items?.length || 0} items
+                      </Badge>
+                      {/* Delete button hidden - prevents accidental deletion */}
+                      {/* {!isReportMode && !delivery.is_finalized && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteDelivery(delivery.id, delivery.delivery_number);
+                          }}
+                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          title="Delete delivery"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )} */}
+                    </div>
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>                  <CollapsibleContent>
                     <CardContent className="pt-0">
                       {/* Delivery Details */}
                       <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-gray-50 rounded">
@@ -992,7 +990,8 @@ const UnifiedTenderManagement: React.FC = () => {
                       </div>
 
                       {/* Delivery Actions - Only show if not in report mode and not finalized */}
-                      {!isReportMode && !delivery.is_finalized && (
+                      {/* Delete button hidden - prevents accidental deletion */}
+                  {/* {!isReportMode && !delivery.is_finalized && (
                         <div className="flex justify-end mb-4 print:hidden">
                           <Button
                             variant="outline"
@@ -1002,9 +1001,9 @@ const UnifiedTenderManagement: React.FC = () => {
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete Delivery
-                          </Button> */}
+                          </Button>
                         </div>
-                      )}
+                      )} */}
 
                       {/* Delivery Items */}
                       <div className="space-y-3">
