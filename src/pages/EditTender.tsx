@@ -533,7 +533,7 @@ const EditTender: React.FC = () => {
               <Input
                 value={tenderData.title}
                 onChange={(e) => setTenderData(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Enter tender title"
+                placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase title' : 'Enter tender title'}
                 required
               />
             </div>
@@ -543,7 +543,7 @@ const EditTender: React.FC = () => {
               <Input
                 value={tenderData.description}
                 onChange={(e) => setTenderData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter tender description"
+                placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase description' : 'Enter tender description'}
               />
             </div>
 

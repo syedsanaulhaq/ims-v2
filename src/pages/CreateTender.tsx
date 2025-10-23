@@ -566,7 +566,7 @@ const CreateTender: React.FC = () => {
                     ...prev,
                     title: e.target.value
                   }))}
-                  placeholder="Enter tender title"
+                  placeholder={tenderType === 'spot-purchase' ? 'Enter spot purchase title' : 'Enter tender title'}
                 />
               </div>
 
@@ -580,7 +580,7 @@ const CreateTender: React.FC = () => {
                     ...prev,
                     description: e.target.value
                   }))}
-                  placeholder="Enter tender description"
+                  placeholder={tenderType === 'spot-purchase' ? 'Enter spot purchase description' : 'Enter tender description'}
                 />
               </div>
 
