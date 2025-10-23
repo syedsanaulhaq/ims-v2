@@ -313,6 +313,14 @@ const CreateTender: React.FC = () => {
   // Calculate total tender value
   const totalTenderValue = tenderItems.reduce((sum, item) => sum + (item.total_amount || 0), 0);
 
+  // Format currency - Must be defined before validation functions
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-PK', {
+      style: 'currency',
+      currency: 'PKR',
+    }).format(amount);
+  };
+
   // Spot Purchase Amount Validation
   const getSpotPurchaseValidation = () => {
     if (tenderType !== 'spot-purchase') return { isValid: true, message: '' };
@@ -440,14 +448,6 @@ const CreateTender: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-PK', {
-      style: 'currency',
-      currency: 'PKR',
-    }).format(amount);
   };
 
   return (
