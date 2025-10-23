@@ -234,9 +234,10 @@ const VendorInfo = () => {
                       <Button variant="ghost" size="icon" onClick={() => handleEditVendor(vendor)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => deleteVendor(vendor.id)}>
+                      {/* Delete button hidden */}
+                      {/* <Button variant="ghost" size="icon" onClick={() => deleteVendor(vendor.id)}>
                         <Trash2 className="h-4 w-4" />
-                      </Button>
+                      </Button> */}
                     </TableCell>
                   </TableRow>
                 ))

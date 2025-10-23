@@ -499,14 +499,15 @@ const SubCategories = () => {
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button 
+                        {/* Delete button hidden */}
+                          {/* <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => handleDeleteSubCategory(subCategory.id, subCategory.sub_category_name)}
                           title="Delete Sub-Category"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </Button>
+                        </Button> */}
                       </div>
                     </TableCell>
                   </TableRow>

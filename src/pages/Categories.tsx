@@ -649,14 +649,15 @@ const Categories = () => {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button 
+                      {/* Delete button hidden */}
+                  {/* <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => handleDeleteCategory(category.id, category.category_name)}
                         title="Delete Category"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </Button>
+                      </Button> */}
                     </div>
                   </TableCell>
                 </TableRow>

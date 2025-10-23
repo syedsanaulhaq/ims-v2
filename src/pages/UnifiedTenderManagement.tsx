@@ -958,10 +958,11 @@ const UnifiedTenderManagement: React.FC = () => {
                             {delivery.items?.length || 0} items
                           </Badge>
                           {!isReportMode && !delivery.is_finalized && (
-                            <Button
+                            {/* Delete button hidden */}
+                            {/* <Button
                               variant="outline"
                               size="sm"
-                              onClick={(e) => {
+                              {/* Delete button hidden */} {/* onClick={(e) => {
                                 e.stopPropagation(); // Prevent collapsible trigger
                                 deleteDelivery(delivery.id, delivery.delivery_number);
                               }}
@@ -969,7 +970,7 @@ const UnifiedTenderManagement: React.FC = () => {
                               title="Delete delivery"
                             >
                               <Trash2 className="w-3 h-3" />
-                            </Button>
+                            </Button> */}
                           )}
                         </div>
                       </div>
@@ -1001,7 +1002,7 @@ const UnifiedTenderManagement: React.FC = () => {
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete Delivery
-                          </Button>
+                          </Button> */}
                         </div>
                       )}
 

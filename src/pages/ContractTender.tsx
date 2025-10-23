@@ -379,14 +379,15 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                               )}
                             </Button>
                             
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(tender.id)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                        {/* Delete button hidden - prevents accidental deletion */}
+                        {/* <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(tender.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                          <Trash2 className="w-4 h-4" />
+                        </Button> */}
                           </>
                         )}
                       </div>
