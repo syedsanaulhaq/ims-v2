@@ -313,6 +313,46 @@ const CreateTender: React.FC = () => {
   // Calculate total tender value
   const totalTenderValue = tenderItems.reduce((sum, item) => sum + (item.total_amount || 0), 0);
 
+  // Spot Purchase Amount Validation
+  const getSpotPurchaseValidation = () => {
+    if (tenderType !== 'spot-purchase') return { isValid: true, message: '' };
+    
+    const procurementMethod = tenderData.procurement_methods;
+    
+    if (procurementMethod === 'single_quotation') {
+      if (totalTenderValue > 100000) {
+        return {
+          isValid: false,
+          message: `Single Quotation maximum limit is PKR 100,000. Current total: ${formatCurrency(totalTenderValue)}`
+        };
+      }
+    } else if (procurementMethod === 'multiple_quotation') {
+      if (totalTenderValue <= 100000) {
+        return {
+          isValid: false,
+          message: `Multiple Quotation minimum limit is PKR 100,001. Current total: ${formatCurrency(totalTenderValue)}`
+        };
+      }
+      if (totalTenderValue > 500000) {
+        return {
+          isValid: false,
+          message: `Multiple Quotation maximum limit is PKR 500,000. Please register a tender instead. Current total: ${formatCurrency(totalTenderValue)}`
+        };
+      }
+    }
+    
+    if (totalTenderValue > 500000) {
+      return {
+        isValid: false,
+        message: `Spot Purchase maximum limit is PKR 500,000. You must register a tender for amounts exceeding this limit. Current total: ${formatCurrency(totalTenderValue)}`
+      };
+    }
+    
+    return { isValid: true, message: '' };
+  };
+
+  const spotPurchaseValidation = getSpotPurchaseValidation();
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,6 +364,12 @@ const CreateTender: React.FC = () => {
 
     if (!tenderData.vendor_id) {
       alert('Please select a vendor');
+      return;
+    }
+
+    // Validate spot purchase amounts
+    if (tenderType === 'spot-purchase' && !spotPurchaseValidation.isValid) {
+      alert(spotPurchaseValidation.message);
       return;
     }
 
@@ -538,43 +584,46 @@ const CreateTender: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Publish Date</label>
-                  <Input
-                    type="date"
-                    value={tenderData.publish_date}
-                    onChange={(e) => setTenderData(prev => ({
-                      ...prev,
-                      publish_date: e.target.value
-                    }))}
-                  />
+              {/* Hide date fields for spot purchase */}
+              {tenderType !== 'spot-purchase' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Publish Date</label>
+                    <Input
+                      type="date"
+                      value={tenderData.publish_date}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        publish_date: e.target.value
+                      }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium">Submission Deadline</label>
+                    <Input
+                      type="date"
+                      value={tenderData.submission_deadline}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        submission_deadline: e.target.value
+                      }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium">Opening Date</label>
+                    <Input
+                      type="date"
+                      value={tenderData.opening_date}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        opening_date: e.target.value
+                      }))}
+                    />
+                  </div>
                 </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Submission Deadline</label>
-                  <Input
-                    type="date"
-                    value={tenderData.submission_deadline}
-                    onChange={(e) => setTenderData(prev => ({
-                      ...prev,
-                      submission_deadline: e.target.value
-                    }))}
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Opening Date</label>
-                  <Input
-                    type="date"
-                    value={tenderData.opening_date}
-                    onChange={(e) => setTenderData(prev => ({
-                      ...prev,
-                      opening_date: e.target.value
-                    }))}
-                  />
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -671,17 +720,20 @@ const CreateTender: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Publication Dailies</label>
-                  <Input
-                    value={tenderData.publication_dailies}
-                    onChange={(e) => setTenderData(prev => ({
-                      ...prev,
-                      publication_dailies: e.target.value
-                    }))}
-                    placeholder="Enter publication dailies"
-                  />
-                </div>
+                {/* Hide publication dailies for spot purchase */}
+                {tenderType !== 'spot-purchase' && (
+                  <div>
+                    <label className="text-sm font-medium">Publication Dailies</label>
+                    <Input
+                      value={tenderData.publication_dailies}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        publication_dailies: e.target.value
+                      }))}
+                      placeholder="Enter publication dailies"
+                    />
+                  </div>
+                )}
                 
                 <div>
                   <label className="text-sm font-medium">Procurement Methods</label>
@@ -696,36 +748,48 @@ const CreateTender: React.FC = () => {
                       <SelectValue placeholder="Select procurement method" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open_bidding">Open Bidding</SelectItem>
-                      <SelectItem value="limited_bidding">Limited Bidding</SelectItem>
-                      <SelectItem value="direct_contracting">Direct Contracting</SelectItem>
-                      <SelectItem value="framework_agreement">Framework Agreement</SelectItem>
-                      <SelectItem value="request_for_quotation">Request for Quotation</SelectItem>
+                      {tenderType === 'spot-purchase' ? (
+                        <>
+                          <SelectItem value="single_quotation">Single Quotation</SelectItem>
+                          <SelectItem value="multiple_quotation">Multiple Quotation</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="open_bidding">Open Bidding</SelectItem>
+                          <SelectItem value="limited_bidding">Limited Bidding</SelectItem>
+                          <SelectItem value="direct_contracting">Direct Contracting</SelectItem>
+                          <SelectItem value="framework_agreement">Framework Agreement</SelectItem>
+                          <SelectItem value="request_for_quotation">Request for Quotation</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium">Procedure Adopted</label>
-                  <Select 
-                    value={tenderData.procedure_adopted} 
-                    onValueChange={(value) => setTenderData(prev => ({
-                      ...prev,
-                      procedure_adopted: value
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select procedure" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="single_stage">Single Stage</SelectItem>
-                      <SelectItem value="two_stage">Two Stage</SelectItem>
-                      <SelectItem value="pre_qualification">Pre-qualification</SelectItem>
-                      <SelectItem value="expression_of_interest">Expression of Interest</SelectItem>
-                      <SelectItem value="request_for_proposal">Request for Proposal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Hide procedure adopted for spot purchase */}
+                {tenderType !== 'spot-purchase' && (
+                  <div>
+                    <label className="text-sm font-medium">Procedure Adopted</label>
+                    <Select 
+                      value={tenderData.procedure_adopted} 
+                      onValueChange={(value) => setTenderData(prev => ({
+                        ...prev,
+                        procedure_adopted: value
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select procedure" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single_stage">Single Stage</SelectItem>
+                        <SelectItem value="two_stage">Two Stage</SelectItem>
+                        <SelectItem value="pre_qualification">Pre-qualification</SelectItem>
+                        <SelectItem value="expression_of_interest">Expression of Interest</SelectItem>
+                        <SelectItem value="request_for_proposal">Request for Proposal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -886,16 +950,17 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Participating Bidders Section - Only for Contract Tenders */}
-          {tenderType !== 'spot-purchase' && (
-            <TenderVendorManagement
-              tenderId={location.state?.tenderId}
-              vendors={vendors}
-              onVendorsChange={(updatedVendors) => {
-                console.log('Vendors updated:', updatedVendors);
-              }}
-            />
-          )}
+          {/* Participating Bidders Section */}
+          <TenderVendorManagement
+            tenderId={location.state?.tenderId}
+            vendors={vendors}
+            onVendorsChange={(updatedVendors) => {
+              console.log('Vendors updated:', updatedVendors);
+            }}
+            maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+            minVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+            procurementMethod={tenderType === 'spot-purchase' ? tenderData.procurement_methods : undefined}
+          />
 
           {/* Tender Items Section */}
           <Card>
@@ -1096,7 +1161,9 @@ const CreateTender: React.FC = () => {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Total Value</p>
-                        <p className="text-lg font-bold">{formatCurrency(totalTenderValue)}</p>
+                        <p className={`text-lg font-bold ${!spotPurchaseValidation.isValid ? 'text-red-600' : ''}`}>
+                          {formatCurrency(totalTenderValue)}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Avg Unit Price</p>
@@ -1109,6 +1176,27 @@ const CreateTender: React.FC = () => {
                         </p>
                       </div>
                     </div>
+
+                    {/* Spot Purchase Validation Alert */}
+                    {tenderType === 'spot-purchase' && !spotPurchaseValidation.isValid && (
+                      <Alert variant="destructive" className="mt-4">
+                        <AlertDescription className="font-medium">
+                          {spotPurchaseValidation.message}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    {/* Spot Purchase Limits Info */}
+                    {tenderType === 'spot-purchase' && tenderData.procurement_methods && spotPurchaseValidation.isValid && (
+                      <Alert className="mt-4 bg-green-50 border-green-200">
+                        <AlertDescription className="text-green-800">
+                          {tenderData.procurement_methods === 'single_quotation' 
+                            ? `✓ Single Quotation: Amount within limit (Max: PKR 100,000)`
+                            : `✓ Multiple Quotation: Amount within limit (Min: PKR 100,001, Max: PKR 500,000)`
+                          }
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
                 </div>
               )}

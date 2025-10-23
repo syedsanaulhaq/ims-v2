@@ -72,6 +72,9 @@ interface TenderVendorManagementProps {
   onVendorsChange?: (vendors: TenderVendor[]) => void; // Callback for parent component
   onPendingProposalsChange?: (hasPending: boolean) => void; // Callback when pending proposals change
   readOnly?: boolean;
+  maxVendors?: number; // Maximum number of vendors allowed (for spot purchase)
+  minVendors?: number; // Minimum number of vendors required (for multiple quotation)
+  procurementMethod?: string; // Procurement method for spot purchase
 }
 
 const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
@@ -79,7 +82,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   vendors,
   onVendorsChange,
   onPendingProposalsChange,
-  readOnly = false
+  readOnly = false,
+  maxVendors,
+  minVendors,
+  procurementMethod
 }) => {
   const [tenderVendors, setTenderVendors] = useState<TenderVendor[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -175,6 +181,16 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     // Check if vendor already added
     if (tenderVendors.some(tv => tv.vendor_id === formData.vendor_id)) {
       setError('This bidder is already added');
+      return;
+    }
+
+    // Spot Purchase vendor count validation
+    if (maxVendors && tenderVendors.length >= maxVendors) {
+      if (procurementMethod === 'single_quotation') {
+        setError('Single Quotation allows only 1 vendor');
+      } else {
+        setError(`Maximum ${maxVendors} vendors allowed`);
+      }
       return;
     }
 
@@ -478,11 +494,25 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
             <FileText className="w-5 h-5" />
             Participating Bidders
             <Badge variant="outline">{tenderVendors.length}</Badge>
+            {procurementMethod === 'single_quotation' && (
+              <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-800">
+                Single Quotation: Max 1 vendor
+              </Badge>
+            )}
+            {procurementMethod === 'multiple_quotation' && (
+              <Badge variant="secondary" className="ml-2 bg-purple-100 text-purple-800">
+                Multiple Quotation: Exactly 3 vendors required
+              </Badge>
+            )}
           </span>
           {!readOnly && (
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
-                <Button size="sm" onClick={() => resetForm()}>
+                <Button 
+                  size="sm" 
+                  onClick={() => resetForm()}
+                  disabled={maxVendors ? tenderVendors.length >= maxVendors : false}
+                >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Bidder
                 </Button>
@@ -606,6 +636,37 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       </CardHeader>
 
       <CardContent>
+        {/* Vendor count validation warning */}
+        {minVendors && tenderVendors.length < minVendors && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {procurementMethod === 'multiple_quotation' 
+                ? `Multiple Quotation requires exactly 3 vendors. Currently ${tenderVendors.length} vendor(s) added.`
+                : `Minimum ${minVendors} vendor(s) required. Currently ${tenderVendors.length} vendor(s) added.`
+              }
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {maxVendors && tenderVendors.length >= maxVendors && procurementMethod === 'single_quotation' && (
+          <Alert className="mb-4 bg-green-50 border-green-200">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              ✓ Single vendor added as required for Single Quotation
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {minVendors && maxVendors && tenderVendors.length === minVendors && procurementMethod === 'multiple_quotation' && (
+          <Alert className="mb-4 bg-green-50 border-green-200">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              ✓ All 3 vendors added as required for Multiple Quotation
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {tenderVendors.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
