@@ -442,7 +442,9 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                   {isSpotPurchase ? 'Spot Purchases' : 'Contract Tenders'}
                 </p>
                 <h3 className="text-2xl font-bold">{tenders.length}</h3>
-                <p className="text-xs text-gray-500">Total tenders</p>
+                <p className="text-xs text-gray-500">
+                  {isSpotPurchase ? 'Total spot purchases' : 'Total tenders'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -455,7 +457,9 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <Clock className="w-6 h-6 text-yellow-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Active Tenders</p>
+                <p className="text-sm font-medium text-gray-500">
+                  {isSpotPurchase ? 'Active Spot Purchases' : 'Active Tenders'}
+                </p>
                 <h3 className="text-2xl font-bold">{nonFinalizedTenders.length}</h3>
                 <p className="text-xs text-gray-500">Currently active</p>
               </div>
@@ -470,9 +474,13 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <ShieldCheck className="h-4 w-4 text-green-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Finalized Tenders</p>
+                <p className="text-sm font-medium text-gray-500">
+                  {isSpotPurchase ? 'Finalized Spot Purchases' : 'Finalized Tenders'}
+                </p>
                 <h3 className="text-2xl font-bold">{finalizedTenders.length}</h3>
-                <p className="text-xs text-gray-500">Completed tenders</p>
+                <p className="text-xs text-gray-500">
+                  {isSpotPurchase ? 'Completed spot purchases' : 'Completed tenders'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -485,7 +493,9 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <Calendar className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Recent Tenders</p>
+                <p className="text-sm font-medium text-gray-500">
+                  {isSpotPurchase ? 'Recent Spot Purchases' : 'Recent Tenders'}
+                </p>
                 <h3 className="text-2xl font-bold">
                   {tenders.filter(t => {
                     const createdDate = new Date(t.created_at);
@@ -509,7 +519,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder="Search tenders by title, reference number, or description..."
+                  placeholder={isSpotPurchase ? 'Search spot purchases by title, reference number, or description...' : 'Search tenders by title, reference number, or description...'}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -539,18 +549,18 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="active" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Active Tenders ({nonFinalizedTenders.length})
+            {isSpotPurchase ? 'Active Spot Purchases' : 'Active Tenders'} ({nonFinalizedTenders.length})
           </TabsTrigger>
           <TabsTrigger value="finalized" className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" />
-            Finalized Tenders ({finalizedTenders.length})
+            {isSpotPurchase ? 'Finalized Spot Purchases' : 'Finalized Tenders'} ({finalizedTenders.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="active">
           <TenderTable 
             tenderList={filterTenders(nonFinalizedTenders)} 
-            title="Active Tenders (Can be edited and finalized)"
+            title={isSpotPurchase ? 'Active Spot Purchases (Can be edited and finalized)' : 'Active Tenders (Can be edited and finalized)'}
             isFinalized={false}
           />
         </TabsContent>
@@ -558,7 +568,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
         <TabsContent value="finalized">
           <TenderTable 
             tenderList={filterTenders(finalizedTenders)} 
-            title="Finalized Tenders (Read-only, added to stock acquisition)"
+            title={isSpotPurchase ? 'Finalized Spot Purchases (Read-only, added to stock acquisition)' : 'Finalized Tenders (Read-only, added to stock acquisition)'}
             isFinalized={true}
           />
         </TabsContent>
