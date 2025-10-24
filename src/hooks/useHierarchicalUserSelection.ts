@@ -179,7 +179,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
     try {
       const { data, error } = await supabase
         .from('DEC_MST')
-        .select('int_auto_id, dec_name, dec_acronym, wing_id, dec_code, DEC_ID')
+        .select('int_auto_id as int_auto_intOfficeID, DECName as dec_strOfficeName, DECAcronym, WingID as wing_intOfficeID, DECCode, DEC_ID')
         .eq('WingID', wingId)
         .eq('IS_ACT', true)
         .order('DECName');

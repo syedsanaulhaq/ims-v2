@@ -243,15 +243,15 @@ export function HierarchicalUserSelector<T extends FieldValues>({
                   ) : (
                     filteredBranches.map((branch) => (
                       <SelectItem
-                        key={branch.int_auto_id}
+                        key={branch.int_auto_intOfficeID}
                         value={branch.DEC_ID.toString()}
                       >
                         <div className="flex items-center gap-2">
                           <MapPin className="h-3 w-3" />
-                          {branch.dec_name}
-                          {branch.dec_acronym && (
+                          {branch.dec_strOfficeName}
+                          {branch.DECAcronym && (
                             <Badge variant="secondary" className="text-xs">
-                              {branch.dec_acronym}
+                              {branch.DECAcronym}
                             </Badge>
                           )}
                         </div>
