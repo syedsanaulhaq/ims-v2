@@ -38,6 +38,7 @@ export interface HierarchyUser {
   OfficeID?: number;
   WingID?: number;
   intBranchID?: number;
+  DEC_ID?: number;
 }
 
 export interface HierarchicalSelectionState {
@@ -195,11 +196,11 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
     setIsLoadingUsers(true);
     try {
       const { data, error } = await supabase
-        .from('users')
-        .select('id, full_name, user_name, email, role, office_id, wing_id, branch_id, designation_id')
+        .from('vw_AspNetUser_with_Reg_App_DEC_ID')
+        .select('id, full_name, user_name, email, role, office_id, wing_id, DEC_ID, designation_id')
         .eq('OfficeID', officeId)
         .eq('WingID', wingId)
-        .eq('intBranchID', branchId)
+        .eq('DEC_ID', branchId)
         .eq('IS_ACT', 1)
         .order('full_name');
 
@@ -267,7 +268,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
   const filteredUsers = users.filter(user => 
     (!selection.selectedOfficeId || user.OfficeID === selection.selectedOfficeId) &&
     (!selection.selectedWingId || user.WingID === selection.selectedWingId) &&
-    (!selection.selectedBranchId || user.intBranchID === selection.selectedBranchId)
+    (!selection.selectedBranchId || user.DEC_ID === selection.selectedBranchId)
   );
 
   // Utility functions
