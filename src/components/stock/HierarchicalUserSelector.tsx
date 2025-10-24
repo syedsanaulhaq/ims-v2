@@ -244,7 +244,7 @@ export function HierarchicalUserSelector<T extends FieldValues>({
                     filteredBranches.map((branch) => (
                       <SelectItem
                         key={branch.int_auto_intOfficeID}
-                        value={branch.DEC_ID.toString()}
+                        value={branch.int_auto_intOfficeID.toString()}
                       >
                         <div className="flex items-center gap-2">
                           <MapPin className="h-3 w-3" />

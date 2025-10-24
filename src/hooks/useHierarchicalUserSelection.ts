@@ -234,9 +234,13 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
   };
 
   const handleBranchChange = (branchId: number | null) => {
+    // Find the selected branch to get its DEC_ID
+    const selectedBranch = branches.find(b => b.int_auto_intOfficeID === branchId);
+    const decId = selectedBranch?.DEC_ID || null;
+    
     setSelection(prev => ({
       ...prev,
-      selectedBranchId: branchId,
+      selectedBranchId: decId, // Store DEC_ID for user filtering
       selectedUserId: null,
     }));
   };
