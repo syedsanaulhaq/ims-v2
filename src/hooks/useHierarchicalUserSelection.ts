@@ -23,6 +23,7 @@ export interface Branch {
   DECAcronym: string;
   wing_intOfficeID: number;
   DECCode: number;
+  DEC_ID: number;
 }
 
 export interface HierarchyUser {
@@ -178,7 +179,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
     try {
       const { data, error } = await supabase
         .from('DEC_MST')
-        .select('int_auto_id, dec_name, dec_acronym, wing_id, dec_code')
+        .select('int_auto_id, dec_name, dec_acronym, wing_id, dec_code, DEC_ID')
         .eq('WingID', wingId)
         .eq('IS_ACT', true)
         .order('DECName');
