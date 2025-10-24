@@ -87,9 +87,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/procurement",
       hasSubmenu: true,
       submenu: [
-        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard" },
         { title: "Contract/Tender", path: "/dashboard/contract-tender" },
         { title: "Spot Purchase", path: "/dashboard/spot-purchases" },
+        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard" },
         { title: "Vendor Management", path: "/dashboard/vendors" }
       ]
     },

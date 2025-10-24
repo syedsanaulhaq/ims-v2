@@ -610,7 +610,7 @@ const Categories = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Category Name</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Total Items</TableHead>
                 <TableHead>Actions</TableHead>

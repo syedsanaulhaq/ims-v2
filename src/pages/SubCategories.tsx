@@ -459,7 +459,7 @@ const SubCategories = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Category</TableHead>
-                <TableHead>Sub-Category Name</TableHead>
+                <TableHead>Sub-Category</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Total Items</TableHead>
                 <TableHead>Actions</TableHead>

@@ -35,6 +35,9 @@ export interface HierarchyUser {
   wing_intOfficeID: number;
   branch_intOfficeID: number;
   designation_intOfficeID: number;
+  OfficeID?: number;
+  WingID?: number;
+  intBranchID?: number;
 }
 
 export interface HierarchicalSelectionState {
@@ -196,7 +199,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
         .select('id, full_name, user_name, email, role, office_id, wing_id, branch_id, designation_id')
         .eq('OfficeID', officeId)
         .eq('WingID', wingId)
-        .eq('branch_id', branchId)
+        .eq('intBranchID', branchId)
         .eq('IS_ACT', 1)
         .order('full_name');
 
@@ -264,7 +267,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
   const filteredUsers = users.filter(user => 
     (!selection.selectedOfficeId || user.OfficeID === selection.selectedOfficeId) &&
     (!selection.selectedWingId || user.WingID === selection.selectedWingId) &&
-    (!selection.selectedBranchId || user.branch_id === selection.selectedBranchId)
+    (!selection.selectedBranchId || user.intBranchID === selection.selectedBranchId)
   );
 
   // Utility functions

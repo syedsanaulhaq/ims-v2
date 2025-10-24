@@ -102,8 +102,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   const [formData, setFormData] = useState({
     vendor_id: '',
     quoted_amount: '',
-    remarks: '',
-    description: ''
+    remarks: ''
   });
   
   // Proposal files state for add dialog (support multiple files)
@@ -199,7 +198,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       vendor_name: selectedVendorInfo.vendor_name,
       vendor_code: selectedVendorInfo.vendor_code,
       quoted_amount: formData.quoted_amount ? parseFloat(formData.quoted_amount) : undefined,
-      remarks: formData.description || formData.remarks, // Use description as primary remarks
+      remarks: formData.remarks, // Use remarks field
       is_awarded: false
     };
 
@@ -453,8 +452,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     setFormData({
       vendor_id: vendor.vendor_id,
       quoted_amount: vendor.quoted_amount?.toString() || '',
-      remarks: vendor.remarks || '',
-      description: vendor.remarks || '' // Use remarks as description
+      remarks: vendor.remarks || ''
     });
     setShowEditDialog(true);
   };
@@ -463,8 +461,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     setFormData({
       vendor_id: '',
       quoted_amount: '',
-      remarks: '',
-      description: ''
+      remarks: ''
     });
     setProposalFiles([]);
     setError(null);
@@ -552,21 +549,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                           ))}
                       </SelectContent>
                     </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description">Description *</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      placeholder="Enter bidder proposal description..."
-                      rows={4}
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Provide details about the bidder's proposal
-                    </p>
                   </div>
 
                   <div>

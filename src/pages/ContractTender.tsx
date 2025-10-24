@@ -88,7 +88,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   const [finalizingTender, setFinalizingTender] = useState<string | null>(null);
 
   const isSpotPurchase = initialType === 'Spot Purchase';
-  const dashboardTitle = isSpotPurchase ? 'Spot Purchase Management' : 'Contract Tender Management';
+  const dashboardTitle = isSpotPurchase ? 'Spot Purchase Management' : 'Contract/Tender Management';
   
   // Separate tenders into finalized and non-finalized
   const nonFinalizedTenders = tenders.filter(tender => !tender.is_finalized);
@@ -425,7 +425,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
         </div>
         <Button onClick={handleCreateNew} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
-          Create New {isSpotPurchase ? 'Spot Purchase' : 'Tender'}
+          {isSpotPurchase ? 'Add Spot Purchase' : 'Add Tender'}
         </Button>
       </div>
 
