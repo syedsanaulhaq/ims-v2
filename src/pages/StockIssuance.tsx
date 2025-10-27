@@ -523,7 +523,7 @@ const StockIssuance: React.FC = () => {
                               <div className="flex flex-col">
                                 <span className="font-medium">{user.FullName}</span>
                                 <span className="text-xs text-gray-500">
-                                  {user.Role} {user.CNIC && `• ${user.CNIC}`}
+                                  {user.DesignationName || user.Role || 'No designation'} {user.CNIC && `• ${user.CNIC}`}
                                 </span>
                               </div>
                             </SelectItem>

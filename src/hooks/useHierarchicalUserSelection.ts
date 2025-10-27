@@ -32,6 +32,8 @@ export interface HierarchyUser {
   UserName: string;
   Email: string;
   Role: string;
+  DesignationID?: number;
+  DesignationName?: string;
   OfficeID: number;
   WingID: number;
   intBranchID?: number;
@@ -205,7 +207,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
     try {
       const { data, error } = await supabase
         .from('vw_AspNetUser_with_Reg_App_DEC_ID')
-        .select('Id, FullName, UserName, Email, Role, OfficeID, WingID, DEC_ID, intDesignationID')
+        .select('Id, FullName, UserName, Email, Role, OfficeID, WingID, DEC_ID, intDesignationID, DesignationID, DesignationName')
         .eq('OfficeID', officeId)
         .eq('WingID', wingId)
         .eq('DEC_ID', branchId)

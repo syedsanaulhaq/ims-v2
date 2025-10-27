@@ -19,6 +19,8 @@ export interface User {
   intWingID: number;
   intBranchID: number;
   intDesignationID?: number;
+  DesignationID?: number;  // Added: From view
+  DesignationName?: string; // Added: From view
   Role?: string;
   CNIC?: string;
   Email?: string;

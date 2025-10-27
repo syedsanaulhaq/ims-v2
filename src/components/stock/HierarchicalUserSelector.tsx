@@ -311,9 +311,9 @@ export function HierarchicalUserSelector<T extends FieldValues>({
                           <div className="flex items-center gap-2">
                             <User className="h-3 w-3" />
                             <span className="font-medium">{user.FullName}</span>
-                            {user.Role && (
+                            {(user.DesignationName || user.Role) && (
                               <Badge variant="outline" className="text-xs">
-                                {user.Role}
+                                {user.DesignationName || user.Role}
                               </Badge>
                             )}
                           </div>
@@ -348,7 +348,7 @@ export function HierarchicalUserSelector<T extends FieldValues>({
                 <span className="font-medium">Email:</span> {selectedUser.Email}
               </div>
               <div>
-                <span className="font-medium">Role:</span> {selectedUser.Role}
+                <span className="font-medium">Designation:</span> {selectedUser.DesignationName || selectedUser.Role || 'N/A'}
               </div>
             </div>
           </div>
