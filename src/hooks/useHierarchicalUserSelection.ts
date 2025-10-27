@@ -201,6 +201,8 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
 
   const loadUsers = async (officeId: number, wingId: number, branchId: number) => {
     setIsLoadingUsers(true);
+    console.log('Loading users with params:', { officeId, wingId, branchId_DEC_ID: branchId });
+    
     try {
       const { data, error } = await supabase
         .from('vw_AspNetUser_with_Reg_App_DEC_ID')
@@ -211,11 +213,16 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
         .eq('ISACT', 1)
         .order('FullName');
 
-      if (error) {return;
+      if (error) {
+        console.error('Error loading users:', error);
+        return;
       }
 
+      console.log('Users loaded:', data);
       setUsers(data || []);
-    } catch (error) {} finally {
+    } catch (error) {
+      console.error('Exception loading users:', error);
+    } finally {
       setIsLoadingUsers(false);
     }
   };
@@ -243,6 +250,13 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
     // Find the selected branch to get its DEC_ID
     const selectedBranch = branches.find(b => b.int_auto_intOfficeID === branchId);
     const decId = selectedBranch?.DEC_ID || null;
+    
+    console.log('Branch Selection Debug:', {
+      branchId_intAutoId: branchId,
+      selectedBranch,
+      decId,
+      allBranches: branches
+    });
     
     setSelection(prev => ({
       ...prev,
