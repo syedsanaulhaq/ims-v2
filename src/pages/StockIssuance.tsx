@@ -98,6 +98,20 @@ const StockIssuance: React.FC = () => {
     let matchesBranch = !selectedBranchId || selectedBranchId === 'ALL_BRANCHES';
     if (selectedBranchId && selectedBranchId !== 'ALL_BRANCHES') {
       const selectedDec = decs.find(dec => dec.intAutoID === parseInt(selectedBranchId));
+      console.log('🔍 Branch filtering debug:', {
+        selectedBranchId,
+        selectedDec,
+        user: {
+          name: user.FullName,
+          intBranchID: user.intBranchID,
+          DEC_ID: user.DEC_ID
+        },
+        comparison: {
+          user_intBranchID_vs_dec_DEC_ID: `${user.intBranchID} === ${selectedDec?.DEC_ID}`,
+          user_DEC_ID_vs_selectedBranchId: `${user.DEC_ID} === ${selectedBranchId}`
+        }
+      });
+      
       if (selectedDec) {
         matchesBranch = user.intBranchID === selectedDec.DEC_ID;
       }
