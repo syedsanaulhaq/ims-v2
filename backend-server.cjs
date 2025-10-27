@@ -484,7 +484,7 @@ app.get('/api/decs', async (req, res) => {
 
     const result = await pool.request().query(`
       SELECT 
-        intAutoID,
+        int_auto_id as intAutoID,
         WingID,
         DECName,
         DECAcronym,
@@ -495,18 +495,15 @@ app.get('/api/decs', async (req, res) => {
         DECCode,
         DEC_ID,
         HODID,
-        HODName,
-        CreatedAt,
-        UpdatedAt,
-        CreatedBy,
-        UpdatedBy,
-        Version
+        HODName
       FROM DEC_MST 
       WHERE IS_ACT = 1
       ORDER BY DECName
     `);
+    console.log(`✅ Loaded ${result.recordset.length} DECs from DEC_MST table`);
     res.json(result.recordset);
   } catch (error) {
+    console.error('❌ Error fetching DECs from database:', error);
     // Fallback to mock data on any error
     const mockDecs = [
       { intAutoID: 1, WingID: 1, DECName: 'Human Resources DEC', DECAcronym: 'HR', DECAddress: 'Block A, Office Complex', Location: 'Islamabad', DECCode: 'HR001' },
