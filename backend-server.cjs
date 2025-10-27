@@ -9441,7 +9441,7 @@ app.get('/api/aspnet-users/active', async (req, res) => {
     const request = pool.request();
     const result = await request.query(`
       SELECT Id, FullName, Role, intDesignationID, DesignationID, DesignationName, 
-             intOfficeID AS OfficeID, WinfID AS intWingID, intBranchID, DEC_ID, 
+             OfficeID AS intOfficeID, WinfID AS intWingID, intBranchID, DEC_ID, 
              CNIC, Email, PhoneNumber, ISACT
       FROM vw_AspNetUser_with_Reg_App_DEC_ID
       WHERE ISACT = 1
