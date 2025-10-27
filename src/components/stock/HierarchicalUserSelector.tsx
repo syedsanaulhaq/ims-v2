@@ -304,22 +304,22 @@ export function HierarchicalUserSelector<T extends FieldValues>({
                   ) : (
                     filteredUsers.map((user) => (
                       <SelectItem
-                        key={user.id}
-                        value={user.id}
+                        key={user.Id}
+                        value={user.Id}
                       >
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
                             <User className="h-3 w-3" />
-                            <span className="font-medium">{user.full_name}</span>
-                            {user.role && (
+                            <span className="font-medium">{user.FullName}</span>
+                            {user.Role && (
                               <Badge variant="outline" className="text-xs">
-                                {user.role}
+                                {user.Role}
                               </Badge>
                             )}
                           </div>
-                          {user.user_name && (
+                          {user.UserName && (
                             <span className="text-xs text-muted-foreground">
-                              @{user.user_name}
+                              @{user.UserName}
                             </span>
                           )}
                         </div>
@@ -339,16 +339,16 @@ export function HierarchicalUserSelector<T extends FieldValues>({
             <h4 className="text-sm font-medium mb-2">Selected User Details:</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               <div>
-                <span className="font-medium">Name:</span> {selectedUser.full_name}
+                <span className="font-medium">Name:</span> {selectedUser.FullName}
               </div>
               <div>
-                <span className="font-medium">Username:</span> {selectedUser.user_name}
+                <span className="font-medium">Username:</span> {selectedUser.UserName}
               </div>
               <div>
-                <span className="font-medium">Email:</span> {selectedUser.email}
+                <span className="font-medium">Email:</span> {selectedUser.Email}
               </div>
               <div>
-                <span className="font-medium">Role:</span> {selectedUser.role}
+                <span className="font-medium">Role:</span> {selectedUser.Role}
               </div>
             </div>
           </div>

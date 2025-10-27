@@ -27,6 +27,16 @@ export interface Branch {
 }
 
 export interface HierarchyUser {
+  Id: string;
+  FullName: string;
+  UserName: string;
+  Email: string;
+  Role: string;
+  OfficeID: number;
+  WingID: number;
+  intBranchID?: number;
+  DEC_ID?: number;
+  intDesignationID: number;
   intOfficeID: string;
   full_strOfficeName: string;
   user_strOfficeName: string;
@@ -36,10 +46,6 @@ export interface HierarchyUser {
   wing_intOfficeID: number;
   branch_intOfficeID: number;
   designation_intOfficeID: number;
-  OfficeID?: number;
-  WingID?: number;
-  intBranchID?: number;
-  DEC_ID?: number;
 }
 
 export interface HierarchicalSelectionState {
@@ -198,12 +204,12 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
     try {
       const { data, error } = await supabase
         .from('vw_AspNetUser_with_Reg_App_DEC_ID')
-        .select('id, full_name, user_name, email, role, office_id, wing_id, DEC_ID, designation_id')
+        .select('Id, FullName, UserName, Email, Role, OfficeID, WingID, DEC_ID, intDesignationID')
         .eq('OfficeID', officeId)
         .eq('WingID', wingId)
         .eq('DEC_ID', branchId)
-        .eq('IS_ACT', 1)
-        .order('full_name');
+        .eq('ISACT', 1)
+        .order('FullName');
 
       if (error) {return;
       }
@@ -279,7 +285,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
   // Utility functions
   const getSelectedUserDetails = (): HierarchyUser | null => {
     if (!selection.selectedUserId) return null;
-    return users.find(user => user.intOfficeID === selection.selectedUserId) || null;
+    return users.find(user => user.Id === selection.selectedUserId) || null;
   };
 
   const getSelectionPath = (): string => {
@@ -302,7 +308,7 @@ export const useHierarchicalUserSelection = (): UseHierarchicalUserSelectionRetu
     
     if (selection.selectedUserId) {
       const user = getSelectedUserDetails();
-      if (user) parts.push(user.full_name);
+      if (user) parts.push(user.FullName);
     }
     
     return parts.join(' → ');
