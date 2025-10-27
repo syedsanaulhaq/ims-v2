@@ -73,6 +73,7 @@ export interface DEC {
   IS_ACT: boolean;
   DateAdded: Date;
   DECCode?: number;
+  DEC_ID: number; // Added: The DEC_ID field used in AspNetUsers.intBranchID
   HODID?: string;
   HODName?: string;
   CreatedAt: Date;
