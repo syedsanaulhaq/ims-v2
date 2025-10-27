@@ -493,6 +493,7 @@ app.get('/api/decs', async (req, res) => {
         IS_ACT,
         DateAdded,
         DECCode,
+        DEC_ID,
         HODID,
         HODName,
         CreatedAt,
