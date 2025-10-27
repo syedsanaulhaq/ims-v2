@@ -9440,8 +9440,10 @@ app.get('/api/aspnet-users/active', async (req, res) => {
   try {
     const request = pool.request();
     const result = await request.query(`
-      SELECT Id, FullName, Role, intDesignationID, intOfficeID, intWingID
-      FROM AspNetUsers 
+      SELECT Id, FullName, Role, intDesignationID, DesignationID, DesignationName, 
+             intOfficeID AS OfficeID, WinfID AS intWingID, intBranchID, DEC_ID, 
+             CNIC, Email, PhoneNumber, ISACT
+      FROM vw_AspNetUser_with_Reg_App_DEC_ID
       WHERE ISACT = 1
       ORDER BY FullName
     `);
