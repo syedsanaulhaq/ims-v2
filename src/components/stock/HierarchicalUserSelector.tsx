@@ -119,15 +119,15 @@ export function HierarchicalUserSelector<T extends FieldValues>({
                   ) : (
                     offices.map((office) => (
                       <SelectItem
-                        key={office.id}
-                        value={office.id.toString()}
+                        key={office.intOfficeID}
+                        value={office.intOfficeID.toString()}
                       >
                         <div className="flex items-center gap-2">
                           <Building2 className="h-3 w-3" />
-                          {office.name}
-                          {office.office_code && (
+                          {office.strOfficeName}
+                          {office.OfficeCode && (
                             <Badge variant="secondary" className="text-xs">
-                              {office.office_code}
+                              {office.OfficeCode}
                             </Badge>
                           )}
                         </div>
@@ -181,15 +181,15 @@ export function HierarchicalUserSelector<T extends FieldValues>({
                   ) : (
                     filteredWings.map((wing) => (
                       <SelectItem
-                        key={wing.id}
-                        value={wing.id.toString()}
+                        key={wing.intOfficeID}
+                        value={wing.intOfficeID.toString()}
                       >
                         <div className="flex items-center gap-2">
                           <Users className="h-3 w-3" />
-                          {wing.name}
-                          {wing.short_name && (
+                          {wing.strOfficeName}
+                          {wing.short_strOfficeName && (
                             <Badge variant="secondary" className="text-xs">
-                              {wing.short_name}
+                              {wing.short_strOfficeName}
                             </Badge>
                           )}
                         </div>
