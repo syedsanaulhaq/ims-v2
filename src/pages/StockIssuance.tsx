@@ -95,11 +95,27 @@ const StockIssuance: React.FC = () => {
       }
 
       try {
-        console.log('🔄 Loading users for:', { selectedOfficeId, selectedWingId, selectedBranchId });
+        // Convert selectedBranchId (int_auto_id) to DEC_ID for API filtering
+        let branchFilterValue: number | string | undefined = undefined;
+        
+        if (selectedBranchId && selectedBranchId !== 'ALL_BRANCHES') {
+          const selectedDec = decs.find(dec => dec.intAutoID === parseInt(selectedBranchId));
+          if (selectedDec && selectedDec.DEC_ID) {
+            branchFilterValue = selectedDec.DEC_ID;
+          }
+        }
+        
+        console.log('🔄 Loading users for:', { 
+          selectedOfficeId, 
+          selectedWingId, 
+          selectedBranchId_intAutoID: selectedBranchId,
+          branchFilterValue_DEC_ID: branchFilterValue
+        });
+        
         const filteredUsersData = await erpDatabaseService.getFilteredUsers(
           parseInt(selectedOfficeId),
           parseInt(selectedWingId),
-          selectedBranchId && selectedBranchId !== 'ALL_BRANCHES' ? parseInt(selectedBranchId) : undefined
+          branchFilterValue
         );
         setUsers(filteredUsersData);
       } catch (error) {
@@ -109,7 +125,7 @@ const StockIssuance: React.FC = () => {
     };
 
     loadFilteredUsers();
-  }, [selectedOfficeId, selectedWingId, selectedBranchId]);
+  }, [selectedOfficeId, selectedWingId, selectedBranchId, decs]);
 
   // filteredUsers is now just the users state (already filtered by backend)
   const filteredUsers = users || [];
