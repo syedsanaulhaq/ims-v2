@@ -95,21 +95,16 @@ const StockIssuance: React.FC = () => {
       }
 
       try {
-        // Convert selectedBranchId (int_auto_id) to DEC_ID for API filtering
-        let branchFilterValue: number | string | undefined = undefined;
-        
-        if (selectedBranchId && selectedBranchId !== 'ALL_BRANCHES') {
-          const selectedDec = decs.find(dec => dec.intAutoID === parseInt(selectedBranchId));
-          if (selectedDec && selectedDec.DEC_ID) {
-            branchFilterValue = selectedDec.DEC_ID;
-          }
-        }
+        // Use DECID directly from the combo (no mapping needed with new view)
+        const branchFilterValue = selectedBranchId && selectedBranchId !== 'ALL_BRANCHES' 
+          ? parseInt(selectedBranchId) 
+          : undefined;
         
         console.log('🔄 Loading users for:', { 
           selectedOfficeId, 
           selectedWingId, 
-          selectedBranchId_intAutoID: selectedBranchId,
-          branchFilterValue_DEC_ID: branchFilterValue
+          selectedBranchId_DECID: selectedBranchId,
+          branchFilterValue
         });
         
         const filteredUsersData = await erpDatabaseService.getFilteredUsers(
@@ -125,7 +120,7 @@ const StockIssuance: React.FC = () => {
     };
 
     loadFilteredUsers();
-  }, [selectedOfficeId, selectedWingId, selectedBranchId, decs]);
+  }, [selectedOfficeId, selectedWingId, selectedBranchId]);
 
   // filteredUsers is now just the users state (already filtered by backend)
   const filteredUsers = users || [];

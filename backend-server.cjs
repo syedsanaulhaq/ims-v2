@@ -483,24 +483,16 @@ app.get('/api/decs', async (req, res) => {
     }
 
     const result = await pool.request().query(`
-      SELECT 
-        int_auto_id as intAutoID,
+      SELECT DISTINCT
+        DECID as intAutoID,
         WingID,
         DECName,
-        DECAcronym,
-        DECAddress,
-        Location,
-        IS_ACT,
-        DateAdded,
-        DECCode,
-        DEC_ID,
-        HODID,
-        HODName
-      FROM DEC_MST 
-      WHERE IS_ACT = 1
+        DECID as DEC_ID
+      FROM vw_Full_hirarcy_Office_to_Employee
+      WHERE DECID IS NOT NULL
       ORDER BY DECName
     `);
-    console.log(`✅ Loaded ${result.recordset.length} DECs from DEC_MST table`);
+    console.log(`✅ Loaded ${result.recordset.length} DECs from hierarchy view`);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching DECs from database:', error);
@@ -9464,13 +9456,18 @@ app.get('/api/aspnet-users/filtered', async (req, res) => {
 
     const request = pool.request();
     let query = `
-      SELECT Id, FullName, Role, intDesignationID, DesignationID, DesignationName, 
-             OfficeID AS intOfficeID, WinfID AS intWingID, intBranchID, DEC_ID, 
-             CNIC, Email, PhoneNumber, ISACT
-      FROM vw_AspNetUser_with_Reg_App_DEC_ID
-      WHERE ISACT = 1 
-        AND OfficeID = @officeId 
-        AND WinfID = @wingId
+      SELECT 
+        UserID as Id,
+        EmployeeName as FullName,
+        CNIC,
+        DesignationID,
+        DesignationName,
+        OfficeID as intOfficeID,
+        WingID as intWingID,
+        DECID as intBranchID
+      FROM vw_Full_hirarcy_Office_to_Employee
+      WHERE OfficeID = @officeId 
+        AND WingID = @wingId
     `;
 
     request.input('officeId', sql.Int, parseInt(officeId));
@@ -9478,11 +9475,11 @@ app.get('/api/aspnet-users/filtered', async (req, res) => {
 
     // Add branch filter if provided
     if (branchId && branchId !== 'ALL_BRANCHES') {
-      query += ' AND intBranchID = @branchId';
+      query += ' AND DECID = @branchId';
       request.input('branchId', sql.Int, parseInt(branchId));
     }
 
-    query += ' ORDER BY FullName';
+    query += ' ORDER BY EmployeeName';
 
     const result = await request.query(query);
     
