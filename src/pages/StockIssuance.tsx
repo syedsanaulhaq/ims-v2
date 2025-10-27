@@ -100,38 +100,11 @@ const StockIssuance: React.FC = () => {
       const selectedDec = decs.find(dec => dec.intAutoID === parseInt(selectedBranchId));
       if (selectedDec) {
         matchesBranch = user.intBranchID === selectedDec.DEC_ID;
-        
-        // Debug logging
-        if (!matchesBranch) {
-          console.log('🔍 User filtered out:', {
-            userName: user.FullName,
-            user_intBranchID: user.intBranchID,
-            selectedDec_DEC_ID: selectedDec.DEC_ID,
-            matches: matchesBranch
-          });
-        }
       }
     }
     
     return matchesOffice && matchesWing && matchesBranch;
   });
-
-  // Log filtered users count
-  if (selectedOfficeId && selectedWingId && selectedBranchId && selectedBranchId !== 'ALL_BRANCHES') {
-    console.log('👥 Filtered Users:', {
-      total_users: users?.length || 0,
-      filtered_count: filteredUsers.length,
-      selectedOfficeId,
-      selectedWingId,
-      selectedBranchId,
-      filteredUsers: filteredUsers.map(u => ({ 
-        name: u.FullName, 
-        officeID: u.intOfficeID, 
-        wingID: u.intWingID, 
-        branchID: u.intBranchID 
-      }))
-    });
-  }
 
   useEffect(() => {
     fetchInitialData();
@@ -222,14 +195,6 @@ const StockIssuance: React.FC = () => {
   };
 
   const handleBranchChange = (branchId: string) => {
-    const selectedDec = decs.find(dec => dec.intAutoID === parseInt(branchId));
-    console.log('🔍 Branch Selection Debug:', {
-      selected_intAutoID: branchId,
-      selectedDec,
-      DEC_ID: selectedDec?.DEC_ID,
-      allDecs: decs.filter(d => d.WingID === parseInt(selectedWingId))
-    });
-    
     setSelectedBranchId(branchId);
     setSelectedUserId('');
   };
