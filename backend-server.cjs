@@ -9456,6 +9456,48 @@ app.get('/api/aspnet-users/active', async (req, res) => {
   }
 });
 
+// Get filtered users by office, wing, and branch from view
+app.get('/api/aspnet-users/filtered', async (req, res) => {
+  try {
+    const { officeId, wingId, branchId } = req.query;
+    
+    if (!officeId || !wingId) {
+      return res.status(400).json({ error: 'officeId and wingId are required' });
+    }
+
+    const request = pool.request();
+    let query = `
+      SELECT Id, FullName, Role, intDesignationID, DesignationID, DesignationName, 
+             OfficeID AS intOfficeID, WinfID AS intWingID, intBranchID, DEC_ID, 
+             CNIC, Email, PhoneNumber, ISACT
+      FROM vw_AspNetUser_with_Reg_App_DEC_ID
+      WHERE ISACT = 1 
+        AND OfficeID = @officeId 
+        AND WinfID = @wingId
+    `;
+
+    request.input('officeId', sql.Int, parseInt(officeId));
+    request.input('wingId', sql.Int, parseInt(wingId));
+
+    // Add branch filter if provided
+    if (branchId && branchId !== 'ALL_BRANCHES') {
+      query += ' AND intBranchID = @branchId';
+      request.input('branchId', sql.Int, parseInt(branchId));
+    }
+
+    query += ' ORDER BY FullName';
+
+    const result = await request.query(query);
+    
+    console.log(`✅ Filtered users: Office=${officeId}, Wing=${wingId}, Branch=${branchId || 'ALL'} - Found ${result.recordset.length} users`);
+    
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('Error fetching filtered AspNetUsers:', error);
+    res.status(500).json({ error: 'Failed to fetch filtered users', details: error.message });
+  }
+});
+
 // Submit request for approval
 app.post('/api/approvals/submit', async (req, res) => {
   try {

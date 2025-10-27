@@ -86,39 +86,33 @@ const StockIssuance: React.FC = () => {
   const filteredWings = wings.filter(wing => wing.OfficeID === parseInt(selectedOfficeId));
   const filteredDecs = decs.filter(dec => dec.WingID === parseInt(selectedWingId));
   
-  // Users filtered by office and wing (branch is optional)
-  const filteredUsers = (users || []).filter(user => {
-    // Must match office and wing
-    const matchesOffice = user.intOfficeID === parseInt(selectedOfficeId);
-    const matchesWing = user.intWingID === parseInt(selectedWingId);
-    
-    // If branch is selected and not "ALL_BRANCHES", must also match branch
-    // Note: selectedBranchId is int_auto_id, but user.intBranchID is DEC_ID
-    // So we need to find the corresponding DEC_ID for the selected branch
-    let matchesBranch = !selectedBranchId || selectedBranchId === 'ALL_BRANCHES';
-    if (selectedBranchId && selectedBranchId !== 'ALL_BRANCHES') {
-      const selectedDec = decs.find(dec => dec.intAutoID === parseInt(selectedBranchId));
-      console.log('🔍 Branch filtering debug:', {
-        selectedBranchId,
-        selectedDec,
-        user: {
-          name: user.FullName,
-          intBranchID: user.intBranchID,
-          DEC_ID: user.DEC_ID
-        },
-        comparison: {
-          user_intBranchID_vs_dec_DEC_ID: `${user.intBranchID} === ${selectedDec?.DEC_ID}`,
-          user_DEC_ID_vs_selectedBranchId: `${user.DEC_ID} === ${selectedBranchId}`
-        }
-      });
-      
-      if (selectedDec) {
-        matchesBranch = user.intBranchID === selectedDec.DEC_ID;
+  // Load users dynamically when office, wing, or branch changes
+  useEffect(() => {
+    const loadFilteredUsers = async () => {
+      if (!selectedOfficeId || !selectedWingId) {
+        setUsers([]);
+        return;
       }
-    }
-    
-    return matchesOffice && matchesWing && matchesBranch;
-  });
+
+      try {
+        console.log('🔄 Loading users for:', { selectedOfficeId, selectedWingId, selectedBranchId });
+        const filteredUsersData = await erpDatabaseService.getFilteredUsers(
+          parseInt(selectedOfficeId),
+          parseInt(selectedWingId),
+          selectedBranchId && selectedBranchId !== 'ALL_BRANCHES' ? parseInt(selectedBranchId) : undefined
+        );
+        setUsers(filteredUsersData);
+      } catch (error) {
+        console.error('❌ Error loading filtered users:', error);
+        setUsers([]);
+      }
+    };
+
+    loadFilteredUsers();
+  }, [selectedOfficeId, selectedWingId, selectedBranchId]);
+
+  // filteredUsers is now just the users state (already filtered by backend)
+  const filteredUsers = users || [];
 
   useEffect(() => {
     fetchInitialData();
@@ -163,25 +157,23 @@ const StockIssuance: React.FC = () => {
 
       // Fetch ERP data using ERP service
       try {
-        console.log('🏢 Fetching ERP data (offices, wings, decs, users)...');
-        const [officesData, wingsData, decsData, usersData] = await Promise.all([
+        console.log('🏢 Fetching ERP data (offices, wings, decs)...');
+        const [officesData, wingsData, decsData] = await Promise.all([
           erpDatabaseService.getActiveOffices(),
           erpDatabaseService.getActiveWings(),
-          erpDatabaseService.getActiveDecs(),
-          erpDatabaseService.getActiveUsers()
+          erpDatabaseService.getActiveDecs()
         ]);
 
         console.log('🏢 ERP Data loaded:', { 
           offices: officesData.length, 
           wings: wingsData.length, 
-          decs: decsData.length, 
-          users: usersData?.length || 0
+          decs: decsData.length
         });
 
         setOffices(officesData);
         setWings(wingsData);
         setDecs(decsData);
-        setUsers(usersData || []);
+        // Users will be loaded dynamically when office/wing/branch is selected
       } catch (erpError) {
         console.error('❌ Error loading ERP data:', erpError);
         setError('Failed to load office, wing, DEC, and user data');

@@ -379,6 +379,33 @@ class ERPDatabaseService {
     }
   }
 
+  // Get filtered users by office, wing, and optionally branch
+  async getFilteredUsers(officeId: number, wingId: number, branchId?: number | string): Promise<any[]> {
+    try {
+      let url = `http://localhost:3001/api/aspnet-users/filtered?officeId=${officeId}&wingId=${wingId}`;
+      
+      // Add branch filter if provided and not "ALL_BRANCHES"
+      if (branchId && branchId !== 'ALL_BRANCHES') {
+        url += `&branchId=${branchId}`;
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+      
+      // Handle the API response format {success: true, data: [...]}
+      const users = result.success ? result.data : result;
+      
+      console.log(`✅ Loaded ${users?.length || 0} filtered users from API (Office: ${officeId}, Wing: ${wingId}, Branch: ${branchId || 'ALL'})`);
+      return users || [];
+    } catch (error) {
+      console.error('❌ Error fetching filtered users from API:', error);
+      return [];
+    }
+  }
+
   // Hierarchy services
   async getOfficeHierarchy(): Promise<any[]> {
     try {
