@@ -51,6 +51,12 @@ const RequestTrackingPage: React.FC = () => {
     try {
       setLoading(true);
       
+      if (!currentUser?.user_id) {
+        console.error('No current user found');
+        setLoading(false);
+        return;
+      }
+      
       // Use the same API that works for other components
       const response = await fetch('http://localhost:3001/api/stock-issuance/requests', {
         method: 'GET',
@@ -63,8 +69,13 @@ const RequestTrackingPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
+          // Filter requests to show only current user's requests
+          const userRequests = data.data.filter((request: any) => 
+            request.requester_user_id === currentUser.user_id
+          );
+          
           // Map the stock issuance data to our request format
-          const mappedRequests = data.data.map((request: any) => ({
+          const mappedRequests = userRequests.map((request: any) => ({
             id: request.id,
             request_type: request.request_type || 'Individual',
             title: request.purpose || 'Stock Issuance Request',
