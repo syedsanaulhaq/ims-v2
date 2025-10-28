@@ -467,7 +467,7 @@ const StockIssuance: React.FC = () => {
                     <SelectContent>
                       {offices.map(office => (
                         <SelectItem key={office.intOfficeID} value={office.intOfficeID.toString()}>
-                          {office.strOfficeName} {office.OfficeCode && `(${office.OfficeCode})`}
+                          {office.strOfficeName}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -488,7 +488,7 @@ const StockIssuance: React.FC = () => {
                     <SelectContent>
                       {filteredWings.map(wing => (
                         <SelectItem key={wing.Id} value={wing.Id.toString()}>
-                          {wing.Name} {wing.WingCode && `(${wing.WingCode})`}
+                          {wing.Name}
                         </SelectItem>
                       ))}
                     </SelectContent>
