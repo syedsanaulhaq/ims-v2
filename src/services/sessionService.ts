@@ -1,5 +1,30 @@
 // Session service for managing user session
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// Environment-based API URL configuration
+const getApiBaseUrl = () => {
+  // Check if running on specific ports
+  const currentPort = window.location.port;
+  
+  // Demo environment (port 8082)
+  if (currentPort === '8082') {
+    return 'http://localhost:5002';  // Demo API
+  }
+  
+  // Staging environment (port 8081)
+  if (currentPort === '8081' || window.location.hostname.includes('staging')) {
+    return 'http://localhost:5001';  // Staging API
+  }
+  
+  // Check for environment variable
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Default to development backend server
+  return 'http://localhost:5000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 interface User {
   user_id: string;
