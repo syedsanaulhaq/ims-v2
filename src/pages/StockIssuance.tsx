@@ -587,7 +587,7 @@ const StockIssuance: React.FC = () => {
                           <p><strong>Name:</strong> {user?.FullName}</p>
                           <p><strong>Email:</strong> {user?.Email || 'N/A'}</p>
                           <p><strong>CNIC:</strong> {user?.CNIC || 'N/A'}</p>
-                          <p><strong>Role:</strong> {user?.Role || 'N/A'}</p>
+                          <p><strong>Designation:</strong> {user?.DesignationName || 'N/A'}</p>
                           <p><strong>Office:</strong> {office?.strOfficeName}</p>
                           <p><strong>Wing:</strong> {wing?.Name}</p>
                           <p><strong>Branch:</strong> {branch?.DECName}</p>
