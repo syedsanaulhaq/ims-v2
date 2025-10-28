@@ -84,10 +84,11 @@ const RequestTrackingPage: React.FC = () => {
             });
           }
           
-          // Filter requests to show only current user's requests
+          // Filter requests to show only current user's requests (case-insensitive GUID comparison)
           const userRequests = data.data.filter((request: any) => {
-            const matches = request.requester?.user_id === currentUser.user_id || 
-                          request.requester_user_id === currentUser.user_id;
+            const requesterUserId = (request.requester?.user_id || request.requester_user_id || '').toLowerCase();
+            const currentUserId = (currentUser.user_id || '').toLowerCase();
+            const matches = requesterUserId === currentUserId;
             console.log(`Request ${request.id}: requester.user_id=${request.requester?.user_id}, matches=${matches}`);
             return matches;
           });
