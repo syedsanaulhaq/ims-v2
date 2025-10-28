@@ -69,14 +69,29 @@ const RequestTrackingPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          // Filter requests to show only current user's requests
-          const userRequests = data.data.filter((request: any) => 
-            request.requester?.user_id === currentUser.user_id || 
-            request.requester_user_id === currentUser.user_id
-          );
-          
           console.log('Current user ID:', currentUser.user_id);
+          console.log('Current user ID type:', typeof currentUser.user_id);
           console.log('Total requests:', data.data.length);
+          
+          // Log first request to see structure
+          if (data.data.length > 0) {
+            console.log('First request sample:', {
+              id: data.data[0].id,
+              requester: data.data[0].requester,
+              requester_user_id_direct: data.data[0].requester_user_id,
+              requester_user_id_nested: data.data[0].requester?.user_id,
+              requester_user_id_type: typeof data.data[0].requester?.user_id
+            });
+          }
+          
+          // Filter requests to show only current user's requests
+          const userRequests = data.data.filter((request: any) => {
+            const matches = request.requester?.user_id === currentUser.user_id || 
+                          request.requester_user_id === currentUser.user_id;
+            console.log(`Request ${request.id}: requester.user_id=${request.requester?.user_id}, matches=${matches}`);
+            return matches;
+          });
+          
           console.log('User requests:', userRequests.length);
           
           // Map the stock issuance data to our request format
