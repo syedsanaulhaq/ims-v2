@@ -31,9 +31,9 @@ Write-Host "[3/7] Configuring backend for DEMO stage..." -ForegroundColor Yellow
 $sqlServerConfig = @"
 # SQL Server Configuration - Demo Stage
 SQL_SERVER_HOST=SYED-FAZLI-LAPT
-SQL_SERVER_DATABASE=InvMISDB
-SQL_SERVER_USER=sa
-SQL_SERVER_PASSWORD=1978Jupiter87@
+SQL_SERVER_DATABASE=InventoryManagementDB
+SQL_SERVER_USER=inventorymanagementuser
+SQL_SERVER_PASSWORD=2016Wfp61@
 SQL_SERVER_PORT=1433 
 SQL_SERVER_ENCRYPT=false 
 SQL_SERVER_TRUST_CERT=true 
@@ -87,7 +87,7 @@ Write-Host "http://localhost:8082" -ForegroundColor White
 Write-Host "      🔌 Backend API:  " -NoNewline -ForegroundColor Cyan
 Write-Host "http://localhost:5002" -ForegroundColor White
 Write-Host "      🗄️  Database:    " -NoNewline -ForegroundColor Cyan
-Write-Host "InvMISDB on SYED-FAZLI-LAPT" -ForegroundColor White
+Write-Host "InventoryManagementDB on SYED-FAZLI-LAPT" -ForegroundColor White
 Write-Host ""
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host "  🎉 DEMO ENVIRONMENT READY!" -ForegroundColor Green
