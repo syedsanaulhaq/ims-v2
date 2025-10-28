@@ -23,11 +23,13 @@
     "start:clean": "node start-optimal-system.js clean",
     "start:optimize": "node start-optimal-system.js optimize",
     "dev:start": "echo Starting DEVELOPMENT environment... && concurrently \"npm run backend\" \"npm run dev\"",
+    "demo:start": "echo Starting DEMO environment... && npm run build && concurrently \"npm run backend\" \"npm run preview -- --port 8082\"",
     "staging:start": "echo Starting STAGING environment... && npm run build && concurrently \"npm run backend\" \"npm run preview\"",
     "prod:start": "echo Starting PRODUCTION environment... && npm run build && concurrently \"npm run backend\" \"npm run preview\"",
     "status": "node scripts/check-environment.js",
     "switch:dev": "powershell -Command \"./switch-env.ps1 dev\"",
     "switch:test": "powershell -Command \"./switch-env.ps1 test\"",
+    "switch:demo": "powershell -Command \"Copy-Item -Path '.env.demo' -Destination '.env' -Force\"",
     "switch:staging": "powershell -Command \"./switch-env.ps1 test\"",
     "switch:prod": "powershell -Command \"./switch-env.ps1 prod\""
   },
