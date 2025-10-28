@@ -71,8 +71,13 @@ const RequestTrackingPage: React.FC = () => {
         if (data.success) {
           // Filter requests to show only current user's requests
           const userRequests = data.data.filter((request: any) => 
+            request.requester?.user_id === currentUser.user_id || 
             request.requester_user_id === currentUser.user_id
           );
+          
+          console.log('Current user ID:', currentUser.user_id);
+          console.log('Total requests:', data.data.length);
+          console.log('User requests:', userRequests.length);
           
           // Map the stock issuance data to our request format
           const mappedRequests = userRequests.map((request: any) => ({
