@@ -1003,20 +1003,42 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
     const userId = req.session?.userId || requester_user_id; // Use session user or requester
 
     try {
-      // Get first approver from workflow
-      const workflowResult = await pool.request()
-        .input('workflow_id', sql.UniqueIdentifier, workflowId)
+      // Get supervisor from LEAVE_APPROVAL_HIERARCHY based on the requester
+      const supervisorResult = await pool.request()
+        .input('employee_id', sql.NVarChar, requester_user_id)
         .query(`
-          SELECT TOP 1 user_id 
-          FROM workflow_approvers 
-          WHERE workflow_id = @workflow_id AND can_approve = 1
-          ORDER BY added_date
+          SELECT BossID 
+          FROM LEAVE_APPROVAL_HIERARCHY 
+          WHERE EmployeeID = @employee_id
         `);
 
-      if (workflowResult.recordset.length > 0) {
-        const firstApproverId = workflowResult.recordset[0].user_id;
-        console.log('👤 Auto-assigning stock issuance to approver:', firstApproverId);
+      let firstApproverId = null;
+      
+      if (supervisorResult.recordset.length > 0 && supervisorResult.recordset[0].BossID) {
+        // Found supervisor in hierarchy
+        firstApproverId = supervisorResult.recordset[0].BossID;
+        console.log('👤 Auto-assigning stock issuance to supervisor from LEAVE_APPROVAL_HIERARCHY:', firstApproverId);
+      } else {
+        // Fallback to workflow approvers if no supervisor found
+        console.log('⚠️ No supervisor found in LEAVE_APPROVAL_HIERARCHY, falling back to workflow approvers');
+        const workflowResult = await pool.request()
+          .input('workflow_id', sql.UniqueIdentifier, workflowId)
+          .query(`
+            SELECT TOP 1 user_id 
+            FROM workflow_approvers 
+            WHERE workflow_id = @workflow_id AND can_approve = 1
+            ORDER BY added_date
+          `);
+        
+        if (workflowResult.recordset.length > 0) {
+          firstApproverId = workflowResult.recordset[0].user_id;
+          console.log('👤 Auto-assigning stock issuance to workflow approver:', firstApproverId);
+        }
+      }
 
+      if (firstApproverId) {
+
+      if (firstApproverId) {
         // Create approval record
         await pool.request()
           .input('request_id', sql.UniqueIdentifier, requestId)
