@@ -1003,12 +1003,12 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
     const userId = req.session?.userId || requester_user_id; // Use session user or requester
 
     try {
-      // Get supervisor from LEAVE_APPROVAL_HIERARCHY based on the requester
+      // Get supervisor from viw_employee_with_supervisor based on the requester
       const supervisorResult = await pool.request()
         .input('employee_id', sql.NVarChar, requester_user_id)
         .query(`
           SELECT BossID 
-          FROM LEAVE_APPROVAL_HIERARCHY 
+          FROM viw_employee_with_supervisor 
           WHERE EmployeeID = @employee_id
         `);
 
@@ -1017,10 +1017,10 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
       if (supervisorResult.recordset.length > 0 && supervisorResult.recordset[0].BossID) {
         // Found supervisor in hierarchy
         firstApproverId = supervisorResult.recordset[0].BossID;
-        console.log('👤 Auto-assigning stock issuance to supervisor from LEAVE_APPROVAL_HIERARCHY:', firstApproverId);
+        console.log('👤 Auto-assigning stock issuance to supervisor from viw_employee_with_supervisor:', firstApproverId);
       } else {
         // Fallback to workflow approvers if no supervisor found
-        console.log('⚠️ No supervisor found in LEAVE_APPROVAL_HIERARCHY, falling back to workflow approvers');
+        console.log('⚠️ No supervisor found in viw_employee_with_supervisor, falling back to workflow approvers');
         const workflowResult = await pool.request()
           .input('workflow_id', sql.UniqueIdentifier, workflowId)
           .query(`
