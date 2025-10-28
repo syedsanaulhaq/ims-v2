@@ -1037,8 +1037,6 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
       }
 
       if (firstApproverId) {
-
-      if (firstApproverId) {
         // Create approval record
         await pool.request()
           .input('request_id', sql.UniqueIdentifier, requestId)
