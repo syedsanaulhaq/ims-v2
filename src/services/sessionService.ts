@@ -1,7 +1,5 @@
 // Session service for managing user session
-
-// Use environment variable or default to development
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface User {
   user_id: string;
