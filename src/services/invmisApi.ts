@@ -6,20 +6,7 @@
 
 // Environment-based API URL configuration
 const getApiBaseUrl = () => {
-  // Check if running on specific ports
-  const currentPort = window.location.port;
-  
-  // Demo environment (port 8082)
-  if (currentPort === '8082') {
-    return 'http://localhost:5002/api';  // Demo API
-  }
-  
-  // Staging environment (port 8081)
-  if (currentPort === '8081' || window.location.hostname.includes('staging')) {
-    return 'http://localhost:5001/api';  // Staging API
-  }
-  
-  // Check for environment variable
+  // Use environment variable or default to development
   if (import.meta.env.VITE_API_URL) {
     return `${import.meta.env.VITE_API_URL}/api`;
   }
