@@ -179,7 +179,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
     try {
       setActionLoading(true);
       
-      // For approval type forwarding, we need to get the requester's supervisor
+      // For approval type forwarding, we need to get the logged-in user's supervisor
       let forwardToUserId = selectedForwarder;
       
       if (actionType === 'forwarded' && forwardingType === 'approval') {
@@ -191,20 +191,30 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
             forwardToUserId = data.supervisor_id;
             console.log('🔄 Auto-forwarding to logged-in user supervisor:', forwardToUserId, data.supervisor_name);
           } else {
+            setActionLoading(false);
             alert('Could not find your supervisor. Please select Action (Admin) forwarding instead.');
             return;
           }
         } catch (error) {
           console.error('Error getting supervisor:', error);
-          alert('Error finding supervisor. Please try again.');
+          setActionLoading(false);
+          alert('Error finding supervisor. Please try again or restart the backend server.');
           return;
         }
       } else if (actionType === 'forwarded' && forwardingType === 'action') {
         // For action type, user must select from workflow
         if (!selectedForwarder) {
+          setActionLoading(false);
           alert('Please select a workflow and user to forward to');
           return;
         }
+      }
+      
+      // Final validation - ensure we have someone to forward to
+      if (actionType === 'forwarded' && !forwardToUserId) {
+        setActionLoading(false);
+        alert('Please select a person to forward to');
+        return;
       }
       
       const action: ApprovalAction = {
@@ -218,10 +228,6 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       
       switch (actionType) {
         case 'forwarded':
-          if (!selectedForwarder) {
-            alert('Please select a person to forward to');
-            return;
-          }
           result = await approvalForwardingService.forwardRequest(approvalId, action);
           break;
         case 'approved':

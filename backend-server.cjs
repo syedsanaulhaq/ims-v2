@@ -10177,6 +10177,71 @@ app.get('/api/user/:userId/supervisor', async (req, res) => {
   }
 });
 
+// Get all workflows
+app.get('/api/workflows', async (req, res) => {
+  try {
+    console.log('📋 Getting all workflows');
+    
+    const result = await pool.request().query(`
+      SELECT 
+        id,
+        workflow_name,
+        request_type,
+        office_id,
+        description,
+        is_active,
+        created_at
+      FROM approval_workflows
+      WHERE is_active = 1
+      ORDER BY workflow_name
+    `);
+    
+    console.log('✅ Found', result.recordset.length, 'active workflows');
+    res.json({ success: true, data: result.recordset });
+    
+  } catch (error) {
+    console.error('❌ Error getting workflows:', error);
+    res.status(500).json({ error: 'Failed to get workflows', details: error.message });
+  }
+});
+
+// Get workflow approvers
+app.get('/api/workflows/:workflowId/approvers', async (req, res) => {
+  try {
+    const { workflowId } = req.params;
+    console.log('👥 Getting approvers for workflow:', workflowId);
+    
+    const result = await pool.request()
+      .input('workflowId', sql.NVarChar, workflowId)
+      .query(`
+        SELECT 
+          wa.id,
+          wa.user_id,
+          u.FullName as user_name,
+          u.Email as user_email,
+          d.DesignationName as user_designation,
+          wa.step_number,
+          wa.can_approve,
+          wa.can_forward,
+          wa.can_finalize,
+          wa.is_required
+        FROM workflow_approvers wa
+        INNER JOIN AspNetUsers u ON wa.user_id = u.Id
+        LEFT JOIN vw_AspNetUser_with_Reg_App_DEC_ID v ON u.Id = v.Id
+        LEFT JOIN Designations d ON v.DesignationId = d.id
+        WHERE wa.workflow_id = @workflowId
+        ORDER BY wa.step_number, u.FullName
+      `);
+    
+    console.log('✅ Found', result.recordset.length, 'approvers for workflow');
+    res.json({ success: true, data: result.recordset });
+    
+  } catch (error) {
+    console.error('❌ Error getting workflow approvers:', error);
+    res.status(500).json({ error: 'Failed to get workflow approvers', details: error.message });
+  }
+});
+
 // Approve request
 app.post('/api/approvals/:approvalId/approve', async (req, res) => {
   try {
