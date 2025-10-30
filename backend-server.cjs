@@ -10002,7 +10002,7 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
 app.post('/api/approvals/:approvalId/forward', async (req, res) => {
   try {
     const { approvalId } = req.params;
-    const { forwarded_to, comments } = req.body;
+    const { forwarded_to, comments, forwarding_type } = req.body;
     
     // Get userId using the same logic as other endpoints
     let userId = req.query.userId || req.body.userId;
@@ -10027,7 +10027,8 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
       userId = 'DEV-USER-001';
     }
     
-    console.log('🔄 Forward: Processing forward request by user:', userId);
+    const forwardingTypeLabel = forwarding_type === 'action' ? 'Action (Admin)' : 'Approval (Supervisor)';
+    console.log('🔄 Forward: Processing forward request by user:', userId, '| Type:', forwardingTypeLabel);
     
     const request = pool.request();
     
@@ -10045,21 +10046,22 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
     
     // Now add history tracking (schema is fixed!)
     try {
+      const historyComments = `${comments || 'Forwarded'} [${forwardingTypeLabel}]`;
       await request
         .input('userId', sql.NVarChar, userId)
-        .input('comments', sql.NVarChar, comments || 'Forwarded')
+        .input('comments', sql.NVarChar, historyComments)
         .query(`
           INSERT INTO approval_history 
           (request_approval_id, action_type, action_by, forwarded_from, forwarded_to, comments, step_number, is_current_step, action_date)
           VALUES (@approvalId, 'forwarded', @userId, @userId, @forwarded_to, @comments, 1, 1, GETDATE())
         `);
-      console.log('📝 Forward: History recorded successfully');
+      console.log('📝 Forward: History recorded successfully with type:', forwardingTypeLabel);
     } catch (historyError) {
       console.warn('⚠️ Forward: Could not record history:', historyError.message);
       // Don't fail the main operation if history fails
     }
     
-    res.json({ success: true, message: 'Request forwarded successfully' });
+    res.json({ success: true, message: `Request forwarded successfully for ${forwardingTypeLabel}` });
   } catch (error) {
     console.error('Error forwarding request:', error);
     res.status(500).json({ error: 'Failed to forward request', details: error.message });

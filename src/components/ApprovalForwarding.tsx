@@ -35,6 +35,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
   // Form state
   const [selectedForwarder, setSelectedForwarder] = useState('');
   const [comments, setComments] = useState('');
+  const [forwardingType, setForwardingType] = useState<'approval' | 'action'>('approval');
   const [showActionPanel, setShowActionPanel] = useState(false);
 
   // Helper functions for timeline display
@@ -153,7 +154,8 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       const action: ApprovalAction = {
         action_type: actionType,
         comments: comments || undefined,
-        forwarded_to: actionType === 'forwarded' ? selectedForwarder : undefined
+        forwarded_to: actionType === 'forwarded' ? selectedForwarder : undefined,
+        forwarding_type: actionType === 'forwarded' ? forwardingType : undefined
       };
 
       let result: RequestApproval;
@@ -326,6 +328,44 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Forward To (Optional)
                 </label>
+                
+                {/* Forwarding Type Selection */}
+                <div className="mb-3 p-3 bg-gray-50 rounded-md">
+                  <label className="block text-xs font-medium text-gray-600 mb-2">
+                    Forwarding Type:
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="forwardingType"
+                        value="approval"
+                        checked={forwardingType === 'approval'}
+                        onChange={(e) => setForwardingType(e.target.value as 'approval' | 'action')}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        <span className="font-medium">Approval (Supervisor)</span>
+                        <span className="text-xs text-gray-500 ml-1">- For review & approval</span>
+                      </span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="forwardingType"
+                        value="action"
+                        checked={forwardingType === 'action'}
+                        onChange={(e) => setForwardingType(e.target.value as 'approval' | 'action')}
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        <span className="font-medium">Action (Admin)</span>
+                        <span className="text-xs text-gray-500 ml-1">- For final action</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                
                 <select
                   value={selectedForwarder}
                   onChange={(e) => setSelectedForwarder(e.target.value)}

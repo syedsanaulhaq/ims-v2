@@ -56,6 +56,7 @@ export interface RequestApproval {
 export interface ApprovalAction {
   action_type: 'forwarded' | 'approved' | 'rejected' | 'finalized';
   forwarded_to?: string;
+  forwarding_type?: 'approval' | 'action';
   comments?: string;
   internal_notes?: string;
 }
