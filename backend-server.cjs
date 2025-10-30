@@ -1003,13 +1003,14 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
     const userId = req.session?.userId || requester_user_id; // Use session user or requester
 
     try {
-      // Get supervisor from viw_employee_with_supervisor based on the requester
+      // Get supervisor from viw_employee_with_supervisor by joining with AspNetUsers on CNIC
       const supervisorResult = await pool.request()
-        .input('employee_id', sql.NVarChar, requester_user_id)
+        .input('user_id', sql.NVarChar, requester_user_id)
         .query(`
-          SELECT BossID 
-          FROM viw_employee_with_supervisor 
-          WHERE EmployeeID = @employee_id
+          SELECT v.BossID 
+          FROM AspNetUsers u
+          INNER JOIN viw_employee_with_supervisor v ON u.CNIC = v.CNIC
+          WHERE u.Id = @user_id
         `);
 
       let firstApproverId = null;
