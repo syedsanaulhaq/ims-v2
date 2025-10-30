@@ -542,6 +542,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 const ItemsList: React.FC<{ approvalId: string }> = ({ approvalId }) => {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [itemDecisions, setItemDecisions] = useState<{ [key: string]: { status: 'approved' | 'rejected' | null; comment: string } }>({});
 
   useEffect(() => {
     loadItems();
@@ -615,42 +616,137 @@ const ItemsList: React.FC<{ approvalId: string }> = ({ approvalId }) => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Comment
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {items.map((item, index) => (
-                <tr key={item.item_id || index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {item.nomenclature}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {item.item_description || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {item.requested_quantity}
-                    {item.approved_quantity && (
-                      <span className="text-green-600 ml-1">
-                        (Approved: {item.approved_quantity})
+              {items.map((item, index) => {
+                const itemKey = item.item_id || index;
+                const decision = itemDecisions[itemKey] || { status: null, comment: '' };
+                
+                return (
+                  <tr key={itemKey} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {item.nomenclature}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {item.item_description || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {item.requested_quantity}
+                      {item.approved_quantity && (
+                        <span className="text-green-600 ml-1">
+                          (Approved: {item.approved_quantity})
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      {item.unit || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        decision.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        decision.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        item.item_status === 'approved' ? 'bg-green-100 text-green-800' :
+                        item.item_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        item.item_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {decision.status ? decision.status.charAt(0).toUpperCase() + decision.status.slice(1) : (item.item_status || 'Pending')}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {item.unit || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      item.item_status === 'approved' ? 'bg-green-100 text-green-800' :
-                      item.item_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      item.item_status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {item.item_status || 'Pending'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <input
+                        type="text"
+                        placeholder="Add comment..."
+                        value={decision.comment}
+                        onChange={(e) => {
+                          setItemDecisions(prev => ({
+                            ...prev,
+                            [itemKey]: { ...prev[itemKey], status: prev[itemKey]?.status || null, comment: e.target.value }
+                          }));
+                        }}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setItemDecisions(prev => ({
+                              ...prev,
+                              [itemKey]: { ...prev[itemKey], status: 'approved', comment: prev[itemKey]?.comment || '' }
+                            }));
+                          }}
+                          disabled={decision.status === 'approved'}
+                          className={`px-3 py-1 rounded text-xs font-medium ${
+                            decision.status === 'approved'
+                              ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                        >
+                          ✓ Accept
+                        </button>
+                        <button
+                          onClick={() => {
+                            setItemDecisions(prev => ({
+                              ...prev,
+                              [itemKey]: { ...prev[itemKey], status: 'rejected', comment: prev[itemKey]?.comment || '' }
+                            }));
+                          }}
+                          disabled={decision.status === 'rejected'}
+                          className={`px-3 py-1 rounded text-xs font-medium ${
+                            decision.status === 'rejected'
+                              ? 'bg-red-100 text-red-800 cursor-not-allowed'
+                              : 'bg-red-600 text-white hover:bg-red-700'
+                          }`}
+                        >
+                          ✗ Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+      )}
+      
+      {/* Item Decisions Summary */}
+      {Object.keys(itemDecisions).length > 0 && (
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h4 className="text-sm font-semibold text-gray-900 mb-3">Item Decisions Summary</h4>
+          <div className="space-y-2 text-sm">
+            {Object.entries(itemDecisions).map(([itemKey, decision]) => {
+              const item = items.find(i => (i.item_id || items.indexOf(i).toString()) === itemKey);
+              if (!item || !decision.status) return null;
+              
+              return (
+                <div key={itemKey} className="flex items-center justify-between py-2 border-b border-blue-100 last:border-0">
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-900">{item.nomenclature}</span>
+                    {decision.comment && (
+                      <span className="ml-2 text-gray-600">- {decision.comment}</span>
+                    )}
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                    decision.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {decision.status === 'approved' ? '✓ Accepted' : '✗ Rejected'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 text-xs text-gray-600">
+            Note: These item-level decisions will be saved when you take action on the overall request below.
+          </div>
         </div>
       )}
     </div>
