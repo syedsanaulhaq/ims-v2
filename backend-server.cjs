@@ -9921,19 +9921,20 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
     const { approvalId } = req.params;
     const request = pool.request();
     
-    // Get workflow from approval
+    // Get workflow and current approver from approval
     const approvalResult = await request
       .input('approvalId', sql.NVarChar, approvalId)
-      .query('SELECT workflow_id FROM request_approvals WHERE id = @approvalId');
+      .query('SELECT workflow_id, current_approver_id FROM request_approvals WHERE id = @approvalId');
     
     if (approvalResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Approval not found' });
     }
     
     const workflowId = approvalResult.recordset[0].workflow_id;
+    const currentApproverId = approvalResult.recordset[0].current_approver_id;
     
-    // Get available forwarders
-    const result = await request
+    // Get available forwarders from workflow_approvers
+    const workflowResult = await request
       .input('workflowId', sql.UniqueIdentifier, workflowId)
       .query(`
         SELECT 
@@ -9952,7 +9953,39 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
         ORDER BY u.FullName
       `);
     
-    res.json({ success: true, data: result.recordset });
+    let forwarders = workflowResult.recordset;
+    
+    // If current approver is not in workflow_approvers (hierarchy-based approval), add them with full permissions
+    const currentApproverInList = forwarders.find(f => f.user_id === currentApproverId);
+    if (!currentApproverInList && currentApproverId) {
+      const currentApproverResult = await pool.request()
+        .input('userId', sql.NVarChar, currentApproverId)
+        .query(`
+          SELECT 
+            Id as user_id,
+            FullName as user_name,
+            Role as user_designation
+          FROM AspNetUsers
+          WHERE Id = @userId
+        `);
+      
+      if (currentApproverResult.recordset.length > 0) {
+        const currentApprover = currentApproverResult.recordset[0];
+        forwarders.unshift({
+          id: 'hierarchy-approver',
+          user_id: currentApprover.user_id,
+          user_name: currentApprover.user_name,
+          user_designation: currentApprover.user_designation,
+          can_approve: true,
+          can_forward: true,
+          can_finalize: false,
+          approver_role: 'Supervisor (Hierarchy)'
+        });
+        console.log('✅ Added hierarchy-based current approver to forwarders list:', currentApprover.user_name);
+      }
+    }
+    
+    res.json({ success: true, data: forwarders });
   } catch (error) {
     console.error('Error fetching available forwarders:', error);
     res.status(500).json({ error: 'Failed to fetch available forwarders', details: error.message });
