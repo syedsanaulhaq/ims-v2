@@ -9680,13 +9680,13 @@ app.get('/api/approval-items/:approvalId', async (req, res) => {
             WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
             ELSE ISNULL(im.nomenclature, 'Unknown Item')
           END as nomenclature,
-          si_items.quantity as requested_quantity,
-          si_items.quantity as approved_quantity,
+          si_items.requested_quantity as requested_quantity,
+          si_items.requested_quantity as approved_quantity,
           0 as issued_quantity,
           'pending' as item_status,
           CASE 
             WHEN si_items.item_type = 'custom' THEN 'CUSTOM'
-            ELSE ISNULL(im.code, '')
+            ELSE ISNULL(im.item_code, '')
           END as item_code,
           CASE 
             WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
