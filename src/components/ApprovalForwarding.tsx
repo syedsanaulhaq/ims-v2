@@ -276,7 +276,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
           {approval.current_status === 'pending' && (
             <>
               <div>
-                <span className="font-medium text-gray-700">Current Approver:</span>
+                <span className="font-medium text-gray-700">Selected Approver:</span>
                 <div className="text-gray-900">{approval.current_approver_name}</div>
               </div>
             </>
