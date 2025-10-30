@@ -36,6 +36,9 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
   const [selectedForwarder, setSelectedForwarder] = useState('');
   const [comments, setComments] = useState('');
   const [forwardingType, setForwardingType] = useState<'approval' | 'action'>('approval');
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState('');
+  const [workflowUsers, setWorkflowUsers] = useState<any[]>([]);
   const [showActionPanel, setShowActionPanel] = useState(false);
 
   // Helper functions for timeline display
@@ -87,7 +90,32 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
   useEffect(() => {
     loadApprovalData();
+    loadWorkflows();
   }, [approvalId]);
+
+  const loadWorkflows = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/workflows');
+      const data = await response.json();
+      if (data.success) {
+        setWorkflows(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading workflows:', error);
+    }
+  };
+
+  const loadWorkflowUsers = async (workflowId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/workflows/${workflowId}/approvers`);
+      const data = await response.json();
+      if (data.success) {
+        setWorkflowUsers(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading workflow users:', error);
+    }
+  };
 
   const loadApprovalData = async () => {
     try {
@@ -151,10 +179,38 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
     try {
       setActionLoading(true);
       
+      // For approval type forwarding, we need to get the requester's supervisor
+      let forwardToUserId = selectedForwarder;
+      
+      if (actionType === 'forwarded' && forwardingType === 'approval') {
+        // Get requester's supervisor from backend
+        try {
+          const response = await fetch(`http://localhost:3001/api/requests/${approval.request_id}/requester-supervisor`);
+          const data = await response.json();
+          if (data.success && data.supervisor_id) {
+            forwardToUserId = data.supervisor_id;
+            console.log('🔄 Auto-forwarding to supervisor:', forwardToUserId);
+          } else {
+            alert('Could not find supervisor for this request. Please select Action (Admin) forwarding instead.');
+            return;
+          }
+        } catch (error) {
+          console.error('Error getting supervisor:', error);
+          alert('Error finding supervisor. Please try again.');
+          return;
+        }
+      } else if (actionType === 'forwarded' && forwardingType === 'action') {
+        // For action type, user must select from workflow
+        if (!selectedForwarder) {
+          alert('Please select a workflow and user to forward to');
+          return;
+        }
+      }
+      
       const action: ApprovalAction = {
         action_type: actionType,
         comments: comments || undefined,
-        forwarded_to: actionType === 'forwarded' ? selectedForwarder : undefined,
+        forwarded_to: actionType === 'forwarded' ? forwardToUserId : undefined,
         forwarding_type: actionType === 'forwarded' ? forwardingType : undefined
       };
 
@@ -326,7 +382,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
               {/* Forward To */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Forward To (Optional)
+                  Forward To
                 </label>
                 
                 {/* Forwarding Type Selection */}
@@ -341,12 +397,17 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                         name="forwardingType"
                         value="approval"
                         checked={forwardingType === 'approval'}
-                        onChange={(e) => setForwardingType(e.target.value as 'approval' | 'action')}
+                        onChange={(e) => {
+                          setForwardingType(e.target.value as 'approval' | 'action');
+                          setSelectedForwarder('');
+                          setSelectedWorkflow('');
+                          setWorkflowUsers([]);
+                        }}
                         className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
                       />
                       <span className="text-sm text-gray-700">
                         <span className="font-medium">Approval (Supervisor)</span>
-                        <span className="text-xs text-gray-500 ml-1">- For review & approval</span>
+                        <span className="text-xs text-gray-500 ml-1">- Auto-forward to supervisor</span>
                       </span>
                     </label>
                     <label className="flex items-center cursor-pointer">
@@ -355,29 +416,80 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                         name="forwardingType"
                         value="action"
                         checked={forwardingType === 'action'}
-                        onChange={(e) => setForwardingType(e.target.value as 'approval' | 'action')}
+                        onChange={(e) => {
+                          setForwardingType(e.target.value as 'approval' | 'action');
+                          setSelectedForwarder('');
+                          setSelectedWorkflow('');
+                          setWorkflowUsers([]);
+                        }}
                         className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
                       />
                       <span className="text-sm text-gray-700">
                         <span className="font-medium">Action (Admin)</span>
-                        <span className="text-xs text-gray-500 ml-1">- For final action</span>
+                        <span className="text-xs text-gray-500 ml-1">- Forward via workflow</span>
                       </span>
                     </label>
                   </div>
                 </div>
                 
-                <select
-                  value={selectedForwarder}
-                  onChange={(e) => setSelectedForwarder(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select a person to forward to...</option>
-                  {availableForwarders.map((forwarder) => (
-                    <option key={forwarder.user_id} value={forwarder.user_id}>
-                      {forwarder.user_name} - {forwarder.user_designation}
-                    </option>
-                  ))}
-                </select>
+                {/* Show different UI based on forwarding type */}
+                {forwardingType === 'approval' ? (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-medium">Auto-forwarding enabled:</span> Request will be automatically sent to the requester's supervisor for approval.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Workflow Selection */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Select Workflow:
+                      </label>
+                      <select
+                        value={selectedWorkflow}
+                        onChange={(e) => {
+                          setSelectedWorkflow(e.target.value);
+                          setSelectedForwarder('');
+                          if (e.target.value) {
+                            loadWorkflowUsers(e.target.value);
+                          } else {
+                            setWorkflowUsers([]);
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select a workflow...</option>
+                        {workflows.map((workflow) => (
+                          <option key={workflow.id} value={workflow.id}>
+                            {workflow.workflow_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* User Selection */}
+                    {selectedWorkflow && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Select User from Workflow:
+                        </label>
+                        <select
+                          value={selectedForwarder}
+                          onChange={(e) => setSelectedForwarder(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select a user...</option>
+                          {workflowUsers.map((user) => (
+                            <option key={user.user_id} value={user.user_id}>
+                              {user.user_name} - {user.user_designation || 'No designation'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Current User Info */}
@@ -403,7 +515,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                 {userPermissions.canForward && (
                   <button
                     onClick={() => handleAction('forwarded')}
-                    disabled={actionLoading || !selectedForwarder}
+                    disabled={actionLoading || (forwardingType === 'action' && !selectedForwarder)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     {actionLoading ? 'Processing...' : 'Forward'}

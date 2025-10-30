@@ -10068,6 +10068,69 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
   }
 });
 
+// Get requester's supervisor for approval forwarding
+app.get('/api/requests/:requestId/requester-supervisor', async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    console.log('🔍 Getting supervisor for request:', requestId);
+    
+    const request = pool.request();
+    
+    // Get the requester's user ID from stock_issuance_requests
+    const requestResult = await request
+      .input('requestId', sql.NVarChar, requestId)
+      .query(`
+        SELECT requester_user_id 
+        FROM stock_issuance_requests 
+        WHERE id = @requestId
+      `);
+    
+    if (requestResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    
+    const requesterUserId = requestResult.recordset[0].requester_user_id;
+    console.log('👤 Requester user ID:', requesterUserId);
+    
+    // Look up supervisor using the same hierarchy logic as request creation
+    // AspNetUsers.Id → EmployeeID → BossID → Boss's AspNetUsers.Id
+    const supervisorResult = await pool.request()
+      .input('requesterUserId', sql.NVarChar, requesterUserId)
+      .query(`
+        SELECT 
+          boss_user.Id as supervisor_id,
+          boss_user.FullName as supervisor_name,
+          boss_user.Email as supervisor_email
+        FROM vw_AspNetUser_with_Reg_App_DEC_ID emp_user
+        INNER JOIN LEAVE_APPROVAL_HIERARCHY h ON emp_user.EmployeeID = h.EmployeeID
+        INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_user ON h.BossID = boss_user.EmployeeID
+        WHERE emp_user.Id = @requesterUserId
+      `);
+    
+    if (supervisorResult.recordset.length === 0) {
+      console.warn('⚠️ No supervisor found in hierarchy for requester:', requesterUserId);
+      return res.json({ 
+        success: false, 
+        message: 'No supervisor found for this requester' 
+      });
+    }
+    
+    const supervisor = supervisorResult.recordset[0];
+    console.log('✅ Found supervisor:', supervisor.supervisor_name, '(', supervisor.supervisor_id, ')');
+    
+    res.json({ 
+      success: true, 
+      supervisor_id: supervisor.supervisor_id,
+      supervisor_name: supervisor.supervisor_name,
+      supervisor_email: supervisor.supervisor_email
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting requester supervisor:', error);
+    res.status(500).json({ error: 'Failed to get supervisor', details: error.message });
+  }
+});
+
 // Approve request
 app.post('/api/approvals/:approvalId/approve', async (req, res) => {
   try {
