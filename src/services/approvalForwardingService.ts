@@ -238,6 +238,50 @@ class ApprovalForwardingService {
       throw error;
     }
   }
+
+  async getMyApprovalsByStatus(userId?: string, status?: string): Promise<RequestApproval[]> {
+    try {
+      // Use provided userId first, then session user, then let backend handle
+      let url = `${API_BASE_URL}/approvals/my-approvals`;
+      const params = new URLSearchParams();
+      
+      if (userId) {
+        params.append('userId', userId);
+        console.log('📋 Using provided user ID for approvals:', userId);
+      } else {
+        // Get current user from session as fallback
+        const currentUser = sessionService.getCurrentUser();
+        if (currentUser?.user_id) {
+          params.append('userId', currentUser.user_id);
+          console.log('📋 Using session user ID for approvals:', currentUser.user_id);
+        } else {
+          console.warn('⚠️ No user ID provided, using backend auto-detection');
+        }
+      }
+      
+      if (status) {
+        params.append('status', status);
+        console.log('🔍 Filtering by status:', status);
+      }
+      
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch approvals');
+      }
+      
+      return data.data || [];
+    } catch (error) {
+      console.error('Error fetching approvals by status:', error);
+      throw error;
+    }
+  }
   
   async getApprovalDetails(approvalId: string): Promise<RequestApproval> {
     try {

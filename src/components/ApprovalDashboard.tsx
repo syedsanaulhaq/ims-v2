@@ -15,32 +15,33 @@ export const ApprovalDashboard: React.FC = () => {
     pending_count: 0,
     approved_count: 0,
     rejected_count: 0,
-    finalized_count: 0
+    forwarded_count: 0
   });
   const [loading, setLoading] = useState(true);
   const [selectedApproval, setSelectedApproval] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<'pending' | 'approved' | 'rejected' | 'forwarded'>('pending');
 
   useEffect(() => {
     console.log('🔍 ApprovalDashboard: Current user from auth context:', user);
     loadDashboardData();
-  }, [refreshTrigger, user]); // Also reload when user changes
+  }, [refreshTrigger, user, activeFilter]); // Reload when filter changes
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       
-      // Pass the current user's ID to get their pending approvals
+      // Pass the current user's ID to get their approvals
       const userId = user?.Id;
-      console.log('🔍 Loading dashboard for user:', user?.FullName, '(', userId, ')');
+      console.log('🔍 Loading dashboard for user:', user?.FullName, '(', userId, ') with filter:', activeFilter);
       
-      const [pendingData, dashboardData] = await Promise.all([
-        approvalForwardingService.getMyPendingApprovals(userId),
+      const [approvalsData, dashboardData] = await Promise.all([
+        approvalForwardingService.getMyApprovalsByStatus(userId, activeFilter),
         approvalForwardingService.getApprovalDashboard(userId)
       ]);
       
-      console.log('📋 Pending approvals loaded:', pendingData.length);
-      setPendingApprovals(pendingData);
+      console.log('📋 Approvals loaded:', approvalsData.length, 'for status:', activeFilter);
+      setPendingApprovals(approvalsData);
       setDashboardStats(dashboardData);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -117,46 +118,78 @@ export const ApprovalDashboard: React.FC = () => {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 border border-gray-200 rounded-lg">
+        <button
+          onClick={() => setActiveFilter('pending')}
+          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
+            activeFilter === 'pending' ? 'border-yellow-600 shadow-md' : 'border-gray-200'
+          }`}
+        >
           <div className="text-2xl font-bold text-yellow-600">
             {dashboardStats.pending_count}
           </div>
           <div className="text-sm text-gray-600">Pending Approvals</div>
-        </div>
+          {activeFilter === 'pending' && (
+            <div className="mt-2 text-xs text-yellow-600 font-medium">● Active</div>
+          )}
+        </button>
         
-        <div className="bg-white p-6 border border-gray-200 rounded-lg">
+        <button
+          onClick={() => setActiveFilter('approved')}
+          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
+            activeFilter === 'approved' ? 'border-green-600 shadow-md' : 'border-gray-200'
+          }`}
+        >
           <div className="text-2xl font-bold text-green-600">
             {dashboardStats.approved_count}
           </div>
           <div className="text-sm text-gray-600">Approved</div>
-        </div>
+          {activeFilter === 'approved' && (
+            <div className="mt-2 text-xs text-green-600 font-medium">● Active</div>
+          )}
+        </button>
         
-        <div className="bg-white p-6 border border-gray-200 rounded-lg">
+        <button
+          onClick={() => setActiveFilter('rejected')}
+          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
+            activeFilter === 'rejected' ? 'border-red-600 shadow-md' : 'border-gray-200'
+          }`}
+        >
           <div className="text-2xl font-bold text-red-600">
             {dashboardStats.rejected_count}
           </div>
           <div className="text-sm text-gray-600">Rejected</div>
-        </div>
+          {activeFilter === 'rejected' && (
+            <div className="mt-2 text-xs text-red-600 font-medium">● Active</div>
+          )}
+        </button>
         
-        <div className="bg-white p-6 border border-gray-200 rounded-lg">
+        <button
+          onClick={() => setActiveFilter('forwarded')}
+          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
+            activeFilter === 'forwarded' ? 'border-blue-600 shadow-md' : 'border-gray-200'
+          }`}
+        >
           <div className="text-2xl font-bold text-blue-600">
-            {dashboardStats.finalized_count}
+            {dashboardStats.forwarded_count}
           </div>
-          <div className="text-sm text-gray-600">Finalized</div>
-        </div>
+          <div className="text-sm text-gray-600">Forwarded</div>
+          {activeFilter === 'forwarded' && (
+            <div className="mt-2 text-xs text-blue-600 font-medium">● Active</div>
+          )}
+        </button>
       </div>
 
-      {/* Pending Approvals */}
+      {/* Filtered Approvals */}
       <div className="bg-white border border-gray-200 rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
-            My Pending Approvals ({pendingApprovals.length})
+            {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Requests ({pendingApprovals.length})
           </h2>
         </div>
         
         {pendingApprovals.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            No pending approvals
+            No {activeFilter} requests
           </div>
         ) : (
           <div className="divide-y divide-gray-200">

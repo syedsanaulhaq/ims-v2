@@ -9651,6 +9651,82 @@ app.get('/api/approvals/my-pending', async (req, res) => {
   }
 });
 
+// Get all my approvals filtered by status
+app.get('/api/approvals/my-approvals', async (req, res) => {
+  try {
+    // Get userId and status from query parameters
+    let userId = req.query.userId;
+    const status = req.query.status || 'pending'; // default to pending
+    
+    if (!userId) {
+      // Try to get from session first
+      if (req.session && req.session.userId) {
+        userId = req.session.userId;
+        console.log('🔍 Backend: Using session user:', userId);
+      } else {
+        // For development, try to get the Simple Test User as fallback
+        try {
+          const userResult = await pool.request().query(`
+            SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
+          `);
+          if (userResult.recordset.length > 0) {
+            userId = userResult.recordset[0].Id;
+            console.log('🔍 Backend: Auto-detected Simple Test User as fallback:', userId);
+          }
+        } catch (error) {
+          console.log('⚠️ Backend: Could not auto-detect user, using fallback');
+        }
+      }
+    }
+    
+    // Final fallback
+    if (!userId) {
+      userId = 'DEV-USER-001';
+    }
+    
+    console.log('🔍 Backend: Fetching', status, 'approvals for user:', userId);
+    
+    const request = pool.request();
+    
+    // Build query based on status
+    let query = `
+      SELECT 
+        ra.id,
+        ra.request_id,
+        ra.request_type,
+        ra.current_status,
+        ra.submitted_date,
+        ra.current_approver_id,
+        submitter.FullName as submitted_by_name,
+        wf.workflow_name
+      FROM request_approvals ra
+      LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+      LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
+      WHERE ra.current_approver_id = @userId 
+    `;
+    
+    // Add status filter
+    if (status === 'forwarded') {
+      query += ` AND ra.current_status = 'forwarded'`;
+    } else {
+      query += ` AND ra.current_status = @status`;
+    }
+    
+    query += ` ORDER BY ra.submitted_date DESC`;
+    
+    const result = await request
+      .input('userId', sql.NVarChar, userId)
+      .input('status', sql.NVarChar, status)
+      .query(query);
+    
+    console.log('📋 Backend: Found', result.recordset.length, status, 'approvals for user:', userId);
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('❌ Backend: Error fetching approvals by status:', error);
+    res.status(500).json({ error: 'Failed to fetch approvals', details: error.message });
+  }
+});
+
 // Get stock issuance items for approval
 app.get('/api/approval-items/:approvalId', async (req, res) => {
   try {
@@ -9797,7 +9873,7 @@ app.get('/api/approvals/dashboard', async (req, res) => {
           COUNT(CASE WHEN current_status = 'pending' THEN 1 END) as pending_count,
           COUNT(CASE WHEN current_status = 'approved' THEN 1 END) as approved_count,
           COUNT(CASE WHEN current_status = 'rejected' THEN 1 END) as rejected_count,
-          COUNT(CASE WHEN current_status = 'finalized' THEN 1 END) as finalized_count
+          COUNT(CASE WHEN current_status = 'forwarded' THEN 1 END) as forwarded_count
         FROM request_approvals ra
         JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
         WHERE wa.user_id = @userId
