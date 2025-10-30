@@ -1003,36 +1003,42 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
     const userId = req.session?.userId || requester_user_id; // Use session user or requester
 
     try {
-      // Get supervisor by mapping through the employee hierarchy
-      // 1. Get employee's EmployeeID from vw_AspNetUser_with_Reg_App_DEC_ID using AspNetUsers.Id
-      // 2. Get BossID from LEAVE_APPROVAL_HIERARCHY using EmployeeID
-      // 3. Get boss's AspNetUsers.Id using BossID (which is boss's EmployeeID)
-      console.log('🔍 Looking up supervisor for requester_user_id:', requester_user_id);
-      const supervisorResult = await pool.request()
-        .input('user_id', sql.NVarChar, requester_user_id)
-        .query(`
-          SELECT 
-            boss_view.Id as BossAspNetUsersId, 
-            boss_view.FullName as BossName,
-            emp_view.FullName as EmployeeName,
-            emp_view.EmployeeID as EmpEmployeeID,
-            hierarchy.BossID as BossEmployeeID
-          FROM vw_AspNetUser_with_Reg_App_DEC_ID emp_view
-          INNER JOIN LEAVE_APPROVAL_HIERARCHY hierarchy ON emp_view.EmployeeID = hierarchy.EmployeeID
-          INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_view ON hierarchy.BossID = boss_view.EmployeeID
-          WHERE emp_view.Id = @user_id
-        `);
-
-      console.log('🔍 Supervisor lookup result:', supervisorResult.recordset);
       let firstApproverId = null;
       
-      if (supervisorResult.recordset.length > 0 && supervisorResult.recordset[0].BossAspNetUsersId) {
-        // Found supervisor in hierarchy
-        firstApproverId = supervisorResult.recordset[0].BossAspNetUsersId;
-        console.log('👤 Auto-assigning stock issuance to supervisor:', supervisorResult.recordset[0].BossName, '(', firstApproverId, ')');
+      // For Individual requests: Use hierarchy-based supervisor lookup
+      // For Organizer/Department requests: Use workflow_approvers directly
+      if (request_type === 'Individual' && requester_user_id) {
+        console.log('🔍 Individual request - Looking up supervisor for requester_user_id:', requester_user_id);
+        const supervisorResult = await pool.request()
+          .input('user_id', sql.NVarChar, requester_user_id)
+          .query(`
+            SELECT 
+              boss_view.Id as BossAspNetUsersId, 
+              boss_view.FullName as BossName,
+              emp_view.FullName as EmployeeName,
+              emp_view.EmployeeID as EmpEmployeeID,
+              hierarchy.BossID as BossEmployeeID
+            FROM vw_AspNetUser_with_Reg_App_DEC_ID emp_view
+            INNER JOIN LEAVE_APPROVAL_HIERARCHY hierarchy ON emp_view.EmployeeID = hierarchy.EmployeeID
+            INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_view ON hierarchy.BossID = boss_view.EmployeeID
+            WHERE emp_view.Id = @user_id
+          `);
+
+        console.log('🔍 Supervisor lookup result:', supervisorResult.recordset);
+        
+        if (supervisorResult.recordset.length > 0 && supervisorResult.recordset[0].BossAspNetUsersId) {
+          // Found supervisor in hierarchy
+          firstApproverId = supervisorResult.recordset[0].BossAspNetUsersId;
+          console.log('👤 Auto-assigning to supervisor from hierarchy:', supervisorResult.recordset[0].BossName, '(', firstApproverId, ')');
+        } else {
+          console.log('⚠️ No supervisor found in hierarchy for Individual request, falling back to workflow approvers');
+        }
       } else {
-        // Fallback to workflow approvers if no supervisor found
-        console.log('⚠️ No supervisor found in viw_employee_with_supervisor, falling back to workflow approvers');
+        console.log('🏢 Organizer/Department request - Using workflow approvers directly');
+      }
+      
+      // If no approver found yet (Organizer/Department OR Individual without supervisor), use workflow_approvers
+      if (!firstApproverId) {
         const workflowResult = await pool.request()
           .input('workflow_id', sql.UniqueIdentifier, workflowId)
           .query(`
@@ -1044,7 +1050,7 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
         
         if (workflowResult.recordset.length > 0) {
           firstApproverId = workflowResult.recordset[0].user_id;
-          console.log('👤 Auto-assigning stock issuance to workflow approver:', firstApproverId);
+          console.log('👤 Auto-assigning to workflow approver:', firstApproverId);
         }
       }
 
