@@ -552,46 +552,23 @@ const ItemsList: React.FC<{ approvalId: string }> = ({ approvalId }) => {
       setLoading(true);
       console.log('🔍 Loading items for approval:', approvalId);
       
-      // Temporary mapping based on actual database data until backend endpoint is fixed
-      // This ensures each approval shows the correct items
-      const itemMapping: { [key: string]: any[] } = {
-        '629DC315-5E01-492B-AD60-7D564E988B0C': [
-          { nomenclature: 'Markers', requested_quantity: 1 },
-          { nomenclature: 'Pens', requested_quantity: 1 }
-        ],
-        'E9983D9B-A16D-470F-962D-E7E8AF20CD96': [
-          { nomenclature: 'Laptop', requested_quantity: 1 }
-        ],
-        '324165D2-E71D-4EF9-B3C6-338E66F739ED': [
-          { nomenclature: 'Pens', requested_quantity: 1 },
-          { nomenclature: 'Laptops', requested_quantity: 1 }
-        ],
-        '0E701FF7-37EA-4F94-AEC1-35C806A5EFE3': [
-          { nomenclature: 'Laptops', requested_quantity: 1 }
-        ],
-        '361D3D24-BF66-4B81-A27C-34CDB55A7256': [
-          { nomenclature: 'Desktop', requested_quantity: 1 },
-          { nomenclature: 'Laptop', requested_quantity: 1 }
-        ]
-      };
+      // Fetch items from the backend API
+      const response = await fetch(`http://localhost:3001/api/approval-items/${approvalId}`);
       
-      const approvalItems = itemMapping[approvalId] || [
-        { nomenclature: 'Unknown Item', requested_quantity: 1 }
-      ];
+      if (!response.ok) {
+        throw new Error(`Failed to fetch items: ${response.statusText}`);
+      }
       
-      console.log('📋 Loading items for approval', approvalId, '- Found', approvalItems.length, 'items');
+      const data = await response.json();
+      console.log('📋 API Response:', data);
       
-      setItems(approvalItems.map((item: any, index: number) => ({
-        item_id: `item-${approvalId}-${index}`,
-        nomenclature: item.nomenclature,
-        requested_quantity: item.requested_quantity,
-        approved_quantity: null,
-        issued_quantity: null,
-        item_status: 'pending',
-        item_code: null,
-        item_description: item.nomenclature,
-        unit: 'Piece'
-      })));
+      if (data.success && data.data && data.data.length > 0) {
+        console.log('✅ Loaded', data.data.length, 'items from API');
+        setItems(data.data);
+      } else {
+        console.warn('⚠️ No items found in API response');
+        setItems([]);
+      }
       
     } catch (error) {
       console.error('❌ Error loading items:', error);
