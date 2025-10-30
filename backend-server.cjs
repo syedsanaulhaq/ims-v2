@@ -10131,6 +10131,52 @@ app.get('/api/requests/:requestId/requester-supervisor', async (req, res) => {
   }
 });
 
+// Get logged-in user's supervisor for approval forwarding
+app.get('/api/user/:userId/supervisor', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log('🔍 Getting supervisor for logged-in user:', userId);
+    
+    // Look up supervisor using hierarchy
+    // AspNetUsers.Id → EmployeeID → BossID → Boss's AspNetUsers.Id
+    const supervisorResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          boss_user.Id as supervisor_id,
+          boss_user.FullName as supervisor_name,
+          boss_user.Email as supervisor_email,
+          emp_user.FullName as employee_name
+        FROM vw_AspNetUser_with_Reg_App_DEC_ID emp_user
+        INNER JOIN LEAVE_APPROVAL_HIERARCHY h ON emp_user.EmployeeID = h.EmployeeID
+        INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_user ON h.BossID = boss_user.EmployeeID
+        WHERE emp_user.Id = @userId
+      `);
+    
+    if (supervisorResult.recordset.length === 0) {
+      console.warn('⚠️ No supervisor found in hierarchy for user:', userId);
+      return res.json({ 
+        success: false, 
+        message: 'No supervisor found for this user' 
+      });
+    }
+    
+    const supervisor = supervisorResult.recordset[0];
+    console.log('✅ Found supervisor for', supervisor.employee_name, ':', supervisor.supervisor_name, '(', supervisor.supervisor_id, ')');
+    
+    res.json({ 
+      success: true, 
+      supervisor_id: supervisor.supervisor_id,
+      supervisor_name: supervisor.supervisor_name,
+      supervisor_email: supervisor.supervisor_email
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting user supervisor:', error);
+    res.status(500).json({ error: 'Failed to get supervisor', details: error.message });
+  }
+});
+
 // Approve request
 app.post('/api/approvals/:approvalId/approve', async (req, res) => {
   try {

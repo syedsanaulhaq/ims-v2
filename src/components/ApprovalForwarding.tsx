@@ -183,15 +183,15 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       let forwardToUserId = selectedForwarder;
       
       if (actionType === 'forwarded' && forwardingType === 'approval') {
-        // Get requester's supervisor from backend
+        // Get currently logged-in user's supervisor from backend
         try {
-          const response = await fetch(`http://localhost:3001/api/requests/${approval.request_id}/requester-supervisor`);
+          const response = await fetch(`http://localhost:3001/api/user/${currentUser.user_id}/supervisor`);
           const data = await response.json();
           if (data.success && data.supervisor_id) {
             forwardToUserId = data.supervisor_id;
-            console.log('🔄 Auto-forwarding to supervisor:', forwardToUserId);
+            console.log('🔄 Auto-forwarding to logged-in user supervisor:', forwardToUserId, data.supervisor_name);
           } else {
-            alert('Could not find supervisor for this request. Please select Action (Admin) forwarding instead.');
+            alert('Could not find your supervisor. Please select Action (Admin) forwarding instead.');
             return;
           }
         } catch (error) {
@@ -436,7 +436,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                 {forwardingType === 'approval' ? (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                     <p className="text-sm text-blue-800">
-                      <span className="font-medium">Auto-forwarding enabled:</span> Request will be automatically sent to the requester's supervisor for approval.
+                      <span className="font-medium">Auto-forwarding enabled:</span> Request will be automatically sent to your supervisor for approval.
                     </p>
                   </div>
                 ) : (
