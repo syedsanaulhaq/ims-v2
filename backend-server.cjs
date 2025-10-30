@@ -1004,21 +1004,23 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
 
     try {
       // Get supervisor from viw_employee_with_supervisor by joining with AspNetUsers on CNIC
+      console.log('🔍 Looking up supervisor for requester_user_id:', requester_user_id);
       const supervisorResult = await pool.request()
         .input('user_id', sql.NVarChar, requester_user_id)
         .query(`
-          SELECT v.BossID 
+          SELECT v.BossID, v.BossName, u.FullName as EmployeeName, u.CNIC
           FROM AspNetUsers u
           INNER JOIN viw_employee_with_supervisor v ON u.CNIC = v.CNIC
           WHERE u.Id = @user_id
         `);
 
+      console.log('🔍 Supervisor lookup result:', supervisorResult.recordset);
       let firstApproverId = null;
       
       if (supervisorResult.recordset.length > 0 && supervisorResult.recordset[0].BossID) {
         // Found supervisor in hierarchy
         firstApproverId = supervisorResult.recordset[0].BossID;
-        console.log('👤 Auto-assigning stock issuance to supervisor from viw_employee_with_supervisor:', firstApproverId);
+        console.log('👤 Auto-assigning stock issuance to supervisor:', supervisorResult.recordset[0].BossName, '(', firstApproverId, ')');
       } else {
         // Fallback to workflow approvers if no supervisor found
         console.log('⚠️ No supervisor found in viw_employee_with_supervisor, falling back to workflow approvers');
