@@ -1003,17 +1003,24 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
     const userId = req.session?.userId || requester_user_id; // Use session user or requester
 
     try {
-      // Get supervisor from viw_employee_with_supervisor by joining with AspNetUsers on CNIC
-      // Then convert BossID to AspNetUsers.Id by matching BossCNIC
+      // Get supervisor by mapping through the employee hierarchy
+      // 1. Get employee's EmployeeID from vw_AspNetUser_with_Reg_App_DEC_ID using AspNetUsers.Id
+      // 2. Get BossID from LEAVE_APPROVAL_HIERARCHY using EmployeeID
+      // 3. Get boss's AspNetUsers.Id using BossID (which is boss's EmployeeID)
       console.log('🔍 Looking up supervisor for requester_user_id:', requester_user_id);
       const supervisorResult = await pool.request()
         .input('user_id', sql.NVarChar, requester_user_id)
         .query(`
-          SELECT boss.Id as BossAspNetUsersId, v.BossName, u.FullName as EmployeeName, v.BossCNIC
-          FROM AspNetUsers u
-          INNER JOIN viw_employee_with_supervisor v ON u.CNIC = v.CNIC
-          INNER JOIN AspNetUsers boss ON v.BossCNIC = boss.CNIC
-          WHERE u.Id = @user_id
+          SELECT 
+            boss_view.Id as BossAspNetUsersId, 
+            boss_view.FullName as BossName,
+            emp_view.FullName as EmployeeName,
+            emp_view.EmployeeID as EmpEmployeeID,
+            hierarchy.BossID as BossEmployeeID
+          FROM vw_AspNetUser_with_Reg_App_DEC_ID emp_view
+          INNER JOIN LEAVE_APPROVAL_HIERARCHY hierarchy ON emp_view.EmployeeID = hierarchy.EmployeeID
+          INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_view ON hierarchy.BossID = boss_view.EmployeeID
+          WHERE emp_view.Id = @user_id
         `);
 
       console.log('🔍 Supervisor lookup result:', supervisorResult.recordset);
