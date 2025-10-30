@@ -9688,9 +9688,12 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
     
     const request = pool.request();
     
-    // Build query based on status
+    // Build query to show all requests related to the user:
+    // 1. Where user is current approver (pending)
+    // 2. Where user submitted the request
+    // 3. Where user has acted on the request (from approval_history)
     let query = `
-      SELECT 
+      SELECT DISTINCT
         ra.id,
         ra.request_id,
         ra.request_type,
@@ -9702,7 +9705,12 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
       FROM request_approvals ra
       LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
       LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
-      WHERE ra.current_approver_id = @userId 
+      LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
+      WHERE (
+        ra.current_approver_id = @userId 
+        OR ra.submitted_by = @userId
+        OR ah.action_by = @userId
+      )
     `;
     
     // Add status filter
@@ -9865,18 +9873,22 @@ app.get('/api/approvals/dashboard', async (req, res) => {
     console.log('📊 Dashboard: Fetching dashboard data for user:', userId);
     const request = pool.request();
     
-    // Get counts
+    // Get counts - count all requests related to the user
     const countsResult = await request
       .input('userId', sql.NVarChar, userId)
       .query(`
         SELECT 
-          COUNT(CASE WHEN current_status = 'pending' THEN 1 END) as pending_count,
-          COUNT(CASE WHEN current_status = 'approved' THEN 1 END) as approved_count,
-          COUNT(CASE WHEN current_status = 'rejected' THEN 1 END) as rejected_count,
-          COUNT(CASE WHEN current_status = 'forwarded' THEN 1 END) as forwarded_count
+          COUNT(DISTINCT CASE WHEN ra.current_status = 'pending' THEN ra.id END) as pending_count,
+          COUNT(DISTINCT CASE WHEN ra.current_status = 'approved' THEN ra.id END) as approved_count,
+          COUNT(DISTINCT CASE WHEN ra.current_status = 'rejected' THEN ra.id END) as rejected_count,
+          COUNT(DISTINCT CASE WHEN ra.current_status = 'forwarded' THEN ra.id END) as forwarded_count
         FROM request_approvals ra
-        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
-        WHERE wa.user_id = @userId
+        LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
+        WHERE (
+          ra.current_approver_id = @userId
+          OR ra.submitted_by = @userId
+          OR ah.action_by = @userId
+        )
       `);
     
     // Get pending approvals
