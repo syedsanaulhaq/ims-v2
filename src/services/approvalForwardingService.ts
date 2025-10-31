@@ -337,7 +337,11 @@ class ApprovalForwardingService {
   
   async forwardRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      console.log('🔄 Frontend: Forwarding request using original endpoint');
+      // Get userId from session
+      const currentUser = sessionService.getCurrentUser();
+      const userId = currentUser?.user_id;
+      
+      console.log('🔄 Frontend: Forwarding request using original endpoint with userId:', userId);
       const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/forward`, {
         method: 'POST',
         headers: {
@@ -345,7 +349,9 @@ class ApprovalForwardingService {
         },
         body: JSON.stringify({
           forwarded_to: action.forwarded_to,
-          comments: action.comments
+          comments: action.comments,
+          forwarding_type: action.forwarding_type,
+          userId: userId
         }),
       });
       
