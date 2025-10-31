@@ -9688,10 +9688,10 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
     
     const request = pool.request();
     
-    // Build query to show all requests related to the user:
-    // 1. Where user is current approver (pending)
-    // 2. Where user submitted the request
-    // 3. Where user has acted on the request (from approval_history)
+    // Build query based on status type:
+    // - pending: Show only requests where user is the CURRENT approver
+    // - approved/rejected: Show requests where user submitted OR acted on them
+    // - forwarded: Show requests where user has forwarded (action_type='forwarded')
     let query = `
       SELECT DISTINCT
         ra.id,
@@ -9706,30 +9706,28 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
       LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
       LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
       LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
-      WHERE ra.id IN (
-        SELECT DISTINCT ra2.id
-        FROM request_approvals ra2
-        LEFT JOIN approval_history ah2 ON ah2.request_approval_id = ra2.id
-        WHERE (
-          ra2.current_approver_id = @userId 
-          OR ra2.submitted_by = @userId
-          OR ah2.action_by = @userId
-        )
-      )
     `;
     
-    // Add status filter
-    if (status === 'forwarded') {
-      // For forwarded, show requests where user has forwarded them (check action_type in history)
-      query += ` AND EXISTS (
+    // Add WHERE clause based on status
+    if (status === 'pending') {
+      // Pending: Only show requests where user is the CURRENT approver
+      query += ` WHERE ra.current_status = 'pending' AND ra.current_approver_id = @userId`;
+    } else if (status === 'forwarded') {
+      // Forwarded: Show requests where user has forwarded them
+      query += ` WHERE EXISTS (
         SELECT 1 FROM approval_history ah3 
         WHERE ah3.request_approval_id = ra.id 
         AND ah3.action_by = @userId 
         AND ah3.action_type = 'forwarded'
       )`;
     } else {
-      // For other statuses, check the current_status
-      query += ` AND ra.current_status = @status`;
+      // Approved/Rejected: Show requests where user is related (submitted OR acted)
+      query += ` WHERE ra.current_status = @status AND ra.id IN (
+        SELECT DISTINCT ra2.id
+        FROM request_approvals ra2
+        LEFT JOIN approval_history ah2 ON ah2.request_approval_id = ra2.id
+        WHERE ra2.submitted_by = @userId OR ah2.action_by = @userId
+      )`;
     }
     
     query += ` ORDER BY ra.submitted_date DESC`;
@@ -9885,27 +9883,28 @@ app.get('/api/approvals/dashboard', async (req, res) => {
     console.log('📊 Dashboard: Fetching dashboard data for user:', userId);
     const request = pool.request();
     
-    // Get counts - count all requests related to the user
+    // Get counts with specific logic per status:
+    // - pending: Count where user is current approver
+    // - approved/rejected: Count where user submitted OR acted
+    // - forwarded: Count where user has action_type='forwarded'
     const countsResult = await request
       .input('userId', sql.NVarChar, userId)
       .query(`
         SELECT 
-          COUNT(DISTINCT CASE WHEN ra.current_status = 'pending' THEN ra.id END) as pending_count,
-          COUNT(DISTINCT CASE WHEN ra.current_status = 'approved' THEN ra.id END) as approved_count,
-          COUNT(DISTINCT CASE WHEN ra.current_status = 'rejected' THEN ra.id END) as rejected_count,
+          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra 
+           WHERE ra.current_status = 'pending' AND ra.current_approver_id = @userId) as pending_count,
+          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra 
+           LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
+           WHERE ra.current_status = 'approved' 
+           AND (ra.submitted_by = @userId OR ah.action_by = @userId)) as approved_count,
+          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra 
+           LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
+           WHERE ra.current_status = 'rejected' 
+           AND (ra.submitted_by = @userId OR ah.action_by = @userId)) as rejected_count,
           (SELECT COUNT(DISTINCT ah.request_approval_id) 
            FROM approval_history ah 
            WHERE ah.action_by = @userId 
            AND ah.action_type = 'forwarded') as forwarded_count
-        FROM request_approvals ra
-        WHERE ra.id IN (
-          SELECT DISTINCT ra2.id 
-          FROM request_approvals ra2
-          LEFT JOIN approval_history ah2 ON ah2.request_approval_id = ra2.id
-          WHERE ra2.current_approver_id = @userId 
-             OR ra2.submitted_by = @userId 
-             OR ah2.action_by = @userId
-        )
       `);
     
     // Get pending approvals
