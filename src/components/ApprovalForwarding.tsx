@@ -145,18 +145,22 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
         
         // User can only take actions if they are:
         // 1. In the workflow AND
-        // 2. The current approver (not someone who already acted and forwarded)
+        // 2. The current approver (not someone who already acted and forwarded) AND
+        // 3. The request status is still 'pending' (not approved/rejected/finalized)
         const isCurrentApprover = approvalData.current_approver_id === user.user_id;
+        const isPending = approvalData.current_status === 'pending';
         
-        if (userInWorkflow && isCurrentApprover) {
+        if (userInWorkflow && isCurrentApprover && isPending) {
           setUserPermissions({
             canApprove: userInWorkflow.can_approve,
             canForward: userInWorkflow.can_forward,
             canFinalize: userInWorkflow.can_finalize
           });
-          console.log('🔐 User permissions:', userInWorkflow, '| Is current approver: YES');
+          console.log('🔐 User permissions:', userInWorkflow, '| Is current approver: YES | Status: pending');
         } else {
-          if (!isCurrentApprover) {
+          if (!isPending) {
+            console.log(`ℹ️ Request is ${approvalData.current_status} - read-only mode`);
+          } else if (!isCurrentApprover) {
             console.log('ℹ️ User is not the current approver - read-only mode');
           } else {
             console.warn('⚠️ Current user not found in workflow approvers');
