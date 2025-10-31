@@ -9890,18 +9890,22 @@ app.get('/api/approvals/dashboard', async (req, res) => {
       .input('userId', sql.NVarChar, userId)
       .query(`
         SELECT 
-          COUNT(DISTINCT CASE WHEN ra.current_status = 'pending' AND (ra.current_approver_id = @userId OR ra.submitted_by = @userId OR EXISTS(SELECT 1 FROM approval_history ah3 WHERE ah3.request_approval_id = ra.id AND ah3.action_by = @userId)) THEN ra.id END) as pending_count,
-          COUNT(DISTINCT CASE WHEN ra.current_status = 'approved' AND (ra.current_approver_id = @userId OR ra.submitted_by = @userId OR EXISTS(SELECT 1 FROM approval_history ah3 WHERE ah3.request_approval_id = ra.id AND ah3.action_by = @userId)) THEN ra.id END) as approved_count,
-          COUNT(DISTINCT CASE WHEN ra.current_status = 'rejected' AND (ra.current_approver_id = @userId OR ra.submitted_by = @userId OR EXISTS(SELECT 1 FROM approval_history ah3 WHERE ah3.request_approval_id = ra.id AND ah3.action_by = @userId)) THEN ra.id END) as rejected_count,
-          COUNT(DISTINCT CASE 
-            WHEN EXISTS (
-              SELECT 1 FROM approval_history ah2 
-              WHERE ah2.request_approval_id = ra.id 
-              AND ah2.action_by = @userId 
-              AND ah2.action_type = 'forwarded'
-            ) THEN ra.id 
-          END) as forwarded_count
+          COUNT(DISTINCT CASE WHEN ra.current_status = 'pending' THEN ra.id END) as pending_count,
+          COUNT(DISTINCT CASE WHEN ra.current_status = 'approved' THEN ra.id END) as approved_count,
+          COUNT(DISTINCT CASE WHEN ra.current_status = 'rejected' THEN ra.id END) as rejected_count,
+          (SELECT COUNT(DISTINCT ah.request_approval_id) 
+           FROM approval_history ah 
+           WHERE ah.action_by = @userId 
+           AND ah.action_type = 'forwarded') as forwarded_count
         FROM request_approvals ra
+        WHERE ra.id IN (
+          SELECT DISTINCT ra2.id 
+          FROM request_approvals ra2
+          LEFT JOIN approval_history ah2 ON ah2.request_approval_id = ra2.id
+          WHERE ra2.current_approver_id = @userId 
+             OR ra2.submitted_by = @userId 
+             OR ah2.action_by = @userId
+        )
       `);
     
     // Get pending approvals
