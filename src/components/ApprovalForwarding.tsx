@@ -142,15 +142,25 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       // Check current user permissions in this workflow
       if (user) {
         const userInWorkflow = forwardersData.find(f => f.user_id === user.user_id);
-        if (userInWorkflow) {
+        
+        // User can only take actions if they are:
+        // 1. In the workflow AND
+        // 2. The current approver (not someone who already acted and forwarded)
+        const isCurrentApprover = approvalData.current_approver_id === user.user_id;
+        
+        if (userInWorkflow && isCurrentApprover) {
           setUserPermissions({
             canApprove: userInWorkflow.can_approve,
             canForward: userInWorkflow.can_forward,
             canFinalize: userInWorkflow.can_finalize
           });
-          console.log('🔐 User permissions:', userInWorkflow);
+          console.log('🔐 User permissions:', userInWorkflow, '| Is current approver: YES');
         } else {
-          console.warn('⚠️ Current user not found in workflow approvers');
+          if (!isCurrentApprover) {
+            console.log('ℹ️ User is not the current approver - read-only mode');
+          } else {
+            console.warn('⚠️ Current user not found in workflow approvers');
+          }
           setUserPermissions({ canApprove: false, canForward: false, canFinalize: false });
         }
       }
@@ -350,7 +360,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
       {/* Items Requested Section */}
       {approval.request_type === 'stock_issuance' && (
-        <ItemsList approvalId={approvalId} />
+        <ItemsList approvalId={approvalId} canApprove={userPermissions.canApprove} />
       )}
 
       {/* Action Panel */}
@@ -697,7 +707,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 };
 
 // Items List Component
-const ItemsList: React.FC<{ approvalId: string }> = ({ approvalId }) => {
+const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ approvalId, canApprove }) => {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [itemDecisions, setItemDecisions] = useState<{ [key: string]: { status: 'approved' | 'rejected' | null; comment: string } }>({});
@@ -774,12 +784,16 @@ const ItemsList: React.FC<{ approvalId: string }> = ({ approvalId }) => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Comment
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
+                {canApprove && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Comment
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -818,56 +832,60 @@ const ItemsList: React.FC<{ approvalId: string }> = ({ approvalId }) => {
                         {decision.status ? decision.status.charAt(0).toUpperCase() + decision.status.slice(1) : (item.item_status || 'Pending')}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="text"
-                        placeholder="Add comment..."
-                        value={decision.comment}
-                        onChange={(e) => {
-                          setItemDecisions(prev => ({
-                            ...prev,
-                            [itemKey]: { ...prev[itemKey], status: prev[itemKey]?.status || null, comment: e.target.value }
-                          }));
-                        }}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setItemDecisions(prev => ({
-                              ...prev,
-                              [itemKey]: { ...prev[itemKey], status: 'approved', comment: prev[itemKey]?.comment || '' }
-                            }));
-                          }}
-                          disabled={decision.status === 'approved'}
-                          className={`px-3 py-1 rounded text-xs font-medium ${
-                            decision.status === 'approved'
-                              ? 'bg-green-100 text-green-800 cursor-not-allowed'
-                              : 'bg-green-600 text-white hover:bg-green-700'
-                          }`}
-                        >
-                          ✓ Accept
-                        </button>
-                        <button
-                          onClick={() => {
-                            setItemDecisions(prev => ({
-                              ...prev,
-                              [itemKey]: { ...prev[itemKey], status: 'rejected', comment: prev[itemKey]?.comment || '' }
-                            }));
-                          }}
-                          disabled={decision.status === 'rejected'}
-                          className={`px-3 py-1 rounded text-xs font-medium ${
-                            decision.status === 'rejected'
-                              ? 'bg-red-100 text-red-800 cursor-not-allowed'
-                              : 'bg-red-600 text-white hover:bg-red-700'
-                          }`}
-                        >
-                          ✗ Reject
-                        </button>
-                      </div>
-                    </td>
+                    {canApprove && (
+                      <>
+                        <td className="px-6 py-4">
+                          <input
+                            type="text"
+                            placeholder="Add comment..."
+                            value={decision.comment}
+                            onChange={(e) => {
+                              setItemDecisions(prev => ({
+                                ...prev,
+                                [itemKey]: { ...prev[itemKey], status: prev[itemKey]?.status || null, comment: e.target.value }
+                              }));
+                            }}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setItemDecisions(prev => ({
+                                  ...prev,
+                                  [itemKey]: { ...prev[itemKey], status: 'approved', comment: prev[itemKey]?.comment || '' }
+                                }));
+                              }}
+                              disabled={decision.status === 'approved'}
+                              className={`px-3 py-1 rounded text-xs font-medium ${
+                                decision.status === 'approved'
+                                  ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                                  : 'bg-green-600 text-white hover:bg-green-700'
+                              }`}
+                            >
+                              ✓ Accept
+                            </button>
+                            <button
+                              onClick={() => {
+                                setItemDecisions(prev => ({
+                                  ...prev,
+                                  [itemKey]: { ...prev[itemKey], status: 'rejected', comment: prev[itemKey]?.comment || '' }
+                                }));
+                              }}
+                              disabled={decision.status === 'rejected'}
+                              className={`px-3 py-1 rounded text-xs font-medium ${
+                                decision.status === 'rejected'
+                                  ? 'bg-red-100 text-red-800 cursor-not-allowed'
+                                  : 'bg-red-600 text-white hover:bg-red-700'
+                              }`}
+                            >
+                              ✗ Reject
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
