@@ -632,8 +632,12 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                         Step {entry.step_number}: {entry.action_type.charAt(0).toUpperCase() + entry.action_type.slice(1)}
                       </span>
                       {entry.is_current_step && (
-                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                          Pending Action
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          entry.action_type === 'approved' ? 'bg-green-100 text-green-800' :
+                          entry.action_type === 'rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {entry.action_type === 'approved' || entry.action_type === 'rejected' ? 'Completed' : 'Pending Action'}
                         </span>
                       )}
                     </div>
@@ -698,9 +702,15 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
             </span>
             <span className="text-gray-600">
               Current Status: <span className="font-medium">
-                {history.find(entry => entry.is_current_step)?.action_type === 'forwarded' 
-                  ? 'Pending Action' 
-                  : history[history.length - 1]?.action_type || 'Unknown'}
+                {(() => {
+                  const currentStep = history.find(entry => entry.is_current_step);
+                  if (!currentStep) return history[history.length - 1]?.action_type || 'Unknown';
+                  
+                  if (currentStep.action_type === 'approved') return 'Completed (Approved)';
+                  if (currentStep.action_type === 'rejected') return 'Completed (Rejected)';
+                  if (currentStep.action_type === 'forwarded') return 'Pending Action';
+                  return currentStep.action_type.charAt(0).toUpperCase() + currentStep.action_type.slice(1);
+                })()}
               </span>
             </span>
           </div>
