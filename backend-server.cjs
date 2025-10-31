@@ -9715,8 +9715,15 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
     
     // Add status filter
     if (status === 'forwarded') {
-      query += ` AND ra.current_status = 'forwarded'`;
+      // For forwarded, show requests where user has forwarded them (check action_type in history)
+      query += ` AND EXISTS (
+        SELECT 1 FROM approval_history ah2 
+        WHERE ah2.request_approval_id = ra.id 
+        AND ah2.action_by = @userId 
+        AND ah2.action_type = 'forwarded'
+      )`;
     } else {
+      // For other statuses, check the current_status
       query += ` AND ra.current_status = @status`;
     }
     
@@ -9881,7 +9888,14 @@ app.get('/api/approvals/dashboard', async (req, res) => {
           COUNT(DISTINCT CASE WHEN ra.current_status = 'pending' THEN ra.id END) as pending_count,
           COUNT(DISTINCT CASE WHEN ra.current_status = 'approved' THEN ra.id END) as approved_count,
           COUNT(DISTINCT CASE WHEN ra.current_status = 'rejected' THEN ra.id END) as rejected_count,
-          COUNT(DISTINCT CASE WHEN ra.current_status = 'forwarded' THEN ra.id END) as forwarded_count
+          COUNT(DISTINCT CASE 
+            WHEN EXISTS (
+              SELECT 1 FROM approval_history ah2 
+              WHERE ah2.request_approval_id = ra.id 
+              AND ah2.action_by = @userId 
+              AND ah2.action_type = 'forwarded'
+            ) THEN ra.id 
+          END) as forwarded_count
         FROM request_approvals ra
         LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
         WHERE (
