@@ -41,6 +41,7 @@ import StockReturn from "./pages/StockReturn";
 import ApprovalManagement from "./pages/ApprovalManagement";
 import StockIssuanceProcessing from "./pages/StockIssuanceProcessing";
 import { StockIssuanceDashboard } from "./pages/StockIssuanceDashboard";
+import MyIssuedItems from "./pages/MyIssuedItems";
 import ExpandableReceivingForm from "./pages/ExpandableReceivingForm";
 import IntegratedStockAcquisition from "./pages/IntegratedStockAcquisition";
 import StockTransactionList from "./pages/StockTransactionList";
@@ -66,6 +67,9 @@ import StockOperations from "./pages/StockOperations";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
+import DigitalSystemLanding from "./pages/DigitalSystemLanding";
+import PersonalIMS from "./pages/PersonalIMS";
+import SSOLogin from "./pages/SSOLogin";
 import { useParams } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -89,6 +93,33 @@ function App() {
                 <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />
+                
+                {/* SSO Login - Entry point from Digital System */}
+                <Route path="/sso-login" element={<SSOLogin />} />
+                
+                {/* Digital System Landing - Entry point from DS */}
+                <Route path="/ds-landing" element={
+                  <ProtectedRoute>
+                    <DigitalSystemLanding />
+                  </ProtectedRoute>
+                } />
+                
+                {/* Personal IMS - For individual users */}
+                <Route path="/personal-ims" element={
+                  <ProtectedRoute>
+                    <PersonalIMS />
+                  </ProtectedRoute>
+                } />
+                
+                {/* Wing IMS - For wing-level inventory (to be implemented) */}
+                <Route path="/wing-ims" element={
+                  <ProtectedRoute>
+                    <div className="p-6">
+                      <h1 className="text-3xl font-bold">Wing IMS</h1>
+                      <p className="text-gray-600 mt-2">Coming Soon - Wing-level inventory management</p>
+                    </div>
+                  </ProtectedRoute>
+                } />
                 
                 {/* Protected routes */}
                 <Route path="/" element={
@@ -128,6 +159,7 @@ function App() {
                   <Route path="stock-issuance" element={<StockIssuance />} />
                   <Route path="stock-issuance-dashboard" element={<StockIssuanceDashboard />} />
                   <Route path="stock-return" element={<StockReturn />} />
+                  <Route path="my-issued-items" element={<MyIssuedItems />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />

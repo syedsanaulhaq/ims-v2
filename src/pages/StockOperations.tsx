@@ -164,7 +164,7 @@ const StockOperations = () => {
             size="lg"
           >
             <Plus className="h-5 w-5" />
-            Create New Request
+            Stock Issuance Request
           </Button>
         </div>
       </div>

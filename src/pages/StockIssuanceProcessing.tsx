@@ -105,22 +105,27 @@ const StockIssuanceProcessing: React.FC = () => {
     setError('');
 
     try {
-      // Create stock transaction using unified service
-      await stockTransactionsLocalService.create({
-        item_master_id: 'simplified', // Simplified for now
-        office_id: 'simplified', // Simplified for now
-        transaction_type: 'OUT',
-        quantity: 1, // Simplified for now
-        unit_price: 0,
-        total_value: 0,
-        reference_type: 'STOCK_ISSUANCE',
-        reference_id: selectedRequest.id.toString(),
-        reference_number: selectedRequest.request_number,
-        remarks: `Stock issuance: ${selectedRequest.purpose}`,
-        created_by: issuedBy
+      // Use the new Stock Issuance Workflow API
+      const response = await fetch(`http://localhost:3001/api/stock-issuance/issue/${selectedRequest.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          issued_by: '4dae06b7-17cd-480b-81eb-da9c76ad5728', // TODO: Get from current user context
+          issued_by_name: issuedBy,
+          issuance_notes: issuanceNotes
+        })
       });
 
-      setSuccess(`Stock processed successfully for request ${selectedRequest.request_number}!`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to issue items');
+      }
+
+      const result = await response.json();
+      
+      setSuccess(`✅ ${result.message || 'Stock issued successfully!'} Request: ${selectedRequest.request_number}`);
       
       // Reset form and refresh data
       setSelectedRequest(null);
@@ -133,6 +138,7 @@ const StockIssuanceProcessing: React.FC = () => {
 
     } catch (error: any) {
       setError('Failed to process issuance: ' + error.message);
+      console.error('❌ Issuance error:', error);
     } finally {
       setIsLoading(false);
     }

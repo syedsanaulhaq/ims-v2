@@ -389,7 +389,7 @@ const EnhancedTenderDashboard: React.FC = () => {
         </div>
         <Button onClick={() => navigate('/dashboard/tenders/create')} className="gap-2">
           <Plus className="w-4 h-4" />
-          Create New Tender
+          Tender
         </Button>
       </div>
 

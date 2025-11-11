@@ -14,6 +14,7 @@ interface Category {
   id: string;
   category_name: string;
   description: string;
+  item_type?: string; // 'Dispensable' or 'Indispensable'
   status: string;
   created_at: string;
   updated_at: string;
@@ -50,6 +51,7 @@ const Categories = () => {
   const [categoryForm, setCategoryForm] = useState({
     category_name: '',
     description: '',
+    item_type: 'Dispensable',
     status: 'Active'
   });
 
@@ -130,7 +132,7 @@ const Categories = () => {
           description: result.message || "Category created successfully",
         });
         
-        setCategoryForm({ category_name: '', description: '', status: 'Active' });
+        setCategoryForm({ category_name: '', description: '', item_type: 'Dispensable', status: 'Active' });
         setShowCategoryForm(false);
         fetchData(); // Refresh data
       } else {
@@ -216,6 +218,7 @@ const Categories = () => {
     setCategoryForm({
       category_name: category.category_name,
       description: category.description || '',
+      item_type: category.item_type || 'Dispensable',
       status: category.status
     });
     setShowCategoryForm(true);
@@ -260,7 +263,7 @@ const Categories = () => {
         });
         
         // Reset form and close
-        setCategoryForm({ category_name: '', description: '', status: 'Active' });
+        setCategoryForm({ category_name: '', description: '', item_type: 'Dispensable', status: 'Active' });
         setShowCategoryForm(false);
         setEditingCategory(null);
         fetchData(); // Refresh data
@@ -414,7 +417,7 @@ const Categories = () => {
   const handleCancelEdit = () => {
     setEditingCategory(null);
     setEditingSubCategory(null);
-    setCategoryForm({ category_name: '', description: '', status: 'Active' });
+    setCategoryForm({ category_name: '', description: '', item_type: 'Dispensable', status: 'Active' });
     setSubCategoryForm({ category_id: '', sub_category_name: '', description: '', status: 'Active' });
     setShowCategoryForm(false);
     setShowSubCategoryForm(false);
@@ -566,6 +569,23 @@ const Categories = () => {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="item_type">Item Type</Label>
+                  <Select 
+                    value={categoryForm.item_type} 
+                    onValueChange={(value) => setCategoryForm({...categoryForm, item_type: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select item type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Dispensable">Dispensable</SelectItem>
+                      <SelectItem value="Indispensable">Indispensable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
                   <Label htmlFor="category_status">Status</Label>
                   <Select 
                     value={categoryForm.status} 
@@ -612,6 +632,7 @@ const Categories = () => {
               <TableRow>
                 <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>Item Type</TableHead>
                 <TableHead>Total Items</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -619,7 +640,7 @@ const Categories = () => {
             <TableBody>
               {filteredCategories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                  <TableCell colSpan={5} className="text-center text-gray-500 py-8">
                     {searchTerm ? 'No categories found matching your search.' : 'No categories found. Click "Add Category" to create one.'}
                   </TableCell>
                 </TableRow>
@@ -628,6 +649,15 @@ const Categories = () => {
                   <TableRow key={category.id} className="h-12">
                   <TableCell className="font-medium py-2">{category.category_name}</TableCell>
                   <TableCell className="py-2">{category.description || '-'}</TableCell>
+                  <TableCell className="py-2">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      category.item_type === 'Indispensable' 
+                        ? 'bg-orange-100 text-orange-800' 
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {category.item_type || 'Dispensable'}
+                    </span>
+                  </TableCell>
                   <TableCell className="py-2">
                     <Button
                       variant="link"

@@ -7,6 +7,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
+const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: '.env.sqlserver' });
 
 const app = express();
@@ -29,6 +30,14 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// ============================================================================
+// JWT Configuration for SSO
+// ============================================================================
+// IMPORTANT: This secret key MUST match exactly with the one in DS (.NET Core)
+const JWT_SECRET = process.env.JWT_SECRET || 'YourVerySecureSecretKeyAtLeast32CharactersLong123456';
+const JWT_ISSUER = 'DigitalSystem';
+const JWT_AUDIENCE = 'IMS';
 
 // Global request logger to debug routing issues
 app.use((req, res, next) => {
@@ -5396,6 +5405,7 @@ app.get('/api/categories', async (req, res) => {
         c.id,
         c.category_name,
         c.description,
+        c.item_type,
         c.status,
         c.created_at,
         c.updated_at,
@@ -5403,7 +5413,7 @@ app.get('/api/categories', async (req, res) => {
       FROM categories c
       LEFT JOIN item_masters im ON c.id = im.category_id
       WHERE c.status != 'Deleted'
-      GROUP BY c.id, c.category_name, c.description, c.status, c.created_at, c.updated_at
+      GROUP BY c.id, c.category_name, c.description, c.item_type, c.status, c.created_at, c.updated_at
       ORDER BY c.category_name
     `);
     res.json(result.recordset);
@@ -5552,7 +5562,7 @@ app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
 // POST - Create new category
 app.post('/api/categories', async (req, res) => {
   try {
-    const { category_name, description, status } = req.body;
+    const { category_name, description, item_type, status } = req.body;
     
     if (!category_name) {
       return res.status(400).json({ error: 'Category name is required' });
@@ -5561,11 +5571,12 @@ app.post('/api/categories', async (req, res) => {
     const result = await pool.request()
       .input('category_name', sql.NVarChar, category_name)
       .input('description', sql.NVarChar, description || null)
+      .input('item_type', sql.NVarChar, item_type || 'Dispensable')
       .input('status', sql.NVarChar, status || 'Active')
       .query(`
-        INSERT INTO categories (category_name, description, status, created_at, updated_at)
+        INSERT INTO categories (category_name, description, item_type, status, created_at, updated_at)
         OUTPUT INSERTED.*
-        VALUES (@category_name, @description, @status, GETDATE(), GETDATE())
+        VALUES (@category_name, @description, @item_type, @status, GETDATE(), GETDATE())
       `);
 
     console.log('✅ Category created:', result.recordset[0]);
@@ -5580,17 +5591,19 @@ app.post('/api/categories', async (req, res) => {
 app.put('/api/categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { category_name, description, status } = req.body;
+    const { category_name, description, item_type, status } = req.body;
 
     const result = await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.NVarChar, id)
       .input('category_name', sql.NVarChar, category_name)
       .input('description', sql.NVarChar, description || null)
+      .input('item_type', sql.NVarChar, item_type || 'Dispensable')
       .input('status', sql.NVarChar, status)
       .query(`
         UPDATE categories
         SET category_name = @category_name,
             description = @description,
+            item_type = @item_type,
             status = @status,
             updated_at = GETDATE()
         OUTPUT INSERTED.*
@@ -5616,7 +5629,7 @@ app.delete('/api/categories/:id', async (req, res) => {
 
     // Check if category has sub-categories
     const checkResult = await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.NVarChar, id)
       .query('SELECT COUNT(*) as count FROM sub_categories WHERE category_id = @id');
 
     if (checkResult.recordset[0].count > 0) {
@@ -5627,7 +5640,7 @@ app.delete('/api/categories/:id', async (req, res) => {
     }
 
     const result = await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.NVarChar, id)
       .query('DELETE FROM categories OUTPUT DELETED.* WHERE id = @id');
 
     if (result.recordset.length === 0) {
@@ -5652,7 +5665,7 @@ app.post('/api/sub-categories', async (req, res) => {
     }
 
     const result = await pool.request()
-      .input('category_id', sql.Int, category_id)
+      .input('category_id', sql.NVarChar, category_id)
       .input('sub_category_name', sql.NVarChar, sub_category_name)
       .input('description', sql.NVarChar, description || null)
       .input('status', sql.NVarChar, status || 'Active')
@@ -5677,8 +5690,8 @@ app.put('/api/sub-categories/:id', async (req, res) => {
     const { category_id, sub_category_name, description, status } = req.body;
 
     const result = await pool.request()
-      .input('id', sql.Int, id)
-      .input('category_id', sql.Int, category_id)
+      .input('id', sql.NVarChar, id)
+      .input('category_id', sql.NVarChar, category_id)
       .input('sub_category_name', sql.NVarChar, sub_category_name)
       .input('description', sql.NVarChar, description || null)
       .input('status', sql.NVarChar, status)
@@ -5711,7 +5724,7 @@ app.delete('/api/sub-categories/:id', async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.NVarChar, id)
       .query('DELETE FROM sub_categories OUTPUT DELETED.* WHERE id = @id');
 
     if (result.recordset.length === 0) {
@@ -6668,6 +6681,684 @@ app.delete('/api/stores/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete store', details: error.message });
   }
 });
+
+// =====================================================================
+// STOCK ISSUANCE WORKFLOW - API ENDPOINTS
+// =====================================================================
+
+// 1. CHECK STOCK AVAILABILITY (When creating request)
+app.post('/api/stock/check-availability', async (req, res) => {
+  try {
+    const { item_master_id, requested_quantity } = req.body;
+
+    if (!item_master_id || !requested_quantity) {
+      return res.status(400).json({ error: 'Item ID and quantity are required' });
+    }
+
+    const result = await pool.request()
+      .input('item_master_id', sql.UniqueIdentifier, item_master_id)
+      .input('requested_quantity', sql.Int, requested_quantity)
+      .query(`
+        SELECT * FROM dbo.fn_CheckStockAvailability(@item_master_id, @requested_quantity)
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.json({
+        available: false,
+        message: 'Item not found in inventory',
+        stock_status: 'Not Found'
+      });
+    }
+
+    const stockInfo = result.recordset[0];
+
+    res.json({
+      available: stockInfo.availability_status === 'Available',
+      stock_info: stockInfo,
+      message: stockInfo.availability_status === 'Available' 
+        ? `✅ ${stockInfo.available_quantity} units available` 
+        : stockInfo.availability_status === 'Partial'
+        ? `⚠️ Only ${stockInfo.available_quantity} units available (requested ${requested_quantity})`
+        : '❌ Out of stock'
+    });
+
+  } catch (error) {
+    console.error('❌ Error checking stock availability:', error);
+    res.status(500).json({ error: 'Failed to check stock availability', details: error.message });
+  }
+});
+
+// 2. BATCH CHECK AVAILABILITY (For multiple items in a request)
+app.post('/api/stock/check-availability-batch', async (req, res) => {
+  try {
+    const { items } = req.body; // Array of { item_master_id, requested_quantity }
+
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Items array is required' });
+    }
+
+    const availability = [];
+    let allAvailable = true;
+
+    for (const item of items) {
+      const result = await pool.request()
+        .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+        .input('requested_quantity', sql.Int, item.requested_quantity)
+        .query(`
+          SELECT * FROM dbo.fn_CheckStockAvailability(@item_master_id, @requested_quantity)
+        `);
+
+      if (result.recordset.length > 0) {
+        const stockInfo = result.recordset[0];
+        availability.push({
+          item_master_id: item.item_master_id,
+          nomenclature: stockInfo.nomenclature,
+          requested_quantity: item.requested_quantity,
+          available_quantity: stockInfo.available_quantity,
+          availability_status: stockInfo.availability_status,
+          can_fulfill: stockInfo.availability_status === 'Available'
+        });
+
+        if (stockInfo.availability_status !== 'Available') {
+          allAvailable = false;
+        }
+      } else {
+        availability.push({
+          item_master_id: item.item_master_id,
+          availability_status: 'Not Found',
+          can_fulfill: false
+        });
+        allAvailable = false;
+      }
+    }
+
+    res.json({
+      all_available: allAvailable,
+      items: availability,
+      summary: {
+        total_items: items.length,
+        available: availability.filter(a => a.can_fulfill).length,
+        unavailable: availability.filter(a => !a.can_fulfill).length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error checking batch availability:', error);
+    res.status(500).json({ error: 'Failed to check availability', details: error.message });
+  }
+});
+
+// 3. SEARCH ITEMS WITH STOCK AVAILABILITY
+app.get('/api/stock/search-with-availability', async (req, res) => {
+  try {
+    const { search, category_id, sub_category_id, item_type } = req.query;
+
+    let query = `
+      SELECT 
+        im.id as item_master_id,
+        im.nomenclature,
+        im.item_code,
+        im.description,
+        c.category_name,
+        c.item_type,
+        sc.sub_category_name,
+        cis.current_quantity,
+        cis.available_quantity,
+        cis.reserved_quantity,
+        cis.minimum_stock_level,
+        CASE 
+          WHEN cis.available_quantity = 0 THEN 'Out of Stock'
+          WHEN cis.available_quantity <= cis.minimum_stock_level THEN 'Low Stock'
+          ELSE 'Available'
+        END as stock_status
+      FROM item_masters im
+      INNER JOIN categories c ON im.category_id = c.id
+      LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
+      LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+      WHERE im.status = 'Active'
+    `;
+
+    const request = pool.request();
+
+    if (search) {
+      query += ` AND (im.nomenclature LIKE @search OR im.item_code LIKE @search OR im.description LIKE @search)`;
+      request.input('search', sql.NVarChar, `%${search}%`);
+    }
+
+    if (category_id) {
+      query += ` AND im.category_id = @category_id`;
+      request.input('category_id', sql.NVarChar, category_id);
+    }
+
+    if (sub_category_id) {
+      query += ` AND im.sub_category_id = @sub_category_id`;
+      request.input('sub_category_id', sql.NVarChar, sub_category_id);
+    }
+
+    if (item_type) {
+      query += ` AND c.item_type = @item_type`;
+      request.input('item_type', sql.NVarChar, item_type);
+    }
+
+    query += ` ORDER BY im.nomenclature`;
+
+    const result = await request.query(query);
+
+    res.json({
+      items: result.recordset,
+      total: result.recordset.length,
+      available_items: result.recordset.filter(i => i.stock_status === 'Available').length,
+      low_stock_items: result.recordset.filter(i => i.stock_status === 'Low Stock').length,
+      out_of_stock_items: result.recordset.filter(i => i.stock_status === 'Out of Stock').length
+    });
+
+  } catch (error) {
+    console.error('❌ Error searching items with availability:', error);
+    res.status(500).json({ error: 'Failed to search items', details: error.message });
+  }
+});
+
+// 4. ISSUE STOCK ITEMS (After approval)
+app.post('/api/stock-issuance/issue/:requestId', async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { issued_by, issued_by_name, issuance_notes } = req.body;
+
+    if (!issued_by || !issued_by_name) {
+      return res.status(400).json({ error: 'Issued by information is required' });
+    }
+
+    // Call the stored procedure
+    await pool.request()
+      .input('request_id', sql.UniqueIdentifier, requestId)
+      .input('issued_by', sql.UniqueIdentifier, issued_by)
+      .input('issued_by_name', sql.NVarChar, issued_by_name)
+      .input('issuance_notes', sql.NVarChar, issuance_notes || null)
+      .execute('sp_IssueStockItems');
+
+    console.log(`✅ Stock issued successfully for request: ${requestId}`);
+
+    res.json({
+      success: true,
+      message: 'Stock items issued successfully and inventory updated',
+      request_id: requestId
+    });
+
+  } catch (error) {
+    console.error('❌ Error issuing stock:', error);
+    res.status(500).json({ 
+      error: 'Failed to issue stock items', 
+      details: error.message 
+    });
+  }
+});
+
+// 5. GET USER'S ISSUED ITEMS HISTORY
+app.get('/api/issued-items/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status, is_returnable, from_date, to_date } = req.query;
+
+    let query = `
+      SELECT * FROM vw_UserIssuedItemsHistory
+      WHERE issued_to_user_id = @userId
+    `;
+
+    const request = pool.request().input('userId', sql.UniqueIdentifier, userId);
+
+    if (status) {
+      query += ` AND status = @status`;
+      request.input('status', sql.NVarChar, status);
+    }
+
+    if (is_returnable !== undefined) {
+      query += ` AND is_returnable = @is_returnable`;
+      request.input('is_returnable', sql.Bit, is_returnable === 'true' ? 1 : 0);
+    }
+
+    if (from_date) {
+      query += ` AND issued_at >= @from_date`;
+      request.input('from_date', sql.Date, from_date);
+    }
+
+    if (to_date) {
+      query += ` AND issued_at <= @to_date`;
+      request.input('to_date', sql.Date, to_date);
+    }
+
+    query += ` ORDER BY issued_at DESC`;
+
+    const result = await request.query(query);
+
+    // Calculate summary statistics
+    const summary = {
+      total_items: result.recordset.length,
+      total_value: result.recordset.reduce((sum, item) => sum + (item.total_value || 0), 0),
+      returnable_items: result.recordset.filter(i => i.is_returnable).length,
+      not_returned: result.recordset.filter(i => i.is_returnable && i.return_status === 'Not Returned').length,
+      overdue: result.recordset.filter(i => i.current_return_status === 'Overdue').length
+    };
+
+    res.json({
+      items: result.recordset,
+      summary: summary
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching user issued items:', error);
+    res.status(500).json({ error: 'Failed to fetch issued items', details: error.message });
+  }
+});
+
+// 6. GET ALL ISSUED ITEMS (With filters)
+app.get('/api/issued-items', async (req, res) => {
+  try {
+    const { office_id, wing_id, item_master_id, status, return_status, from_date, to_date } = req.query;
+
+    let query = `SELECT * FROM vw_UserIssuedItemsHistory WHERE 1=1`;
+    const request = pool.request();
+
+    if (office_id) {
+      query += ` AND issued_to_office_id = @office_id`;
+      request.input('office_id', sql.Int, parseInt(office_id));
+    }
+
+    if (wing_id) {
+      query += ` AND issued_to_wing_id = @wing_id`;
+      request.input('wing_id', sql.Int, parseInt(wing_id));
+    }
+
+    if (item_master_id) {
+      query += ` AND item_master_id = @item_master_id`;
+      request.input('item_master_id', sql.UniqueIdentifier, item_master_id);
+    }
+
+    if (status) {
+      query += ` AND status = @status`;
+      request.input('status', sql.NVarChar, status);
+    }
+
+    if (return_status) {
+      query += ` AND return_status = @return_status`;
+      request.input('return_status', sql.NVarChar, return_status);
+    }
+
+    if (from_date) {
+      query += ` AND issued_at >= @from_date`;
+      request.input('from_date', sql.Date, from_date);
+    }
+
+    if (to_date) {
+      query += ` AND issued_at <= @to_date`;
+      request.input('to_date', sql.Date, to_date);
+    }
+
+    query += ` ORDER BY issued_at DESC`;
+
+    const result = await request.query(query);
+
+    res.json({
+      items: result.recordset,
+      total: result.recordset.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching issued items:', error);
+    res.status(500).json({ error: 'Failed to fetch issued items', details: error.message });
+  }
+});
+
+// 7. RETURN ISSUED ITEMS
+app.post('/api/issued-items/return/:ledgerId', async (req, res) => {
+  try {
+    const { ledgerId } = req.params;
+    const { return_quantity, returned_by, return_notes, item_condition } = req.body;
+
+    if (!returned_by) {
+      return res.status(400).json({ error: 'Returned by information is required' });
+    }
+
+    await pool.request()
+      .input('ledger_id', sql.UniqueIdentifier, ledgerId)
+      .input('return_quantity', sql.Int, return_quantity)
+      .input('returned_by', sql.NVarChar, returned_by)
+      .input('return_notes', sql.NVarChar, return_notes || null)
+      .input('item_condition', sql.NVarChar, item_condition || 'Good')
+      .execute('sp_ReturnIssuedItems');
+
+    console.log(`✅ Item returned successfully: ${ledgerId}`);
+
+    res.json({
+      success: true,
+      message: 'Item returned successfully',
+      ledger_id: ledgerId
+    });
+
+  } catch (error) {
+    console.error('❌ Error returning item:', error);
+    res.status(500).json({ error: 'Failed to return item', details: error.message });
+  }
+});
+
+// 8. GET STOCK AVAILABILITY DASHBOARD
+app.get('/api/stock/availability-dashboard', async (req, res) => {
+  try {
+    const result = await pool.request().query(`
+      SELECT 
+        stock_status,
+        COUNT(*) as count,
+        SUM(available_stock_value) as total_value,
+        item_classification
+      FROM vw_StockAvailabilityDetails
+      GROUP BY stock_status, item_classification
+      ORDER BY stock_status
+    `);
+
+    // Get low stock items
+    const lowStockResult = await pool.request().query(`
+      SELECT TOP 10 * 
+      FROM vw_StockAvailabilityDetails
+      WHERE stock_status IN ('Low Stock', 'Reorder Required')
+      ORDER BY available_quantity ASC
+    `);
+
+    // Get out of stock items
+    const outOfStockResult = await pool.request().query(`
+      SELECT * 
+      FROM vw_StockAvailabilityDetails
+      WHERE stock_status = 'Out of Stock'
+      ORDER BY nomenclature
+    `);
+
+    res.json({
+      summary: result.recordset,
+      low_stock_items: lowStockResult.recordset,
+      out_of_stock_items: outOfStockResult.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching availability dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard', details: error.message });
+  }
+});
+
+// 9. GET PENDING RETURNS (Overdue items)
+app.get('/api/issued-items/pending-returns', async (req, res) => {
+  try {
+    const result = await pool.request().query(`
+      SELECT *
+      FROM vw_UserIssuedItemsHistory
+      WHERE is_returnable = 1
+        AND return_status = 'Not Returned'
+        AND expected_return_date < CAST(GETDATE() AS DATE)
+      ORDER BY expected_return_date ASC
+    `);
+
+    res.json({
+      overdue_items: result.recordset,
+      total_overdue: result.recordset.length,
+      total_value_at_risk: result.recordset.reduce((sum, item) => sum + (item.total_value || 0), 0)
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching pending returns:', error);
+    res.status(500).json({ error: 'Failed to fetch pending returns', details: error.message });
+  }
+});
+
+console.log('✅ Stock Issuance Workflow API endpoints loaded');
+
+// =====================================================================
+// END OF STOCK ISSUANCE WORKFLOW ENDPOINTS
+// =====================================================================
+
+// ============================================================================
+// SSO AUTHENTICATION ENDPOINTS
+// ============================================================================
+
+// Validate SSO token from Digital System (DS)
+app.post('/api/auth/sso-validate', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    console.log('🔐 Validating SSO token from Digital System...');
+
+    // Verify JWT token
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE
+    });
+
+    // Extract user information from token
+    const userId = decoded.sub;
+    const userName = decoded.unique_name;
+    const email = decoded.email;
+
+    console.log(`🔍 Token decoded successfully for user: ${userName} (${userId})`);
+
+    // Query IMS database for user (you'll sync this from DS periodically)
+    console.log(`🔍 Querying IMS database for user information...`);
+    
+    const userResult = await pool.request()
+      .input('user_id', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          Id,
+          FullName,
+          CNIC,
+          UserName,
+          Email,
+          PhoneNumber,
+          Role,
+          ProfilePhoto,
+          UID,
+          intProvinceID,
+          intDivisionID,
+          intDistrictID,
+          intOfficeID,
+          intWingID,
+          intBranchID,
+          intDesignationID,
+          Gender,
+          ISACT
+        FROM AspNetUsers
+        WHERE Id = @user_id AND ISACT = 1
+      `);
+
+    if (userResult.recordset.length === 0) {
+      console.log(`❌ User ${userId} not found or inactive in IMS database`);
+      return res.status(404).json({ 
+        error: 'User not found or inactive in system',
+        details: 'User may need to be synced from Digital System or account is inactive'
+      });
+    }
+
+    const user = userResult.recordset[0];
+
+    console.log(`✅ SSO login successful for user: ${user.UserName} (${user.FullName || 'N/A'})`);
+
+    // Return user session data
+    res.json({
+      success: true,
+      user: {
+        id: user.Id,
+        username: user.UserName,
+        full_name: user.FullName,
+        cnic: user.CNIC,
+        email: user.Email,
+        phone_number: user.PhoneNumber,
+        role: user.Role,
+        profile_photo: user.ProfilePhoto,
+        uid: user.UID,
+        province_id: user.intProvinceID,
+        division_id: user.intDivisionID,
+        district_id: user.intDistrictID,
+        office_id: user.intOfficeID,
+        wing_id: user.intWingID,
+        branch_id: user.intBranchID,
+        designation_id: user.intDesignationID,
+        gender: user.Gender,
+        is_active: user.ISACT
+      },
+      token: token // Return token for subsequent requests
+    });
+
+  } catch (error) {
+    console.error('❌ SSO validation error:', error);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token', details: error.message });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired. Please login to Digital System again.' });
+    }
+    
+    res.status(500).json({ error: 'SSO validation failed', details: error.message });
+  }
+});
+
+console.log('✅ SSO Authentication endpoints loaded');
+
+// ============================================================================
+// DS-Style Token Authentication (Compatible with DS's EMCC Pattern)
+// ============================================================================
+
+app.post('/api/auth/ds-authenticate', async (req, res) => {
+  console.log('🔐 DS Authentication Request Received');
+  
+  try {
+    const { CNIC, Password } = req.body;
+    
+    if (!CNIC || !Password) {
+      console.log('❌ Missing CNIC or Password');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing CNIC or password'
+      });
+    }
+
+    console.log(`🔍 Authenticating user with CNIC: ${CNIC}`);
+
+    // Query user from AspNetUsers by CNIC
+    const userResult = await pool.request()
+      .input('cnic', sql.NVarChar, CNIC)
+      .query(`
+        SELECT 
+          Id,
+          FullName,
+          CNIC,
+          FatherOrHusbandName,
+          UserName,
+          Email,
+          PhoneNumber,
+          PasswordHash,
+          intOfficeID,
+          intWingID,
+          intProvinceID,
+          intDivisionID,
+          intDistrictID,
+          intBranchID,
+          intDesignationID,
+          Role,
+          UID,
+          ISACT,
+          Gender,
+          ProfilePhoto,
+          LastLoggedIn
+        FROM AspNetUsers 
+        WHERE CNIC = @cnic AND ISACT = 1
+      `);
+
+    if (userResult.recordset.length === 0) {
+      console.log('❌ User not found or inactive');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid CNIC or password'
+      });
+    }
+
+    const user = userResult.recordset[0];
+    console.log(`✅ User found: ${user.FullName} (${user.UserName})`);
+
+    // Verify password using bcrypt
+    const isPasswordValid = await bcrypt.compare(Password, user.PasswordHash);
+    
+    if (!isPasswordValid) {
+      console.log('❌ Invalid password');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid CNIC or password'
+      });
+    }
+
+    console.log('✅ Password verified successfully');
+
+    // Update last login time
+    await pool.request()
+      .input('user_id', sql.NVarChar(450), user.Id)
+      .input('last_login', sql.DateTime2, new Date())
+      .query(`
+        UPDATE AspNetUsers 
+        SET LastLoggedIn = @last_login 
+        WHERE Id = @user_id
+      `);
+
+    // Generate JWT token (same format as before)
+    const token = jwt.sign(
+      {
+        sub: user.Id,
+        unique_name: user.UserName,
+        email: user.Email,
+        full_name: user.FullName,
+        cnic: user.CNIC,
+        office_id: user.intOfficeID,
+        wing_id: user.intWingID,
+        province_id: user.intProvinceID,
+        division_id: user.intDivisionID,
+        district_id: user.intDistrictID,
+        branch_id: user.intBranchID,
+        designation_id: user.intDesignationID,
+        role: user.Role,
+        uid: user.UID,
+        is_active: user.ISACT,
+        gender: user.Gender
+      },
+      JWT_SECRET,
+      {
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        expiresIn: '24h'
+      }
+    );
+
+    console.log('✅ Token generated successfully');
+
+    // Return token (same format as EMCC API)
+    res.status(200).json({
+      Token: token, // Capital 'T' to match DS's TokenResponse class
+      success: true,
+      message: 'Authentication successful'
+    });
+
+  } catch (error) {
+    console.error('❌ DS Authentication Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+console.log('✅ DS-Style Authentication endpoint loaded: POST /api/auth/ds-authenticate');
+
+// =====================================================================
+// END OF SSO AUTHENTICATION ENDPOINTS
+// =====================================================================
 
 // Start server
 async function startServer() {

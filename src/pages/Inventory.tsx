@@ -272,7 +272,7 @@ const Inventory = () => {
           ) : (
             <Plus className="h-4 w-4" />
           )}
-          <span>{isCreatingItem ? 'Adding...' : 'Add Item'}</span>
+          <span>{isCreatingItem ? 'Adding...' : 'Item'}</span>
         </Button>
       </div>
 

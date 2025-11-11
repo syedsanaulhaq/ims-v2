@@ -32,6 +32,7 @@ interface Category {
   id: string;
   category_name: string;
   description: string;
+  item_type?: string; // 'Dispensable' or 'Indispensable'
   status: string;
   created_at: string;
   updated_at: string;
@@ -95,6 +96,7 @@ const CategoriesManagement = () => {
   const [categoryForm, setCategoryForm] = useState({
     category_name: '',
     description: '',
+    item_type: 'Dispensable',
     status: 'Active'
   });
 
@@ -248,6 +250,7 @@ const CategoriesManagement = () => {
     setCategoryForm({
       category_name: category.category_name,
       description: category.description || '',
+      item_type: category.item_type || 'Dispensable',
       status: category.status
     });
     setShowCategoryDialog(true);
@@ -481,7 +484,7 @@ const CategoriesManagement = () => {
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Category
+                Category
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
@@ -516,6 +519,21 @@ const CategoriesManagement = () => {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="item_type">Item Type *</Label>
+                  <Select 
+                    value={categoryForm.item_type} 
+                    onValueChange={(value) => setCategoryForm({...categoryForm, item_type: value})}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Dispensable">Dispensable</SelectItem>
+                      <SelectItem value="Indispensable">Indispensable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="status">Status</Label>
                   <Select 
                     value={categoryForm.status} 
@@ -547,7 +565,7 @@ const CategoriesManagement = () => {
             <DialogTrigger asChild>
               <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50">
                 <Tag className="w-4 h-4 mr-2" />
-                Add Sub-Category
+                Sub-Category
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
@@ -839,6 +857,7 @@ const CategoriesManagement = () => {
                 <TableHead className="w-12"></TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>Item Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Sub-Categories</TableHead>
                 <TableHead>Created Date</TableHead>
@@ -874,6 +893,18 @@ const CategoriesManagement = () => {
                     </TableCell>
                     <TableCell className="text-gray-600">
                       {category.description || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="outline" 
+                        className={
+                          category.item_type === 'Indispensable' 
+                            ? 'bg-orange-50 text-orange-700 border-orange-200' 
+                            : 'bg-green-50 text-green-700 border-green-200'
+                        }
+                      >
+                        {category.item_type || 'Dispensable'}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant={category.status === 'Active' ? 'default' : 'secondary'}>

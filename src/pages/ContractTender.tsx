@@ -425,7 +425,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
         </div>
         <Button onClick={handleCreateNew} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
-          {isSpotPurchase ? 'Add Spot Purchase' : 'Add Tender'}
+          {isSpotPurchase ? 'Spot Purchase' : 'Tender'}
         </Button>
       </div>
 

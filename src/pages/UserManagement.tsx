@@ -250,7 +250,7 @@ const UserManagement: React.FC = () => {
             </Button>
             <Button>
               <UserPlus className="w-4 h-4 mr-2" />
-              Add User
+              User
             </Button>
           </div>
         </div>
