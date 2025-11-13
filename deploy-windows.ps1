@@ -268,22 +268,22 @@ Write-Host "[SUCCESS] DEPLOYMENT COMPLETED!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
-Write-Host "📂 Application Location:" -ForegroundColor Cyan
+Write-Host "[INFO] Application Location:" -ForegroundColor Cyan
 Write-Host "   $DEPLOY_PATH" -ForegroundColor White
 Write-Host ""
 
-Write-Host "🌐 Access URLs:" -ForegroundColor Cyan
+Write-Host "[INFO] Access URLs:" -ForegroundColor Cyan
 Write-Host "   Backend API: http://localhost:$BACKEND_PORT" -ForegroundColor White
 Write-Host "   Frontend: Open dist/index.html in browser" -ForegroundColor White
 Write-Host "            Or serve via IIS/HTTP Server" -ForegroundColor White
 Write-Host ""
 
-Write-Host "🔐 Test Login Credentials:" -ForegroundColor Cyan
+Write-Host "[INFO] Test Login Credentials:" -ForegroundColor Cyan
 Write-Host "   Username: 1111111111111" -ForegroundColor White
 Write-Host "   Password: 123456" -ForegroundColor White
 Write-Host ""
 
-Write-Host "📝 Next Steps:" -ForegroundColor Cyan
+Write-Host "[INFO] Next Steps:" -ForegroundColor Cyan
 Write-Host "   1. Setup IIS to serve the dist/ folder" -ForegroundColor Yellow
 Write-Host "      - Point IIS website to: $DEPLOY_PATH\dist" -ForegroundColor Gray
 Write-Host "      - Configure reverse proxy for /api/ to http://localhost:$BACKEND_PORT" -ForegroundColor Gray
@@ -297,7 +297,7 @@ Write-Host "      - Allow port 80 (HTTP) or 443 (HTTPS)" -ForegroundColor Gray
 Write-Host "      - Allow port $BACKEND_PORT (Backend API)" -ForegroundColor Gray
 Write-Host ""
 
-Write-Host "📖 Documentation:" -ForegroundColor Cyan
+Write-Host "[INFO] Documentation:" -ForegroundColor Cyan
 Write-Host "   See SERVER-SETUP-FROM-SCRATCH.md for detailed setup" -ForegroundColor White
 Write-Host "   See PRODUCTION-DEPLOYMENT.md for deployment details" -ForegroundColor White
 Write-Host ""
