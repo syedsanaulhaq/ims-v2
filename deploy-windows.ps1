@@ -39,9 +39,9 @@ Write-Host ""
 Write-Host "[1/8] Checking Node.js..." -ForegroundColor Cyan
 try {
     $nodeVersion = node --version
-    Write-Host "  ✓ Node.js is installed: $nodeVersion" -ForegroundColor Green
+    Write-Host "  [OK] Node.js is installed: $nodeVersion" -ForegroundColor Green
 } catch {
-    Write-Host "  ✗ Node.js is NOT installed!" -ForegroundColor Red
+    Write-Host "  [ERROR] Node.js is NOT installed!" -ForegroundColor Red
     Write-Host ""
     Write-Host "Please install Node.js first:" -ForegroundColor Yellow
     Write-Host "  1. Download from: https://nodejs.org/en/download/" -ForegroundColor Yellow
@@ -53,9 +53,9 @@ try {
 
 try {
     $npmVersion = npm --version
-    Write-Host "  ✓ npm is installed: $npmVersion" -ForegroundColor Green
+    Write-Host "  [OK] npm is installed: $npmVersion" -ForegroundColor Green
 } catch {
-    Write-Host "  ✗ npm is NOT installed!" -ForegroundColor Red
+    Write-Host "  [ERROR] npm is NOT installed!" -ForegroundColor Red
     exit 1
 }
 
@@ -66,9 +66,9 @@ Write-Host ""
 Write-Host "[2/8] Checking Git..." -ForegroundColor Cyan
 try {
     $gitVersion = git --version
-    Write-Host "  ✓ Git is installed: $gitVersion" -ForegroundColor Green
+    Write-Host "  [OK] Git is installed: $gitVersion" -ForegroundColor Green
 } catch {
-    Write-Host "  ✗ Git is NOT installed!" -ForegroundColor Red
+    Write-Host "  [ERROR] Git is NOT installed!" -ForegroundColor Red
     Write-Host ""
     Write-Host "Please install Git first:" -ForegroundColor Yellow
     Write-Host "  1. Download from: https://git-scm.com/download/win" -ForegroundColor Yellow
@@ -112,7 +112,7 @@ if (!(Test-Path $DEPLOY_PATH)) {
     
     # Navigate to ims-v1 folder
     $repoName = $GIT_REPO.Split('/')[-1].Replace('.git', '')
-    Set-Location "$parentDir\$repoName\ims-v1"
+        Set-Location "$parentDir\$repoName\ims-v1"
     
     # Checkout specific branch
     Write-Host "  Checking out branch: $GIT_BRANCH" -ForegroundColor Gray
@@ -124,12 +124,10 @@ if (!(Test-Path $DEPLOY_PATH)) {
         Set-Location $DEPLOY_PATH
     }
     
-    Write-Host "  ✓ Repository cloned successfully" -ForegroundColor Green
+    Write-Host "  [OK] Repository cloned successfully" -ForegroundColor Green
 } else {
-    Write-Host "  ✓ Using existing repository" -ForegroundColor Green
-}
-
-# ============================================================================
+    Write-Host "  [OK] Using existing repository" -ForegroundColor Green
+}# ============================================================================
 # Step 4: Create .env.sqlserver file
 # ============================================================================
 Write-Host ""
@@ -158,7 +156,7 @@ JWT_SECRET=ChangeThisToAVerySecureRandomString123456789ProductionKey2024
 "@
 
 $envContent | Out-File -FilePath ".env.sqlserver" -Encoding UTF8
-Write-Host "  ✓ Created .env.sqlserver" -ForegroundColor Green
+Write-Host "  [OK] Created .env.sqlserver" -ForegroundColor Green
 
 # ============================================================================
 # Step 5: Install dependencies
@@ -170,9 +168,9 @@ Write-Host "  This may take 2-5 minutes..." -ForegroundColor Gray
 npm install
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "  ✓ Dependencies installed successfully" -ForegroundColor Green
+    Write-Host "  [OK] Dependencies installed successfully" -ForegroundColor Green
 } else {
-    Write-Host "  ✗ Failed to install dependencies" -ForegroundColor Red
+    Write-Host "  [ERROR] Failed to install dependencies" -ForegroundColor Red
     exit 1
 }
 
@@ -186,18 +184,18 @@ Write-Host "  This may take 1-3 minutes..." -ForegroundColor Gray
 npm run build
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "  ✓ Frontend built successfully" -ForegroundColor Green
+    Write-Host "  [OK] Frontend built successfully" -ForegroundColor Green
     
     # Check if dist folder was created
     if (Test-Path "dist") {
         $distSize = (Get-ChildItem -Path "dist" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-        Write-Host "  ✓ dist/ folder created ($([math]::Round($distSize, 2)) MB)" -ForegroundColor Green
+        Write-Host "  [OK] dist/ folder created ($([math]::Round($distSize, 2)) MB)" -ForegroundColor Green
     } else {
-        Write-Host "  ✗ dist/ folder was not created" -ForegroundColor Red
+        Write-Host "  [ERROR] dist/ folder was not created" -ForegroundColor Red
         exit 1
     }
 } else {
-    Write-Host "  ✗ Failed to build frontend" -ForegroundColor Red
+    Write-Host "  [ERROR] Failed to build frontend" -ForegroundColor Red
     exit 1
 }
 
@@ -211,16 +209,16 @@ if (Test-Path "check-users-quick.cjs") {
     try {
         $dbTest = node check-users-quick.cjs 2>&1
         if ($dbTest -match "Connected") {
-            Write-Host "  ✓ Database connection successful" -ForegroundColor Green
+            Write-Host "  [OK] Database connection successful" -ForegroundColor Green
         } else {
-            Write-Host "  ⚠ Could not verify database connection" -ForegroundColor Yellow
+            Write-Host "  [WARNING] Could not verify database connection" -ForegroundColor Yellow
             Write-Host "  Check .env.sqlserver file if login fails" -ForegroundColor Yellow
         }
     } catch {
-        Write-Host "  ⚠ Could not test database connection" -ForegroundColor Yellow
+        Write-Host "  [WARNING] Could not test database connection" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  ⚠ Database test script not found, skipping" -ForegroundColor Yellow
+    Write-Host "  [WARNING] Database test script not found, skipping" -ForegroundColor Yellow
 }
 
 # ============================================================================
@@ -254,9 +252,9 @@ if (-not $skipBackendStart) {
     # Check if backend started
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:$BACKEND_PORT/api/health" -TimeoutSec 5 -ErrorAction SilentlyContinue
-        Write-Host "  ✓ Backend server started successfully" -ForegroundColor Green
+        Write-Host "  [OK] Backend server started successfully" -ForegroundColor Green
     } catch {
-        Write-Host "  ⚠ Backend server started, but health check failed" -ForegroundColor Yellow
+        Write-Host "  [WARNING] Backend server started, but health check failed" -ForegroundColor Yellow
         Write-Host "  Check the backend window for errors" -ForegroundColor Yellow
     }
 }
@@ -266,7 +264,7 @@ if (-not $skipBackendStart) {
 # ============================================================================
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "✓ DEPLOYMENT COMPLETED SUCCESSFULLY!" -ForegroundColor Green
+Write-Host "[SUCCESS] DEPLOYMENT COMPLETED!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
@@ -304,7 +302,7 @@ Write-Host "   See SERVER-SETUP-FROM-SCRATCH.md for detailed setup" -ForegroundC
 Write-Host "   See PRODUCTION-DEPLOYMENT.md for deployment details" -ForegroundColor White
 Write-Host ""
 
-Write-Host "⚠️  Important Notes:" -ForegroundColor Yellow
+Write-Host "[!] Important Notes:" -ForegroundColor Yellow
 Write-Host "   - Backend is running in a separate PowerShell window" -ForegroundColor White
 Write-Host "   - Don't close the backend window" -ForegroundColor White
 Write-Host "   - To stop backend: Close the backend window or kill node.exe process" -ForegroundColor White
