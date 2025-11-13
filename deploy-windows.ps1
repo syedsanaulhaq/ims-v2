@@ -310,4 +310,4 @@ Write-Host "   - Database credentials are in: .env.sqlserver" -ForegroundColor W
 Write-Host ""
 
 Write-Host "Press any key to exit..." -ForegroundColor Gray
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
