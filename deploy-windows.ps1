@@ -17,6 +17,13 @@ Write-Host ""
 
 # Configuration - EDIT THESE VALUES
 $DEPLOY_PATH = "C:\inetpub\wwwroot\ims-v1"
+
+# GitHub Credentials - ADD YOUR CREDENTIALS HERE
+$GIT_USERNAME = "ecp-developer"
+$GIT_PASSWORD = ""  # Add your GitHub Personal Access Token here
+# To create token: GitHub.com -> Settings -> Developer settings -> Personal access tokens -> Tokens (classic) -> Generate new token
+# Required scope: repo (Full control of private repositories)
+
 $GIT_REPO = "https://github.com/ecp-developer/inventory-management-system-ims.git"
 $GIT_BRANCH = "invmisdb-rebuild-sept14-2025"
 
@@ -78,10 +85,37 @@ try {
 }
 
 # ============================================================================
-# Step 3: Create deployment directory and clone repository
+# Step 3: Check Network Connectivity to GitHub
 # ============================================================================
 Write-Host ""
-Write-Host "[3/8] Setting up deployment directory..." -ForegroundColor Cyan
+Write-Host "[3/8] Checking GitHub connectivity..." -ForegroundColor Cyan
+
+try {
+    Write-Host "  Testing connection to github.com..." -ForegroundColor Gray
+    $webTest = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+    Write-Host "  [OK] Successfully connected to github.com" -ForegroundColor Green
+} catch {
+    Write-Host "  [ERROR] Cannot connect to github.com!" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Your server cannot reach GitHub. Options:" -ForegroundColor Yellow
+    Write-Host "  1. Check internet connection" -ForegroundColor Gray
+    Write-Host "  2. Check firewall settings (allow port 443)" -ForegroundColor Gray
+    Write-Host "  3. Check proxy settings if behind corporate firewall" -ForegroundColor Gray
+    Write-Host "  4. Use deploy-windows-simple.ps1 and manually copy files instead" -ForegroundColor Gray
+    Write-Host ""
+    $response = Read-Host "Continue anyway and try Git clone? (y/n)"
+    if ($response -ne 'y') {
+        exit 1
+    }
+}
+
+# ============================================================================
+# Step 4: Create deployment directory and clone repository
+# ============================================================================
+Write-Host ""
+Write-Host "[4/8] Setting up deployment directory..." -ForegroundColor Cyan
 
 # Create parent directory if it doesn't exist
 $parentDir = Split-Path -Parent $DEPLOY_PATH
@@ -108,11 +142,38 @@ if (!(Test-Path $DEPLOY_PATH)) {
     Write-Host "  Cloning repository from GitHub..." -ForegroundColor Gray
     Set-Location $parentDir
     
-    git clone $GIT_REPO
+    # Build Git URL with credentials if password provided
+    if ($GIT_PASSWORD -ne "") {
+        $GIT_REPO_WITH_AUTH = $GIT_REPO.Replace("https://", "https://${GIT_USERNAME}:${GIT_PASSWORD}@")
+        Write-Host "  Using authenticated Git clone..." -ForegroundColor Gray
+        git clone $GIT_REPO_WITH_AUTH
+    } else {
+        Write-Host "  Using public Git clone (no credentials)..." -ForegroundColor Gray
+        Write-Host "  If repository is private, add GitHub Personal Access Token to script" -ForegroundColor Yellow
+        git clone $GIT_REPO
+    }
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "  [ERROR] Failed to clone repository!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  Possible reasons:" -ForegroundColor Yellow
+        Write-Host "  1. No internet connection or can't reach github.com" -ForegroundColor Gray
+        Write-Host "  2. Repository is private and needs authentication" -ForegroundColor Gray
+        Write-Host "  3. Firewall blocking port 443" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  Solutions:" -ForegroundColor Yellow
+        Write-Host "  - Check internet: ping github.com" -ForegroundColor Gray
+        Write-Host "  - Add GitHub token to line 21 of this script" -ForegroundColor Gray
+        Write-Host "  - Or manually copy files to $DEPLOY_PATH and use deploy-windows-simple.ps1" -ForegroundColor Gray
+        Write-Host ""
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
     
     # Navigate to ims-v1 folder
     $repoName = $GIT_REPO.Split('/')[-1].Replace('.git', '')
-        Set-Location "$parentDir\$repoName\ims-v1"
+    Set-Location "$parentDir\$repoName\ims-v1"
     
     # Checkout specific branch
     Write-Host "  Checking out branch: $GIT_BRANCH" -ForegroundColor Gray
@@ -128,10 +189,10 @@ if (!(Test-Path $DEPLOY_PATH)) {
 } else {
     Write-Host "  [OK] Using existing repository" -ForegroundColor Green
 }# ============================================================================
-# Step 4: Create .env.sqlserver file
+# Step 5: Create .env.sqlserver file
 # ============================================================================
 Write-Host ""
-Write-Host "[4/8] Creating environment configuration..." -ForegroundColor Cyan
+Write-Host "[5/9] Creating environment configuration..." -ForegroundColor Cyan
 
 $envContent = @"
 # SQL Server Configuration - PRODUCTION
@@ -159,10 +220,10 @@ $envContent | Out-File -FilePath ".env.sqlserver" -Encoding UTF8
 Write-Host "  [OK] Created .env.sqlserver" -ForegroundColor Green
 
 # ============================================================================
-# Step 5: Install dependencies
+# Step 6: Install dependencies
 # ============================================================================
 Write-Host ""
-Write-Host "[5/8] Installing dependencies..." -ForegroundColor Cyan
+Write-Host "[6/9] Installing dependencies..." -ForegroundColor Cyan
 Write-Host "  This may take 2-5 minutes..." -ForegroundColor Gray
 
 npm install
@@ -175,10 +236,10 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 # ============================================================================
-# Step 6: Build frontend
+# Step 7: Build frontend
 # ============================================================================
 Write-Host ""
-Write-Host "[6/8] Building frontend for production..." -ForegroundColor Cyan
+Write-Host "[7/9] Building frontend for production..." -ForegroundColor Cyan
 Write-Host "  This may take 1-3 minutes..." -ForegroundColor Gray
 
 npm run build
@@ -200,10 +261,10 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 # ============================================================================
-# Step 7: Test database connection
+# Step 8: Test database connection
 # ============================================================================
 Write-Host ""
-Write-Host "[7/8] Testing database connection..." -ForegroundColor Cyan
+Write-Host "[8/9] Testing database connection..." -ForegroundColor Cyan
 
 if (Test-Path "check-users-quick.cjs") {
     try {
@@ -222,10 +283,10 @@ if (Test-Path "check-users-quick.cjs") {
 }
 
 # ============================================================================
-# Step 8: Start backend server
+# Step 9: Start backend server
 # ============================================================================
 Write-Host ""
-Write-Host "[8/8] Starting backend server..." -ForegroundColor Cyan
+Write-Host "[9/9] Starting backend server..." -ForegroundColor Cyan
 
 # Check if backend is already running
 $existingProcess = Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*$DEPLOY_PATH*" }
