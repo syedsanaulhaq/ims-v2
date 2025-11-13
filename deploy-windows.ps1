@@ -20,7 +20,7 @@ $DEPLOY_PATH = "C:\inetpub\wwwroot\ims-v1"
 
 # GitHub Credentials - ADD YOUR CREDENTIALS HERE
 $GIT_USERNAME = "ecp-developer"
-$GIT_PASSWORD = ""  # Add your GitHub Personal Access Token here
+$GIT_PASSWORD = "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"  # GitHub Personal Access Token
 # To create token: GitHub.com -> Settings -> Developer settings -> Personal access tokens -> Tokens (classic) -> Generate new token
 # Required scope: repo (Full control of private repositories)
 
