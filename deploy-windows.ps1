@@ -16,7 +16,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Configuration - EDIT THESE VALUES
-$DEPLOY_PATH = "C:\inetpub\wwwroot\ims-v1"
+$DEPLOY_PATH = "C:\ims-v1"
 
 # GitHub Credentials - ADD YOUR CREDENTIALS HERE
 $GIT_USERNAME = "ecp-developer"
@@ -28,9 +28,9 @@ $GIT_REPO = "https://github.com/ecp-developer/inventory-management-system-ims.gi
 $GIT_BRANCH = "invmisdb-rebuild-sept14-2025"
 
 # Database Configuration - EDIT THESE
-$DB_HOST = "172.20.150.34"
+$DB_HOST = "172.20.151.60"
 $DB_DATABASE = "InventoryManagementDB"
-$DB_USER = "inventorymanagementuser"
+$DB_USER = "inventoryuser"
 $DB_PASSWORD = "2016Wfp61@"
 $BACKEND_PORT = 3001
 
