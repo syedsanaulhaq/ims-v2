@@ -189,21 +189,42 @@ if (!(Test-Path $DEPLOY_PATH) -and !$skipClone) {
         exit 1
     }
     
-    # Navigate to ims-v1 folder
+    # Navigate to cloned repository
     $repoName = $GIT_REPO.Split('/')[-1].Replace('.git', '')
-    Set-Location "$parentDir\$repoName\ims-v1"
+    $clonedPath = "$parentDir\$repoName"
     
-    # Checkout specific branch
-    Write-Host "  Checking out branch: $GIT_BRANCH" -ForegroundColor Gray
-    git checkout $GIT_BRANCH
-    
-    # Copy to final location if different
-    if ($DEPLOY_PATH -ne "$parentDir\$repoName\ims-v1") {
-        Copy-Item -Path "$parentDir\$repoName\ims-v1" -Destination $DEPLOY_PATH -Recurse -Force
-        Set-Location $DEPLOY_PATH
+    if (Test-Path $clonedPath) {
+        Set-Location $clonedPath
+        
+        # Checkout specific branch
+        Write-Host "  Checking out branch: $GIT_BRANCH" -ForegroundColor Gray
+        git checkout $GIT_BRANCH
+        
+        # The repository root IS the ims-v1 folder, no subfolder needed
+        # Copy or rename to final location if different
+        if ($DEPLOY_PATH -ne $clonedPath) {
+            Write-Host "  Copying files to deployment location..." -ForegroundColor Gray
+            
+            # Create deploy path if it doesn't exist
+            if (!(Test-Path $DEPLOY_PATH)) {
+                New-Item -ItemType Directory -Path $DEPLOY_PATH -Force | Out-Null
+            }
+            
+            # Copy all files to deployment path
+            Copy-Item -Path "$clonedPath\*" -Destination $DEPLOY_PATH -Recurse -Force
+            
+            # Navigate to deployment path
+            Set-Location $DEPLOY_PATH
+            
+            Write-Host "  [OK] Files copied to $DEPLOY_PATH" -ForegroundColor Green
+        }
+        
+        Write-Host "  [OK] Repository cloned successfully" -ForegroundColor Green
+    } else {
+        Write-Host "  [ERROR] Cloned repository not found at $clonedPath" -ForegroundColor Red
+        Read-Host "Press Enter to exit"
+        exit 1
     }
-    
-    Write-Host "  [OK] Repository cloned successfully" -ForegroundColor Green
 } else {
     Write-Host "  [OK] Using existing repository" -ForegroundColor Green
 }# ============================================================================
