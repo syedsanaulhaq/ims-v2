@@ -130,15 +130,33 @@ if (Test-Path $DEPLOY_PATH) {
     $response = Read-Host "  Delete and re-clone? (y/n)"
     if ($response -eq 'y') {
         Write-Host "  Removing existing directory..." -ForegroundColor Gray
-        Remove-Item -Path $DEPLOY_PATH -Recurse -Force
+        
+        # Move out of the directory first if we're inside it
+        $currentLocation = Get-Location
+        if ($currentLocation.Path -eq $DEPLOY_PATH -or $currentLocation.Path.StartsWith($DEPLOY_PATH)) {
+            Write-Host "  Moving to parent directory..." -ForegroundColor Gray
+            Set-Location $parentDir
+        }
+        
+        # Now remove the directory
+        try {
+            Remove-Item -Path $DEPLOY_PATH -Recurse -Force -ErrorAction Stop
+            Write-Host "  [OK] Directory removed" -ForegroundColor Green
+        } catch {
+            Write-Host "  [ERROR] Could not remove directory: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  Please close all programs using files in this directory" -ForegroundColor Yellow
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
     } else {
         Write-Host "  Using existing directory..." -ForegroundColor Gray
         Set-Location $DEPLOY_PATH
+        $skipClone = $true
     }
 }
 
 # Clone repository if directory doesn't exist
-if (!(Test-Path $DEPLOY_PATH)) {
+if (!(Test-Path $DEPLOY_PATH) -and !$skipClone) {
     Write-Host "  Cloning repository from GitHub..." -ForegroundColor Gray
     Set-Location $parentDir
     
