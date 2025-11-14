@@ -142,7 +142,7 @@ if (Test-Path $APACHE_CONF) {
             Write-Host "  [INFO] You need to restart Apache for changes to take effect" -ForegroundColor Yellow
         } catch {
             Write-Host "  [WARNING] Could not update httpd.conf automatically" -ForegroundColor Yellow
-            Write-Host "  Please manually uncomment these lines in $APACHE_CONF:" -ForegroundColor Yellow
+            Write-Host "  Please manually uncomment these lines in ${APACHE_CONF}:" -ForegroundColor Yellow
             foreach ($module in $modulesToEnable) {
                 Write-Host "    $module" -ForegroundColor Gray
             }
