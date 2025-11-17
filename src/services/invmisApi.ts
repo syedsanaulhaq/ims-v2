@@ -5,7 +5,7 @@
 // ====================================================================
 
 // Environment-based API URL configuration
-const getApiBaseUrl = () => {
+export const getApiBaseUrl = () => {
   // In production builds served from Apache, use relative path for proxy
   if (import.meta.env.PROD && !window.location.port) {
     return '/ims/api';  // Apache will proxy to localhost:3001
@@ -346,8 +346,5 @@ export const invmisApi = {
     }),
   },
 };
-
-// Export the API base URL for other services
-export const getApiBaseUrl = () => API_BASE_URL;
 
 export default invmisApi;
