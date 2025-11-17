@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { getApiBaseUrl } from '../services/invmisApi';
 
 export interface Notification {
   id: string;
@@ -67,7 +68,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     
     try {
       // Update backend
-      await fetch(`http://localhost:3001/api/notifications/${id}/read`, {
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/notifications/${id}/read`, {
         method: 'PUT',
         credentials: 'include',
         headers: {
@@ -114,7 +116,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     
     try {
       // Load from backend API
-      const response = await fetch(`http://localhost:3001/api/my-notifications?limit=50`, {
+      const apiBase = getApiBaseUrl();
+      const response = await fetch(`${apiBase}/my-notifications?limit=50`, {
         method: 'GET',
         credentials: 'include',
         headers: {
