@@ -6,6 +6,11 @@
 
 // Environment-based API URL configuration
 const getApiBaseUrl = () => {
+  // In production builds served from Apache, use relative path for proxy
+  if (import.meta.env.PROD && !window.location.port) {
+    return '/ims/api';  // Apache will proxy to localhost:3001
+  }
+  
   // Check if running on staging port (8081)
   const currentPort = window.location.port;
   const isStaging = currentPort === '8081' || window.location.hostname.includes('staging');
@@ -20,7 +25,7 @@ const getApiBaseUrl = () => {
     return `${import.meta.env.VITE_API_URL}/api`;
   }
   
-  // Default to our current backend server
+  // Default to our current backend server (dev mode)
   return 'http://localhost:3001/api';
 };
 
