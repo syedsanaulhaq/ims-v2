@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getApiBaseUrl } from '../services/invmisApi';
 
-// Use environment variable or default to development
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use centralized API configuration
+const API_BASE_URL = getApiBaseUrl().replace('/api', ''); // Remove /api suffix
 
 interface User {
   Id: string;

@@ -1,5 +1,7 @@
 // Session service for managing user session
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { getApiBaseUrl } from './invmisApi';
+
+const API_BASE_URL = getApiBaseUrl().replace('/api', ''); // Remove /api suffix for session endpoint
 
 interface User {
   user_id: string;

@@ -347,4 +347,7 @@ export const invmisApi = {
   },
 };
 
+// Export the API base URL for other services
+export const getApiBaseUrl = () => API_BASE_URL;
+
 export default invmisApi;
