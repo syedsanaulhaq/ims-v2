@@ -1,16 +1,16 @@
 # Check Apache Proxy Configuration
-Write-Host "`n🔍 Checking Apache Proxy Configuration..." -ForegroundColor Cyan
+Write-Host "`n[CHECK] Checking Apache Proxy Configuration..." -ForegroundColor Cyan
 Write-Host "=" * 60 -ForegroundColor Gray
 
 # Check if .htaccess exists
 $htaccessPath = "C:\xampp\htdocs\ims\.htaccess"
 Write-Host "`n1. Checking .htaccess file..." -ForegroundColor Yellow
 if (Test-Path $htaccessPath) {
-    Write-Host "  ✅ .htaccess exists" -ForegroundColor Green
+    Write-Host "  [OK] .htaccess exists" -ForegroundColor Green
     Write-Host "`n  Content:" -ForegroundColor Cyan
     Get-Content $htaccessPath | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
 } else {
-    Write-Host "  ❌ .htaccess NOT FOUND at $htaccessPath" -ForegroundColor Red
+    Write-Host "  [ERROR] .htaccess NOT FOUND at $htaccessPath" -ForegroundColor Red
 }
 
 # Check httpd.conf for proxy modules
@@ -24,21 +24,21 @@ if (Test-Path $httpdConf) {
     $rewriteModule = $content | Select-String "LoadModule rewrite_module"
     
     if ($proxyModule -notmatch "^#") {
-        Write-Host "  ✅ mod_proxy: ENABLED" -ForegroundColor Green
+        Write-Host "  [OK] mod_proxy: ENABLED" -ForegroundColor Green
     } else {
-        Write-Host "  ❌ mod_proxy: DISABLED" -ForegroundColor Red
+        Write-Host "  [ERROR] mod_proxy: DISABLED" -ForegroundColor Red
     }
     
     if ($proxyHttpModule -notmatch "^#") {
-        Write-Host "  ✅ mod_proxy_http: ENABLED" -ForegroundColor Green
+        Write-Host "  [OK] mod_proxy_http: ENABLED" -ForegroundColor Green
     } else {
-        Write-Host "  ❌ mod_proxy_http: DISABLED" -ForegroundColor Red
+        Write-Host "  [ERROR] mod_proxy_http: DISABLED" -ForegroundColor Red
     }
     
     if ($rewriteModule -notmatch "^#") {
-        Write-Host "  ✅ mod_rewrite: ENABLED" -ForegroundColor Green
+        Write-Host "  [OK] mod_rewrite: ENABLED" -ForegroundColor Green
     } else {
-        Write-Host "  ❌ mod_rewrite: DISABLED" -ForegroundColor Red
+        Write-Host "  [ERROR] mod_rewrite: DISABLED" -ForegroundColor Red
     }
 }
 
@@ -50,16 +50,16 @@ if ($allowOverride) {
         Write-Host "  $_" -ForegroundColor Gray
     }
 } else {
-    Write-Host "  ⚠️ No AllowOverride settings found" -ForegroundColor Yellow
+    Write-Host "  [WARN] No AllowOverride settings found" -ForegroundColor Yellow
 }
 
 # Check if backend is running
 Write-Host "`n4. Checking if backend server is running..." -ForegroundColor Yellow
 try {
     $response = Invoke-WebRequest -Uri "http://localhost:3001/api/session" -UseBasicParsing -ErrorAction Stop
-    Write-Host "  ✅ Backend responding on port 3001" -ForegroundColor Green
+    Write-Host "  [OK] Backend responding on port 3001" -ForegroundColor Green
 } catch {
-    Write-Host "  ❌ Backend NOT responding on port 3001" -ForegroundColor Red
+    Write-Host "  [ERROR] Backend NOT responding on port 3001" -ForegroundColor Red
     Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
 }
 
@@ -79,14 +79,14 @@ if (Test-Path $errorLog) {
 Write-Host "`n6. Testing proxy path..." -ForegroundColor Yellow
 try {
     $response = Invoke-WebRequest -Uri "http://localhost/ims/api/session" -UseBasicParsing -ErrorAction Stop
-    Write-Host "  ✅ Proxy working! Status: $($response.StatusCode)" -ForegroundColor Green
+    Write-Host "  [OK] Proxy working! Status: $($response.StatusCode)" -ForegroundColor Green
 } catch {
-    Write-Host "  ❌ Proxy NOT working! Status: $($_.Exception.Response.StatusCode.Value__)" -ForegroundColor Red
+    Write-Host "  [ERROR] Proxy NOT working! Status: $($_.Exception.Response.StatusCode.Value__)" -ForegroundColor Red
     Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 Write-Host "`n" + ("=" * 60) -ForegroundColor Gray
-Write-Host "💡 Recommendations:" -ForegroundColor Cyan
+Write-Host "[INFO] Recommendations:" -ForegroundColor Cyan
 Write-Host "  - Ensure backend is running: .\start-production.ps1" -ForegroundColor Gray
 Write-Host "  - Restart Apache: C:\xampp\apache_stop.bat && C:\xampp\apache_start.bat" -ForegroundColor Gray
 Write-Host "  - Check httpd.conf has AllowOverride All for htdocs directory" -ForegroundColor Gray
