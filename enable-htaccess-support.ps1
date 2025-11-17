@@ -66,7 +66,7 @@ $rewriteLine = Get-Content $httpdConf | Select-String "LoadModule rewrite_module
 if ($rewriteLine -match "^#") {
     Write-Host "  ⚠️ mod_rewrite is commented out, enabling..." -ForegroundColor Yellow
     $content = Get-Content $httpdConf -Raw
-    $content = $content -replace '#LoadModule rewrite_module', 'LoadModule rewrite_module'
+    $content = $content -replace "#LoadModule rewrite_module", "LoadModule rewrite_module"
     Set-Content $httpdConf -Value $content
     Write-Host "  ✅ mod_rewrite enabled" -ForegroundColor Green
 } else {

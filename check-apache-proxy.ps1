@@ -89,5 +89,5 @@ Write-Host "`n" + ("=" * 60) -ForegroundColor Gray
 Write-Host "💡 Recommendations:" -ForegroundColor Cyan
 Write-Host "  - Ensure backend is running: .\start-production.ps1" -ForegroundColor Gray
 Write-Host "  - Restart Apache: C:\xampp\apache_stop.bat && C:\xampp\apache_start.bat" -ForegroundColor Gray
-Write-Host "  - Check httpd.conf has 'AllowOverride All' for htdocs directory" -ForegroundColor Gray
+Write-Host "  - Check httpd.conf has AllowOverride All for htdocs directory" -ForegroundColor Gray
 Write-Host ""
