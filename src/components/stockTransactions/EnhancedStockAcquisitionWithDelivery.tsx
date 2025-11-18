@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,9 +53,8 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
-import {
 import { getApiBaseUrl } from '@/services/invmisApi';
-
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -192,9 +191,9 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         setTenderSummaries(summariesData);
       }
 
-      console.log('📊 Stock acquisition dashboard data loaded');
+      console.log('ðŸ“Š Stock acquisition dashboard data loaded');
     } catch (err) {
-      console.error('❌ Error loading stock acquisition data:', err);
+      console.error('âŒ Error loading stock acquisition data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);
@@ -241,7 +240,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
       setEditedItems(initialEdits);
       
     } catch (err) {
-      console.error('❌ Error loading tender details:', err);
+      console.error('âŒ Error loading tender details:', err);
       setError('Failed to load tender details');
     }
   };
@@ -271,7 +270,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         throw new Error('Failed to update prices');
       }
     } catch (err) {
-      console.error('❌ Error updating prices:', err);
+      console.error('âŒ Error updating prices:', err);
       alert('Failed to update prices');
     }
   };
@@ -316,7 +315,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         throw new Error('Failed to save delivery info');
       }
     } catch (err) {
-      console.error('❌ Error saving delivery info:', err);
+      console.error('âŒ Error saving delivery info:', err);
       alert('Failed to save delivery info');
     }
   };

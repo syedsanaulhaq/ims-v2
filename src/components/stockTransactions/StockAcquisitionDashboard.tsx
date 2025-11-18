@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
 import { getApiBaseUrl } from '@/services/invmisApi';
-
+import {
   Package,
   TrendingUp,
   FileText,
@@ -85,42 +84,42 @@ const StockAcquisitionDashboard: React.FC = () => {
       setLoading(true);
       
       // Fetch acquisition overview stats
-      console.log('📊 Fetching acquisition dashboard stats...');
+      console.log('ðŸ“Š Fetching acquisition dashboard stats...');
       const statsResponse = await fetch(`${apiBase}/acquisition/dashboard-stats`);
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
-        console.log('✅ Stats data received:', statsData);
+        console.log('âœ… Stats data received:', statsData);
         setStats(statsData);
       } else {
-        console.error('❌ Stats API error:', statsResponse.status, statsResponse.statusText);
+        console.error('âŒ Stats API error:', statsResponse.status, statsResponse.statusText);
         const errorText = await statsResponse.text();
         console.error('Error details:', errorText);
       }
 
       // Fetch active tenders
-      console.log('📋 Fetching active tenders...');
+      console.log('ðŸ“‹ Fetching active tenders...');
       const tendersResponse = await fetch(`${apiBase}/acquisition/active-tenders`);
       if (tendersResponse.ok) {
         const tendersData = await tendersResponse.json();
-        console.log('✅ Active tenders received:', tendersData.length, 'tenders');
+        console.log('âœ… Active tenders received:', tendersData.length, 'tenders');
         setActiveTenders(tendersData);
       } else {
-        console.error('❌ Active tenders API error:', tendersResponse.status);
+        console.error('âŒ Active tenders API error:', tendersResponse.status);
       }
 
       // Fetch recent deliveries
-      console.log('🚚 Fetching recent deliveries...');
+      console.log('ðŸšš Fetching recent deliveries...');
       const deliveriesResponse = await fetch(`${apiBase}/acquisition/recent-deliveries`);
       if (deliveriesResponse.ok) {
         const deliveriesData = await deliveriesResponse.json();
-        console.log('✅ Recent deliveries received:', deliveriesData.length, 'deliveries');
+        console.log('âœ… Recent deliveries received:', deliveriesData.length, 'deliveries');
         setRecentDeliveries(deliveriesData);
       } else {
-        console.error('❌ Recent deliveries API error:', deliveriesResponse.status);
+        console.error('âŒ Recent deliveries API error:', deliveriesResponse.status);
       }
 
     } catch (error) {
-      console.error('💥 Error loading dashboard data:', error);
+      console.error('ðŸ’¥ Error loading dashboard data:', error);
     } finally {
       setLoading(false);
     }
@@ -227,7 +226,7 @@ const StockAcquisitionDashboard: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalTenders}</div>
             <p className="text-xs text-gray-600">
-              <span className="text-green-600">{stats.activeTenders} active</span> • {stats.completedTenders} completed
+              <span className="text-green-600">{stats.activeTenders} active</span> â€¢ {stats.completedTenders} completed
             </p>
           </CardContent>
         </Card>

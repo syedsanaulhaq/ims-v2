@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
 import { getApiBaseUrl } from '@/services/invmisApi';
-
+import {
   Package,
   TrendingUp,
   FileText,
@@ -186,7 +185,7 @@ const NewStockAcquisitionDashboard: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalTenders}</div>
             <p className="text-xs text-gray-600">
-              <span className="text-green-600">{stats.activeTenders} active</span> • {stats.completedTenders} completed
+              <span className="text-green-600">{stats.activeTenders} active</span> â€¢ {stats.completedTenders} completed
             </p>
           </CardContent>
         </Card>

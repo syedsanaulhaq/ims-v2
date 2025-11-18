@@ -3,6 +3,7 @@ import { Search, CheckCircle, XCircle, AlertTriangle, Package } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 /**
  * Stock Availability Checker Component
@@ -41,12 +42,11 @@ interface StockAvailabilityCheckerProps {
 }
 
 export default function StockAvailabilityChecker({
-  const apiBase = getApiBaseUrl();
- 
   onItemSelect, 
   onAvailabilityCheck,
   selectedItems = [] 
 }: StockAvailabilityCheckerProps) {
+  const apiBase = getApiBaseUrl();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
