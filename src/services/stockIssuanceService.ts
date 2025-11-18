@@ -224,5 +224,14 @@ class StockIssuanceService {
   }
 }
 
-export default new StockIssuanceService();
-export const stockIssuanceService = new StockIssuanceService();
+// Export class and create singleton instance lazily
+let instance: StockIssuanceService | null = null;
+const getInstance = () => {
+  if (!instance) {
+    instance = new StockIssuanceService();
+  }
+  return instance;
+};
+
+export default getInstance();
+export const stockIssuanceService = getInstance();

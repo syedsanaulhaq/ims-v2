@@ -77,6 +77,15 @@ class StockReturnService {
   }
 }
 
-export default new StockReturnService();
-export const stockReturnService = new StockReturnService();
+// Export class and create singleton instance lazily
+let instance: StockReturnService | null = null;
+const getInstance = () => {
+  if (!instance) {
+    instance = new StockReturnService();
+  }
+  return instance;
+};
+
+export default getInstance();
+export const stockReturnService = getInstance();
 export type { StockReturn, StockReturnItem };

@@ -425,5 +425,14 @@ class ApprovalService {
   }
 }
 
-export default new ApprovalService();
-export const approvalService = new ApprovalService();
+// Export class and create singleton instance lazily
+let instance: ApprovalService | null = null;
+const getInstance = () => {
+  if (!instance) {
+    instance = new ApprovalService();
+  }
+  return instance;
+};
+
+export default getInstance();
+export const approvalService = getInstance();
