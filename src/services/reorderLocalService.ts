@@ -1,7 +1,7 @@
 // Local reorder requests service for SQL Server backend
 import { getApiBaseUrl } from './invmisApi';
 
-const BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 export interface ReorderRequest {
   id: string;
   item_master_id: string;
@@ -43,7 +43,7 @@ export interface UpdateReorderRequest extends Partial<CreateReorderRequest> {
 
 export const reorderLocalService = {
   async getAll(): Promise<ReorderRequest[]> {
-    const response = await fetch(`${BASE_URL}/reorder-requests`);
+    const response = await fetch(`${getBaseUrl()}/reorder-requests`);
     if (!response.ok) {
       throw new Error(`Failed to fetch reorder requests: ${response.statusText}`);
     }
@@ -51,7 +51,7 @@ export const reorderLocalService = {
   },
 
   async getPending(): Promise<ReorderRequest[]> {
-    const response = await fetch(`${BASE_URL}/reorder-requests?status=Pending`);
+    const response = await fetch(`${getBaseUrl()}/reorder-requests?status=Pending`);
     if (!response.ok) {
       throw new Error(`Failed to fetch pending reorder requests: ${response.statusText}`);
     }
@@ -59,7 +59,7 @@ export const reorderLocalService = {
   },
 
   async getById(id: string): Promise<ReorderRequest> {
-    const response = await fetch(`${BASE_URL}/reorder-requests/${id}`);
+    const response = await fetch(`${getBaseUrl()}/reorder-requests/${id}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch reorder request: ${response.statusText}`);
     }
@@ -67,7 +67,7 @@ export const reorderLocalService = {
   },
 
   async create(item: CreateReorderRequest): Promise<ReorderRequest> {
-    const response = await fetch(`${BASE_URL}/reorder-requests`, {
+    const response = await fetch(`${getBaseUrl()}/reorder-requests`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -84,7 +84,7 @@ export const reorderLocalService = {
   },
 
   async update(id: string, item: UpdateReorderRequest): Promise<ReorderRequest> {
-    const response = await fetch(`${BASE_URL}/reorder-requests/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/reorder-requests/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -101,7 +101,7 @@ export const reorderLocalService = {
   },
 
   async remove(id: string): Promise<boolean> {
-    const response = await fetch(`${BASE_URL}/reorder-requests/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/reorder-requests/${id}`, {
       method: 'DELETE',
     });
     

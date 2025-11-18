@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getApiBaseUrl } from '../services/invmisApi';
 
-// Use centralized API configuration
-const API_BASE_URL = getApiBaseUrl().replace('/api', ''); // Remove /api suffix
+// Helper function to get API base URL
+const getApiBase = () => getApiBaseUrl().replace('/api', ''); // Remove /api suffix
 
 interface User {
   Id: string;
@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const response = await fetch(`${getApiBase()}/api/auth/me`, {
         credentials: 'include',
       });
       
@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(`${getApiBase()}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await fetch(`${getApiBase()}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

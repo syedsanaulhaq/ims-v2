@@ -1,7 +1,7 @@
 // Local stores service for SQL Server backend
 import { getApiBaseUrl } from './invmisApi';
 
-const BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 export interface Store {
   id: string;
   store_name: string;
@@ -26,7 +26,7 @@ export interface UpdateStoreRequest extends Partial<CreateStoreRequest> {
 
 export const storesLocalService = {
   async getAll(): Promise<Store[]> {
-    const response = await fetch(`${BASE_URL}/stores`);
+    const response = await fetch(`${getBaseUrl()}/stores`);
     if (!response.ok) {
       throw new Error(`Failed to fetch stores: ${response.statusText}`);
     }
@@ -34,7 +34,7 @@ export const storesLocalService = {
   },
 
   async getById(id: string): Promise<Store> {
-    const response = await fetch(`${BASE_URL}/stores/${id}`);
+    const response = await fetch(`${getBaseUrl()}/stores/${id}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch store: ${response.statusText}`);
     }
@@ -42,7 +42,7 @@ export const storesLocalService = {
   },
 
   async create(store: CreateStoreRequest): Promise<Store> {
-    const response = await fetch(`${BASE_URL}/stores`, {
+    const response = await fetch(`${getBaseUrl()}/stores`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ export const storesLocalService = {
   },
 
   async update(id: string, store: UpdateStoreRequest): Promise<Store> {
-    const response = await fetch(`${BASE_URL}/stores/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/stores/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ export const storesLocalService = {
   },
 
   async remove(id: string): Promise<boolean> {
-    const response = await fetch(`${BASE_URL}/stores/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/stores/${id}`, {
       method: 'DELETE',
     });
     

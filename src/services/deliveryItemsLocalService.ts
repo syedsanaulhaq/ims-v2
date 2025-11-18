@@ -2,7 +2,7 @@ import { ApiResponse } from './api';
 import { getApiBaseUrl } from './invmisApi';
 
 
-const API_BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 export interface DeliveryItem {
   id: string;
   delivery_id: string;
@@ -45,7 +45,7 @@ export const deliveryItemsLocalService = {
   // Get all delivery items
   getDeliveryItems: async (): Promise<ApiResponse<DeliveryItem[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items`);
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -71,7 +71,7 @@ export const deliveryItemsLocalService = {
   // Get delivery items by delivery ID
   getDeliveryItemsByDeliveryId: async (deliveryId: string): Promise<ApiResponse<DeliveryItem[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items?delivery_id=${deliveryId}`);
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items?delivery_id=${deliveryId}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -97,7 +97,7 @@ export const deliveryItemsLocalService = {
   // Get single delivery item by ID
   getDeliveryItem: async (id: string): Promise<ApiResponse<DeliveryItem>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items/${id}`);
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items/${id}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -123,7 +123,7 @@ export const deliveryItemsLocalService = {
   // Create delivery item
   createDeliveryItem: async (itemData: CreateDeliveryItemRequest): Promise<ApiResponse<DeliveryItem>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items`, {
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -156,7 +156,7 @@ export const deliveryItemsLocalService = {
   // Update delivery item
   updateDeliveryItem: async (id: string, itemData: UpdateDeliveryItemRequest): Promise<ApiResponse<DeliveryItem>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items/${id}`, {
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +189,7 @@ export const deliveryItemsLocalService = {
   // Delete delivery item
   deleteDeliveryItem: async (id: string): Promise<ApiResponse<boolean>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items/${id}`, {
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items/${id}`, {
         method: 'DELETE',
       });
       
@@ -216,7 +216,7 @@ export const deliveryItemsLocalService = {
   // Bulk create delivery items (for creating multiple items at once)
   bulkCreateDeliveryItems: async (items: CreateDeliveryItemRequest[]): Promise<ApiResponse<DeliveryItem[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items/bulk`, {
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items/bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -255,7 +255,7 @@ export const deliveryItemsLocalService = {
     remarks?: string;
   }>): Promise<ApiResponse<DeliveryItem[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items/bulk-update`, {
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items/bulk-update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -288,7 +288,7 @@ export const deliveryItemsLocalService = {
   // Delete all delivery items for a delivery
   deleteByDeliveryId: async (deliveryId: string): Promise<ApiResponse<boolean>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items/delivery/${deliveryId}`, {
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items/delivery/${deliveryId}`, {
         method: 'DELETE',
       });
       
@@ -315,7 +315,7 @@ export const deliveryItemsLocalService = {
   // Get delivery items with item master details
   getDeliveryItemsWithDetails: async (deliveryId: string): Promise<ApiResponse<DeliveryItem[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/delivery-items/${deliveryId}/with-details`);
+      const response = await fetch(`${getBaseUrl()}/api/delivery-items/${deliveryId}/with-details`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

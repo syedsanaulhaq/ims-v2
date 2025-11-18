@@ -2,7 +2,7 @@
 // Replaces Supabase-based delivery service
 import { getApiBaseUrl } from './invmisApi';
 
-const API_BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 export interface DeliveryItem {
   id?: string;
   item_master_id: string;
@@ -36,7 +36,7 @@ export class DeliveryLocalService {
    */
   static async getAll(): Promise<DeliveryRecord[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/deliveries`);
+      const response = await fetch(`${getBaseUrl()}/deliveries`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -69,7 +69,7 @@ export class DeliveryLocalService {
    */
   static async getById(id: string): Promise<DeliveryRecord> {
     try {
-      const response = await fetch(`${API_BASE_URL}/deliveries/${id}`);
+      const response = await fetch(`${getBaseUrl()}/deliveries/${id}`);
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('Delivery not found');
@@ -90,7 +90,7 @@ export class DeliveryLocalService {
    */
   static async create(deliveryData: Omit<DeliveryRecord, 'id' | 'created_at' | 'updated_at'>): Promise<DeliveryRecord> {
     try {
-      const response = await fetch(`${API_BASE_URL}/deliveries`, {
+      const response = await fetch(`${getBaseUrl()}/deliveries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ export class DeliveryLocalService {
    */
   static async update(id: string, deliveryData: Partial<DeliveryRecord>): Promise<DeliveryRecord> {
     try {
-      const response = await fetch(`${API_BASE_URL}/deliveries/${id}`, {
+      const response = await fetch(`${getBaseUrl()}/deliveries/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -144,7 +144,7 @@ export class DeliveryLocalService {
    */
   static async delete(id: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/deliveries/${id}`, {
+      const response = await fetch(`${getBaseUrl()}/deliveries/${id}`, {
         method: 'DELETE',
       });
 
@@ -165,7 +165,7 @@ export class DeliveryLocalService {
    */
   static async finalize(id: string, finalizedBy: string): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/deliveries/${id}/finalize`, {
+      const response = await fetch(`${getBaseUrl()}/deliveries/${id}/finalize`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -3,13 +3,13 @@ import { Vendor, CreateVendorRequest, UpdateVendorRequest } from '../types/vendo
 import { getApiBaseUrl } from './invmisApi';
 
 
-const API_BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 // Local SQL Server vendor service
 export const vendorsLocalService = {
   // Get all vendors
   getVendors: async (): Promise<ApiResponse<Vendor[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors`);
+      const response = await fetch(`${getBaseUrl()}/api/vendors`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -35,7 +35,7 @@ export const vendorsLocalService = {
   // Get single vendor by ID
   getVendor: async (id: string): Promise<ApiResponse<Vendor>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors/${id}`);
+      const response = await fetch(`${getBaseUrl()}/api/vendors/${id}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -61,7 +61,7 @@ export const vendorsLocalService = {
   // Create vendor
   createVendor: async (vendor: CreateVendorRequest): Promise<ApiResponse<Vendor>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors`, {
+      const response = await fetch(`${getBaseUrl()}/api/vendors`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ export const vendorsLocalService = {
   // Update vendor
   updateVendor: async (id: string, vendor: UpdateVendorRequest): Promise<ApiResponse<Vendor>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors/${id}`, {
+      const response = await fetch(`${getBaseUrl()}/api/vendors/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ export const vendorsLocalService = {
   // Delete vendor
   deleteVendor: async (id: string): Promise<ApiResponse<boolean>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors/${id}`, {
+      const response = await fetch(`${getBaseUrl()}/api/vendors/${id}`, {
         method: 'DELETE',
       });
       

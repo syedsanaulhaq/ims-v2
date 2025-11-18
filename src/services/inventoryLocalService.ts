@@ -1,7 +1,8 @@
 // Local inventory service for SQL Server backend
 import { getApiBaseUrl } from './invmisApi';
 
-const BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
+
 export interface InventoryItem {
   intOfficeID: string;
   intItemMasterID: string;
@@ -57,7 +58,7 @@ export interface UpdateInventoryItem extends Partial<CreateInventoryItem> {}
 
 export const inventoryLocalService = {
   async getAll(): Promise<InventoryItem[]> {
-    const response = await fetch(`${BASE_URL}/inventory-stock`);
+    const response = await fetch(`${getBaseUrl()}/inventory-stock`);
     if (!response.ok) {
       throw new Error(`Failed to fetch inventory: ${response.statusText}`);
     }
@@ -65,7 +66,7 @@ export const inventoryLocalService = {
   },
 
   async getById(id: string): Promise<InventoryItem> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}`);
+    const response = await fetch(`${getBaseUrl()}/inventory-stock/${id}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch inventory item: ${response.statusText}`);
     }
@@ -73,7 +74,7 @@ export const inventoryLocalService = {
   },
 
   async getByOffice(officeId: string): Promise<InventoryItem[]> {
-    const response = await fetch(`${BASE_URL}/inventory-stock?officeId=${officeId}`);
+    const response = await fetch(`${getBaseUrl()}/inventory-stock?officeId=${officeId}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch office inventory: ${response.statusText}`);
     }
@@ -81,7 +82,7 @@ export const inventoryLocalService = {
   },
 
   async create(item: CreateInventoryItem): Promise<InventoryItem> {
-    const response = await fetch(`${BASE_URL}/inventory-stock`, {
+    const response = await fetch(`${getBaseUrl()}/inventory-stock`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -98,7 +99,7 @@ export const inventoryLocalService = {
   },
 
   async update(id: string, item: UpdateInventoryItem): Promise<InventoryItem> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/inventory-stock/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -115,7 +116,7 @@ export const inventoryLocalService = {
   },
 
   async remove(id: string): Promise<boolean> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/inventory-stock/${id}`, {
       method: 'DELETE',
     });
     
@@ -134,7 +135,7 @@ export const inventoryLocalService = {
     reference_id?: string;
     remarks?: string;
   }): Promise<any> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}/transaction`, {
+    const response = await fetch(`${getBaseUrl()}/inventory-stock/${id}/transaction`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -152,7 +153,7 @@ export const inventoryLocalService = {
 
   // Legacy compatibility methods for existing code
   async getOffices(): Promise<any[]> {
-    const response = await fetch(`${BASE_URL}/offices`);
+    const response = await fetch(`${getBaseUrl()}/offices`);
     if (!response.ok) {
       throw new Error(`Failed to fetch offices: ${response.statusText}`);
     }

@@ -3,13 +3,13 @@ import { DeliveryRecord } from './deliveryService';
 import { getApiBaseUrl } from './invmisApi';
 
 
-const API_BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 // Local SQL Server delivery service
 export const deliveriesLocalService = {
   // Get all deliveries
   getAll: async (): Promise<ApiResponse<DeliveryRecord[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deliveries`);
+      const response = await fetch(`${getBaseUrl()}/api/deliveries`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -45,7 +45,7 @@ export const deliveriesLocalService = {
   // Get single delivery by ID
   getById: async (id: string): Promise<ApiResponse<DeliveryRecord>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deliveries/${id}`);
+      const response = await fetch(`${getBaseUrl()}/api/deliveries/${id}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -80,7 +80,7 @@ export const deliveriesLocalService = {
   // Finalize delivery
   finalize: async (id: string, finalizedBy: string): Promise<ApiResponse<DeliveryRecord>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deliveries/${id}/finalize`, {
+      const response = await fetch(`${getBaseUrl()}/api/deliveries/${id}/finalize`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

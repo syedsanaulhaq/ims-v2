@@ -5,7 +5,7 @@ import { sessionService } from './sessionService';
 import { getApiBaseUrl } from './invmisApi';
 
 
-const API_BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 export interface ApprovalWorkflow {
   id: string;
   workflow_name: string;
@@ -83,7 +83,7 @@ class ApprovalForwardingService {
   
   async getWorkflows(): Promise<ApprovalWorkflow[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approval-workflows`);
+      const response = await fetch(`${getBaseUrl()}/approval-workflows`);
       const data = await response.json();
       
       if (!response.ok) {
@@ -99,7 +99,7 @@ class ApprovalForwardingService {
   
   async createWorkflow(workflow: Omit<ApprovalWorkflow, 'id'>): Promise<ApprovalWorkflow> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approval-workflows`, {
+      const response = await fetch(`${getBaseUrl()}/approval-workflows`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ class ApprovalForwardingService {
   
   async getWorkflowApprovers(workflowId: string): Promise<WorkflowApprover[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approval-workflows/${workflowId}/approvers`);
+      const response = await fetch(`${getBaseUrl()}/approval-workflows/${workflowId}/approvers`);
       const data = await response.json();
       
       if (!response.ok) {
@@ -138,7 +138,7 @@ class ApprovalForwardingService {
   
   async addWorkflowApprover(workflowId: string, approver: AddWorkflowApproverPayload): Promise<WorkflowApprover> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approval-workflows/${workflowId}/approvers`, {
+      const response = await fetch(`${getBaseUrl()}/approval-workflows/${workflowId}/approvers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -161,7 +161,7 @@ class ApprovalForwardingService {
 
   async deleteWorkflowApprover(workflowId: string, approverId: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approval-workflows/${workflowId}/approvers/${approverId}`, {
+      const response = await fetch(`${getBaseUrl()}/approval-workflows/${workflowId}/approvers/${approverId}`, {
         method: 'DELETE',
       });
       
@@ -182,7 +182,7 @@ class ApprovalForwardingService {
   
   async submitForApproval(requestId: string, requestType: string, workflowId: string): Promise<RequestApproval> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/submit`, {
+      const response = await fetch(`${getBaseUrl()}/approvals/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -210,7 +210,7 @@ class ApprovalForwardingService {
   async getMyPendingApprovals(userId?: string): Promise<RequestApproval[]> {
     try {
       // Use provided userId first, then session user, then let backend handle
-      let url = `${API_BASE_URL}/approvals/my-pending`;
+      let url = `${getBaseUrl()}/approvals/my-pending`;
       
       if (userId) {
         url += `?userId=${encodeURIComponent(userId)}`;
@@ -243,7 +243,7 @@ class ApprovalForwardingService {
   async getMyApprovalsByStatus(userId?: string, status?: string): Promise<RequestApproval[]> {
     try {
       // Use provided userId first, then session user, then let backend handle
-      let url = `${API_BASE_URL}/approvals/my-approvals`;
+      let url = `${getBaseUrl()}/approvals/my-approvals`;
       const params = new URLSearchParams();
       
       if (userId) {
@@ -286,7 +286,7 @@ class ApprovalForwardingService {
   
   async getApprovalDetails(approvalId: string): Promise<RequestApproval> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}`);
+      const response = await fetch(`${getBaseUrl()}/approvals/${approvalId}`);
       const data = await response.json();
       
       if (!response.ok) {
@@ -302,7 +302,7 @@ class ApprovalForwardingService {
   
   async getApprovalHistory(approvalId: string): Promise<ApprovalHistory[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/history`);
+      const response = await fetch(`${getBaseUrl()}/approvals/${approvalId}/history`);
       const data = await response.json();
       
       if (!response.ok) {
@@ -318,7 +318,7 @@ class ApprovalForwardingService {
   
   async getAvailableForwarders(approvalId: string): Promise<WorkflowApprover[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/available-forwarders`);
+      const response = await fetch(`${getBaseUrl()}/approvals/${approvalId}/available-forwarders`);
       const data = await response.json();
       
       if (!response.ok) {
@@ -343,7 +343,7 @@ class ApprovalForwardingService {
       const userId = currentUser?.user_id;
       
       console.log('🔄 Frontend: Forwarding request using original endpoint with userId:', userId);
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/forward`, {
+      const response = await fetch(`${getBaseUrl()}/approvals/${approvalId}/forward`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -378,7 +378,7 @@ class ApprovalForwardingService {
   async approveRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
       console.log('✅ Frontend: Approving request using original endpoint');
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
+      const response = await fetch(`${getBaseUrl()}/approvals/${approvalId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -410,7 +410,7 @@ class ApprovalForwardingService {
   async rejectRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
       console.log('❌ Frontend: Rejecting request using simple endpoint');
-      const response = await fetch(`${API_BASE_URL}/approvals/simple-reject`, {
+      const response = await fetch(`${getBaseUrl()}/approvals/simple-reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -436,7 +436,7 @@ class ApprovalForwardingService {
   
   async finalizeRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/finalize`, {
+      const response = await fetch(`${getBaseUrl()}/approvals/${approvalId}/finalize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -471,8 +471,8 @@ class ApprovalForwardingService {
   }> {
     try {
       const url = userId 
-        ? `${API_BASE_URL}/approvals/dashboard?userId=${encodeURIComponent(userId)}`
-        : `${API_BASE_URL}/approvals/dashboard`;
+        ? `${getBaseUrl()}/approvals/dashboard?userId=${encodeURIComponent(userId)}`
+        : `${getBaseUrl()}/approvals/dashboard`;
       
       const response = await fetch(url);
       const data = await response.json();
@@ -490,7 +490,7 @@ class ApprovalForwardingService {
   
   async getRequestStatus(requestId: string, requestType: string): Promise<RequestApproval | null> {
     try {
-      const response = await fetch(`${API_BASE_URL}/approvals/status?request_id=${requestId}&request_type=${requestType}`);
+      const response = await fetch(`${getBaseUrl()}/approvals/status?request_id=${requestId}&request_type=${requestType}`);
       const data = await response.json();
       
       if (!response.ok) {

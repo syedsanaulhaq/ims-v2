@@ -1,7 +1,7 @@
 // Local stock transactions service for SQL Server backend
 import { getApiBaseUrl } from './invmisApi';
 
-const BASE_URL = getApiBaseUrl();
+const getBaseUrl = () => getApiBaseUrl();
 export interface StockTransaction {
   id: string;
   item_master_id: string;
@@ -53,7 +53,7 @@ export interface UpdateStockTransaction extends Partial<CreateStockTransaction> 
 
 export const stockTransactionsLocalService = {
   async getAll(): Promise<StockTransaction[]> {
-    const response = await fetch(`${BASE_URL}/stock-transactions`);
+    const response = await fetch(`${getBaseUrl()}/stock-transactions`);
     if (!response.ok) {
       throw new Error(`Failed to fetch stock transactions: ${response.statusText}`);
     }
@@ -61,7 +61,7 @@ export const stockTransactionsLocalService = {
   },
 
   async getById(id: string): Promise<StockTransaction> {
-    const response = await fetch(`${BASE_URL}/stock-transactions/${id}`);
+    const response = await fetch(`${getBaseUrl()}/stock-transactions/${id}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch stock transaction: ${response.statusText}`);
     }
@@ -69,7 +69,7 @@ export const stockTransactionsLocalService = {
   },
 
   async getByOffice(officeId: string): Promise<StockTransaction[]> {
-    const response = await fetch(`${BASE_URL}/stock-transactions?officeId=${officeId}`);
+    const response = await fetch(`${getBaseUrl()}/stock-transactions?officeId=${officeId}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch office stock transactions: ${response.statusText}`);
     }
@@ -77,7 +77,7 @@ export const stockTransactionsLocalService = {
   },
 
   async getByItem(itemMasterId: string): Promise<StockTransaction[]> {
-    const response = await fetch(`${BASE_URL}/stock-transactions?itemMasterId=${itemMasterId}`);
+    const response = await fetch(`${getBaseUrl()}/stock-transactions?itemMasterId=${itemMasterId}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch item stock transactions: ${response.statusText}`);
     }
@@ -85,7 +85,7 @@ export const stockTransactionsLocalService = {
   },
 
   async getByType(transactionType: string): Promise<StockTransaction[]> {
-    const response = await fetch(`${BASE_URL}/stock-transactions?type=${transactionType}`);
+    const response = await fetch(`${getBaseUrl()}/stock-transactions?type=${transactionType}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch stock transactions by type: ${response.statusText}`);
     }
@@ -93,7 +93,7 @@ export const stockTransactionsLocalService = {
   },
 
   async getByDateRange(startDate: string, endDate: string): Promise<StockTransaction[]> {
-    const response = await fetch(`${BASE_URL}/stock-transactions?startDate=${startDate}&endDate=${endDate}`);
+    const response = await fetch(`${getBaseUrl()}/stock-transactions?startDate=${startDate}&endDate=${endDate}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch stock transactions by date range: ${response.statusText}`);
     }
@@ -101,7 +101,7 @@ export const stockTransactionsLocalService = {
   },
 
   async create(transaction: CreateStockTransaction): Promise<StockTransaction> {
-    const response = await fetch(`${BASE_URL}/stock-transactions`, {
+    const response = await fetch(`${getBaseUrl()}/stock-transactions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -138,7 +138,7 @@ export const stockTransactionsLocalService = {
   },
 
   async update(id: string, transaction: UpdateStockTransaction): Promise<StockTransaction> {
-    const response = await fetch(`${BASE_URL}/stock-transactions/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/stock-transactions/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -155,7 +155,7 @@ export const stockTransactionsLocalService = {
   },
 
   async remove(id: string): Promise<boolean> {
-    const response = await fetch(`${BASE_URL}/stock-transactions/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/stock-transactions/${id}`, {
       method: 'DELETE',
     });
     
@@ -256,7 +256,7 @@ export const stockTransactionsLocalService = {
   // Get stock transactions by tender ID
   async getByTenderId(tenderId: string): Promise<{ success: boolean; data: any[]; message: string }> {
     try {
-      const response = await fetch(`${BASE_URL}/stock-transactions?tenderId=${tenderId}`);
+      const response = await fetch(`${getBaseUrl()}/stock-transactions?tenderId=${tenderId}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch tender stock transactions: ${response.statusText}`);
       }
@@ -278,7 +278,7 @@ export const stockTransactionsLocalService = {
   // Delete stock transaction
   async delete(id: string): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await fetch(`${BASE_URL}/stock-transactions/${id}`, {
+      const response = await fetch(`${getBaseUrl()}/stock-transactions/${id}`, {
         method: 'DELETE'
       });
       if (!response.ok) {
