@@ -18,10 +18,10 @@ interface StockReturn {
 }
 
 class StockReturnService {
-  private baseUrl = getApiBaseUrl() + '/stock-returns';
+  private getBaseUrl() { return getApiBaseUrl() + '/stock-returns'; }
   async createReturn(stockReturn: StockReturn): Promise<any> {
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await fetch(this.getBaseUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,7 +44,7 @@ class StockReturnService {
 
   async getReturns(): Promise<any[]> {
     try {
-      const response = await fetch(this.baseUrl);
+      const response = await fetch(this.getBaseUrl());
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -61,7 +61,7 @@ class StockReturnService {
 
   async getReturnById(id: string): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/${id}`);
+      const response = await fetch(`${this.getBaseUrl()}/${id}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

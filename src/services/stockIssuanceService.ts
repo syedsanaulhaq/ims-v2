@@ -40,10 +40,10 @@ export interface StockIssuanceFilters {
 }
 
 class StockIssuanceService {
-  private baseUrl = getApiBaseUrl() + '/stock-issuance';
+  private getBaseUrl() { return getApiBaseUrl() + '/stock-issuance'; }
   async submitRequest(request: StockIssuanceRequest): Promise<{ id: string; request_number: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests`, {
+      const response = await fetch(`${this.getBaseUrl()}/requests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -66,7 +66,7 @@ class StockIssuanceService {
 
   async submitItems(requestId: string, items: StockIssuanceItem[]): Promise<{ success: boolean; items_count: number }> {
     try {
-      const response = await fetch(`${this.baseUrl}/items`, {
+      const response = await fetch(`${this.getBaseUrl()}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +110,7 @@ class StockIssuanceService {
       if (pagination?.page) queryParams.append('page', pagination.page.toString());
       if (pagination?.limit) queryParams.append('limit', pagination.limit.toString());
       
-      const url = `${this.baseUrl}/requests${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      const url = `${this.getBaseUrl()}/requests${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       console.log('🔗 Fetching stock issuance requests from:', url);
       
       const response = await fetch(url);
@@ -144,7 +144,7 @@ class StockIssuanceService {
 
   async getIssuedItems(): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/issued-items`);
+      const response = await fetch(`${this.getBaseUrl()}/issued-items`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -162,7 +162,7 @@ class StockIssuanceService {
   // Get approved requests for processing
   async getApprovedRequests(): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests?status=Approved`);
+      const response = await fetch(`${this.getBaseUrl()}/requests?status=Approved`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

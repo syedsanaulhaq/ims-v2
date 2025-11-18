@@ -27,14 +27,14 @@ export interface InventoryStats {
 }
 
 export class InventoryService {
-  private static baseUrl = getApiBaseUrl() + '';
+  private static getBaseUrl() { return getApiBaseUrl() + ''; }
   /**
    * Fetch inventory data from SQL Server backend using View_Current_Inv_Stock
    */
   static async getInventoryData(): Promise<{ data: InventoryItem[]; stats: InventoryStats }> {
     try {
       console.log('🔄 Loading inventory data from View_Current_Inv_Stock...');
-      const response = await fetch(`${this.baseUrl}/inventory/current-inventory-stock`);
+      const response = await fetch(`${InventoryService.getBaseUrl()}/inventory/current-inventory-stock`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -106,7 +106,7 @@ export class InventoryService {
    */
   static async getLowStockItems(): Promise<InventoryItem[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/inventory/low-stock`);
+      const response = await fetch(`${InventoryService.getBaseUrl()}/inventory/low-stock`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -125,7 +125,7 @@ export class InventoryService {
    */
   static async getReorderItems(): Promise<InventoryItem[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/inventory/reorder`);
+      const response = await fetch(`${InventoryService.getBaseUrl()}/inventory/reorder`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -144,7 +144,7 @@ export class InventoryService {
    */
   static async getTopItems(limit: number = 10): Promise<InventoryItem[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/inventory/top-items?limit=${limit}`);
+      const response = await fetch(`${InventoryService.getBaseUrl()}/inventory/top-items?limit=${limit}`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

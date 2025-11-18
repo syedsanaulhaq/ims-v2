@@ -153,10 +153,10 @@ export interface ItemApproval {
 }
 
 class ApprovalService {
-  private baseUrl = getApiBaseUrl() + '/stock-issuance';
+  private getBaseUrl() { return getApiBaseUrl() + '/stock-issuance'; }
   async getPendingRequests(): Promise<ApprovalRequest[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests?status=Submitted`);
+      const response = await fetch(`${this.getBaseUrl()}/requests?status=Submitted`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -238,7 +238,7 @@ class ApprovalService {
 
   async getUnderReviewRequests(): Promise<ApprovalRequest[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests?status=Under Review`);
+      const response = await fetch(`${this.getBaseUrl()}/requests?status=Under Review`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -257,7 +257,7 @@ class ApprovalService {
 
   async approveRequest(approvalAction: ApprovalAction): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests/${approvalAction.request_id}/approve`, {
+      const response = await fetch(`${this.getBaseUrl()}/requests/${approvalAction.request_id}/approve`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -283,7 +283,7 @@ class ApprovalService {
 
   async rejectRequest(approvalAction: ApprovalAction): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests/${approvalAction.request_id}/reject`, {
+      const response = await fetch(`${this.getBaseUrl()}/requests/${approvalAction.request_id}/reject`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -381,7 +381,7 @@ class ApprovalService {
    */
   async getInventoryMatches(requestId: string): Promise<InventoryMatchResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests/${requestId}/inventory-matches`);
+      const response = await fetch(`${this.getBaseUrl()}/requests/${requestId}/inventory-matches`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -402,7 +402,7 @@ class ApprovalService {
    */
   async approveWithAllocation(requestId: string, approvalAction: ApprovalAction): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests/${requestId}/approve-with-allocation`, {
+      const response = await fetch(`${this.getBaseUrl()}/requests/${requestId}/approve-with-allocation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
