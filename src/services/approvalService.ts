@@ -425,14 +425,24 @@ class ApprovalService {
   }
 }
 
-// Export class and create singleton instance lazily
+// Export class and lazy getter for singleton instance
 let instance: ApprovalService | null = null;
-const getInstance = () => {
+export const getApprovalService = () => {
   if (!instance) {
     instance = new ApprovalService();
   }
   return instance;
 };
 
-export default getInstance();
-export const approvalService = getInstance();
+// For default import compatibility, export the getter wrapped in a Proxy
+export default new Proxy({} as ApprovalService, {
+  get(target, prop) {
+    return getApprovalService()[prop as keyof ApprovalService];
+  }
+});
+
+export const approvalService = new Proxy({} as ApprovalService, {
+  get(target, prop) {
+    return getApprovalService()[prop as keyof ApprovalService];
+  }
+});

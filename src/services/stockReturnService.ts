@@ -77,15 +77,26 @@ class StockReturnService {
   }
 }
 
-// Export class and create singleton instance lazily
+// Export class and lazy getter for singleton instance
 let instance: StockReturnService | null = null;
-const getInstance = () => {
+export const getStockReturnService = () => {
   if (!instance) {
     instance = new StockReturnService();
   }
   return instance;
 };
 
-export default getInstance();
-export const stockReturnService = getInstance();
+// For default import compatibility, export the getter wrapped in a Proxy
+export default new Proxy({} as StockReturnService, {
+  get(target, prop) {
+    return getStockReturnService()[prop as keyof StockReturnService];
+  }
+});
+
+export const stockReturnService = new Proxy({} as StockReturnService, {
+  get(target, prop) {
+    return getStockReturnService()[prop as keyof StockReturnService];
+  }
+});
+
 export type { StockReturn, StockReturnItem };
