@@ -1,4 +1,6 @@
 // Local stores service for SQL Server backend
+import { getApiBaseUrl } from './invmisApi';
+
 const BASE_URL = getApiBaseUrl();
 export interface Store {
   id: string;

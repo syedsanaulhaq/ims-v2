@@ -3,6 +3,7 @@
  * 
  * Service for stock issuance operations with SQL Server backend
  */
+import { getApiBaseUrl } from './invmisApi';
 
 export interface StockIssuanceRequest {
   request_number?: string; // Auto-generated on server side

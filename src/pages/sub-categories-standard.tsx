@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StandardForm, FormField } from '../components/StandardForm';
 import { StandardList, TableColumn } from '../components/StandardList';
 import { useCrudOperations } from '../hooks/useCrudOperations';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface SubCategory {
   id: string;
@@ -21,6 +22,7 @@ interface Category {
 type ViewMode = 'list' | 'add' | 'edit';
 
 const SubCategories: React.FC = () => {
+  const apiBase = getApiBaseUrl();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingItem, setEditingItem] = useState<SubCategory | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -116,8 +118,6 @@ const SubCategories: React.FC = () => {
   ];
 
   const handleAdd = () => {
-  const apiBase = getApiBaseUrl();
-
     setViewMode('add');
     setEditingItem(null);
   };

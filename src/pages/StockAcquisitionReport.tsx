@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 function formatDateDMY(dateStr?: string) {
   if (!dateStr) return '-';
@@ -51,6 +52,7 @@ interface TenderInfo {
 const StockAcquisitionReport: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const apiBase = getApiBaseUrl();
   const [tenderInfo, setTenderInfo] = useState<TenderInfo | null>(null);
   const [stockItems, setStockItems] = useState<StockTransactionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -188,8 +190,6 @@ const StockAcquisitionReport: React.FC = () => {
   };
 
   const handleExport = () => {
-  const apiBase = getApiBaseUrl();
-
     console.log('Export functionality to be implemented');
   };
 

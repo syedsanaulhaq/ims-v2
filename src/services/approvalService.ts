@@ -4,6 +4,7 @@
  * Service for managing stock issuance request approvals with advanced inventory matching
  * and allocation capabilities using SQL Server backend
  */
+import { getApiBaseUrl } from './invmisApi';
 
 export interface ApprovalRequest {
   id: string;

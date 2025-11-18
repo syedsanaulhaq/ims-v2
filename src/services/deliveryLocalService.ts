@@ -1,5 +1,6 @@
 // Unified Delivery/Acquisition Service using SQL Server backend
 // Replaces Supabase-based delivery service
+import { getApiBaseUrl } from './invmisApi';
 
 const API_BASE_URL = getApiBaseUrl();
 export interface DeliveryItem {

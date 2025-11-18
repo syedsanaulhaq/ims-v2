@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './invmisApi';
+
 interface StockReturnItem {
   issued_item_id: string;
   nomenclature: string;

@@ -34,6 +34,7 @@ import {
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Legend } from 'recharts';
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { invmisApi } from "@/services/invmisApi";
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 const Dashboard = () => {
   const apiBase = getApiBaseUrl();

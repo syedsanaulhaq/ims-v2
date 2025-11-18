@@ -1,4 +1,6 @@
 // SQL Server Inventory Service - Uses View_Current_Inv_Stock database view
+import { getApiBaseUrl } from './invmisApi';
+
 export interface InventoryItem {
   id: string;
   itemName: string;

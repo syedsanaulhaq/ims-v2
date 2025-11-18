@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface ItemMaster {
   item_id: number;
@@ -72,6 +73,7 @@ const UNITS_LIST = [
 ];
 
 const ItemsMaster: React.FC = () => {
+  const apiBase = getApiBaseUrl();
   const { toast } = useToast();
   const [items, setItems] = useState<ItemMaster[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -218,8 +220,6 @@ const ItemsMaster: React.FC = () => {
   };
 
   const getFilteredSubCategories = () => {
-  const apiBase = getApiBaseUrl();
-
     if (!formData.category_id || formData.category_id === '') {
       return [];
     }

@@ -1,0 +1,11 @@
+﻿# ======================================================================
+# Quick Server Deployment Commands
+# ======================================================================
+# Copy and paste these commands one by one on the server
+# ======================================================================
+
+# Step 1: Pull the deployment script and all changes
+git pull origin invmisdb-rebuild-sept14-2025
+
+# Step 2: Run the deployment script
+.\deploy-api-url-fixes.ps1
