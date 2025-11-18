@@ -55,5 +55,7 @@ Write-Host "1. Open browser and navigate to: http://localhost/ims/" -ForegroundC
 Write-Host "2. Clear browser cache (Ctrl+Shift+Delete) or Hard Refresh (Ctrl+F5)" -ForegroundColor White
 Write-Host "3. Login and verify NO 'getApiBaseUrl is not defined' error" -ForegroundColor White
 Write-Host "4. Check Console - should see API calls to /ims/api/*" -ForegroundColor White
-Write-Host "`nExpected build file: index-BMmRSzM6.js" -ForegroundColor Magenta
-Write-Host "This version fixes the module initialization error!`n" -ForegroundColor Green
+Write-Host "" 
+Write-Host "Expected build file: index-BMmRSzM6.js" -ForegroundColor Magenta
+Write-Host "This version fixes the module initialization error!" -ForegroundColor Green
+Write-Host ""
