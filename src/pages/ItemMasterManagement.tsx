@@ -16,6 +16,8 @@ interface Item {
 }
 
 const ItemMasterManagement = () => {
+  const apiBase = getApiBaseUrl();
+
   // Simple state
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +29,7 @@ const ItemMasterManagement = () => {
       setLoading(true);
       setError('');
       
-      const response = await fetch('http://localhost:3001/api/item-masters');
+      const response = await fetch(`${apiBase}/item-masters`);
       
       if (response.ok) {
         const data = await response.json();

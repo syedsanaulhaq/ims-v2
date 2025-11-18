@@ -26,6 +26,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { stockIssuanceService } from '@/services/stockIssuanceService';
 import { stockTransactionsLocalService } from '@/services/stockTransactionsLocalService';
 import { inventoryLocalService } from '@/services/inventoryLocalService';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface ApprovedRequest {
   id: number;
@@ -106,7 +108,7 @@ const StockIssuanceProcessing: React.FC = () => {
 
     try {
       // Use the new Stock Issuance Workflow API
-      const response = await fetch(`http://localhost:3001/api/stock-issuance/issue/${selectedRequest.id}`, {
+      const response = await fetch(`${apiBase}/stock-issuance/issue/${selectedRequest.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -43,6 +43,8 @@ import { StockIssuanceRequestForm } from '@/components/stock/StockIssuanceReques
 import stockIssuanceService, { StockIssuanceFilters } from '@/services/stockIssuanceService';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface DashboardStats {
   totalRequests: number;
@@ -86,6 +88,8 @@ interface StockIssuanceRequest {
 }
 
 export function StockIssuanceDashboard() {
+  const apiBase = getApiBaseUrl();
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [requests, setRequests] = useState<StockIssuanceRequest[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -119,7 +123,7 @@ export function StockIssuanceDashboard() {
       console.log('🔄 Loading stock issuance dashboard data...');
       
       // Try direct API call first
-      const directResponse = await fetch('http://localhost:3001/api/stock-issuance/requests');
+      const directResponse = await fetch(`${apiBase}/stock-issuance/requests`);
       if (!directResponse.ok) {
         throw new Error(`API request failed: ${directResponse.status}`);
       }

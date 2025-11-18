@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Save, Package, RefreshCw, AlertCircle, CheckCircle, BarChart3, PieChart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Cell, Pie } from 'recharts';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface CurrentInventoryStock {
   id: string;
@@ -40,7 +42,7 @@ const InitialSetupFromScratch: React.FC = () => {
       setIsLoading(true);
       console.log('🔄 Loading data from current_inventory_stock table...');
 
-      const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock');
+      const response = await fetch(`${apiBase}/inventory/current-inventory-stock`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -119,7 +121,7 @@ const InitialSetupFromScratch: React.FC = () => {
         current_quantity: item.editedQuantity
       }));
 
-      const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock/bulk-update', {
+      const response = await fetch(`${apiBase}/inventory/current-inventory-stock/bulk-update`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

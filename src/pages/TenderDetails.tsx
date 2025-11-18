@@ -29,6 +29,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface TenderItem {
   id: string;
@@ -113,9 +115,9 @@ const TenderDetails: React.FC = () => {
     try {
       // Fetch all offices, wings, and decs
       const [officesRes, wingsRes, decsRes] = await Promise.all([
-        fetch('http://localhost:3001/api/offices'),
-        fetch('http://localhost:3001/api/wings'),
-        fetch('http://localhost:3001/api/decs')
+        fetch(`${apiBase}/offices`),
+        fetch(`${apiBase}/wings`),
+        fetch(`${apiBase}/decs`)
       ]);
 
       const offices = await officesRes.json();
@@ -182,7 +184,7 @@ const TenderDetails: React.FC = () => {
   const fetchTenderDetails = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/tenders/${id}`);
+      const response = await fetch(`${apiBase}/tenders/${id}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch tender details');

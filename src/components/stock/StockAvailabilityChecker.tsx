@@ -40,7 +40,9 @@ interface StockAvailabilityCheckerProps {
   selectedItems?: Array<{ item_master_id: string; requested_quantity: number }>;
 }
 
-export default function StockAvailabilityChecker({ 
+export default function StockAvailabilityChecker({
+  const apiBase = getApiBaseUrl();
+ 
   onItemSelect, 
   onAvailabilityCheck,
   selectedItems = [] 
@@ -59,8 +61,7 @@ export default function StockAvailabilityChecker({
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `http://localhost:3001/api/stock/search-with-availability?search=${encodeURIComponent(searchTerm)}`
+      const response = await fetch(`${apiBase}/stock/search-with-availability?search=${encodeURIComponent(searchTerm)}`
       );
       const data = await response.json();
       setSearchResults(data.items || []);
@@ -75,7 +76,7 @@ export default function StockAvailabilityChecker({
   // Check availability for a specific item
   const checkSingleItemAvailability = async (itemId: string, quantity: number) => {
     try {
-      const response = await fetch('http://localhost:3001/api/stock/check-availability', {
+      const response = await fetch(`${apiBase}/stock/check-availability`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,7 +109,7 @@ export default function StockAvailabilityChecker({
     if (selectedItems.length === 0) return;
 
     try {
-      const response = await fetch('http://localhost:3001/api/stock/check-availability-batch', {
+      const response = await fetch(`${apiBase}/stock/check-availability-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: selectedItems })

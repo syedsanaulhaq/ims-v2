@@ -16,6 +16,8 @@ interface ItemMaster {
 }
 
 const ItemsMaster = () => {
+  const apiBase = getApiBaseUrl();
+
   // State
   const [items, setItems] = useState<ItemMaster[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ const ItemsMaster = () => {
       setError('');
       
       console.log('🔄 Fetching items from API...');
-      const response = await fetch('http://localhost:3001/api/item-masters');
+      const response = await fetch(`${apiBase}/item-masters`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

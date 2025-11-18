@@ -48,6 +48,8 @@ interface Summary {
 }
 
 export default function MyIssuedItems() {
+  const apiBase = getApiBaseUrl();
+
   const [items, setItems] = useState<IssuedItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<IssuedItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -70,7 +72,7 @@ export default function MyIssuedItems() {
   const fetchMyIssuedItems = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/issued-items/user/${currentUserId}`);
+      const response = await fetch(`${apiBase}/issued-items/user/${currentUserId}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch issued items');

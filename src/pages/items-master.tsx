@@ -175,7 +175,7 @@ const ItemsMaster: React.FC = () => {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/item-masters');
+      const response = await fetch(`${apiBase}/item-masters`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -193,7 +193,7 @@ const ItemsMaster: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/categories');
+      const response = await fetch(`${apiBase}/categories`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       console.log('Fetched categories:', data);
@@ -206,7 +206,7 @@ const ItemsMaster: React.FC = () => {
 
   const fetchSubCategories = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/sub-categories');
+      const response = await fetch(`${apiBase}/sub-categories`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       console.log('Fetched sub-categories:', data);
@@ -218,6 +218,8 @@ const ItemsMaster: React.FC = () => {
   };
 
   const getFilteredSubCategories = () => {
+  const apiBase = getApiBaseUrl();
+
     if (!formData.category_id || formData.category_id === '') {
       return [];
     }
@@ -274,7 +276,7 @@ const ItemsMaster: React.FC = () => {
     if (!confirm(`Are you sure you want to delete "${item.item_name}"?`)) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/item-masters/${item.item_id}`, {
+      const response = await fetch(`${apiBase}/item-masters/${item.item_id}`, {
         method: 'DELETE',
       });
 
@@ -315,8 +317,8 @@ const ItemsMaster: React.FC = () => {
     
     try {
       const url = editingItem 
-        ? `http://localhost:3001/api/item-masters/${editingItem.item_id}`
-        : 'http://localhost:3001/api/item-masters';
+        ? `${apiBase}/item-masters/${editingItem.item_id}`
+        : `${apiBase}/item-masters`;
       
       const method = editingItem ? 'PUT' : 'POST';
 

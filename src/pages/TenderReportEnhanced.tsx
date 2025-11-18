@@ -21,6 +21,8 @@ import autoTable from 'jspdf-autotable';
 import { useOfficeHierarchy } from '@/hooks/useOfficeHierarchy';
 import { createNameResolver } from '@/utils/nameResolver';
 import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface TenderItem {
   id: string;
@@ -91,7 +93,7 @@ const TenderReportEnhanced: React.FC = () => {
       setError(null);
 
       // Fetch tender details
-      const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const tenderResponse = await fetch(`${apiBase}/tenders/${tenderId}`);
       if (!tenderResponse.ok) {
         throw new Error('Failed to fetch tender data');
       }

@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, Save, Package, RefreshCw, AlertCircle, CheckCircle, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface CurrentInventoryStock {
   item_master_id: string;
@@ -48,7 +50,7 @@ const CurrentInventoryStockSetup: React.FC = () => {
       setIsLoading(true);
       console.log('🔄 Loading data from current_inventory_stock table...');
 
-      const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock');
+      const response = await fetch(`${apiBase}/inventory/current-inventory-stock`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -129,7 +131,7 @@ const CurrentInventoryStockSetup: React.FC = () => {
         current_quantity: item.editedQuantity
       }));
 
-      const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock/bulk-update', {
+      const response = await fetch(`${apiBase}/inventory/current-inventory-stock/bulk-update`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

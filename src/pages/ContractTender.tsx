@@ -38,6 +38,8 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface TenderItem {
   id: string;
@@ -98,7 +100,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   const fetchTenders = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/tenders');
+      const response = await fetch(`${apiBase}/tenders`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -132,7 +134,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
 
     try {
       setFinalizingTender(tenderId);
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/finalize`, {
+      const response = await fetch(`${apiBase}/tenders/${tenderId}/finalize`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +191,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
 
     if (window.confirm('Are you sure you want to delete this tender?')) {
       try {
-        const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`, {
+        const response = await fetch(`${apiBase}/tenders/${tenderId}`, {
           method: 'DELETE',
         });
 

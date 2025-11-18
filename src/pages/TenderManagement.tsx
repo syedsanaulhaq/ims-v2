@@ -36,6 +36,8 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { invmisApi } from '@/services/invmisApi';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 // Types
 interface Tender {
@@ -151,7 +153,7 @@ const TenderManagement: React.FC = () => {
     
     try {
       // Fetch tenders from API using direct fetch
-      const response = await fetch('http://localhost:3001/api/tenders');
+      const response = await fetch(`${apiBase}/tenders`);
       const tendersResponse = await response.json();
       setTenders(Array.isArray(tendersResponse) ? tendersResponse : []);
 

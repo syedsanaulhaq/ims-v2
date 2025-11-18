@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 // Interface for item masters from vw_item_masters_with_categories view
 interface ItemMaster {
@@ -93,7 +95,7 @@ const ItemMasterManagement = () => {
       console.log('🔄 Loading categories and subcategories...');
       
       // Load categories
-      const categoriesResponse = await fetch('http://localhost:3001/api/categories');
+      const categoriesResponse = await fetch(`${apiBase}/categories`);
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
         setCategories(categoriesData);
@@ -101,7 +103,7 @@ const ItemMasterManagement = () => {
       }
 
       // Load all sub-categories
-      const subCategoriesResponse = await fetch('http://localhost:3001/api/sub-categories');
+      const subCategoriesResponse = await fetch(`${apiBase}/sub-categories`);
       if (subCategoriesResponse.ok) {
         const subCategoriesData = await subCategoriesResponse.json();
         setSubCategories(subCategoriesData);
@@ -208,7 +210,7 @@ const ItemMasterManagement = () => {
         // Update existing item
         console.log('🔄 Updating item:', payload);
         console.log('📝 Editing item ID:', editingItem.id);
-        const response = await fetch(`http://localhost:3001/api/item-masters/${editingItem.id}`, {
+        const response = await fetch(`${apiBase}/item-masters/${editingItem.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -226,7 +228,7 @@ const ItemMasterManagement = () => {
       } else {
         // Create new item
         console.log('🆕 Creating new item:', payload);
-        const response = await fetch('http://localhost:3001/api/item-masters', {
+        const response = await fetch(`${apiBase}/item-masters`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -266,7 +268,7 @@ const ItemMasterManagement = () => {
     const confirmed = window.confirm(`Are you sure you want to delete "${item.nomenclature}" (${item.item_code})?`);
     if (confirmed) {
       try {
-        const response = await fetch(`http://localhost:3001/api/item-masters/${item.id}`, {
+        const response = await fetch(`${apiBase}/item-masters/${item.id}`, {
           method: 'DELETE'
         });
 
@@ -289,7 +291,7 @@ const ItemMasterManagement = () => {
       setLoading(true);
       setError('');
       
-      const response = await fetch('http://localhost:3001/api/item-masters');
+      const response = await fetch(`${apiBase}/item-masters`);
       
       if (response.ok) {
         const data = await response.json();

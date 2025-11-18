@@ -36,6 +36,8 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { invmisApi } from "@/services/invmisApi";
 
 const Dashboard = () => {
+  const apiBase = getApiBaseUrl();
+
   const navigate = useNavigate();
 
   // State for real SQL Server data
@@ -66,14 +68,14 @@ const Dashboard = () => {
           usersData,
           wingsData
         ] = await Promise.allSettled([
-          fetch('http://localhost:3001/api/tenders').then(r => r.json()),
-          fetch('http://localhost:3001/api/deliveries').then(r => r.json()),
-          fetch('http://localhost:3001/api/stock-issuance/requests').then(r => r.json()),
-          fetch('http://localhost:3001/api/inventory-stock').then(r => r.json()),
-          fetch('http://localhost:3001/api/inventory/dashboard').then(r => r.json()),
-          fetch('http://localhost:3001/api/offices').then(r => r.json()),
-          fetch('http://localhost:3001/api/users').then(r => r.json()),
-          fetch('http://localhost:3001/api/wings').then(r => r.json())
+          fetch(`${apiBase}/tenders`).then(r => r.json()),
+          fetch(`${apiBase}/deliveries`).then(r => r.json()),
+          fetch(`${apiBase}/stock-issuance/requests`).then(r => r.json()),
+          fetch(`${apiBase}/inventory-stock`).then(r => r.json()),
+          fetch(`${apiBase}/inventory/dashboard`).then(r => r.json()),
+          fetch(`${apiBase}/offices`).then(r => r.json()),
+          fetch(`${apiBase}/users`).then(r => r.json()),
+          fetch(`${apiBase}/wings`).then(r => r.json())
         ]);
 
         // Process results

@@ -8,6 +8,8 @@ import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, Filter } from 'luc
 import { format } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface RequestItem {
   id: string;
@@ -58,7 +60,7 @@ const RequestTrackingPage: React.FC = () => {
       }
       
       // Use the same API that works for other components
-      const response = await fetch('http://localhost:3001/api/stock-issuance/requests', {
+      const response = await fetch(`${apiBase}/stock-issuance/requests`, {
         method: 'GET',
         credentials: 'include',
         headers: {

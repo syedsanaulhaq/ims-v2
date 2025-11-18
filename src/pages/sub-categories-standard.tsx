@@ -34,7 +34,7 @@ const SubCategories: React.FC = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/categories');
+        const response = await fetch(`${apiBase}/categories`);
         if (response.ok) {
           const data = await response.json();
           setCategories(Array.isArray(data) ? data : []);
@@ -116,6 +116,8 @@ const SubCategories: React.FC = () => {
   ];
 
   const handleAdd = () => {
+  const apiBase = getApiBaseUrl();
+
     setViewMode('add');
     setEditingItem(null);
   };

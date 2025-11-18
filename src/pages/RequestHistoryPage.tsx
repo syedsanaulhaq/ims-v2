@@ -8,6 +8,8 @@ import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, Filter, ArrowRight
 import { format } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface RequestItem {
   id: string;
@@ -62,7 +64,7 @@ const RequestHistoryPage: React.FC = () => {
     try {
       setLoading(true);
       console.log('🔍 Making API call to /api/my-approval-history');
-      const response = await fetch('http://localhost:3001/api/my-approval-history', {
+      const response = await fetch(`${apiBase}/my-approval-history`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -179,7 +181,7 @@ const RequestHistoryPage: React.FC = () => {
       // 2. Try to get actual approval history from API
       let actualHistory = [];
       try {
-        const response = await fetch(`http://localhost:3001/api/approvals/${request.id}/history`, {
+        const response = await fetch(`${apiBase}/approvals/${request.id}/history`, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',

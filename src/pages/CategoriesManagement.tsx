@@ -27,6 +27,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface Category {
   id: string;
@@ -113,8 +115,8 @@ const CategoriesManagement = () => {
       setIsLoading(true);
       
       const [categoriesRes, subCategoriesRes] = await Promise.all([
-        fetch('http://localhost:3001/api/categories'),
-        fetch('http://localhost:3001/api/sub-categories')
+        fetch(`${apiBase}/categories`),
+        fetch(`${apiBase}/sub-categories`)
       ]);
 
       if (categoriesRes.ok) {
@@ -176,7 +178,7 @@ const CategoriesManagement = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/categories', {
+      const response = await fetch(`${apiBase}/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -216,7 +218,7 @@ const CategoriesManagement = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/sub-categories', {
+      const response = await fetch(`${apiBase}/sub-categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -282,7 +284,7 @@ const CategoriesManagement = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/categories/${editingCategory}`, {
+      const response = await fetch(`${apiBase}/categories/${editingCategory}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -324,7 +326,7 @@ const CategoriesManagement = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/sub-categories/${editingSubCategory}`, {
+      const response = await fetch(`${apiBase}/sub-categories/${editingSubCategory}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -359,7 +361,7 @@ const CategoriesManagement = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}`, {
+      const response = await fetch(`${apiBase}/categories/${categoryId}`, {
         method: 'DELETE',
       });
 
@@ -389,7 +391,7 @@ const CategoriesManagement = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/sub-categories/${subCategoryId}`, {
+      const response = await fetch(`${apiBase}/sub-categories/${subCategoryId}`, {
         method: 'DELETE',
       });
 

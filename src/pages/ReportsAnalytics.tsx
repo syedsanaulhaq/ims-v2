@@ -55,6 +55,8 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { invmisApi } from '@/services/invmisApi';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 // Types
 interface ReportData {
@@ -196,9 +198,9 @@ const ReportsAnalytics: React.FC = () => {
       
       // Use real APIs to get financial metrics
       const [tendersResponse, deliveriesResponse, stockResponse] = await Promise.all([
-        fetch('http://localhost:3001/api/tenders').catch(() => ({ json: () => [] })),
-        fetch('http://localhost:3001/api/deliveries').catch(() => ({ json: () => [] })),
-        fetch('http://localhost:3001/api/stock-issuance/requests').catch(() => ({ json: () => ({ data: [] }) }))
+        fetch(`${apiBase}/tenders`).catch(() => ({ json: () => [] })),
+        fetch(`${apiBase}/deliveries`).catch(() => ({ json: () => [] })),
+        fetch(`${apiBase}/stock-issuance/requests`).catch(() => ({ json: () => ({ data: [] }) }))
       ]);
       
       const tenders = await tendersResponse.json();

@@ -39,6 +39,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+import { getApiBaseUrl } from '@/services/invmisApi';
+
   Select,
   SelectContent,
   SelectItem,
@@ -161,7 +163,7 @@ const UnifiedTenderManagement: React.FC = () => {
       setLoading(true);
       
       // Load tender info
-      const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const tenderResponse = await fetch(`${apiBase}/tenders/${tenderId}`);
       if (tenderResponse.ok) {
         const tender = await tenderResponse.json();
         setTenderInfo(tender);
@@ -190,7 +192,7 @@ const UnifiedTenderManagement: React.FC = () => {
       }
 
       // Load deliveries
-      const deliveryResponse = await fetch(`http://localhost:3001/api/deliveries/by-tender/${tenderId}`);
+      const deliveryResponse = await fetch(`${apiBase}/deliveries/by-tender/${tenderId}`);
       if (deliveryResponse.ok) {
         const deliveriesData = await deliveryResponse.json();
         const deliveriesArray = Array.isArray(deliveriesData) ? deliveriesData : [deliveriesData];
@@ -255,7 +257,7 @@ const UnifiedTenderManagement: React.FC = () => {
     try {
       console.log('💰 Updating item price:', { itemId, newPrice });
       
-      const response = await fetch(`http://localhost:3001/api/stock-acquisition/update-price/${itemId}`, {
+      const response = await fetch(`${apiBase}/stock-acquisition/update-price/${itemId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -289,7 +291,7 @@ const UnifiedTenderManagement: React.FC = () => {
 
   const createNewDelivery = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/deliveries', {
+      const response = await fetch(`${apiBase}/deliveries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -382,7 +384,7 @@ const UnifiedTenderManagement: React.FC = () => {
 
       console.log('🚀 Adding item to delivery with data:', requestData);
 
-      const response = await fetch('http://localhost:3001/api/delivery-items', {
+      const response = await fetch(`${apiBase}/delivery-items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
@@ -441,7 +443,7 @@ const UnifiedTenderManagement: React.FC = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/delivery-item-serial-numbers', {
+      const response = await fetch(`${apiBase}/delivery-item-serial-numbers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -480,7 +482,7 @@ const UnifiedTenderManagement: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/deliveries/${deliveryId}`, {
+      const response = await fetch(`${apiBase}/deliveries/${deliveryId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -524,7 +526,7 @@ const UnifiedTenderManagement: React.FC = () => {
       // Finalize each delivery
       for (const delivery of pendingDeliveries) {
         try {
-          const response = await fetch(`http://localhost:3001/api/deliveries/${delivery.id}/finalize`, {
+          const response = await fetch(`${apiBase}/deliveries/${delivery.id}/finalize`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

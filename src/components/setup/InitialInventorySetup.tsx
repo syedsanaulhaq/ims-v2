@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertTriangle, Package, Plus, Save, CheckCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface ItemMaster {
   id: string;
@@ -60,9 +62,9 @@ const InitialInventorySetup = () => {
     try {
       // Fetch item masters, categories, and existing inventory stock
       const [itemMastersResponse, categoriesResponse, currentStockResponse] = await Promise.all([
-        fetch('http://localhost:3001/api/item-masters'),
-        fetch('http://localhost:3001/api/categories'),
-        fetch('http://localhost:3001/api/inventory-stock')
+        fetch(`${apiBase}/item-masters`),
+        fetch(`${apiBase}/categories`),
+        fetch(`${apiBase}/inventory-stock`)
       ]);
 
       if (itemMastersResponse.ok) {
@@ -149,7 +151,7 @@ const InitialInventorySetup = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:3001/api/inventory/initial-setup', {
+      const response = await fetch(`${apiBase}/inventory/initial-setup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

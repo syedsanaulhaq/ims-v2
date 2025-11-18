@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface RequestItem {
   id: string;
@@ -58,7 +60,7 @@ const RequestDetailsPage: React.FC = () => {
       setLoading(true);
       
       // Use the working stock issuance API and find the specific request
-      const response = await fetch('http://localhost:3001/api/stock-issuance/requests', {
+      const response = await fetch(`${apiBase}/stock-issuance/requests`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -121,7 +123,7 @@ const RequestDetailsPage: React.FC = () => {
     try {
       // Try to load real approval history from database
       try {
-        const response = await fetch(`http://localhost:3001/api/approvals/history/${requestId}`, {
+        const response = await fetch(`${apiBase}/approvals/history/${requestId}`, {
           method: 'GET',
           credentials: 'include',
           headers: {

@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 /**
  * SSO Login Page
  * Handles authentication when user comes from Digital System
  */
 export default function SSOLogin() {
+  const apiBase = getApiBaseUrl();
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -34,7 +38,7 @@ export default function SSOLogin() {
       console.log('🔐 Validating SSO token from Digital System...');
 
       // Validate token with backend (Updated endpoint)
-      const response = await fetch('http://localhost:3001/api/auth/sso-validate', {
+      const response = await fetch(`${apiBase}/auth/sso-validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

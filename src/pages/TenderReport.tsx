@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, FileText, Building, Users, Calendar, Package } from 'lucide-react';
 import { useOfficeHierarchy } from '@/hooks/useOfficeHierarchy';
 import { createNameResolver } from '@/utils/nameResolver';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface TenderItem {
   id: string;
@@ -129,7 +131,7 @@ const TenderReport: React.FC = () => {
       setError(null);
       
       console.log('🔍 Fetching tender data for ID:', tenderId);
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const response = await fetch(`${apiBase}/tenders/${tenderId}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch tender data: ${response.status} ${response.statusText}`);

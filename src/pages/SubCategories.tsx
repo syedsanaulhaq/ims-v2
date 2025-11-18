@@ -9,6 +9,8 @@ import { Plus, Edit, Trash2, Tag, Save, X, ExternalLink, Package, CheckCircle, X
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface Category {
   id: string;
@@ -55,8 +57,8 @@ const SubCategories = () => {
       setIsLoading(true);
       
       const [categoriesRes, subCategoriesRes] = await Promise.all([
-        fetch('http://localhost:3001/api/categories'),
-        fetch('http://localhost:3001/api/sub-categories')
+        fetch(`${apiBase}/categories`),
+        fetch(`${apiBase}/sub-categories`)
       ]);
 
       if (categoriesRes.ok) {
@@ -111,7 +113,7 @@ const SubCategories = () => {
 
     try {
       console.log('🌐 Sending POST request to /api/sub-categories...');
-      const response = await fetch('http://localhost:3001/api/sub-categories', {
+      const response = await fetch(`${apiBase}/sub-categories`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subCategoryForm)
@@ -177,7 +179,7 @@ const SubCategories = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/sub-categories/${editingSubCategory}`, {
+      const response = await fetch(`${apiBase}/sub-categories/${editingSubCategory}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subCategoryForm)
@@ -210,7 +212,7 @@ const SubCategories = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/sub-categories/${subCategoryId}`, {
+      const response = await fetch(`${apiBase}/sub-categories/${subCategoryId}`, {
         method: 'DELETE'
       });
 

@@ -1,6 +1,5 @@
 // Local inventory service for SQL Server backend
-const BASE_URL = 'http://localhost:3001/api';
-
+const BASE_URL = getApiBaseUrl();
 export interface InventoryItem {
   intOfficeID: string;
   intItemMasterID: string;

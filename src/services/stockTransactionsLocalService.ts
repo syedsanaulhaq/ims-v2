@@ -1,6 +1,5 @@
 // Local stock transactions service for SQL Server backend
-const BASE_URL = 'http://localhost:3001/api';
-
+const BASE_URL = getApiBaseUrl();
 export interface StockTransaction {
   id: string;
   item_master_id: string;

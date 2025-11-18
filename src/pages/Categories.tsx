@@ -9,6 +9,8 @@ import { Plus, Edit, Trash2, FolderOpen, Tag, Save, X, ExternalLink, Package, Ch
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface Category {
   id: string;
@@ -68,8 +70,8 @@ const Categories = () => {
       setIsLoading(true);
       
       const [categoriesRes, subCategoriesRes] = await Promise.all([
-        fetch('http://localhost:3001/api/categories'),
-        fetch('http://localhost:3001/api/sub-categories')
+        fetch(`${apiBase}/categories`),
+        fetch(`${apiBase}/sub-categories`)
       ]);
 
       if (categoriesRes.ok) {
@@ -114,7 +116,7 @@ const Categories = () => {
 
     try {
       console.log('📡 Making POST request to create category...');
-      const response = await fetch('http://localhost:3001/api/categories', {
+      const response = await fetch(`${apiBase}/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +178,7 @@ const Categories = () => {
 
     try {
       console.log('📡 Making POST request to create sub-category...');
-      const response = await fetch('http://localhost:3001/api/sub-categories', {
+      const response = await fetch(`${apiBase}/sub-categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -241,13 +243,13 @@ const Categories = () => {
 
     try {
       console.log('🔧 Sending PUT request:', {
-        url: `http://localhost:3001/api/categories/${editingCategory}`,
+        url: `${apiBase}/categories/${editingCategory}`,
         method: 'PUT',
         body: categoryForm,
         editingCategoryId: editingCategory
       });
       
-      const response = await fetch(`http://localhost:3001/api/categories/${editingCategory}`, {
+      const response = await fetch(`${apiBase}/categories/${editingCategory}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -293,7 +295,7 @@ const Categories = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}`, {
+      const response = await fetch(`${apiBase}/categories/${categoryId}`, {
         method: 'DELETE',
       });
 
@@ -346,7 +348,7 @@ const Categories = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/sub-categories/${editingSubCategory}`, {
+      const response = await fetch(`${apiBase}/sub-categories/${editingSubCategory}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -388,7 +390,7 @@ const Categories = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/sub-categories/${subCategoryId}`, {
+      const response = await fetch(`${apiBase}/sub-categories/${subCategoryId}`, {
         method: 'DELETE',
       });
 

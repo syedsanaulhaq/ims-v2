@@ -1,8 +1,9 @@
 import { ApiResponse } from './api';
 import { DeliveryRecord } from './deliveryService';
+import { getApiBaseUrl } from './invmisApi';
 
-const API_BASE_URL = 'http://localhost:3001/api';
 
+const API_BASE_URL = getApiBaseUrl();
 // Local SQL Server delivery service
 export const deliveriesLocalService = {
   // Get all deliveries

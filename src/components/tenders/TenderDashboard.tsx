@@ -24,6 +24,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface TenderItem {
   id: string;
@@ -87,7 +89,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const response = await fetch(`${apiBase}/tenders/${tenderId}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -111,7 +113,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:3001/api/tenders');
+      const response = await fetch(`${apiBase}/tenders`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -143,7 +145,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`, {
+      const response = await fetch(`${apiBase}/tenders/${tenderId}`, {
         method: 'DELETE',
       });
 
@@ -172,7 +174,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/finalize`, {
+      const response = await fetch(`${apiBase}/tenders/${tenderId}/finalize`, {
         method: 'POST',
       });
 

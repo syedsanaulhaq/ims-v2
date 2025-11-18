@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, User, ArrowRight, CheckCircle, XCircle, Forward, FileText, Calendar, MessageSquare } from 'lucide-react';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface ApprovalTrackingEntry {
   step_number: number;
@@ -45,8 +47,8 @@ const RequestTrackingPage: React.FC = () => {
     try {
       setLoading(true);
       const [detailsResponse, historyResponse] = await Promise.all([
-        fetch(`http://localhost:3001/api/approvals/${approvalId}`),
-        fetch(`http://localhost:3001/api/approvals/${approvalId}/history`)
+        fetch(`${apiBase}/approvals/${approvalId}`),
+        fetch(`${apiBase}/approvals/${approvalId}/history`)
       ]);
       
       if (!detailsResponse.ok || !historyResponse.ok) {

@@ -25,8 +25,7 @@ export interface InventoryStats {
 }
 
 export class InventoryService {
-  private static baseUrl = 'http://localhost:3001/api';
-
+  private static baseUrl = getApiBaseUrl() + '';
   /**
    * Fetch inventory data from SQL Server backend using View_Current_Inv_Stock
    */

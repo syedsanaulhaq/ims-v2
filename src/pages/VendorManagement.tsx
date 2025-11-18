@@ -35,6 +35,8 @@ import { Separator } from "@/components/ui/separator";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface Vendor {
   id: string;
@@ -85,7 +87,7 @@ const VendorManagement = () => {
     try {
       setIsLoading(true);
       
-      const response = await fetch('http://localhost:3001/api/vendors');
+      const response = await fetch(`${apiBase}/vendors`);
       if (response.ok) {
         const data = await response.json();
         // Handle both formats: direct array or nested in vendors property
@@ -151,7 +153,7 @@ const VendorManagement = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/vendors', {
+      const response = await fetch(`${apiBase}/vendors`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -211,7 +213,7 @@ const VendorManagement = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/vendors/${editingVendor}`, {
+      const response = await fetch(`${apiBase}/vendors/${editingVendor}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -246,7 +248,7 @@ const VendorManagement = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/vendors/${vendorId}`, {
+      const response = await fetch(`${apiBase}/vendors/${vendorId}`, {
         method: 'DELETE',
       });
 

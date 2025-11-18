@@ -8,6 +8,8 @@ import {
   ApprovalAction 
 } from '../services/approvalForwardingService';
 import { sessionService } from '../services/sessionService';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface ApprovalForwardingProps {
   approvalId: string;
@@ -95,7 +97,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
   const loadWorkflows = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/workflows');
+      const response = await fetch(`${apiBase}/workflows`);
       const data = await response.json();
       if (data.success) {
         setWorkflows(data.data);
@@ -107,7 +109,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
   const loadWorkflowUsers = async (workflowId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/workflows/${workflowId}/approvers`);
+      const response = await fetch(`${apiBase}/workflows/${workflowId}/approvers`);
       const data = await response.json();
       if (data.success) {
         setWorkflowUsers(data.data);
@@ -199,7 +201,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       if (actionType === 'forwarded' && forwardingType === 'approval') {
         // Get currently logged-in user's supervisor from backend
         try {
-          const response = await fetch(`http://localhost:3001/api/user/${currentUser.user_id}/supervisor`);
+          const response = await fetch(`${apiBase}/user/${currentUser.user_id}/supervisor`);
           const data = await response.json();
           if (data.success && data.supervisor_id) {
             forwardToUserId = data.supervisor_id;
@@ -736,7 +738,7 @@ const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ appr
       console.log('🔍 Loading items for approval:', approvalId);
       
       // Fetch items from the backend API
-      const response = await fetch(`http://localhost:3001/api/approval-items/${approvalId}`);
+      const response = await fetch(`${apiBase}/approval-items/${approvalId}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch items: ${response.statusText}`);

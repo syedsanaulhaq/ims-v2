@@ -16,6 +16,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface TenderItem {
   id?: string;
@@ -146,7 +148,7 @@ const EditTender: React.FC = () => {
       setLoadingData(true);
       
       // Fetch tender details with items
-      const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const tenderResponse = await fetch(`${apiBase}/tenders/${tenderId}`);
       if (tenderResponse.ok) {
         const tender = await tenderResponse.json();
         
@@ -188,21 +190,21 @@ const EditTender: React.FC = () => {
     const fetchInitialData = async () => {
       try {
         // Fetch Item Masters
-        const itemMastersResponse = await fetch('http://localhost:3001/api/item-masters');
+        const itemMastersResponse = await fetch(`${apiBase}/item-masters`);
         if (itemMastersResponse.ok) {
           const itemMastersData = await itemMastersResponse.json();
           setItemMasters(Array.isArray(itemMastersData) ? itemMastersData : itemMastersData.data || []);
         }
 
         // Fetch Offices
-        const officesResponse = await fetch('http://localhost:3001/api/offices');
+        const officesResponse = await fetch(`${apiBase}/offices`);
         if (officesResponse.ok) {
           const officesData = await officesResponse.json();
           setOffices(Array.isArray(officesData) ? officesData : officesData.data || []);
         }
 
         // Fetch Vendors
-        const vendorsResponse = await fetch('http://localhost:3001/api/vendors');
+        const vendorsResponse = await fetch(`${apiBase}/vendors`);
         if (vendorsResponse.ok) {
           const vendorsData = await vendorsResponse.json();
           setVendors(vendorsData.vendors || []);
@@ -224,7 +226,7 @@ const EditTender: React.FC = () => {
         try {
           const allWings: Wing[] = [];
           for (const officeId of tenderData.office_ids) {
-            const response = await fetch(`http://localhost:3001/api/offices/${officeId}/wings`);
+            const response = await fetch(`${apiBase}/offices/${officeId}/wings`);
             if (response.ok) {
               const wingsData = await response.json();
               allWings.push(...(Array.isArray(wingsData) ? wingsData : wingsData.data || []));
@@ -250,7 +252,7 @@ const EditTender: React.FC = () => {
         try {
           const allDECs: DEC[] = [];
           for (const wingId of tenderData.wing_ids) {
-            const response = await fetch(`http://localhost:3001/api/wings/${wingId}/decs`);
+            const response = await fetch(`${apiBase}/wings/${wingId}/decs`);
             if (response.ok) {
               const decsData = await response.json();
               allDECs.push(...(Array.isArray(decsData) ? decsData : decsData.data || []));
@@ -368,7 +370,7 @@ const EditTender: React.FC = () => {
 
       console.log('🔍 Submitting tender data:', JSON.stringify(tenderFormData, null, 2));
 
-      const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
+      const response = await fetch(`${apiBase}/tenders/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -1,7 +1,8 @@
 import { ApiResponse } from './api';
+import { getApiBaseUrl } from './invmisApi';
 
-const API_BASE_URL = 'http://localhost:3001/api';
 
+const API_BASE_URL = getApiBaseUrl();
 export interface DeliveryItem {
   id: string;
   delivery_id: string;

@@ -54,6 +54,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import {
+import { getApiBaseUrl } from '@/services/invmisApi';
+
   Select,
   SelectContent,
   SelectItem,
@@ -177,14 +179,14 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
       setError(null);
       
       // Fetch stock acquisition statistics
-      const statsResponse = await fetch('http://localhost:3001/api/stock-acquisition/dashboard-stats');
+      const statsResponse = await fetch(`${apiBase}/stock-acquisition/dashboard-stats`);
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData);
       }
 
       // Fetch tender summaries from stock transactions
-      const summariesResponse = await fetch('http://localhost:3001/api/stock-acquisition/tender-summaries');
+      const summariesResponse = await fetch(`${apiBase}/stock-acquisition/tender-summaries`);
       if (summariesResponse.ok) {
         const summariesData = await summariesResponse.json();
         setTenderSummaries(summariesData);
@@ -204,21 +206,21 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
       let items: StockTransactionItem[] = [];
       
       // Load stock transaction items
-      const itemsResponse = await fetch(`http://localhost:3001/api/stock-acquisition/items/${tenderId}`);
+      const itemsResponse = await fetch(`${apiBase}/stock-acquisition/items/${tenderId}`);
       if (itemsResponse.ok) {
         items = await itemsResponse.json();
         setStockTransactionItems(items);
       }
 
       // Load tender info
-      const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const tenderResponse = await fetch(`${apiBase}/tenders/${tenderId}`);
       if (tenderResponse.ok) {
         const tender = await tenderResponse.json();
         setSelectedTenderInfo(tender);
       }
 
       // Load delivery info if exists
-      const deliveryResponse = await fetch(`http://localhost:3001/api/deliveries/by-tender/${tenderId}`);
+      const deliveryResponse = await fetch(`${apiBase}/deliveries/by-tender/${tenderId}`);
       if (deliveryResponse.ok) {
         const delivery = await deliveryResponse.json();
         setDeliveryInfo(delivery);
@@ -253,7 +255,7 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
         pricing_confirmed: true
       }));
 
-      const response = await fetch('http://localhost:3001/api/stock-acquisition/update-multiple-prices', {
+      const response = await fetch(`${apiBase}/stock-acquisition/update-multiple-prices`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -289,8 +291,8 @@ const EnhancedStockAcquisitionWithDelivery: React.FC = () => {
 
     try {
       const url = deliveryInfo.id 
-        ? `http://localhost:3001/api/deliveries/${deliveryInfo.id}`
-        : 'http://localhost:3001/api/deliveries';
+        ? `${apiBase}/deliveries/${deliveryInfo.id}`
+        : `${apiBase}/deliveries`;
       
       const method = deliveryInfo.id ? 'PUT' : 'POST';
       

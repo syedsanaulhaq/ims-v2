@@ -23,6 +23,8 @@ import {
   CheckCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface Vendor {
   id: string;
@@ -70,7 +72,7 @@ const VendorManagementPage = () => {
   const fetchVendors = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/vendors');
+      const response = await fetch(`${apiBase}/vendors`);
       if (response.ok) {
         const data = await response.json();
         setVendors(data.vendors || []);
@@ -115,8 +117,8 @@ const VendorManagementPage = () => {
       };
 
       const url = editingVendor 
-        ? `http://localhost:3001/api/vendors/${editingVendor.id}`
-        : 'http://localhost:3001/api/vendors';
+        ? `${apiBase}/vendors/${editingVendor.id}`
+        : `${apiBase}/vendors`;
       
       const method = editingVendor ? 'PUT' : 'POST';
 
@@ -173,7 +175,7 @@ const VendorManagementPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/vendors/${vendor.id}`, {
+      const response = await fetch(`${apiBase}/vendors/${vendor.id}`, {
         method: 'DELETE'
       });
 

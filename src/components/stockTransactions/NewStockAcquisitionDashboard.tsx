@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { 
+import { getApiBaseUrl } from '@/services/invmisApi';
+
   Package,
   TrendingUp,
   FileText,
@@ -85,21 +87,21 @@ const NewStockAcquisitionDashboard: React.FC = () => {
       setLoading(true);
       
       // Fetch acquisition overview stats
-      const statsResponse = await fetch('http://localhost:3001/api/acquisition/dashboard-stats');
+      const statsResponse = await fetch(`${apiBase}/acquisition/dashboard-stats`);
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData);
       }
 
       // Fetch active tenders
-      const tendersResponse = await fetch('http://localhost:3001/api/acquisition/active-tenders');
+      const tendersResponse = await fetch(`${apiBase}/acquisition/active-tenders`);
       if (tendersResponse.ok) {
         const tendersData = await tendersResponse.json();
         setActiveTenders(tendersData);
       }
 
       // Fetch recent deliveries
-      const deliveriesResponse = await fetch('http://localhost:3001/api/acquisition/recent-deliveries');
+      const deliveriesResponse = await fetch(`${apiBase}/acquisition/recent-deliveries`);
       if (deliveriesResponse.ok) {
         const deliveriesData = await deliveriesResponse.json();
         setRecentDeliveries(deliveriesData);

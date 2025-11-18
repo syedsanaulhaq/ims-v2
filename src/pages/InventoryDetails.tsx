@@ -20,6 +20,8 @@ import {
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { invmisApi } from '@/services/invmisApi';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 const InventoryDetails = () => {
   const navigate = useNavigate();
@@ -34,7 +36,7 @@ const InventoryDetails = () => {
       try {
         setDataLoading(true);
         // Use the same endpoint as the main dashboard
-        const response = await fetch('http://localhost:3001/api/inventory-stock');
+        const response = await fetch(`${apiBase}/inventory-stock`);
         
         if (response.ok) {
           const data = await response.json();

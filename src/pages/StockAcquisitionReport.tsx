@@ -70,7 +70,7 @@ const StockAcquisitionReport: React.FC = () => {
       console.log('Fetching stock acquisition report for tender ID:', id);
 
       // Step 1: Get tender basic information from SQL Server
-      const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${id}`);
+      const tenderResponse = await fetch(`${apiBase}/tenders/${id}`);
       
       if (!tenderResponse.ok) {
         throw new Error('Tender not found');
@@ -83,7 +83,7 @@ const StockAcquisitionReport: React.FC = () => {
       // Step 2: Get stock transactions with all joined data from the SQL Server view
       console.log('Querying SQL Server View_stock_transactions_clean with tender_id:', id);
       
-      const stockResponse = await fetch(`http://localhost:3001/api/view-stock-transactions-clean?tender_id=${id}`);
+      const stockResponse = await fetch(`${apiBase}/view-stock-transactions-clean?tender_id=${id}`);
       
       if (!stockResponse.ok) {
         throw new Error(`Failed to fetch stock transactions: ${stockResponse.statusText}`);
@@ -188,6 +188,8 @@ const StockAcquisitionReport: React.FC = () => {
   };
 
   const handleExport = () => {
+  const apiBase = getApiBaseUrl();
+
     console.log('Export functionality to be implemented');
   };
 

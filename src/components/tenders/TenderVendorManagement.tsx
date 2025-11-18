@@ -41,6 +41,8 @@ import {
   X
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface Vendor {
   id: string;
@@ -152,7 +154,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
+      const response = await fetch(`${apiBase}/tenders/${tenderId}/vendors`);
       if (response.ok) {
         const data = await response.json();
         console.log('Loaded vendors:', data);
@@ -205,7 +207,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     if (tenderId) {
       // If tender exists, save to backend
       try {
-        const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`, {
+        const response = await fetch(`${apiBase}/tenders/${tenderId}/vendors`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newVendor)
@@ -250,7 +252,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/tenders/${tenderId}/vendors/${selectedVendor.vendor_id}`,
+        `${apiBase}/tenders/${tenderId}/vendors/${selectedVendor.vendor_id}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -294,7 +296,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/proposal`,
+        `${apiBase}/tenders/${tenderId}/vendors/${vendorId}/proposal`,
         {
           method: 'POST',
           body: formData
@@ -345,7 +347,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/proposal/download`
+        `${apiBase}/tenders/${tenderId}/vendors/${vendorId}/proposal/download`
       );
 
       if (response.ok) {
@@ -371,7 +373,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/proposal/download`
+        `${apiBase}/tenders/${tenderId}/vendors/${vendorId}/proposal/download`
       );
 
       if (response.ok) {
@@ -401,7 +403,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/successful`,
+        `${apiBase}/tenders/${tenderId}/vendors/${vendorId}/successful`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -429,7 +431,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     if (tenderId) {
       try {
         const response = await fetch(
-          `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}`,
+          `${apiBase}/tenders/${tenderId}/vendors/${vendorId}`,
           { method: 'DELETE' }
         );
 

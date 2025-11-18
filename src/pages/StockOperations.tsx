@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 const StockOperations = () => {
   const navigate = useNavigate();
@@ -35,7 +37,7 @@ const StockOperations = () => {
     const fetchStockData = async () => {
       try {
         setDataLoading(true);
-        const response = await fetch('http://localhost:3001/api/stock-issuance/requests');
+        const response = await fetch(`${apiBase}/stock-issuance/requests`);
         const data = await response.json();
         
         // Handle the API response structure

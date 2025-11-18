@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
+import { getApiBaseUrl } from '@/services/invmisApi';
+
   FileText, 
   Download, 
   Printer, 
@@ -61,7 +63,7 @@ const TenderReport: React.FC = () => {
 
       try {
         setIsLoading(true);
-        const response = await fetch(`http://localhost:3001/api/view-tenders/${id}`);
+        const response = await fetch(`${apiBase}/view-tenders/${id}`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);

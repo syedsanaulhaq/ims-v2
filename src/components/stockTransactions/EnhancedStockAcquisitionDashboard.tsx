@@ -38,6 +38,8 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface StockTransactionItem {
   id: string;
@@ -112,14 +114,14 @@ const EnhancedStockAcquisitionDashboard: React.FC = () => {
       setError(null);
       
       // Fetch stock acquisition statistics
-      const statsResponse = await fetch('http://localhost:3001/api/stock-acquisition/dashboard-stats');
+      const statsResponse = await fetch(`${apiBase}/stock-acquisition/dashboard-stats`);
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData);
       }
 
       // Fetch tender summaries from stock transactions
-      const summariesResponse = await fetch('http://localhost:3001/api/stock-acquisition/tender-summaries');
+      const summariesResponse = await fetch(`${apiBase}/stock-acquisition/tender-summaries`);
       if (summariesResponse.ok) {
         const summariesData = await summariesResponse.json();
         setTenderSummaries(summariesData);
@@ -136,7 +138,7 @@ const EnhancedStockAcquisitionDashboard: React.FC = () => {
 
   const loadTenderItems = async (tenderId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/stock-acquisition/items/${tenderId}`);
+      const response = await fetch(`${apiBase}/stock-acquisition/items/${tenderId}`);
       if (response.ok) {
         const items = await response.json();
         setStockTransactionItems(items);
@@ -157,7 +159,7 @@ const EnhancedStockAcquisitionDashboard: React.FC = () => {
     if (!editingItem) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/stock-acquisition/update-price/${editingItem.id}`, {
+      const response = await fetch(`${apiBase}/stock-acquisition/update-price/${editingItem.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

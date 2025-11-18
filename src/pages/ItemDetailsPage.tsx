@@ -17,6 +17,8 @@ import {
   TrendingUp
 } from "lucide-react";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 
 interface ItemDetails {
   id: string;
@@ -56,7 +58,7 @@ const ItemDetailsPage: React.FC = () => {
       setError(null);
 
       // Fetch from inventory stock API
-      const response = await fetch('http://localhost:3001/api/inventory-stock', {
+      const response = await fetch(`${apiBase}/inventory-stock`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
