@@ -164,7 +164,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
         <div className="flex items-center justify-center h-16">
           <div className="w-full h-full flex items-center justify-center overflow-hidden">
             <img 
-              src="/ecp-logo.png"
+              src={`${import.meta.env.BASE_URL}ecp-logo.png`}
               alt="ECP Logo" 
               className={state === "collapsed" 
                 ? "h-8 w-8 object-contain" 
