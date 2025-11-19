@@ -1,0 +1,25 @@
+# Simple .htaccess for root deployment
+# Copy this to C:\xampp\htdocs\.htaccess
+
+# Enable Rewrite Engine
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    
+    # Don't rewrite files or directories
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Don't rewrite API requests
+    RewriteCond %{REQUEST_URI} !^/api/
+    
+    # Route everything else to index.html for SPA
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# Proxy API requests to backend (requires mod_proxy)
+<IfModule mod_proxy.c>
+    ProxyPreserveHost On
+    ProxyPass /api http://localhost:3001/api
+    ProxyPassReverse /api http://localhost:3001/api
+</IfModule>

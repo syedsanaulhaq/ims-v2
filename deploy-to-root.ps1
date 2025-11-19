@@ -68,23 +68,30 @@ Write-Host "Files copied successfully" -ForegroundColor Green
 Write-Host ""
 Write-Host "Step 7: Create .htaccess for Apache proxy..." -ForegroundColor Yellow
 $htaccessContent = @"
+# Simple .htaccess for root deployment
+
 # Enable Rewrite Engine
-RewriteEngine On
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    
+    # Don't rewrite files or directories
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Don't rewrite API requests
+    RewriteCond %{REQUEST_URI} !^/api/
+    
+    # Route everything else to index.html for SPA
+    RewriteRule ^ index.html [L]
+</IfModule>
 
-# Proxy API requests to Node.js backend
-RewriteCond %{REQUEST_URI} ^/api/(.*)$ [NC]
-RewriteRule ^api/(.*)$ http://localhost:3001/api/$1 [P,L,QSA]
-
-# Proxy pass configuration
-ProxyPass /api http://localhost:3001/api
-ProxyPassReverse /api http://localhost:3001/api
-ProxyPreserveHost On
-
-# SPA fallback - serve index.html for all non-file requests
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_URI} !^/api/
-RewriteRule . /index.html [L]
+# Proxy API requests to backend (requires mod_proxy)
+<IfModule mod_proxy.c>
+    ProxyPreserveHost On
+    ProxyPass /api http://localhost:3001/api
+    ProxyPassReverse /api http://localhost:3001/api
+</IfModule>
 "@
 
 Set-Content -Path "$HTDOCS_PATH\.htaccess" -Value $htaccessContent -Encoding UTF8
