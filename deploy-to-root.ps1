@@ -69,17 +69,21 @@ Write-Host ""
 Write-Host "Step 7: Create .htaccess for SPA routing..." -ForegroundColor Yellow
 $htaccessContent = @"
 # Simple .htaccess for SPA routing only
-# Proxy configuration must be in httpd.conf or httpd-vhosts.conf
+# Proxy configuration must be in httpd.conf
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
     
+    # Don't rewrite API requests - let Apache proxy handle them
+    RewriteCond %{REQUEST_URI} ^/api/ [NC]
+    RewriteRule ^ - [L]
+    
     # Don't rewrite files or directories
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     
-    # Route everything to index.html for SPA
+    # Route everything else to index.html for SPA
     RewriteRule ^ index.html [L]
 </IfModule>
 "@
