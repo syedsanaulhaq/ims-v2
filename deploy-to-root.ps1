@@ -66,11 +66,11 @@ Copy-Item -Path "dist\*" -Destination $HTDOCS_PATH -Recurse -Force
 Write-Host "Files copied successfully" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "Step 7: Create .htaccess for Apache proxy..." -ForegroundColor Yellow
+Write-Host "Step 7: Create .htaccess for SPA routing..." -ForegroundColor Yellow
 $htaccessContent = @"
-# Simple .htaccess for root deployment
+# Simple .htaccess for SPA routing only
+# Proxy configuration must be in httpd.conf or httpd-vhosts.conf
 
-# Enable Rewrite Engine
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
@@ -79,18 +79,8 @@ $htaccessContent = @"
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     
-    # Don't rewrite API requests
-    RewriteCond %{REQUEST_URI} !^/api/
-    
-    # Route everything else to index.html for SPA
+    # Route everything to index.html for SPA
     RewriteRule ^ index.html [L]
-</IfModule>
-
-# Proxy API requests to backend (requires mod_proxy)
-<IfModule mod_proxy.c>
-    ProxyPreserveHost On
-    ProxyPass /api http://localhost:3001/api
-    ProxyPassReverse /api http://localhost:3001/api
 </IfModule>
 "@
 
