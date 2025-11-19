@@ -1,14 +1,24 @@
 # ====================================================================
 # Deploy IMS to Apache Root (C:\xampp\htdocs)
 # ====================================================================
+# Run this script from C:\ims-v1 directory on the server
+# ====================================================================
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "IMS Root Deployment Script" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
+# Verify we're in the correct directory
+if (-not (Test-Path "package.json")) {
+    Write-Host "Error: Must run from C:\ims-v1 directory!" -ForegroundColor Red
+    Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+    exit 1
+}
+
 # Server configuration
 $SERVER_IP = "172.20.150.34"
+$PROJECT_PATH = "C:\ims-v1"
 $HTDOCS_PATH = "C:\xampp\htdocs"
 $APACHE_CONF = "C:\xampp\apache\conf\extra\httpd-vhosts.conf"
 
@@ -87,7 +97,7 @@ if ($backendProcess) {
     Write-Host "Backend server already running (PID: $($backendProcess.Id))" -ForegroundColor Green
 } else {
     Write-Host "Starting backend server..." -ForegroundColor Gray
-    Start-Process -FilePath "node" -ArgumentList "backend-server.cjs" -WindowStyle Minimized -WorkingDirectory (Get-Location)
+    Start-Process -FilePath "node" -ArgumentList "backend-server.cjs" -WindowStyle Minimized -WorkingDirectory $PROJECT_PATH
     Start-Sleep -Seconds 2
     Write-Host "Backend server started" -ForegroundColor Green
 }
