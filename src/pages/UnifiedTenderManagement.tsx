@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -179,7 +179,7 @@ const UnifiedTenderManagement: React.FC = () => {
         setEditingPrices(prices);
         
         // Debug log to see what prices are being loaded
-        console.log('ðŸ” Loaded tender items with prices:', tender.items?.map(item => ({
+        console.log('🔍 Loaded tender items with prices:', tender.items?.map(item => ({
           id: item.id,
           nomenclature: item.nomenclature,
           estimated_unit_price: item.estimated_unit_price,
@@ -254,7 +254,7 @@ const UnifiedTenderManagement: React.FC = () => {
 
   const updateItemPrice = async (itemId: string, newPrice: number) => {
     try {
-      console.log('ðŸ’° Updating item price:', { itemId, newPrice });
+      console.log('💰 Updating item price:', { itemId, newPrice });
       
       const response = await fetch(`${apiBase}/stock-acquisition/update-price/${itemId}`, {
         method: 'PUT',
@@ -265,11 +265,11 @@ const UnifiedTenderManagement: React.FC = () => {
         })
       });
 
-      console.log('ðŸ“¡ Price update response status:', response.status);
+      console.log('📡 Price update response status:', response.status);
 
       if (response.ok) {
         const responseData = await response.json();
-        console.log('âœ… Price update successful:', responseData);
+        console.log('✅ Price update successful:', responseData);
         
         setTenderItems(prev => prev.map(item => 
           item.id === itemId 
@@ -279,11 +279,11 @@ const UnifiedTenderManagement: React.FC = () => {
         alert('Price updated successfully!');
       } else {
         const errorData = await response.json();
-        console.error('âŒ Price update failed:', errorData);
+        console.error('❌ Price update failed:', errorData);
         alert('Failed to update price');
       }
     } catch (error) {
-      console.error('âŒ Error updating price:', error);
+      console.error('❌ Error updating price:', error);
       alert('Failed to update price');
     }
   };
@@ -319,7 +319,7 @@ const UnifiedTenderManagement: React.FC = () => {
   };
 
   const openAddItemDialog = (deliveryId: string) => {
-    console.log('ðŸš€ Opening add item dialog for delivery:', deliveryId);
+    console.log('🚀 Opening add item dialog for delivery:', deliveryId);
     setAddItemDialog({
       isOpen: true,
       deliveryId,
@@ -381,7 +381,7 @@ const UnifiedTenderManagement: React.FC = () => {
         items: allItems
       };
 
-      console.log('ðŸš€ Adding item to delivery with data:', requestData);
+      console.log('🚀 Adding item to delivery with data:', requestData);
 
       const response = await fetch(`${apiBase}/delivery-items`, {
         method: 'POST',
@@ -389,10 +389,10 @@ const UnifiedTenderManagement: React.FC = () => {
         body: JSON.stringify(requestData)
       });
 
-      console.log('ðŸ“¡ Response status:', response.status);
+      console.log('📡 Response status:', response.status);
 
       if (response.ok) {
-        console.log('âœ… Item added successfully');
+        console.log('✅ Item added successfully');
         await loadTenderData(); // Reload to show the new item
         setAddItemDialog({
           isOpen: false,
@@ -405,16 +405,16 @@ const UnifiedTenderManagement: React.FC = () => {
         let errorMessage = 'Unknown error';
         try {
           const errorData = await response.json();
-          console.error('âŒ Server error response:', errorData);
+          console.error('❌ Server error response:', errorData);
           errorMessage = errorData.error || errorData.message || `Server returned ${response.status}`;
         } catch (parseError) {
-          console.error('âŒ Failed to parse error response:', parseError);
+          console.error('❌ Failed to parse error response:', parseError);
           errorMessage = `Server returned ${response.status}: ${response.statusText}`;
         }
         alert(`Failed to add item: ${errorMessage}`);
       }
     } catch (error) {
-      console.error('âŒ Error adding item to delivery:', error);
+      console.error('❌ Error adding item to delivery:', error);
       alert('Failed to add item to delivery. Please check the console for details.');
     }
   };
@@ -504,11 +504,11 @@ const UnifiedTenderManagement: React.FC = () => {
     const pendingDeliveries = deliveries.filter(d => !d.is_finalized);
     
     if (pendingDeliveries.length === 0) {
-      alert('â„¹ï¸ No pending deliveries to finalize.');
+      alert('ℹ️ No pending deliveries to finalize.');
       return;
     }
 
-    const deliveryList = pendingDeliveries.map(d => `  â€¢ Delivery #${d.delivery_number}`).join('\n');
+    const deliveryList = pendingDeliveries.map(d => `  • Delivery #${d.delivery_number}`).join('\n');
     
     if (!confirm(`Are you sure you want to FINALIZE ALL DELIVERIES for this tender?\n\n${pendingDeliveries.length} pending deliveries will be finalized:\n${deliveryList}\n\nThis will:\n- Mark all deliveries as complete\n- Add ALL items to inventory\n- Create stock movement logs\n- CANNOT be undone\n\nProceed with finalization?`)) {
       return;
@@ -551,15 +551,15 @@ const UnifiedTenderManagement: React.FC = () => {
 
       // Show results
       if (successCount === pendingDeliveries.length) {
-        alert(`âœ… ALL ${successCount} DELIVERIES FINALIZED SUCCESSFULLY!\n\n${totalItemsAdded} items added to inventory.`);
+        alert(`✅ ALL ${successCount} DELIVERIES FINALIZED SUCCESSFULLY!\n\n${totalItemsAdded} items added to inventory.`);
       } else if (successCount > 0) {
-        alert(`âš ï¸ PARTIALLY COMPLETED\n\nâœ… ${successCount} deliveries finalized (${totalItemsAdded} items added)\nâŒ ${errors.length} failed:\n\n${errors.join('\n')}`);
+        alert(`⚠️ PARTIALLY COMPLETED\n\n✅ ${successCount} deliveries finalized (${totalItemsAdded} items added)\n❌ ${errors.length} failed:\n\n${errors.join('\n')}`);
       } else {
-        alert(`âŒ FINALIZATION FAILED\n\nNo deliveries were finalized.\n\nErrors:\n${errors.join('\n')}`);
+        alert(`❌ FINALIZATION FAILED\n\nNo deliveries were finalized.\n\nErrors:\n${errors.join('\n')}`);
       }
     } catch (error) {
       console.error('Error finalizing deliveries:', error);
-      alert('âŒ Failed to finalize deliveries. Please try again.');
+      alert('❌ Failed to finalize deliveries. Please try again.');
     }
   };
 
@@ -1229,7 +1229,7 @@ const UnifiedTenderManagement: React.FC = () => {
                           <p className="text-xs text-amber-600 mt-1">Using estimated price - save to confirm actual price</p>
                         )}
                         {(item.actual_unit_price !== null && item.actual_unit_price !== undefined) && (
-                          <p className="text-xs text-green-600 mt-1">Actual price saved âœ“</p>
+                          <p className="text-xs text-green-600 mt-1">Actual price saved ✓</p>
                         )}
                       </div>
                       <div>
@@ -1238,7 +1238,7 @@ const UnifiedTenderManagement: React.FC = () => {
                           {formatCurrency((editingPrices[item.id] || item.actual_unit_price || item.estimated_unit_price) * receivedQty)}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {formatCurrency(editingPrices[item.id] || item.actual_unit_price || item.estimated_unit_price)} Ã— {receivedQty} received
+                          {formatCurrency(editingPrices[item.id] || item.actual_unit_price || item.estimated_unit_price)} × {receivedQty} received
                         </p>
                         {receivedQty === 0 && (
                           <p className="text-xs text-amber-600">No deliveries yet</p>
@@ -1337,7 +1337,7 @@ const UnifiedTenderManagement: React.FC = () => {
               <Select
                 value={addItemDialog.selectedItem}
                 onValueChange={(value) => {
-                  console.log('ðŸ” Selected item value:', value);
+                  console.log('🔍 Selected item value:', value);
                   setAddItemDialog(prev => ({ ...prev, selectedItem: value }));
                 }}
               >

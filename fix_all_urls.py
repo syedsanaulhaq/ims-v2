@@ -26,8 +26,8 @@ for root, dirs, files in os.walk(src_folder):
         
         original_content = content
         
-        # Check if file has hardcoded URLs
-        if 'http://localhost:3001/api' not in content:
+        # Check if file has ANY hardcoded localhost:3001 URLs
+        if 'http://localhost:3001' not in content:
             continue
         
         print(f"Processing: {file}")
@@ -37,20 +37,30 @@ for root, dirs, files in os.walk(src_folder):
             # Add import after first import line
             content = re.sub(
                 r'(import [^\n]+\n)',
-                r'\1import { getApiBaseUrl } from \'@/services/invmisApi\';\n',
+                r"\1import { getApiBaseUrl } from '@/services/invmisApi';\n",
                 content,
                 count=1
             )
             print(f"  Added import")
         
-        # Replace all variations of hardcoded URLs
+        # Replace module-level const API_BASE_URL declarations
+        content = re.sub(
+            r"const API_BASE_URL = ['\"]http://localhost:3001['\"];",
+            r"const getApiBase = () => getApiBaseUrl().replace('/api', '');",
+            content
+        )
+        
+        # Replace all variations of hardcoded URLs with /api
         patterns = [
             (r"'http://localhost:3001/api/([^']+)'", r"`${getApiBaseUrl()}/\1`"),
             (r'"http://localhost:3001/api/([^"]+)"', r'`${getApiBaseUrl()}/\1`'),
             (r'`http://localhost:3001/api/([^`]+)`', r'`${getApiBaseUrl()}/\1`'),
+            # Handle URLs without /api (like base URLs)
+            (r"'http://localhost:3001'", r"getApiBaseUrl().replace('/api', '')"),
+            (r'"http://localhost:3001"', r"getApiBaseUrl().replace('/api', '')"),
         ]
         
-        url_count = content.count('http://localhost:3001/api')
+        url_count = content.count('http://localhost:3001')
         
         for pattern, replacement in patterns:
             content = re.sub(pattern, replacement, content)
