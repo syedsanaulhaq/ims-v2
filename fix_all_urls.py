@@ -33,7 +33,8 @@ for root, dirs, files in os.walk(src_folder):
         print(f"Processing: {file}")
         
         # Add import if missing
-        if 'getApiBaseUrl' not in content and 'import ' in content:
+        has_import = 'getApiBaseUrl' in content
+        if not has_import and 'import ' in content:
             # Add import after first import line
             content = re.sub(
                 r'(import [^\n]+\n)',
@@ -42,6 +43,8 @@ for root, dirs, files in os.walk(src_folder):
                 count=1
             )
             print(f"  Added import")
+        elif not has_import:
+            print(f"  WARNING: No imports found, skipping import addition")
         
         # Replace module-level const API_BASE_URL declarations
         content = re.sub(

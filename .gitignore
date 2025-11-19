@@ -41,7 +41,18 @@ SWITCHING-CHEAT-SHEET.txt
 TENDER-SPOT-ENHANCEMENT.md
 create-logos.*
 #login_logo.png
-#public/ecp-logo.png
+#cd C:\ims-v1
+git pull origin invmisdb-rebuild-sept14-2025
+.\rebuild-and-deploy.ps1# On server C:\ims-v1
+
+# 1. Stash local changes (saves them temporarily)
+git stash
+
+# 2. Pull the updates
+git pull origin invmisdb-rebuild-sept14-2025
+
+# 3. Now run the deployment script
+.\deploy-api-url-fixes.ps1public/ecp-logo.png
 
 # Test files
 public/api-test.html

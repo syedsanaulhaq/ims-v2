@@ -1,4 +1,4 @@
--- Add Manufacturer field to item_masters table
+-- Add Manufacturer field to item_masters table 
 USE InventoryManagementDB;
 GO
 

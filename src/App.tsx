@@ -10,7 +10,7 @@ import LoginPage from "@/pages/LoginPage";
 import UserDashboard from "@/pages/UserDashboard";
 // import ApprovalManager from "@/pages/ApprovalManager"; // REMOVED - File is corrupted and not used in any routes
 import Layout from "./components/layout/Layout";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/Dashboard-Fresh";
 import Inventory from "./pages/Inventory";
 import Categories from "./pages/Categories";
 import SubCategories from "./pages/SubCategories";
