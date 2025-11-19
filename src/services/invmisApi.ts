@@ -6,13 +6,16 @@
 
 // Environment-based API URL configuration
 export const getApiBaseUrl = () => {
-  // Check if running on staging port (8081)
   const currentPort = window.location.port;
-  const isStaging = currentPort === '8081' || window.location.hostname.includes('staging');
   
-  // Environment-based URL selection
-  if (isStaging) {
-    return 'http://localhost:5001/api';  // Staging API
+  // Production (served by Apache on port 80)
+  if (!currentPort || currentPort === '80') {
+    return '/api';  // Use relative URL, Apache will proxy to localhost:3001/api
+  }
+  
+  // Staging (port 8081)
+  if (currentPort === '8081' || window.location.hostname.includes('staging')) {
+    return 'http://localhost:5001/api';
   }
   
   // Check for environment variable
@@ -20,7 +23,7 @@ export const getApiBaseUrl = () => {
     return `${import.meta.env.VITE_API_URL}/api`;
   }
   
-  // Default to our current backend server
+  // Development (port 8080 or 5173)
   return 'http://localhost:3001/api';
 };
 
