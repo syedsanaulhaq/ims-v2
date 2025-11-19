@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { getApiBaseUrl } from '@/services/invmisApi';
 
-const API_BASE_URL = "http://localhost:3001";
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 interface Tender {
   id: string;
@@ -40,7 +41,7 @@ const TenderDashboard: React.FC = () => {
   const fetchTenders = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/tenders`);
+      const response = await fetch(`${getApiBase()}/api/tenders`);
       
       if (!response.ok) {
         throw new Error("Failed to fetch tenders");
@@ -68,7 +69,7 @@ const TenderDashboard: React.FC = () => {
     if (!confirm("Are you sure you want to delete this tender?")) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tenders/${id}`, {
+      const response = await fetch(`${getApiBase()}/api/tenders/${id}`, {
         method: "DELETE",
       });
 
@@ -96,7 +97,7 @@ const TenderDashboard: React.FC = () => {
     if (!confirm("Are you sure you want to finalize this tender? This action cannot be undone.")) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tenders/${id}/finalize`, {
+      const response = await fetch(`${getApiBase()}/api/tenders/${id}/finalize`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

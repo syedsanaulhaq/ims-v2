@@ -1,6 +1,7 @@
 import { ApiResponse } from './api';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
-const API_BASE_URL = 'http://localhost:3001';
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 export interface Category {
   id: string;
@@ -49,7 +50,7 @@ export const categoriesLocalService = {
   // Get all categories
   getCategories: async (): Promise<ApiResponse<Category[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/categories`);
+      const response = await fetch(`${getApiBase()}/api/categories`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -75,7 +76,7 @@ export const categoriesLocalService = {
   // Get single category by ID
   getCategory: async (id: string): Promise<ApiResponse<Category>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/categories/${id}`);
+      const response = await fetch(`${getApiBase()}/api/categories/${id}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -101,7 +102,7 @@ export const categoriesLocalService = {
   // Create category
   createCategory: async (categoryData: CreateCategoryRequest): Promise<ApiResponse<Category>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/categories`, {
+      const response = await fetch(`${getApiBase()}/api/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,7 +134,7 @@ export const categoriesLocalService = {
   // Update category
   updateCategory: async (id: string, categoryData: UpdateCategoryRequest): Promise<ApiResponse<Category>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/categories/${id}`, {
+      const response = await fetch(`${getApiBase()}/api/categories/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -165,7 +166,7 @@ export const categoriesLocalService = {
   // Delete category
   deleteCategory: async (id: string): Promise<ApiResponse<boolean>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/categories/${id}`, {
+      const response = await fetch(`${getApiBase()}/api/categories/${id}`, {
         method: 'DELETE',
       });
       
@@ -193,7 +194,7 @@ export const categoriesLocalService = {
   // Get all sub-categories
   getSubCategories: async (): Promise<ApiResponse<SubCategory[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sub-categories`);
+      const response = await fetch(`${getApiBase()}/api/sub-categories`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -219,7 +220,7 @@ export const categoriesLocalService = {
   // Get sub-categories by category ID
   getSubCategoriesByCategory: async (categoryId: string): Promise<ApiResponse<SubCategory[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sub-categories?category_id=${categoryId}`);
+      const response = await fetch(`${getApiBase()}/api/sub-categories?category_id=${categoryId}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -245,7 +246,7 @@ export const categoriesLocalService = {
   // Get single sub-category by ID
   getSubCategory: async (id: string): Promise<ApiResponse<SubCategory>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sub-categories/${id}`);
+      const response = await fetch(`${getApiBase()}/api/sub-categories/${id}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -271,7 +272,7 @@ export const categoriesLocalService = {
   // Create sub-category
   createSubCategory: async (subCategoryData: CreateSubCategoryRequest): Promise<ApiResponse<SubCategory>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sub-categories`, {
+      const response = await fetch(`${getApiBase()}/api/sub-categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -303,7 +304,7 @@ export const categoriesLocalService = {
   // Update sub-category
   updateSubCategory: async (id: string, subCategoryData: UpdateSubCategoryRequest): Promise<ApiResponse<SubCategory>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sub-categories/${id}`, {
+      const response = await fetch(`${getApiBase()}/api/sub-categories/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -335,7 +336,7 @@ export const categoriesLocalService = {
   // Delete sub-category
   deleteSubCategory: async (id: string): Promise<ApiResponse<boolean>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sub-categories/${id}`, {
+      const response = await fetch(`${getApiBase()}/api/sub-categories/${id}`, {
         method: 'DELETE',
       });
       

@@ -17,8 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { getApiBaseUrl } from '@/services/invmisApi';
 
-const API_BASE_URL = 'http://localhost:3001';
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 // Form schema matching the EXACT database tenders table structure
 const tenderSchema = z.object({
@@ -157,8 +158,8 @@ const ContractTenderForm: React.FC = () => {
       console.log('📤 Payload being sent:', payload);
 
       const url = isEditMode 
-        ? `${API_BASE_URL}/api/tenders/${id}`
-        : `${API_BASE_URL}/api/tenders`;
+        ? `${getApiBase()}/api/tenders/${id}`
+        : `${getApiBase()}/api/tenders`;
         
       const method = isEditMode ? 'PUT' : 'POST';
 

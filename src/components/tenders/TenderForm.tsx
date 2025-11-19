@@ -16,8 +16,9 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { getApiBaseUrl } from '@/services/invmisApi';
 
-const API_BASE_URL = "http://localhost:3001";
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 interface TenderFormData {
   reference_number: string;
@@ -95,7 +96,7 @@ const TenderForm: React.FC = () => {
   const fetchTender = async (tenderId: string) => {
     try {
       setFetchLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/tenders/${tenderId}`);
+      const response = await fetch(`${getApiBase()}/api/tenders/${tenderId}`);
       
       if (!response.ok) {
         throw new Error("Failed to fetch tender");
@@ -149,8 +150,8 @@ const TenderForm: React.FC = () => {
       setLoading(true);
       
       const url = isEditing 
-        ? `${API_BASE_URL}/api/tenders/${id}`
-        : `${API_BASE_URL}/api/tenders`;
+        ? `${getApiBase()}/api/tenders/${id}`
+        : `${getApiBase()}/api/tenders`;
       
       const method = isEditing ? "PUT" : "POST";
       

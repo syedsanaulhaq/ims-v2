@@ -20,6 +20,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import {
+import { getApiBaseUrl } from '@/services/invmisApi';
   Package,
   TrendingUp,
   TrendingDown,
@@ -34,7 +35,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:3001';
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 interface InventoryStats {
   inventory: {
@@ -117,9 +118,9 @@ const InventoryManagementDashboard = () => {
 
       // Fetch all data in parallel
       const [dashboardRes, stockRes, movementRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/inventory/dashboard-stats`),
-        fetch(`${API_BASE_URL}/api/inventory-stock`),
-        fetch(`${API_BASE_URL}/api/inventory/movements?limit=20`)
+        fetch(`${getApiBase()}/api/inventory/dashboard-stats`),
+        fetch(`${getApiBase()}/api/inventory-stock`),
+        fetch(`${getApiBase()}/api/inventory/movements?limit=20`)
       ]);
 
       if (!dashboardRes.ok || !stockRes.ok || !movementRes.ok) {

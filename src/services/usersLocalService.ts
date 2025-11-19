@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 // Users Local Service - SQL Server based user management
 export interface User {
   id: string;
@@ -31,7 +33,7 @@ export interface UpdateUserRequest {
   active?: boolean;
 }
 
-const API_BASE_URL = 'http://localhost:3001';
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 export class UsersLocalService {
   /**
@@ -39,7 +41,7 @@ export class UsersLocalService {
    */
   async getUsers(): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users`);
+      const response = await fetch(`${getApiBase()}/api/users`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -58,7 +60,7 @@ export class UsersLocalService {
    */
   async getUserById(id: string): Promise<User | null> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`);
+      const response = await fetch(`${getApiBase()}/api/users/${id}`);
       
       if (response.status === 404) {
         return null;
@@ -81,7 +83,7 @@ export class UsersLocalService {
    */
   async getUserByUsername(username: string): Promise<User | null> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/by-username/${encodeURIComponent(username)}`);
+      const response = await fetch(`${getApiBase()}/api/users/by-username/${encodeURIComponent(username)}`);
       
       if (response.status === 404) {
         return null;
@@ -104,7 +106,7 @@ export class UsersLocalService {
    */
   async createUser(userData: CreateUserRequest): Promise<User> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/create-user`, {
+      const response = await fetch(`${getApiBase()}/api/auth/create-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +132,7 @@ export class UsersLocalService {
    */
   async updateUser(id: string, updates: UpdateUserRequest): Promise<User> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+      const response = await fetch(`${getApiBase()}/api/users/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -156,7 +158,7 @@ export class UsersLocalService {
    */
   async deleteUser(id: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+      const response = await fetch(`${getApiBase()}/api/users/${id}`, {
         method: 'DELETE',
       });
       
@@ -177,7 +179,7 @@ export class UsersLocalService {
    */
   async changePassword(id: string, currentPassword: string, newPassword: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}/change-password`, {
+      const response = await fetch(`${getApiBase()}/api/users/${id}/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,7 +207,7 @@ export class UsersLocalService {
    */
   async getUsersByRole(role: string): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/by-role/${encodeURIComponent(role)}`);
+      const response = await fetch(`${getApiBase()}/api/users/by-role/${encodeURIComponent(role)}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -224,7 +226,7 @@ export class UsersLocalService {
    */
   async getUsersByOffice(officeId: string): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/by-office/${encodeURIComponent(officeId)}`);
+      const response = await fetch(`${getApiBase()}/api/users/by-office/${encodeURIComponent(officeId)}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -243,7 +245,7 @@ export class UsersLocalService {
    */
   async searchUsers(query: string): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`${getApiBase()}/api/users/search?q=${encodeURIComponent(query)}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -267,7 +269,7 @@ export class UsersLocalService {
     byRole: Record<string, number>;
   }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/stats`);
+      const response = await fetch(`${getApiBase()}/api/users/stats`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

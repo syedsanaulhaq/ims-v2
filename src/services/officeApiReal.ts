@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from '@/services/invmisApi';
+
 export interface ApiOfficeResponse {
   intOfficeID: number;
   strOfficeName: string;
@@ -39,12 +41,12 @@ export interface ApiDecResponse {
   HODName: string | null;
 }
 
-const API_BASE_URL = 'http://localhost:3001';
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 class OfficeApiService {
   async getOffices(): Promise<ApiOfficeResponse[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/offices`);
+      const response = await fetch(`${getApiBase()}/api/offices`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -60,7 +62,7 @@ class OfficeApiService {
 
   async getWings(): Promise<ApiWingResponse[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/wings`);
+      const response = await fetch(`${getApiBase()}/api/wings`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -76,7 +78,7 @@ class OfficeApiService {
 
   async getDecs(): Promise<ApiDecResponse[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/decs`);
+      const response = await fetch(`${getApiBase()}/api/decs`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -93,7 +95,7 @@ class OfficeApiService {
   // Get office names by IDs (utility method)
   async getOfficeNames(ids: string[]): Promise<{ [key: string]: string }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/offices/names?ids=${ids.join(',')}`);
+      const response = await fetch(`${getApiBase()}/api/offices/names?ids=${ids.join(',')}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -107,7 +109,7 @@ class OfficeApiService {
   // Get wing names by IDs (utility method)
   async getWingNames(ids: string[]): Promise<{ [key: string]: string }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/wings/names?ids=${ids.join(',')}`);
+      const response = await fetch(`${getApiBase()}/api/wings/names?ids=${ids.join(',')}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -121,7 +123,7 @@ class OfficeApiService {
   // Get DEC names by IDs (utility method)
   async getDecNames(ids: string[]): Promise<{ [key: string]: string }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/decs/names?ids=${ids.join(',')}`);
+      const response = await fetch(`${getApiBase()}/api/decs/names?ids=${ids.join(',')}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

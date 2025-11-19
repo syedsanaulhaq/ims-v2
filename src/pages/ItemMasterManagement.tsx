@@ -178,7 +178,7 @@ const ItemMasterManagement = () => {
       {/* Debug Info */}
       <div className="mt-6 p-4 bg-gray-100 rounded text-sm">
         <strong>Debug:</strong> 
-        <div>API: http://localhost:3001/api/item-masters</div>
+        <div>API: ${getApiBaseUrl()}/item-masters</div>
         <div>Items loaded: {items.length}</div>
         <div>Last update: {new Date().toLocaleTimeString()}</div>
       </div>

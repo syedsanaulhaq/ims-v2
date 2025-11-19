@@ -25,8 +25,9 @@ import { useToast } from "@/hooks/use-toast";
 import { officeApi } from "@/services/officeApiClean";
 import { cn } from "@/lib/utils";
 import { Building2, Users, MapPin } from "lucide-react";
+import { getApiBaseUrl } from '@/services/invmisApi';
 
-const API_BASE_URL = "http://localhost:3001";
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 // Schema exactly matching your SQL Server tenders table with multi-select arrays
 const tenderSchema = z.object({
@@ -197,7 +198,7 @@ const TenderFormFresh2: React.FC = () => {
   const fetchTenderData = async (tenderId: string) => {
     try {
       setFetchLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/tenders/${tenderId}`);
+      const response = await fetch(`${getApiBase()}/api/tenders/${tenderId}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch tender: ${response.statusText}`);
@@ -292,8 +293,8 @@ const TenderFormFresh2: React.FC = () => {
       console.log("🚀 Submitting tender with payload:", payload);
 
       const url = isEditing 
-        ? `${API_BASE_URL}/api/tenders/${id}`
-        : `${API_BASE_URL}/api/tenders`;
+        ? `${getApiBase()}/api/tenders/${id}`
+        : `${getApiBase()}/api/tenders`;
         
       const method = isEditing ? "PUT" : "POST";
 

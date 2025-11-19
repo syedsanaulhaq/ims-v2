@@ -1,14 +1,15 @@
 import { ApiResponse } from './api';
 import { Tender, CreateTenderRequest, TenderStats } from '@/types/tender';
+import { getApiBaseUrl } from './invmisApi';
 
-const API_BASE_URL = 'http://localhost:3001';
+const getApiBase = () => getApiBaseUrl().replace('/api', '');
 
 // Local SQL Server tender service
 export const tendersLocalService = {
   // Get all tenders
   getAll: async (): Promise<ApiResponse<Tender[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tenders`);
+      const response = await fetch(`${getApiBase()}/api/tenders`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -21,7 +22,7 @@ export const tendersLocalService = {
         // Get item count for each tender (lightweight operation)
         let itemCount = 0;
         try {
-          const itemsResponse = await fetch(`${API_BASE_URL}/api/tenders/${tender.id}/items`);
+          const itemsResponse = await fetch(`${getApiBase()}/api/tenders/${tender.id}/items`);
           if (itemsResponse.ok) {
             const items = await itemsResponse.json();
             itemCount = items.length;

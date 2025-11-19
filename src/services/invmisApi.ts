@@ -26,7 +26,7 @@ export const getApiBaseUrl = () => {
   }
   
   // Default to our current backend server (dev mode)
-  return 'http://localhost:3001/api';
+  return '${getApiBaseUrl()}';
 };
 
 const API_BASE_URL = getApiBaseUrl();
