@@ -24,7 +24,7 @@
     "start:optimize": "node start-optimal-system.js optimize",
     "dev:start": "echo Starting DEVELOPMENT environment... && concurrently \"npm run backend\" \"npm run dev\"",
     "staging:start": "echo Starting STAGING environment... && npm run build && concurrently \"npm run backend\" \"npm run preview\"",
-    "prod:start": "echo Starting PRODUCTION environment... && npm run build && concurrently \"npm run backend\" \"npm run preview\"",
+    "prod:start": "powershell -Command \"./deploy-stable-to-server.ps1\"",
     "status": "node scripts/check-environment.js",
     "switch:dev": "powershell -Command \"./switch-env.ps1 dev\"",
     "switch:test": "powershell -Command \"./switch-env.ps1 test\"",
