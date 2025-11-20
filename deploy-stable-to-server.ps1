@@ -97,24 +97,64 @@ $htaccessContent = @"
 Set-Content -Path "$htdocsDir\.htaccess" -Value $htaccessContent -Encoding ASCII
 Write-Host "[OK] .htaccess created" -ForegroundColor Green
 
-# Step 8: Verify backend is running
+# Step 8: Restart backend server with new CORS settings
 Write-Host ""
-Write-Host "[8/8] Checking backend server..." -ForegroundColor Yellow
-try {
-    $response = Invoke-WebRequest -Uri "http://localhost:3001/api/health" -UseBasicParsing -ErrorAction Stop
-    Write-Host "[OK] Backend server is running (Status: $($response.StatusCode))" -ForegroundColor Green
-} catch {
-    Write-Host "[WARN] Backend server is not responding" -ForegroundColor Yellow
-    Write-Host "   Starting backend server..." -ForegroundColor Yellow
+Write-Host "[8/9] Restarting backend server..." -ForegroundColor Yellow
+
+# Stop existing backend
+Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*$sourceDir*" -or $_.CommandLine -like "*backend-server*" } | Stop-Process -Force
+Start-Sleep -Seconds 2
+Write-Host "[OK] Stopped old backend" -ForegroundColor Green
+
+# Start new backend
+$backendPath = "$sourceDir\backend-server.cjs"
+if (Test-Path $backendPath) {
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$sourceDir'; Write-Host 'Backend Server - Production Mode' -ForegroundColor Cyan; node backend-server.cjs" -WindowStyle Normal
     
-    $backendPath = "$sourceDir\backend-server.cjs"
-    if (Test-Path $backendPath) {
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$sourceDir'; node backend-server.cjs" -WindowStyle Minimized
-        Start-Sleep -Seconds 3
-        Write-Host "[OK] Backend server started" -ForegroundColor Green
-    } else {
-        Write-Host "[ERROR] Backend server file not found: $backendPath" -ForegroundColor Red
+    # Wait for backend to start
+    Write-Host "[*] Waiting for backend to start..." -ForegroundColor Yellow
+    $maxAttempts = 10
+    $attempt = 0
+    $started = $false
+    
+    while ($attempt -lt $maxAttempts) {
+        Start-Sleep -Seconds 1
+        try {
+            $response = Invoke-WebRequest -Uri "http://localhost:3001/api/health" -UseBasicParsing -ErrorAction Stop -TimeoutSec 2
+            if ($response.StatusCode -eq 200) {
+                $started = $true
+                break
+            }
+        } catch {
+            $attempt++
+        }
     }
+    
+    if ($started) {
+        Write-Host "[OK] Backend server started successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] Backend may still be starting. Check the backend window." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[ERROR] Backend server file not found: $backendPath" -ForegroundColor Red
+}
+
+# Step 9: Restart Apache
+Write-Host ""
+Write-Host "[9/9] Restarting Apache..." -ForegroundColor Yellow
+
+# Stop Apache
+Get-Process -Name "httpd" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 2
+
+# Start Apache
+try {
+    & "C:\xampp\apache_start.bat"
+    Start-Sleep -Seconds 3
+    Write-Host "[OK] Apache restarted" -ForegroundColor Green
+} catch {
+    Write-Host "[WARN] Apache restart may have failed" -ForegroundColor Yellow
+    Write-Host "   Please restart Apache manually from XAMPP Control Panel" -ForegroundColor Yellow
 }
 
 # Final verification
@@ -140,11 +180,10 @@ Write-Host ""
 Write-Host "Application URL: http://172.20.150.34/" -ForegroundColor Cyan
 Write-Host "Backend API: http://172.20.150.34:3001/api" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "[!] IMPORTANT: Restart Apache manually from XAMPP Control Panel" -ForegroundColor Yellow
-Write-Host ""
 Write-Host "Login Credentials:" -ForegroundColor Yellow
 Write-Host "  Username: testadmin" -ForegroundColor White
 Write-Host "  Password: admin123" -ForegroundColor White
 Write-Host ""
+Write-Host "[!] Backend is running in a separate window - do not close it!" -ForegroundColor Yellow
 Write-Host "Backup Location: $backupPath" -ForegroundColor Cyan
 Write-Host ""
