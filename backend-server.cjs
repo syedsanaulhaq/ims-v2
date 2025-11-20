@@ -25,7 +25,7 @@ app.use(session({
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:4173', 'file://'],
+  origin: ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:4173', 'http://localhost', 'http://172.20.150.34', 'file://'],
   credentials: true
 }));
 app.use(express.json());
