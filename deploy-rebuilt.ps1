@@ -116,26 +116,11 @@ try {
     }
 }
 
-# Step 8: Check Apache
+# Step 8: Apache restart info
 Write-Host ""
-Write-Host "[*] Checking Apache..." -ForegroundColor Yellow
-
-# Try to restart Apache
-Write-Host "   Attempting to restart Apache..." -ForegroundColor Yellow
-
-# Force kill any running Apache processes
-Get-Process -Name "httpd" -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Seconds 2
-
-# Start Apache
-try {
-    & "C:\xampp\apache_start.bat"
-    Start-Sleep -Seconds 3
-    Write-Host "[OK] Apache restarted" -ForegroundColor Green
-} catch {
-    Write-Host "[WARN] Could not restart Apache automatically" -ForegroundColor Yellow
-    Write-Host "   Please restart Apache manually from XAMPP Control Panel" -ForegroundColor Yellow
-}
+Write-Host "[*] Apache Restart Required" -ForegroundColor Yellow
+Write-Host "   Please restart Apache manually from XAMPP Control Panel" -ForegroundColor Cyan
+Write-Host "   Or use: Stop-Process -Name httpd -Force; C:\xampp\apache_start.bat" -ForegroundColor Cyan
 
 # Step 9: Final verification
 Write-Host ""
