@@ -89,7 +89,7 @@ function App() {
             <TooltipProvider>
               <Toaster />
               <ShadcnToaster />
-              <BrowserRouter basename="/ims" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                 <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />

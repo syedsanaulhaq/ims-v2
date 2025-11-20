@@ -8,7 +8,7 @@
 export const getApiBaseUrl = () => {
   const currentPort = window.location.port;
   
-  // Production (Apache on port 80 with /ims subdirectory)
+  // Production (Apache on port 80) - same as development
   if (!currentPort || currentPort === '80') {
     return 'http://172.20.150.34:3001/api';
   }
