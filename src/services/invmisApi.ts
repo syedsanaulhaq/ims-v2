@@ -8,9 +8,9 @@
 export const getApiBaseUrl = () => {
   const currentPort = window.location.port;
   
-  // Production (served by Apache on port 80)
+  // Production (Apache on port 80 with /ims subdirectory)
   if (!currentPort || currentPort === '80') {
-    return '/api';  // Use relative URL, Apache will proxy to localhost:3001/api
+    return 'http://172.20.150.34:3001/api';
   }
   
   // Staging (port 8081)

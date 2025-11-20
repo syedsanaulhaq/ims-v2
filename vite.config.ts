@@ -9,8 +9,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   
   return {
-  // Set base path for deployment - empty for root deployment
-  base: '/',
+  // Set base path for deployment - /ims/ subdirectory
+  base: '/ims/',
   define: {
     // Properly set NODE_ENV for the application
     'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
