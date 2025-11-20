@@ -59,20 +59,30 @@ if (Test-Path "$htdocsDir\*") {
     Write-Host "[INFO] No existing files to backup" -ForegroundColor Cyan
 }
 
-# Step 6: Deploy to htdocs
+# Step 6: Deploy to htdocs/ims subdirectory (preserve other apps like LMS)
 Write-Host ""
-Write-Host "[6/8] Deploying to server root..." -ForegroundColor Yellow
-Get-ChildItem -Path $htdocsDir -Recurse | Remove-Item -Force -Recurse
-Copy-Item -Path "$sourceDir\dist\*" -Destination $htdocsDir -Recurse -Force
-Write-Host "[OK] Files deployed to $htdocsDir" -ForegroundColor Green
+Write-Host "[6/8] Deploying to server..." -ForegroundColor Yellow
+$imsDir = "$htdocsDir\ims"
 
-# Step 7: Create .htaccess for SPA routing (no proxy needed)
+# Create ims directory if it doesn't exist
+if (-not (Test-Path $imsDir)) {
+    New-Item -ItemType Directory -Path $imsDir | Out-Null
+    Write-Host "[OK] Created ims directory" -ForegroundColor Green
+}
+
+# Clear only the ims directory
+Get-ChildItem -Path $imsDir -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse
+Copy-Item -Path "$sourceDir\dist\*" -Destination $imsDir -Recurse -Force
+Write-Host "[OK] Files deployed to $imsDir" -ForegroundColor Green
+Write-Host "[INFO] Other folders (LMS, etc.) are preserved" -ForegroundColor Cyan
+
+# Step 7: Create .htaccess for SPA routing in ims directory
 Write-Host ""
-Write-Host "[7/8] Creating .htaccess..." -ForegroundColor Yellow
+Write-Host "[7/9] Creating .htaccess..." -ForegroundColor Yellow
 $htaccessContent = @"
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /
+    RewriteBase /ims/
     
     # Don't rewrite files or directories that exist
     RewriteCond %{REQUEST_FILENAME} !-f
@@ -94,7 +104,7 @@ $htaccessContent = @"
     AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
 </IfModule>
 "@
-Set-Content -Path "$htdocsDir\.htaccess" -Value $htaccessContent -Encoding ASCII
+Set-Content -Path "$imsDir\.htaccess" -Value $htaccessContent -Encoding ASCII
 Write-Host "[OK] .htaccess created" -ForegroundColor Green
 
 # Step 8: Restart backend server with new CORS settings
@@ -165,7 +175,7 @@ Write-Host "==================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "[*] Verification:" -ForegroundColor Yellow
 
-$jsFiles = Get-ChildItem -Path "$htdocsDir\assets\*.js" -ErrorAction SilentlyContinue
+$jsFiles = Get-ChildItem -Path "$imsDir\assets\*.js" -ErrorAction SilentlyContinue
 if ($jsFiles) {
     Write-Host "[OK] JavaScript files deployed:" -ForegroundColor Green
     foreach ($file in $jsFiles) {
@@ -177,7 +187,7 @@ if ($jsFiles) {
 }
 
 Write-Host ""
-Write-Host "Application URL: http://172.20.150.34/" -ForegroundColor Cyan
+Write-Host "Application URL: http://172.20.150.34/ims/" -ForegroundColor Cyan
 Write-Host "Backend API: http://172.20.150.34:3001/api" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Login Credentials:" -ForegroundColor Yellow
