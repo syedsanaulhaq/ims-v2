@@ -23,9 +23,9 @@ if (-not (Test-Path "node_modules")) {
     Write-Host "[INFO] No node_modules found, installing dependencies..." -ForegroundColor Yellow
     $needsInstall = $true
 }
-# Check if vite exists (critical for build)
-elseif (-not (Test-Path "node_modules\vite")) {
-    Write-Host "[INFO] Vite not found, reinstalling dependencies..." -ForegroundColor Yellow
+# Check if vite exists and is valid (critical for build)
+elseif (-not (Test-Path "node_modules\vite\package.json")) {
+    Write-Host "[INFO] Vite not found or corrupted, reinstalling dependencies..." -ForegroundColor Yellow
     $needsInstall = $true
 }
 # Check if package.json changed
@@ -42,6 +42,12 @@ else {
 }
 
 if ($needsInstall) {
+    # Clean install
+    if (Test-Path "node_modules") {
+        Write-Host "[INFO] Removing corrupted node_modules..." -ForegroundColor Yellow
+        Remove-Item -Path "node_modules" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    
     npm ci --include=dev --legacy-peer-deps
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[WARN] npm ci failed, trying npm install..." -ForegroundColor Yellow
