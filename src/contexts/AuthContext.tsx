@@ -95,6 +95,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      // Clear SSO token
+      localStorage.removeItem('sso_token');
+      
+      // Redirect to DS login page
+      const dsLoginUrl = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
+      console.log('🔐 Redirecting to Digital System login:', dsLoginUrl);
+      window.location.href = dsLoginUrl;
     }
   };
 

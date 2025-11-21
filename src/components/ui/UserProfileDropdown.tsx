@@ -20,9 +20,11 @@ const UserProfileDropdown: React.FC = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/');
+      // No need to navigate - logout will redirect to DS login automatically
     } catch (error) {
       console.error('Logout failed:', error);
+      // Fallback: redirect to DS login even if logout API fails
+      window.location.href = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
     }
   };
 
