@@ -10,7 +10,6 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Configuration
-$sourceDir = $PSScriptRoot  # Use current directory where script is located
 $htdocsDir = "C:\xampp\htdocs"
 $backupDir = "C:\xampp\htdocs-backups"
 
@@ -27,7 +26,7 @@ Write-Host "[OK] Dependencies installed" -ForegroundColor Green
 Write-Host ""
 Write-Host "[2/7] Building production bundle..." -ForegroundColor Yellow
 $env:NODE_ENV = "production"
-npm run build
+npx vite build
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] Build failed!" -ForegroundColor Red
     exit 1
