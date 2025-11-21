@@ -10,14 +10,22 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Configuration
-$sourceDir = "E:\ECP-Projects\inventory-management-system-ims\ims-v1"
+$sourceDir = $PSScriptRoot  # Use current directory where script is located
 $htdocsDir = "C:\xampp\htdocs"
 $imsDir = "$htdocsDir\ims"
 $backupDir = "C:\xampp\htdocs-backups"
 
-# Step 1: Build production bundle
-Write-Host "[1/6] Building production bundle..." -ForegroundColor Yellow
-Set-Location $sourceDir
+# Step 1: Install dependencies
+Write-Host "[1/7] Installing dependencies..." -ForegroundColor Yellow
+npm install jspdf jspdf-autotable
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] Some dependencies may have issues, continuing..." -ForegroundColor Yellow
+}
+Write-Host "[OK] Dependencies installed" -ForegroundColor Green
+
+# Step 2: Build production bundle
+Write-Host ""
+Write-Host "[2/7] Building production bundle..." -ForegroundColor Yellow
 $env:NODE_ENV = "production"
 npm run build
 if ($LASTEXITCODE -ne 0) {
@@ -26,9 +34,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "[OK] Build completed" -ForegroundColor Green
 
-# Step 2: Create backup
+# Step 3: Create backup
 Write-Host ""
-Write-Host "[2/6] Creating backup..." -ForegroundColor Yellow
+Write-Host "[3/7] Creating backup..." -ForegroundColor Yellow
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backupPath = "$backupDir\htdocs-backup-$timestamp"
 if (-not (Test-Path $backupDir)) {
@@ -41,39 +49,33 @@ if (Test-Path $imsDir) {
     Write-Host "[INFO] No existing IMS folder to backup" -ForegroundColor Yellow
 }
 
-# Step 3: Deploy to /ims subdirectory
+# Step 4: Deploy to /ims subdirectory
 Write-Host ""
-Write-Host "[3/6] Deploying to server..." -ForegroundColor Yellow
+Write-Host "[4/7] Deploying to server..." -ForegroundColor Yellow
 if (-not (Test-Path $imsDir)) {
     New-Item -ItemType Directory -Path $imsDir | Out-Null
 }
 Get-ChildItem -Path $imsDir -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse
-Copy-Item -Path "$sourceDir\dist\*" -Destination $imsDir -Recurse -Force
+Copy-Item -Path "$PSScriptRoot\dist\*" -Destination $imsDir -Recurse -Force
 Write-Host "[OK] Files deployed to $imsDir" -ForegroundColor Green
 
-# Step 4: Stop old backend
+# Step 5: Stop old backend
 Write-Host ""
-Write-Host "[4/6] Stopping old backend..." -ForegroundColor Yellow
+Write-Host "[5/7] Stopping old backend..." -ForegroundColor Yellow
 Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object {$_.Path -like "*ims-v1*"} | Stop-Process -Force
 Start-Sleep -Seconds 2
 Write-Host "[OK] Old backend stopped" -ForegroundColor Green
 
-# Step 5: Start backend
+# Step 6: Start backend
 Write-Host ""
-Write-Host "[5/6] Starting backend server..." -ForegroundColor Yellow
-$backendPath = "C:\ims-v1\backend-server.cjs"
-if (Test-Path $backendPath) {
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd C:\ims-v1; node backend-server.cjs" -WindowStyle Normal
-    Start-Sleep -Seconds 3
-    Write-Host "[OK] Backend started on port 3001" -ForegroundColor Green
-} else {
-    Write-Host "[ERROR] Backend file not found at $backendPath" -ForegroundColor Red
-    Write-Host "[INFO] Please ensure code is deployed to C:\ims-v1 on server" -ForegroundColor Yellow
-}
+Write-Host "[6/7] Starting backend server..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd C:\ims-v1; node backend-server.cjs" -WindowStyle Normal
+Start-Sleep -Seconds 3
+Write-Host "[OK] Backend started on port 3001" -ForegroundColor Green
 
-# Step 6: Restart Apache
+# Step 7: Restart Apache
 Write-Host ""
-Write-Host "[6/6] Restarting Apache..." -ForegroundColor Yellow
+Write-Host "[7/7] Restarting Apache..." -ForegroundColor Yellow
 Get-Process -Name "httpd" -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 2
 try {
