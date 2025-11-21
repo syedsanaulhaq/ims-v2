@@ -16,9 +16,10 @@ $backupDir = "C:\xampp\htdocs-backups"
 
 # Step 1: Install dependencies
 Write-Host "[1/7] Installing dependencies..." -ForegroundColor Yellow
-npm install jspdf jspdf-autotable
+npm install
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[WARN] Some dependencies may have issues, continuing..." -ForegroundColor Yellow
+    Write-Host "[ERROR] Dependency installation failed!" -ForegroundColor Red
+    exit 1
 }
 Write-Host "[OK] Dependencies installed" -ForegroundColor Green
 
@@ -35,28 +36,37 @@ Write-Host "[OK] Build completed" -ForegroundColor Green
 
 # Step 3: Create backup
 Write-Host ""
-Write-Host "[3/7] Creating backup..." -ForegroundColor Yellow
+Write-Host "[3/7] Creating backup of current deployment..." -ForegroundColor Yellow
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$backupPath = "$backupDir\htdocs-backup-$timestamp"
+$backupPath = "$backupDir\ims-backup-$timestamp"
 if (-not (Test-Path $backupDir)) {
     New-Item -ItemType Directory -Path $backupDir | Out-Null
 }
-if (Test-Path $htdocsDir) {
-    Copy-Item -Path $htdocsDir -Destination $backupPath -Recurse -Force
+# Only backup IMS-related files (index.html and assets)
+if (Test-Path "$htdocsDir\index.html") {
+    New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+    Copy-Item -Path "$htdocsDir\index.html" -Destination $backupPath -Force -ErrorAction SilentlyContinue
+    if (Test-Path "$htdocsDir\assets") {
+        Copy-Item -Path "$htdocsDir\assets" -Destination $backupPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
     Write-Host "[OK] Backup created: $backupPath" -ForegroundColor Green
 } else {
-    Write-Host "[INFO] No existing htdocs folder to backup" -ForegroundColor Yellow
+    Write-Host "[INFO] No existing IMS deployment to backup" -ForegroundColor Yellow
 }
 
-# Step 4: Deploy to htdocs root
+# Step 4: Deploy to htdocs root (only IMS files)
 Write-Host ""
-Write-Host "[4/7] Deploying to server root..." -ForegroundColor Yellow
-if (-not (Test-Path $htdocsDir)) {
-    New-Item -ItemType Directory -Path $htdocsDir | Out-Null
+Write-Host "[4/7] Deploying IMS to server root..." -ForegroundColor Yellow
+# Remove only IMS files (index.html and assets folder)
+if (Test-Path "$htdocsDir\index.html") {
+    Remove-Item -Path "$htdocsDir\index.html" -Force -ErrorAction SilentlyContinue
 }
-Get-ChildItem -Path $htdocsDir -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse
+if (Test-Path "$htdocsDir\assets") {
+    Remove-Item -Path "$htdocsDir\assets" -Recurse -Force -ErrorAction SilentlyContinue
+}
+# Copy new IMS files
 Copy-Item -Path "$PSScriptRoot\dist\*" -Destination $htdocsDir -Recurse -Force
-Write-Host "[OK] Files deployed to $htdocsDir" -ForegroundColor Green
+Write-Host "[OK] IMS files deployed to $htdocsDir (other folders preserved)" -ForegroundColor Green
 
 # Step 5: Stop old backend
 Write-Host ""
