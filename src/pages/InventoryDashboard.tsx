@@ -335,7 +335,7 @@ const InventoryDashboard: React.FC = () => {
             <RefreshCw className="w-4 h-4" />
             Refresh
           </Button>
-          <Button onClick={() => navigate('/dashboard/inventory')} className="flex items-center gap-2">
+          <Button onClick={() => navigate('/dashboard/item-master')} className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Manage Items
           </Button>
@@ -452,7 +452,7 @@ const InventoryDashboard: React.FC = () => {
 
 
 
-        <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105">
+        <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer transform hover:scale-105" onClick={() => handleQuickFilter('normal-stock')}>
           <CardContent className="flex items-center justify-between p-6">
             <div>
               <p className="text-sm font-medium text-gray-600">Normal Stock</p>
