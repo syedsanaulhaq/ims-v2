@@ -60,9 +60,8 @@ C:\xampp\apache_start.bat
 
 ## 🌐 Access URLs
 
-- **Frontend:** http://172.20.150.34/ims/
+- **Frontend:** http://172.20.150.34/
 - **Backend API:** http://172.20.150.34:3001
-- **LMS (preserved):** http://172.20.150.34/lms/
 
 ---
 
@@ -87,8 +86,8 @@ C:\xampp\apache_start.bat
 - Command: `npm run dev:full`
 
 ### Production (Server)
-- Base path: `/ims/` (subdirectory)
-- Frontend: http://172.20.150.34/ims/
+- Base path: `/` (root)
+- Frontend: http://172.20.150.34/
 - Backend: http://172.20.150.34:3001/
 - Command: `.\deploy-to-server.ps1`
 
