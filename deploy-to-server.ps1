@@ -12,7 +12,6 @@ Write-Host ""
 # Configuration
 $sourceDir = $PSScriptRoot  # Use current directory where script is located
 $htdocsDir = "C:\xampp\htdocs"
-$imsDir = "$htdocsDir\ims"
 $backupDir = "C:\xampp\htdocs-backups"
 
 # Step 1: Install dependencies
@@ -42,22 +41,22 @@ $backupPath = "$backupDir\htdocs-backup-$timestamp"
 if (-not (Test-Path $backupDir)) {
     New-Item -ItemType Directory -Path $backupDir | Out-Null
 }
-if (Test-Path $imsDir) {
-    Copy-Item -Path $imsDir -Destination $backupPath -Recurse -Force
+if (Test-Path $htdocsDir) {
+    Copy-Item -Path $htdocsDir -Destination $backupPath -Recurse -Force
     Write-Host "[OK] Backup created: $backupPath" -ForegroundColor Green
 } else {
-    Write-Host "[INFO] No existing IMS folder to backup" -ForegroundColor Yellow
+    Write-Host "[INFO] No existing htdocs folder to backup" -ForegroundColor Yellow
 }
 
-# Step 4: Deploy to /ims subdirectory
+# Step 4: Deploy to htdocs root
 Write-Host ""
-Write-Host "[4/7] Deploying to server..." -ForegroundColor Yellow
-if (-not (Test-Path $imsDir)) {
-    New-Item -ItemType Directory -Path $imsDir | Out-Null
+Write-Host "[4/7] Deploying to server root..." -ForegroundColor Yellow
+if (-not (Test-Path $htdocsDir)) {
+    New-Item -ItemType Directory -Path $htdocsDir | Out-Null
 }
-Get-ChildItem -Path $imsDir -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse
-Copy-Item -Path "$PSScriptRoot\dist\*" -Destination $imsDir -Recurse -Force
-Write-Host "[OK] Files deployed to $imsDir" -ForegroundColor Green
+Get-ChildItem -Path $htdocsDir -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse
+Copy-Item -Path "$PSScriptRoot\dist\*" -Destination $htdocsDir -Recurse -Force
+Write-Host "[OK] Files deployed to $htdocsDir" -ForegroundColor Green
 
 # Step 5: Stop old backend
 Write-Host ""
@@ -93,11 +92,11 @@ Write-Host "  Deployment Complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "[*] URLs:" -ForegroundColor Yellow
-Write-Host "   Frontend: http://172.20.150.34/ims/" -ForegroundColor Cyan
+Write-Host "   Frontend: http://172.20.150.34/" -ForegroundColor Cyan
 Write-Host "   Backend:  http://172.20.150.34:3001" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "[*] Deployed Files:" -ForegroundColor Yellow
-$jsFiles = Get-ChildItem -Path "$imsDir\assets\*.js" -ErrorAction SilentlyContinue
+$jsFiles = Get-ChildItem -Path "$htdocsDir\assets\*.js" -ErrorAction SilentlyContinue
 if ($jsFiles) {
     foreach ($file in $jsFiles) {
         $sizeKB = [math]::Round($file.Length / 1KB, 0)
