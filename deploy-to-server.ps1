@@ -15,10 +15,14 @@ $backupDir = "C:\xampp\htdocs-backups"
 
 # Step 1: Install dependencies
 Write-Host "[1/7] Installing dependencies..." -ForegroundColor Yellow
-npm install
+npm ci --legacy-peer-deps
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Dependency installation failed!" -ForegroundColor Red
-    exit 1
+    Write-Host "[WARN] npm ci failed, trying npm install..." -ForegroundColor Yellow
+    npm install --legacy-peer-deps
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Dependency installation failed!" -ForegroundColor Red
+        exit 1
+    }
 }
 Write-Host "[OK] Dependencies installed" -ForegroundColor Green
 
