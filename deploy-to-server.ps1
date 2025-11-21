@@ -13,18 +13,36 @@ Write-Host ""
 $htdocsDir = "C:\xampp\htdocs"
 $backupDir = "C:\xampp\htdocs-backups"
 
-# Step 1: Install dependencies
-Write-Host "[1/7] Installing dependencies..." -ForegroundColor Yellow
-npm ci --include=dev --legacy-peer-deps
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[WARN] npm ci failed, trying npm install..." -ForegroundColor Yellow
-    npm install --legacy-peer-deps
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERROR] Dependency installation failed!" -ForegroundColor Red
-        exit 1
+# Step 1: Check and install dependencies (only if needed)
+Write-Host "[1/7] Checking dependencies..." -ForegroundColor Yellow
+if (Test-Path "node_modules") {
+    $nodeModulesAge = (Get-Item "node_modules").LastWriteTime
+    $packageJsonAge = (Get-Item "package.json").LastWriteTime
+    
+    if ($nodeModulesAge -gt $packageJsonAge) {
+        Write-Host "[INFO] Dependencies already up-to-date (skipping install)" -ForegroundColor Green
+    } else {
+        Write-Host "[INFO] package.json changed, reinstalling dependencies..." -ForegroundColor Yellow
+        npm ci --include=dev --legacy-peer-deps
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Dependency installation failed!" -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "[OK] Dependencies updated" -ForegroundColor Green
     }
+} else {
+    Write-Host "[INFO] No node_modules found, installing dependencies..." -ForegroundColor Yellow
+    npm ci --include=dev --legacy-peer-deps
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WARN] npm ci failed, trying npm install..." -ForegroundColor Yellow
+        npm install --legacy-peer-deps
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Dependency installation failed!" -ForegroundColor Red
+            exit 1
+        }
+    }
+    Write-Host "[OK] Dependencies installed" -ForegroundColor Green
 }
-Write-Host "[OK] Dependencies installed" -ForegroundColor Green
 
 # Step 2: Build production bundle
 Write-Host ""
