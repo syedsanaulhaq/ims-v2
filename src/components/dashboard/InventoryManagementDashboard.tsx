@@ -118,7 +118,7 @@ const InventoryManagementDashboard = () => {
       // Fetch all data in parallel
       const [dashboardRes, stockRes, movementRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/inventory/dashboard-stats`),
-        fetch(`${API_BASE_URL}/api/inventory-stock`),
+        fetch(`${API_BASE_URL}/api/inventory/current-stock`),
         fetch(`${API_BASE_URL}/api/inventory/movements?limit=20`)
       ]);
 

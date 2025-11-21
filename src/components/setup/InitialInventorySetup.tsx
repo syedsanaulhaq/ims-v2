@@ -62,7 +62,7 @@ const InitialInventorySetup = () => {
       const [itemMastersResponse, categoriesResponse, currentStockResponse] = await Promise.all([
         fetch('http://localhost:3001/api/item-masters'),
         fetch('http://localhost:3001/api/categories'),
-        fetch('http://localhost:3001/api/inventory-stock')
+        fetch('http://localhost:3001/api/inventory/current-stock')
       ]);
 
       if (itemMastersResponse.ok) {
