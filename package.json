@@ -77,7 +77,7 @@
     "express-session": "^1.18.2",
     "input-otp": "^1.2.4",
     "jsonwebtoken": "^9.0.2",
-    "jspdf": "^3.0.3",
+    "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.525.0",
     "msnodesqlv8": "^5.1.1",

@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   
   return {
+  base: mode === 'production' ? '/ims/' : '/',
   define: {
     // Properly set NODE_ENV for the application
     'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
