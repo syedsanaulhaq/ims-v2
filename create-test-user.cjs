@@ -25,10 +25,10 @@ async function createTestUser() {
     const pool = await sql.connect(sqlConfig);
     console.log('✅ Connected to database\n');
 
-    // Check if user exists
+    // Check if user exists by UserName instead of CNIC
     const checkResult = await pool.request()
-      .input('cnic', sql.NVarChar, 'testadmin')
-      .query('SELECT Id, FullName, CNIC, ISACT, Password, PasswordHash FROM AspNetUsers WHERE CNIC = @cnic');
+      .input('username', sql.NVarChar, 'testadmin')
+      .query('SELECT Id, FullName, CNIC, UserName, ISACT, Password, PasswordHash FROM AspNetUsers WHERE UserName = @username');
 
     // Generate proper bcrypt hash for 'admin123'
     const passwordHash = await bcrypt.hash('admin123', 10);
@@ -40,6 +40,7 @@ async function createTestUser() {
       console.log('✅ User exists:');
       console.log(`   ID: ${user.Id}`);
       console.log(`   Name: ${user.FullName}`);
+      console.log(`   UserName: ${user.UserName}`);
       console.log(`   CNIC: ${user.CNIC}`);
       console.log(`   Active: ${user.ISACT}`);
       console.log(`   Has Password field: ${user.Password ? 'Yes' : 'No'}`);
@@ -50,8 +51,8 @@ async function createTestUser() {
       // Update both Password and PasswordHash fields
       await pool.request()
         .input('hash', sql.NVarChar, passwordHash)
-        .input('cnic', sql.NVarChar, 'testadmin')
-        .query('UPDATE AspNetUsers SET Password = @hash, PasswordHash = @hash WHERE CNIC = @cnic');
+        .input('username', sql.NVarChar, 'testadmin')
+        .query('UPDATE AspNetUsers SET Password = @hash, PasswordHash = @hash WHERE UserName = @username');
 
       console.log('✅ Password updated successfully!\n');
 
