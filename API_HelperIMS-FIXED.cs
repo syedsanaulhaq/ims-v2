@@ -26,7 +26,7 @@ namespace DigitalSystem.Helpers
             {
                 var requestBody = new JObject
                 {
-                    ["CNIC"] = username,  // Field name is "CNIC" but we send username
+                    ["UserName"] = username,
                     ["Password"] = password
                 };
 

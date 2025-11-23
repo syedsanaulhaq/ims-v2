@@ -7231,21 +7231,21 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
   console.log('🔐 DS Authentication Request Received');
   
   try {
-    const { CNIC, Password } = req.body;
+    const { UserName, Password } = req.body;
     
-    if (!CNIC || !Password) {
-      console.log('❌ Missing CNIC or Password');
+    if (!UserName || !Password) {
+      console.log('❌ Missing UserName or Password');
       return res.status(400).json({
         success: false,
         message: 'Missing username or password'
       });
     }
 
-    console.log(`🔍 Authenticating user with UserName: ${CNIC}`);
+    console.log(`🔍 Authenticating user with UserName: ${UserName}`);
 
-    // Query user from AspNetUsers by UserName (CNIC parameter is actually username)
+    // Query user from AspNetUsers by UserName
     const userResult = await pool.request()
-      .input('username', sql.NVarChar, CNIC)
+      .input('username', sql.NVarChar, UserName)
       .query(`
         SELECT 
           Id,
