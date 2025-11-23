@@ -7284,6 +7284,8 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
 
     const user = userResult.recordset[0];
     console.log(`✅ User found: ${user.FullName} (${user.UserName})`);
+    console.log(`   Password field: ${user.Password ? 'EXISTS (length: ' + user.Password.length + ')' : 'NULL'}`);
+    console.log(`   PasswordHash field: ${user.PasswordHash ? 'EXISTS (length: ' + user.PasswordHash.length + ')' : 'NULL'}`);
 
     // Verify password using bcrypt - check both Password and PasswordHash fields
     const passwordToCheck = user.Password || user.PasswordHash;
@@ -7296,10 +7298,14 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       });
     }
     
+    console.log(`🔑 Checking password against: ${user.Password ? 'Password field' : 'PasswordHash field'}`);
+    console.log(`   Hash starts with: ${passwordToCheck.substring(0, 10)}...`);
+    
     const isPasswordValid = await bcrypt.compare(Password, passwordToCheck);
     
     if (!isPasswordValid) {
-      console.log('❌ Invalid password');
+      console.log('❌ Invalid password - bcrypt comparison failed');
+      console.log(`   Received password length: ${Password.length}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
