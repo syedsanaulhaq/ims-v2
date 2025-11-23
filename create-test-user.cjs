@@ -56,8 +56,11 @@ async function createTestUser() {
       console.log('❌ User does not exist');
       console.log('📝 Creating new user...\n');
 
+      const { v4: uuidv4 } = require('uuid');
+      const newId = uuidv4();
+
       await pool.request()
-        .input('id', sql.UniqueIdentifier, sql.newGuid())
+        .input('id', sql.UniqueIdentifier, newId)
         .input('fullName', sql.NVarChar, 'Test Administrator')
         .input('cnic', sql.NVarChar, 'testadmin')
         .input('userName', sql.NVarChar, 'testadmin')
