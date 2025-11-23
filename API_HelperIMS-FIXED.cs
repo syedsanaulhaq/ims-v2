@@ -20,13 +20,13 @@ namespace DigitalSystem.Helpers
             };
         }
 
-        public async Task<JObject> AuthenticateAsync(string cnic, string password)
+        public async Task<JObject> AuthenticateAsync(string username, string password)
         {
             try
             {
                 var requestBody = new JObject
                 {
-                    ["CNIC"] = cnic,
+                    ["CNIC"] = username,  // Field name is "CNIC" but we send username
                     ["Password"] = password
                 };
 
