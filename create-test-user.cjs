@@ -27,7 +27,7 @@ async function createTestUser() {
 
     // Check if user exists by UserName instead of CNIC
     const checkResult = await pool.request()
-      .input('username', sql.NVarChar, 'testadmin')
+      .input('username', sql.NVarChar, '1234567891011')
       .query('SELECT Id, FullName, CNIC, UserName, ISACT, Password, PasswordHash FROM AspNetUsers WHERE UserName = @username');
 
     // Generate proper bcrypt hash for 'admin123'
@@ -51,7 +51,7 @@ async function createTestUser() {
       // Update both Password and PasswordHash fields
       await pool.request()
         .input('hash', sql.NVarChar, passwordHash)
-        .input('username', sql.NVarChar, 'testadmin')
+        .input('username', sql.NVarChar, '1234567891011')
         .query('UPDATE AspNetUsers SET Password = @hash, PasswordHash = @hash WHERE UserName = @username');
 
       console.log('✅ Password updated successfully!\n');
@@ -67,8 +67,8 @@ async function createTestUser() {
       await pool.request()
         .input('id', sql.UniqueIdentifier, newId)
         .input('fullName', sql.NVarChar, 'Test Administrator')
-        .input('cnic', sql.NVarChar, 'testadmin')
-        .input('userName', sql.NVarChar, 'testadmin')
+        .input('cnic', sql.NVarChar, '1234567890123')
+        .input('userName', sql.NVarChar, '1234567891011')
         .input('email', sql.NVarChar, 'testadmin@ims.local')
         .input('hash', sql.NVarChar, passwordHash)
         .input('officeId', sql.Int, 583)
@@ -91,7 +91,7 @@ async function createTestUser() {
 
     console.log('================================');
     console.log('✅ Test credentials ready:');
-    console.log('   CNIC: testadmin');
+    console.log('   UserName: 1234567891011');
     console.log('   Password: admin123');
     console.log('================================\n');
 

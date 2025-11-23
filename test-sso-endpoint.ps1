@@ -29,7 +29,7 @@ Write-Host ""
 Write-Host "3. Testing endpoint on localhost:3001..." -ForegroundColor Yellow
 try {
     $body = @{
-        UserName = 'testadmin'
+        UserName = '1234567891011'
         Password = 'admin123'
     } | ConvertTo-Json
 
@@ -55,7 +55,7 @@ Write-Host ""
 Write-Host "4. Testing endpoint on 172.20.150.34:3001..." -ForegroundColor Yellow
 try {
     $body = @{
-        UserName = 'testadmin'
+        UserName = '1234567891011'
         Password = 'admin123'
     } | ConvertTo-Json
 
