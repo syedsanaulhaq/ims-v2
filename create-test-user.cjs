@@ -28,7 +28,7 @@ async function createTestUser() {
     // Check if user exists
     const checkResult = await pool.request()
       .input('cnic', sql.NVarChar, 'testadmin')
-      .query('SELECT Id, FullName, CNIC, ISACT FROM AspNetUsers WHERE CNIC = @cnic');
+      .query('SELECT Id, FullName, CNIC, ISACT, Password, PasswordHash FROM AspNetUsers WHERE CNIC = @cnic');
 
     // Generate proper bcrypt hash for 'admin123'
     const passwordHash = await bcrypt.hash('admin123', 10);
@@ -41,13 +41,17 @@ async function createTestUser() {
       console.log(`   ID: ${user.Id}`);
       console.log(`   Name: ${user.FullName}`);
       console.log(`   CNIC: ${user.CNIC}`);
-      console.log(`   Active: ${user.ISACT}\n`);
+      console.log(`   Active: ${user.ISACT}`);
+      console.log(`   Has Password field: ${user.Password ? 'Yes' : 'No'}`);
+      console.log(`   Has PasswordHash field: ${user.PasswordHash ? 'Yes' : 'No'}\n`);
 
       console.log('📝 Updating password...');
+      
+      // Update both Password and PasswordHash fields
       await pool.request()
         .input('hash', sql.NVarChar, passwordHash)
         .input('cnic', sql.NVarChar, 'testadmin')
-        .query('UPDATE AspNetUsers SET PasswordHash = @hash WHERE CNIC = @cnic');
+        .query('UPDATE AspNetUsers SET Password = @hash, PasswordHash = @hash WHERE CNIC = @cnic');
 
       console.log('✅ Password updated successfully!\n');
 
@@ -73,10 +77,10 @@ async function createTestUser() {
         .input('gender', sql.NVarChar, 'Male')
         .query(`
           INSERT INTO AspNetUsers (
-            Id, FullName, CNIC, UserName, Email, PasswordHash,
+            Id, FullName, CNIC, UserName, Email, Password, PasswordHash,
             intOfficeID, intWingID, Role, ISACT, Gender
           ) VALUES (
-            @id, @fullName, @cnic, @userName, @email, @hash,
+            @id, @fullName, @cnic, @userName, @email, @hash, @hash,
             @officeId, @wingId, @role, @isActive, @gender
           )
         `);
