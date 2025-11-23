@@ -7255,6 +7255,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
           UserName,
           Email,
           PhoneNumber,
+          Password,
           PasswordHash,
           intOfficeID,
           intWingID,
@@ -7284,8 +7285,18 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
     const user = userResult.recordset[0];
     console.log(`✅ User found: ${user.FullName} (${user.UserName})`);
 
-    // Verify password using bcrypt
-    const isPasswordValid = await bcrypt.compare(Password, user.PasswordHash);
+    // Verify password using bcrypt - check both Password and PasswordHash fields
+    const passwordToCheck = user.Password || user.PasswordHash;
+    
+    if (!passwordToCheck) {
+      console.log('❌ No password hash found');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid CNIC or password'
+      });
+    }
+    
+    const isPasswordValid = await bcrypt.compare(Password, passwordToCheck);
     
     if (!isPasswordValid) {
       console.log('❌ Invalid password');
