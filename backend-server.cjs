@@ -7237,15 +7237,15 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       console.log('❌ Missing CNIC or Password');
       return res.status(400).json({
         success: false,
-        message: 'Missing CNIC or password'
+        message: 'Missing username or password'
       });
     }
 
-    console.log(`🔍 Authenticating user with CNIC: ${CNIC}`);
+    console.log(`🔍 Authenticating user with UserName: ${CNIC}`);
 
-    // Query user from AspNetUsers by CNIC
+    // Query user from AspNetUsers by UserName (CNIC parameter is actually username)
     const userResult = await pool.request()
-      .input('cnic', sql.NVarChar, CNIC)
+      .input('username', sql.NVarChar, CNIC)
       .query(`
         SELECT 
           Id,
@@ -7271,14 +7271,14 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
           ProfilePhoto,
           LastLoggedIn
         FROM AspNetUsers 
-        WHERE CNIC = @cnic AND ISACT = 1
+        WHERE UserName = @username AND ISACT = 1
       `);
 
     if (userResult.recordset.length === 0) {
       console.log('❌ User not found or inactive');
       return res.status(401).json({
         success: false,
-        message: 'Invalid CNIC or password'
+        message: 'Invalid username or password'
       });
     }
 
@@ -7292,7 +7292,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       console.log('❌ No password hash found');
       return res.status(401).json({
         success: false,
-        message: 'Invalid CNIC or password'
+        message: 'Invalid username or password'
       });
     }
     
@@ -7302,7 +7302,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       console.log('❌ Invalid password');
       return res.status(401).json({
         success: false,
-        message: 'Invalid CNIC or password'
+        message: 'Invalid username or password'
       });
     }
 
