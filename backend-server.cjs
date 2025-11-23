@@ -7287,8 +7287,8 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
     console.log(`   Password field: ${user.Password ? 'EXISTS (length: ' + user.Password.length + ')' : 'NULL'}`);
     console.log(`   PasswordHash field: ${user.PasswordHash ? 'EXISTS (length: ' + user.PasswordHash.length + ')' : 'NULL'}`);
 
-    // Verify password using bcrypt - check both Password and PasswordHash fields
-    const passwordToCheck = user.Password || user.PasswordHash;
+    // Verify password using bcrypt - prioritize PasswordHash field (primary field in AspNetUsers)
+    const passwordToCheck = user.PasswordHash || user.Password;
     
     if (!passwordToCheck) {
       console.log('❌ No password hash found');
@@ -7298,7 +7298,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       });
     }
     
-    console.log(`🔑 Checking password against: ${user.Password ? 'Password field' : 'PasswordHash field'}`);
+    console.log(`🔑 Checking password against: ${user.PasswordHash ? 'PasswordHash field' : 'Password field'}`);
     console.log(`   Hash starts with: ${passwordToCheck.substring(0, 10)}...`);
     
     const isPasswordValid = await bcrypt.compare(Password, passwordToCheck);
