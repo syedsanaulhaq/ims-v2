@@ -29,8 +29,8 @@ Write-Host ""
 Write-Host "3. Testing endpoint on localhost:3001..." -ForegroundColor Yellow
 try {
     $body = @{
-        CNIC = '3520123456789'
-        Password = 'test123'
+        CNIC = 'testadmin'
+        Password = 'admin123'
     } | ConvertTo-Json
 
     $response = Invoke-WebRequest -Uri "http://localhost:3001/api/auth/ds-authenticate" `
@@ -55,8 +55,8 @@ Write-Host ""
 Write-Host "4. Testing endpoint on 172.20.150.34:3001..." -ForegroundColor Yellow
 try {
     $body = @{
-        CNIC = '3520123456789'
-        Password = 'test123'
+        CNIC = 'testadmin'
+        Password = 'admin123'
     } | ConvertTo-Json
 
     $response = Invoke-WebRequest -Uri "http://172.20.150.34:3001/api/auth/ds-authenticate" `
