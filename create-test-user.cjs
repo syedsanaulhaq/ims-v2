@@ -4,8 +4,8 @@ const sql = require('mssql');
 require('dotenv').config({ path: '.env.sqlserver' });
 
 const sqlConfig = {
-  server: process.env.SQL_SERVER_HOST || 'SYED-FAZLI-LAPT',
-  database: process.env.SQL_SERVER_DATABASE || 'InventoryManagementDB_TEST',
+  server: process.env.SQL_SERVER_HOST || 'localhost',
+  database: process.env.SQL_SERVER_DATABASE || 'InventoryManagementDB',
   user: process.env.SQL_SERVER_USER || 'inventorymanagementuser',
   password: process.env.SQL_SERVER_PASSWORD || '2016Wfp61@',
   port: parseInt(process.env.SQL_SERVER_PORT) || 1433,
