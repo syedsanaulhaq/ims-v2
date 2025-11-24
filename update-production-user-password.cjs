@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 // PRODUCTION DATABASE CONFIGURATION
 // CORRECT CREDENTIALS - DO NOT CHANGE
 const config = {
-  user: 'inventoryuser',
-  password: '2025Pakistan52@',
+  user: 'sa',
+  password: 'Pakistan@786',
   server: '172.20.151.60',
   database: 'InventoryManagementDB',
   port: 1433,
