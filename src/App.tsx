@@ -37,6 +37,8 @@ import DeliveryReport from "./pages/DeliveryReport";
 import InventoryDashboard from "./pages/InventoryDashboard";
 import InventorySettings from "./pages/InventorySettings";
 import StockIssuance from "./pages/StockIssuance";
+import StockIssuancePersonal from "./pages/StockIssuancePersonal";
+import StockIssuanceWing from "./pages/StockIssuanceWing";
 import StockReturn from "./pages/StockReturn";
 import ApprovalManagement from "./pages/ApprovalManagement";
 import StockIssuanceProcessing from "./pages/StockIssuanceProcessing";
@@ -157,6 +159,8 @@ function App() {
                   <Route path="inventory-alerts" element={<InventoryAlertsPage />} />
                   <Route path="inventory-settings" element={<InventorySettings />} />
                   <Route path="stock-issuance" element={<StockIssuance />} />
+                  <Route path="stock-issuance-personal" element={<StockIssuancePersonal />} />
+                  <Route path="stock-issuance-wing" element={<StockIssuanceWing />} />
                   <Route path="stock-issuance-dashboard" element={<StockIssuanceDashboard />} />
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="my-issued-items" element={<MyIssuedItems />} />

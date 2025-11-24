@@ -99,7 +99,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/issuance",
       hasSubmenu: true,
       submenu: [
-        { title: "Stock Issuance", path: "/dashboard/stock-issuance" },
+        { title: "Personal Request", path: "/dashboard/stock-issuance-personal" },
+        { title: "Wing Request", path: "/dashboard/stock-issuance-wing" },
         { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard" },
         { title: "My Issued Items", path: "/dashboard/my-issued-items" },
         { title: "Stock Returns", path: "/dashboard/stock-return" },
