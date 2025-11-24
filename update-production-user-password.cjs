@@ -24,7 +24,7 @@ async function updateProductionPassword() {
     await sql.connect(config);
     console.log('✅ Connected\n');
 
-    const username = '3740560772543';
+    const username = '1730115698727';
     const newPassword = 'P@ssword@1';
     
     console.log(`📝 Updating user: ${username}`);

@@ -22,7 +22,7 @@ async function checkServerUser() {
     await sql.connect(config);
     console.log('✅ Connected\n');
 
-    const username = '3740560772543';
+    const username = '1730115698727';
     const password = 'P@ssword@1';
     
     console.log(`🔍 Checking user: ${username}\n`);
