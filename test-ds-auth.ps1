@@ -4,26 +4,32 @@ Write-Host "Testing DS-Style Authentication Endpoint" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Test credentials - UPDATE THESE with real user from your database
-$testCNIC = "12345-6789012-3"  # Replace with real CNIC
-$testPassword = "YourPassword"   # Replace with real password
+# Test credentials - Updated with real user
+$testUserName = "3740560772543"  # Real username from database
+$testPassword = "P@ssword@1"      # Real password (bcrypt hashed)
 
 Write-Host "Test Credentials:" -ForegroundColor Yellow
-Write-Host "  CNIC: $testCNIC"
+Write-Host "  UserName: $testUserName"
 Write-Host "  Password: ******* (hidden)"
 Write-Host ""
 
 # Prepare request body
 $body = @{
-    CNIC = $testCNIC
+    UserName = $testUserName
     Password = $testPassword
 } | ConvertTo-Json
 
 Write-Host "Sending authentication request..." -ForegroundColor Yellow
 
 try {
-    # Call IMS authentication endpoint
-    $response = Invoke-RestMethod -Uri "http://localhost:3001/api/auth/ds-authenticate" `
+    # Call IMS authentication endpoint - test both localhost and production server
+    $baseUrl = "http://172.20.150.34:3001"  # Production server
+    # $baseUrl = "http://localhost:3001"    # Uncomment for local testing
+    
+    Write-Host "Testing endpoint: $baseUrl/api/auth/ds-authenticate" -ForegroundColor White
+    Write-Host ""
+    
+    $response = Invoke-RestMethod -Uri "$baseUrl/api/auth/ds-authenticate" `
                                   -Method Post `
                                   -Body $body `
                                   -ContentType "application/json" `
