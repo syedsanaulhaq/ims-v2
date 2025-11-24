@@ -3,10 +3,11 @@ const bcrypt = require('bcryptjs');
 
 // PRODUCTION DATABASE CONFIGURATION
 // This matches the backend-server.cjs configuration exactly
+// NOTE: Uses localhost since script runs ON the production server
 const config = {
   user: 'inventorymanagementuser',
   password: '2016Wfp61@',
-  server: '172.20.150.34',  // Production server IP
+  server: 'localhost',  // Running on production server, so use localhost
   database: 'InventoryManagementDB',  // PRODUCTION DATABASE (not _TEST)
   port: 1433,
   options: {
