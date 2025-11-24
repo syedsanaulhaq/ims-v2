@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const jwt = require('jsonwebtoken');
+const aspnetIdentity = require('aspnet-identity-pw');
 require('dotenv').config({ path: '.env.sqlserver' });
 
 const app = express();
@@ -7287,7 +7288,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
     console.log(`   Password field: ${user.Password ? 'EXISTS (length: ' + user.Password.length + ')' : 'NULL'}`);
     console.log(`   PasswordHash field: ${user.PasswordHash ? 'EXISTS (length: ' + user.PasswordHash.length + ')' : 'NULL'}`);
 
-    // Verify password using bcrypt - prioritize PasswordHash field (primary field in AspNetUsers)
+    // Verify password - support BOTH bcrypt and ASP.NET Identity formats
     const passwordToCheck = user.PasswordHash || user.Password;
     
     if (!passwordToCheck) {
@@ -7301,10 +7302,34 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
     console.log(`🔑 Checking password against: ${user.PasswordHash ? 'PasswordHash field' : 'Password field'}`);
     console.log(`   Hash starts with: ${passwordToCheck.substring(0, 10)}...`);
     
-    const isPasswordValid = await bcrypt.compare(Password, passwordToCheck);
+    let isPasswordValid = false;
+    
+    // Check if it's bcrypt format (starts with $2a$, $2b$, $2x$, $2y$)
+    if (passwordToCheck.startsWith('$2')) {
+      console.log('   Format: bcrypt');
+      isPasswordValid = await bcrypt.compare(Password, passwordToCheck);
+      console.log(`   Bcrypt verification: ${isPasswordValid ? '✅ Valid' : '❌ Invalid'}`);
+    } 
+    // Check if it's ASP.NET Identity format (starts with AQA or has specific length)
+    else if (passwordToCheck.startsWith('AQA') || passwordToCheck.length > 60) {
+      console.log('   Format: ASP.NET Core Identity');
+      
+      try {
+        // Use aspnet-identity-pw library to verify ASP.NET Core Identity V3 password
+        isPasswordValid = aspnetIdentity.validatePassword(Password, passwordToCheck);
+        console.log(`   ASP.NET Identity verification: ${isPasswordValid ? '✅ Valid' : '❌ Invalid'}`);
+      } catch (err) {
+        console.log(`   ⚠️ ASP.NET Identity verification error: ${err.message}`);
+        isPasswordValid = false;
+      }
+    }
+    else {
+      console.log('   ⚠️ Unknown password format');
+      isPasswordValid = false;
+    }
     
     if (!isPasswordValid) {
-      console.log('❌ Invalid password - bcrypt comparison failed');
+      console.log('❌ Invalid password - verification failed');
       console.log(`   Received password length: ${Password.length}`);
       return res.status(401).json({
         success: false,
