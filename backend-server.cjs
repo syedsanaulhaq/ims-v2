@@ -1186,11 +1186,11 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
         sir.updated_at,
         -- Office information
         COALESCE(o.strOfficeName, 'Unknown Office') as office_name,
-        COALESCE(o.OfficeCode, 'N/A') as office_code,
+        COALESCE(CAST(o.OfficeCode AS NVARCHAR(50)), 'N/A') as office_code,
         -- Wing information  
         COALESCE(w.Name, 'Unknown Wing') as wing_name,
         COALESCE(w.ShortName, 'N/A') as wing_short_name,
-        COALESCE(w.WingCode, 'N/A') as wing_code,
+        COALESCE(CAST(w.WingCode AS NVARCHAR(50)), 'N/A') as wing_code,
         -- User information
         COALESCE(u.FullName, 'Unknown User') as requester_full_name,
         COALESCE(u.Role, 'User') as requester_role,
