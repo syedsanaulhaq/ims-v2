@@ -2,12 +2,12 @@ const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 
 // PRODUCTION DATABASE CONFIGURATION
-// Based on backend logs showing: Database: InventoryManagementDB on 172.20.151.60
+// CORRECT CREDENTIALS - DO NOT CHANGE
 const config = {
-  user: 'inventorymanagementuser',
-  password: '2016Wfp61@',
-  server: '172.20.151.60',  // Database server from backend logs
-  database: 'InventoryManagementDB',  // PRODUCTION DATABASE (not _TEST)
+  user: 'inventoryuser',
+  password: '2025Pakistan52@',
+  server: '172.20.151.60',
+  database: 'InventoryManagementDB',
   port: 1433,
   options: {
     encrypt: false,
