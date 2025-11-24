@@ -2,12 +2,11 @@ const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 
 // PRODUCTION DATABASE CONFIGURATION
-// This matches the backend-server.cjs configuration exactly
-// NOTE: Uses localhost since script runs ON the production server
+// Based on backend logs showing: Database: InventoryManagementDB on 172.20.151.60
 const config = {
   user: 'inventorymanagementuser',
   password: '2016Wfp61@',
-  server: 'localhost',  // Running on production server, so use localhost
+  server: '172.20.151.60',  // Database server from backend logs
   database: 'InventoryManagementDB',  // PRODUCTION DATABASE (not _TEST)
   port: 1433,
   options: {
