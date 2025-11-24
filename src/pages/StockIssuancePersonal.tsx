@@ -301,15 +301,10 @@ const StockIssuancePersonal: React.FC = () => {
 
   const resetForm = () => {
     setIssuanceItems([]);
-    setSelectedOfficeId('');
-    setSelectedWingId('');
-    setSelectedBranchId('');
-    setSelectedUserId('');
     setPurpose('');
     setJustification('');
     setExpectedReturnDate('');
     setUrgencyLevel('Normal');
-    setRequestType('Individual');
     setCustomItemName('');
     setCustomItemQuantity(1);
   };
