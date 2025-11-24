@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,11 +52,10 @@ interface IssuanceItem {
 }
 
 const StockIssuancePersonal: React.FC = () => {
+  const { session } = useSession();
+  const navigate = useNavigate();
+  
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [offices, setOffices] = useState<ERPOffice[]>([]);
-  const [wings, setWings] = useState<ERPWing[]>([]);
-  const [decs, setDecs] = useState<ERPDEC[]>([]);
-  const [users, setUsers] = useState<UserType[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [issuanceItems, setIssuanceItems] = useState<IssuanceItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,12 +66,6 @@ const StockIssuancePersonal: React.FC = () => {
   const [customItemName, setCustomItemName] = useState('');
   const [customItemQuantity, setCustomItemQuantity] = useState(1);
 
-  // Hierarchical selection
-  const [selectedOfficeId, setSelectedOfficeId] = useState('');
-  const [selectedWingId, setSelectedWingId] = useState('');
-  const [selectedBranchId, setSelectedBranchId] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('');
-
   // Form fields - PERSONAL REQUEST (Individual only)
   const [requestType] = useState<'Individual' | 'Organizational'>('Individual');
   const [purpose, setPurpose] = useState('');
@@ -80,66 +74,19 @@ const StockIssuancePersonal: React.FC = () => {
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [isReturnable, setIsReturnable] = useState(true);
 
-  // Navigation hook
-  const navigate = useNavigate();
-
-  // Filtered data based on hierarchy
-  const filteredWings = wings.filter(wing => wing.OfficeID === parseInt(selectedOfficeId));
-  const filteredDecs = decs.filter(dec => dec.WingID === parseInt(selectedWingId));
-  
-  // Load users dynamically when office, wing, or branch changes
-  useEffect(() => {
-    const loadFilteredUsers = async () => {
-      if (!selectedOfficeId || !selectedWingId) {
-        setUsers([]);
-        return;
-      }
-
-      try {
-        // Use DECID directly from the combo (no mapping needed with new view)
-        const branchFilterValue = selectedBranchId && selectedBranchId !== 'ALL_BRANCHES' 
-          ? parseInt(selectedBranchId) 
-          : undefined;
-        
-        console.log('🔄 Loading users for:', { 
-          selectedOfficeId, 
-          selectedWingId, 
-          selectedBranchId_DECID: selectedBranchId,
-          branchFilterValue
-        });
-        
-        const filteredUsersData = await erpDatabaseService.getFilteredUsers(
-          parseInt(selectedOfficeId),
-          parseInt(selectedWingId),
-          branchFilterValue
-        );
-        setUsers(filteredUsersData);
-      } catch (error) {
-        console.error('❌ Error loading filtered users:', error);
-        setUsers([]);
-      }
-    };
-
-    loadFilteredUsers();
-  }, [selectedOfficeId, selectedWingId, selectedBranchId]);
-
-  // filteredUsers is now just the users state (already filtered by backend)
-  const filteredUsers = users || [];
+  // Automatically set from logged-in user session
+  const selectedOfficeId = session?.office_id?.toString() || '';
+  const selectedWingId = session?.wing_id?.toString() || '';
+  const selectedBranchId = session?.branch_id?.toString() || '';
+  const selectedUserId = session?.user_id || '';
 
   useEffect(() => {
     fetchInitialData();
   }, []);
 
-  // Clear selected user when switching to Organizational request type
-  useEffect(() => {
-    if (requestType === 'Organizational') {
-      setSelectedUserId('');
-    }
-  }, [requestType]);
-
   const fetchInitialData = async () => {
     try {
-      console.log('🔄 Loading stock issuance form data...');
+      console.log('🔄 Loading stock issuance form data (Personal Request)...');
       
       // Fetch inventory items using the local service
       console.log('📦 Fetching inventory items...');
@@ -167,54 +114,16 @@ const StockIssuancePersonal: React.FC = () => {
         console.log('⚠️ No inventory items found');
       }
 
-      // Fetch ERP data using ERP service
-      try {
-        console.log('🏢 Fetching ERP data (offices, wings, decs)...');
-        const [officesData, wingsData, decsData] = await Promise.all([
-          erpDatabaseService.getActiveOffices(),
-          erpDatabaseService.getActiveWings(),
-          erpDatabaseService.getActiveDecs()
-        ]);
-
-        console.log('🏢 ERP Data loaded:', { 
-          offices: officesData.length, 
-          wings: wingsData.length, 
-          decs: decsData.length
-        });
-
-        setOffices(officesData);
-        setWings(wingsData);
-        setDecs(decsData);
-        // Users will be loaded dynamically when office/wing/branch is selected
-      } catch (erpError) {
-        console.error('❌ Error loading ERP data:', erpError);
-        setError('Failed to load office, wing, DEC, and user data');
-      }
-
-      console.log('✅ Stock issuance form data loaded successfully');
+      console.log('✅ Personal stock issuance form data loaded successfully');
+      console.log('👤 Using session data:', { 
+        user: session?.user_name, 
+        office: selectedOfficeId, 
+        wing: selectedWingId 
+      });
     } catch (error: any) {
       console.error('❌ Error loading stock issuance form data:', error);
       setError('Failed to load data: ' + error.message);
     }
-  };
-
-  // Handler functions
-  const handleOfficeChange = (officeId: string) => {
-    setSelectedOfficeId(officeId);
-    setSelectedWingId('');
-    setSelectedBranchId('');
-    setSelectedUserId('');
-  };
-
-  const handleWingChange = (wingId: string) => {
-    setSelectedWingId(wingId);
-    setSelectedBranchId('');
-    setSelectedUserId('');
-  };
-
-  const handleBranchChange = (branchId: string) => {
-    setSelectedBranchId(branchId);
-    setSelectedUserId('');
   };
 
   const filteredInventory = inventoryItems.filter(item =>
@@ -437,138 +346,33 @@ const StockIssuancePersonal: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Request Type */}
-              <div>
-                <Label htmlFor="requestType">Request Type *</Label>
-                <Select value={requestType} onValueChange={(value: 'Individual' | 'Organizational') => setRequestType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Individual">Individual (Personal Use)</SelectItem>
-                    <SelectItem value="Organizational">Organizational (Department Use)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Hierarchical User Selection */}
+              {/* Display Logged-in User Information */}
               <div className="space-y-4 border-2 border-blue-200 p-4 rounded-lg bg-blue-50">
                 <h3 className="font-semibold text-blue-800 flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  Organizational Hierarchy Selection
+                  <User className="w-4 h-4" />
+                  Request For (Current User)
                 </h3>
                 
-                {/* Office Selection */}
-                <div>
-                  <Label htmlFor="office">Office *</Label>
-                  <Select value={selectedOfficeId} onValueChange={handleOfficeChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select office" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {offices.map(office => (
-                        <SelectItem key={office.intOfficeID} value={office.intOfficeID.toString()}>
-                          {office.strOfficeName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Wing Selection */}
-                <div>
-                  <Label htmlFor="wing">Wing *</Label>
-                  <Select 
-                    value={selectedWingId} 
-                    onValueChange={handleWingChange}
-                    disabled={!selectedOfficeId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={!selectedOfficeId ? "Select office first" : "Select wing"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredWings.map(wing => (
-                        <SelectItem key={wing.Id} value={wing.Id.toString()}>
-                          {wing.Name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Branch/Dec Selection */}
-                <div>
-                  <Label htmlFor="branch">Branch/Dec (Optional)</Label>
-                  <Select 
-                    value={selectedBranchId} 
-                    onValueChange={handleBranchChange}
-                    disabled={!selectedWingId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={!selectedWingId ? "Select wing first" : "Select branch/dec (optional)"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL_BRANCHES">All branches in this wing</SelectItem>
-                      {filteredDecs.map(dec => (
-                        <SelectItem key={dec.intAutoID} value={dec.intAutoID.toString()}>
-                          {dec.DECName} {dec.DECCode && `(${dec.DECCode})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* User Selection - Only show for Individual requests */}
-                {requestType === 'Individual' && (
-                  <div>
-                    <Label htmlFor="user">User *</Label>
-                    <Select 
-                      value={selectedUserId} 
-                      onValueChange={setSelectedUserId}
-                      disabled={!selectedWingId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={!selectedWingId ? "Select wing first" : `Select user (${filteredUsers.length} available)`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredUsers.length === 0 && selectedWingId ? (
-                          <SelectItem value="no-users" disabled>
-                            No users found for this hierarchy
-                          </SelectItem>
-                        ) : (
-                          filteredUsers.map(user => (
-                            <SelectItem key={user.Id} value={user.Id}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{user.FullName}</span>
-                                <span className="text-xs text-gray-500">
-                                  {user.DesignationName || user.Role || 'No designation'} {user.CNIC && `• ${user.CNIC}`}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {selectedWingId && filteredUsers.length === 0 && (
-                      <p className="text-sm text-amber-600 mt-1">
-                        ⚠️ No users found for Office: {selectedOfficeId}, Wing: {selectedWingId}
-                        {selectedBranchId && `, Branch: ${selectedBranchId}`}
-                      </p>
-                    )}
-                    {selectedWingId && filteredUsers.length > 0 && (
-                      <p className="text-sm text-green-600 mt-1">
-                        ✅ Found {filteredUsers.length} user{filteredUsers.length > 1 ? 's' : ''} 
-                        {selectedBranchId ? ' in this specific branch' : ' in this wing (all branches)'}
-                      </p>
-                    )}
+                <div className="space-y-2 bg-white p-3 rounded border">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-700">Name:</span>
+                    <span className="text-gray-900">{session?.user_name || 'Not available'}</span>
                   </div>
-                )}
-
-                {/* Request Type Info */}
-                {requestType === 'Organizational' && (
-                  <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                    <p className="text-sm text-blue-700">
-                      📋 <strong>Organizational Request:</strong> This request is for the entire {selectedBranchId && selectedBranchId !== 'ALL_BRANCHES' ? 'branch' : 'wing/organization'}. No individual user selection required.
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-700">Email:</span>
+                    <span className="text-gray-900">{session?.email || 'Not available'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-700">Role:</span>
+                    <span className="text-gray-900">{session?.role || 'Not available'}</span>
+                  </div>
+                  <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
+                    <p className="text-sm text-green-700">
+                      ✅ <strong>Personal Request:</strong> This request is being created for your own use.
+                    </p>
+                  </div>
+                </div>
+              </div>
                     </p>
                   </div>
                 )}
