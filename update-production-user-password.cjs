@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const config = {
   user: 'sa',
   password: 'Pakistan@786',
-  server: '172.20.151.60',
+  server: '172.20.151.60\\MSSQLSERVER2',
   database: 'InventoryManagementDB',
   port: 1433,
   options: {
