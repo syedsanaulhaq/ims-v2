@@ -222,7 +222,6 @@ const StockIssuancePersonal: React.FC = () => {
     setSuccess('');
 
     try {
-      const selectedUser = selectedUserId ? (users || []).find(user => user.Id === selectedUserId) : null;
       const requestNumber = stockIssuanceService.generateRequestNumber();
       
       // Create issuance request using SQL Server API
@@ -278,9 +277,7 @@ const StockIssuancePersonal: React.FC = () => {
         // Don't fail the entire submission if approval fails
       }
 
-      const successMessage = requestType === 'Individual' && selectedUser
-        ? `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${selectedUser.FullName}!`
-        : `Stock issuance request ${requestNumber} submitted successfully and sent for approval!`;
+      const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${session?.user_name}!`;
       
       setSuccess(successMessage);
       
@@ -372,28 +369,18 @@ const StockIssuancePersonal: React.FC = () => {
                   </div>
                 )}
 
-                {/* Selected User Display */}
-                {selectedUserId && (
-                  <div className="bg-white p-3 rounded border">
-                    <h4 className="font-medium text-sm text-gray-700 mb-1">Selected Requester:</h4>
-                    {(() => {
-                      const user = (users || []).find(u => u.Id === selectedUserId);
-                      const office = offices.find(o => o.intOfficeID === parseInt(selectedOfficeId));
-                      const wing = filteredWings.find(w => w.Id === parseInt(selectedWingId));
-                      const branch = filteredDecs.find(d => d.intAutoID === parseInt(selectedBranchId));
-                      
-                      return (
-                        <div className="text-sm">
-                          <p><strong>Name:</strong> {user?.FullName}</p>
-                          <p><strong>Email:</strong> {user?.Email || 'N/A'}</p>
-                          <p><strong>CNIC:</strong> {user?.CNIC || 'N/A'}</p>
-                          <p><strong>Designation:</strong> {user?.DesignationName || 'N/A'}</p>
-                          <p><strong>Office:</strong> {office?.strOfficeName}</p>
-                          <p><strong>Wing:</strong> {wing?.Name}</p>
-                          <p><strong>Branch:</strong> {branch?.DECName}</p>
-                        </div>
-                      );
-                    })()}
+                {/* Logged-in User Info Display */}
+                {session && (
+                  <div className="bg-blue-50 p-4 rounded border border-blue-200">
+                    <h4 className="font-semibold text-sm text-blue-900 mb-2">📋 Your Request Details:</h4>
+                    <div className="text-sm space-y-1">
+                      <p><strong>Name:</strong> {session.user_name}</p>
+                      <p><strong>CNIC:</strong> {session.cnic || 'N/A'}</p>
+                      <p><strong>Designation:</strong> {session.designation_name || 'N/A'}</p>
+                      <p><strong>Office:</strong> {session.office_name || 'N/A'}</p>
+                      <p><strong>Wing:</strong> {session.wing_name || 'N/A'}</p>
+                      {session.branch_name && <p><strong>Branch:</strong> {session.branch_name}</p>}
+                    </div>
                   </div>
                 )}
               </div>
