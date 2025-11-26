@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -86,6 +87,7 @@ interface StockIssuanceRequest {
 }
 
 export function StockIssuanceDashboard() {
+  const { user } = useSession();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [requests, setRequests] = useState<StockIssuanceRequest[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
@@ -126,15 +128,29 @@ export function StockIssuanceDashboard() {
       
       const directData = await directResponse.json();
       console.log('📊 Direct API response:', directData);
+      console.log('👤 Current user ID:', user?.user_id);
       
       if (directData.success && directData.data && directData.summary) {
-        setRequests(directData.data || []);
-        setStats({
-          totalRequests: directData.summary.totalCount || 0,
-          pendingRequests: directData.summary.pendingCount || 0,
-          approvedRequests: directData.summary.approvedCount || 0,
-          issuedRequests: directData.summary.issuedCount || 0
+        // Filter requests to only show those created by the logged-in user
+        const userRequests = (directData.data || []).filter((req: any) => {
+          const isUserRequest = req.requester?.user_id === user?.user_id;
+          console.log(`Request ${req.request_number}: requester=${req.requester?.user_id}, currentUser=${user?.user_id}, match=${isUserRequest}`);
+          return isUserRequest;
         });
+        
+        console.log(`✅ Filtered ${userRequests.length} requests for user ${user?.user_name}`);
+        
+        setRequests(userRequests);
+        
+        // Calculate stats based on filtered user requests
+        const userStats = {
+          totalRequests: userRequests.length,
+          pendingRequests: userRequests.filter((r: any) => r.request_status === 'Submitted' || r.request_status === 'Pending').length,
+          approvedRequests: userRequests.filter((r: any) => r.request_status === 'Approved').length,
+          issuedRequests: userRequests.filter((r: any) => r.request_status === 'Issued').length
+        };
+        
+        setStats(userStats);
         
         console.log('✅ Stats set successfully:', {
           totalRequests: directData.summary.totalCount || 0,
