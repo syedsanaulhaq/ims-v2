@@ -345,41 +345,38 @@ const StockIssuancePersonal: React.FC = () => {
                   Request For (Current User)
                 </h3>
                 
-                <div className="space-y-2 bg-white p-3 rounded border">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-700">Name:</span>
-                    <span className="text-gray-900">{session?.user_name || 'Not available'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-700">Email:</span>
-                    <span className="text-gray-900">{session?.email || 'Not available'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-700">Role:</span>
-                    <span className="text-gray-900">{session?.role || 'Not available'}</span>
-                  </div>
-                  <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
-                    <p className="text-sm text-green-700">
-                      ✅ <strong>Personal Request:</strong> This request is being created for your own use.
-                    </p>
-                  </div>
-                </div>
-              </div>
-                    </p>
-                  </div>
-                )}
-
-                {/* Logged-in User Info Display */}
                 {session && (
-                  <div className="bg-blue-50 p-4 rounded border border-blue-200">
-                    <h4 className="font-semibold text-sm text-blue-900 mb-2">📋 Your Request Details:</h4>
-                    <div className="text-sm space-y-1">
-                      <p><strong>Name:</strong> {session.user_name}</p>
-                      <p><strong>CNIC:</strong> {session.cnic || 'N/A'}</p>
-                      <p><strong>Designation:</strong> {session.designation_name || 'N/A'}</p>
-                      <p><strong>Office:</strong> {session.office_name || 'N/A'}</p>
-                      <p><strong>Wing:</strong> {session.wing_name || 'N/A'}</p>
-                      {session.branch_name && <p><strong>Branch:</strong> {session.branch_name}</p>}
+                  <div className="space-y-2 bg-white p-3 rounded border">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Name:</span>
+                      <span className="text-gray-900">{session.user_name || 'Not available'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">CNIC:</span>
+                      <span className="text-gray-900">{session.cnic || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Designation:</span>
+                      <span className="text-gray-900">{session.designation_name || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Office:</span>
+                      <span className="text-gray-900">{session.office_name || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Wing:</span>
+                      <span className="text-gray-900">{session.wing_name || 'N/A'}</span>
+                    </div>
+                    {session.branch_name && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-700">Branch:</span>
+                        <span className="text-gray-900">{session.branch_name}</span>
+                      </div>
+                    )}
+                    <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
+                      <p className="text-sm text-green-700">
+                        ✅ <strong>Personal Request:</strong> This request is being created for your own use.
+                      </p>
                     </div>
                   </div>
                 )}
