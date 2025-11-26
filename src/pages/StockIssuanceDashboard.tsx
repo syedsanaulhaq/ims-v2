@@ -315,11 +315,11 @@ export function StockIssuanceDashboard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate('/stock-issuance-personal')} variant="default">
+          <Button onClick={() => navigate('/dashboard/stock-issuance-personal')} variant="default">
             <Plus className="h-4 w-4 mr-2" />
             Personal Request
           </Button>
-          <Button onClick={() => navigate('/stock-issuance-wing')} variant="outline">
+          <Button onClick={() => navigate('/dashboard/stock-issuance-wing')} variant="outline">
             <Plus className="h-4 w-4 mr-2" />
             Wing Request
           </Button>
@@ -460,7 +460,7 @@ export function StockIssuanceDashboard() {
               <p className="text-muted-foreground mb-4">
                 No personal stock issuance requests match your current filters.
               </p>
-              <Button onClick={() => navigate('/stock-issuance-personal')}>
+              <Button onClick={() => navigate('/dashboard/stock-issuance-personal')}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Personal Request
               </Button>
@@ -533,7 +533,7 @@ export function StockIssuanceDashboard() {
               <p className="text-muted-foreground mb-4">
                 No organizational stock issuance requests match your current filters.
               </p>
-              <Button onClick={() => navigate('/stock-issuance-wing')}>
+              <Button onClick={() => navigate('/dashboard/stock-issuance-wing')}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Wing Request
               </Button>
