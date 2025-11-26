@@ -118,14 +118,6 @@ const UserProfileDropdown: React.FC = () => {
         {/* Menu Items */}
         <div className="py-2">
           <DropdownMenuItem
-            onClick={() => handleMenuItemClick('/user-profile')}
-            className="cursor-pointer"
-          >
-            <User className="h-4 w-4 mr-2" />
-            My Profile
-          </DropdownMenuItem>
-          
-          <DropdownMenuItem
             onClick={() => handleMenuItemClick('/dashboard')}
             className="cursor-pointer"
           >
@@ -142,21 +134,6 @@ const UserProfileDropdown: React.FC = () => {
               Admin Settings
             </DropdownMenuItem>
           )}
-        </div>
-
-        <DropdownMenuSeparator />
-        
-        {/* Logout */}
-        <div className="p-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

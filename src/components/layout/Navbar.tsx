@@ -7,7 +7,7 @@ import UserInfo from "@/components/common/UserInfo";
 import NotificationDropdown from "@/components/ui/NotificationDropdown";
 import UserProfileDropdown from "@/components/ui/UserProfileDropdown";
 import { 
-  Download,
+  ArrowLeft,
   Bell,
   Mail,
   Moon,
@@ -17,11 +17,8 @@ import {
 const Navbar = () => {
   const { toast } = useToast();
 
-  const handleExportData = () => {
-    toast({
-      title: "Export Started",
-      description: "Preparing comprehensive data export... Please check Reports section for detailed exports."
-    });
+  const handleBackToDS = () => {
+    window.location.href = 'http://ds.ecp.gov.pk';
   };
 
   return (
@@ -53,13 +50,13 @@ const Navbar = () => {
             <Moon className="w-5 h-5" />
           </button>
 
-          {/* Export Button */}
+          {/* Back to DS Button */}
           <Button 
-            onClick={handleExportData} 
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm"
+            onClick={handleBackToDS} 
+            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 text-sm"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Export Data
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to DS
           </Button>
 
           {/* User Profile Dropdown */}
