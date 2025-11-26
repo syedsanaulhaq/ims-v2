@@ -52,7 +52,7 @@ interface IssuanceItem {
 }
 
 const StockIssuancePersonal: React.FC = () => {
-  const { session } = useSession();
+  const { user } = useSession();
   const navigate = useNavigate();
   
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -75,10 +75,10 @@ const StockIssuancePersonal: React.FC = () => {
   const [isReturnable, setIsReturnable] = useState(true);
 
   // Automatically set from logged-in user session
-  const selectedOfficeId = session?.office_id?.toString() || '';
-  const selectedWingId = session?.wing_id?.toString() || '';
-  const selectedBranchId = session?.branch_id?.toString() || '';
-  const selectedUserId = session?.user_id || '';
+  const selectedOfficeId = user?.office_id?.toString() || '';
+  const selectedWingId = user?.wing_id?.toString() || '';
+  const selectedBranchId = user?.branch_id?.toString() || '';
+  const selectedUserId = user?.user_id || '';
 
   useEffect(() => {
     fetchInitialData();
@@ -116,7 +116,7 @@ const StockIssuancePersonal: React.FC = () => {
 
       console.log('✅ Personal stock issuance form data loaded successfully');
       console.log('👤 Using session data:', { 
-        user: session?.user_name, 
+        user: user?.user_name, 
         office: selectedOfficeId, 
         wing: selectedWingId 
       });
@@ -277,7 +277,7 @@ const StockIssuancePersonal: React.FC = () => {
         // Don't fail the entire submission if approval fails
       }
 
-      const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${session?.user_name}!`;
+      const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${user?.user_name}!`;
       
       setSuccess(successMessage);
       
@@ -348,15 +348,15 @@ const StockIssuancePersonal: React.FC = () => {
                 <div className="space-y-2 bg-white p-3 rounded border">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-700">Name:</span>
-                    <span className="text-gray-900">{session?.user_name || 'Not available'}</span>
+                    <span className="text-gray-900">{user?.user_name || 'Not available'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-700">Email:</span>
-                    <span className="text-gray-900">{session?.email || 'Not available'}</span>
+                    <span className="text-gray-900">{user?.email || 'Not available'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-700">Role:</span>
-                    <span className="text-gray-900">{session?.role || 'Not available'}</span>
+                    <span className="text-gray-900">{user?.role || 'Not available'}</span>
                   </div>
                   <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
                     <p className="text-sm text-green-700">
