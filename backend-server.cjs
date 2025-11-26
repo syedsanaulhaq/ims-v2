@@ -7379,11 +7379,28 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
 
     console.log('✅ Token generated successfully');
 
+    // Store user in session for IMS
+    req.session.userId = user.Id;
+    req.session.user = {
+      Id: user.Id,
+      FullName: user.FullName,
+      UserName: user.UserName,
+      Email: user.Email,
+      Role: user.Role,
+      intOfficeID: user.intOfficeID,
+      intWingID: user.intWingID,
+      intBranchID: user.intBranchID,
+      intDesignationID: user.intDesignationID
+    };
+    
+    console.log('✅ Session created for user:', user.FullName);
+
     // Return token (same format as EMCC API)
     res.status(200).json({
       Token: token, // Capital 'T' to match DS's TokenResponse class
       success: true,
-      message: 'Authentication successful'
+      message: 'Authentication successful',
+      user: req.session.user
     });
 
   } catch (error) {
