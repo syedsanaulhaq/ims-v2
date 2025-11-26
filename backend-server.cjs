@@ -264,6 +264,198 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// ============================================================================
+// SSO Login Endpoint - Receives JWT token from Digital System
+// ============================================================================
+app.get('/sso-login', async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    console.log('🔐 SSO Login attempt received');
+    console.log('📝 Token:', token ? 'Present' : 'Missing');
+
+    if (!token) {
+      console.error('❌ SSO Login failed: No token provided');
+      return res.status(400).send(`
+        <html>
+          <head><title>SSO Login Failed</title></head>
+          <body style="font-family: Arial; padding: 50px; text-align: center;">
+            <h1 style="color: #dc2626;">❌ Login Failed</h1>
+            <p>No authentication token provided.</p>
+            <p><a href="http://172.20.150.34/Account/Login">Return to Digital System Login</a></p>
+          </body>
+        </html>
+      `);
+    }
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET, {
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE
+      });
+      console.log('✅ JWT token verified successfully');
+      console.log('👤 User from token:', decoded.full_name, '(', decoded.unique_name, ')');
+    } catch (jwtError) {
+      console.error('❌ JWT verification failed:', jwtError.message);
+      return res.status(401).send(`
+        <html>
+          <head><title>SSO Login Failed</title></head>
+          <body style="font-family: Arial; padding: 50px; text-align: center;">
+            <h1 style="color: #dc2626;">❌ Authentication Failed</h1>
+            <p>Invalid or expired token.</p>
+            <p>Error: ${jwtError.message}</p>
+            <p><a href="http://172.20.150.34/Account/Login">Return to Digital System Login</a></p>
+          </body>
+        </html>
+      `);
+    }
+
+    // Extract user information from JWT token
+    const userId = decoded.sub; // User ID from token
+    const userName = decoded.full_name;
+    const email = decoded.email;
+    const cnic = decoded.cnic || decoded.unique_name;
+    const officeId = decoded.office_id;
+    const wingId = decoded.wing_id;
+    const branchId = decoded.branch_id;
+    const designationId = decoded.designation_id;
+    const role = decoded.role || 'User';
+
+    // Optional: Verify user exists in database and is active
+    if (pool) {
+      try {
+        const result = await pool.request()
+          .input('userId', sql.NVarChar, userId)
+          .query(`
+            SELECT Id, FullName, Email, Role, ISACT 
+            FROM AspNetUsers 
+            WHERE Id = @userId
+          `);
+
+        if (result.recordset.length === 0) {
+          console.warn('⚠️ User not found in IMS database, proceeding with token data');
+        } else {
+          const dbUser = result.recordset[0];
+          if (!dbUser.ISACT) {
+            console.error('❌ User account is inactive');
+            return res.status(403).send(`
+              <html>
+                <head><title>Account Inactive</title></head>
+                <body style="font-family: Arial; padding: 50px; text-align: center;">
+                  <h1 style="color: #dc2626;">❌ Account Inactive</h1>
+                  <p>Your account has been deactivated.</p>
+                  <p>Please contact your administrator.</p>
+                </body>
+              </html>
+            `);
+          }
+          console.log('✅ User verified in database:', dbUser.FullName);
+        }
+      } catch (dbError) {
+        console.error('⚠️ Database verification error:', dbError.message);
+        // Continue with token data even if DB check fails
+      }
+    }
+
+    // Create session
+    req.session.userId = userId;
+    req.session.user = {
+      Id: userId,
+      FullName: userName,
+      UserName: cnic,
+      Email: email,
+      Role: role,
+      intOfficeID: officeId,
+      intWingID: wingId,
+      intBranchID: branchId,
+      intDesignationID: designationId,
+      sso_login: true // Mark this as SSO login
+    };
+
+    console.log('✅ Session created for user:', userName);
+    console.log('🔑 Session ID:', req.sessionID);
+
+    // Redirect to IMS application with success
+    const imsUrl = 'http://172.20.150.34'; // IMS frontend URL
+    
+    res.send(`
+      <html>
+        <head>
+          <title>Logging in...</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+            }
+            .login-box {
+              background: white;
+              padding: 40px;
+              border-radius: 10px;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+              text-align: center;
+              max-width: 400px;
+            }
+            .spinner {
+              border: 4px solid #f3f3f3;
+              border-top: 4px solid #0d9488;
+              border-radius: 50%;
+              width: 50px;
+              height: 50px;
+              animation: spin 1s linear infinite;
+              margin: 20px auto;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            h1 { color: #0d9488; margin-bottom: 10px; }
+            p { color: #666; }
+          </style>
+          <script>
+            // Store session info in sessionStorage
+            sessionStorage.setItem('sso_authenticated', 'true');
+            sessionStorage.setItem('user_name', '${userName}');
+            
+            // Redirect after a brief delay
+            setTimeout(function() {
+              window.location.href = '${imsUrl}';
+            }, 1500);
+          </script>
+        </head>
+        <body>
+          <div class="login-box">
+            <h1>✅ Login Successful</h1>
+            <p>Welcome, ${userName}!</p>
+            <div class="spinner"></div>
+            <p style="color: #0d9488; font-weight: bold;">Redirecting to IMS...</p>
+          </div>
+        </body>
+      </html>
+    `);
+
+  } catch (error) {
+    console.error('❌ SSO Login error:', error);
+    res.status(500).send(`
+      <html>
+        <head><title>SSO Login Error</title></head>
+        <body style="font-family: Arial; padding: 50px; text-align: center;">
+          <h1 style="color: #dc2626;">❌ Login Error</h1>
+          <p>An unexpected error occurred during login.</p>
+          <p>Error: ${error.message}</p>
+          <p><a href="http://172.20.150.34/Account/Login">Return to Digital System Login</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
 app.post('/api/auth/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) {
