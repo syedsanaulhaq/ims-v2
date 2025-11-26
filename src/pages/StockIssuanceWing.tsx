@@ -428,8 +428,9 @@ const StockIssuanceWing: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Request Form */}
-          <Card>
+          {/* Left Column: Request Form */}
+          <div className="space-y-6">
+            <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5" />
@@ -640,9 +641,13 @@ const StockIssuanceWing: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+          </div>
+          {/* End Left Column */}
 
-          {/* Stock Availability Checker - NEW FEATURE */}
-          <Card className="border-blue-200 bg-blue-50/30">
+          {/* Right Column: Stock Availability & Item Selection */}
+          <div className="space-y-6">
+            {/* Stock Availability Checker - NEW FEATURE */}
+            <Card className="border-blue-200 bg-blue-50/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-700">
                 <Search className="w-5 h-5" />
@@ -868,6 +873,8 @@ const StockIssuanceWing: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+          </div>
+          {/* End Right Column */}
         </div>
       </div>
     </div>

@@ -329,149 +329,153 @@ const StockIssuancePersonal: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Request Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Personal Stock Request Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Display Logged-in User Information */}
-              <div className="space-y-4 border-2 border-blue-200 p-4 rounded-lg bg-blue-50">
-                <h3 className="font-semibold text-blue-800 flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Request For (Current User)
-                </h3>
-                
-                <div className="space-y-2 bg-white p-3 rounded border">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-700">Name:</span>
-                    <span className="text-gray-900">{user?.user_name || 'Not available'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-700">Email:</span>
-                    <span className="text-gray-900">{user?.email || 'Not available'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-700">Role:</span>
-                    <span className="text-gray-900">{user?.role || 'Not available'}</span>
-                  </div>
-                  <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
-                    <p className="text-sm text-green-700">
-                      ✅ <strong>Personal Request:</strong> This request is being created for your own use.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Purpose and Urgency */}
-              <div>
-                <Label htmlFor="purpose">Purpose *</Label>
-                <Textarea
-                  id="purpose"
-                  value={purpose}
-                  onChange={(e) => setPurpose(e.target.value)}
-                  placeholder="Explain why these items are needed"
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="urgency">Urgency Level</Label>
-                  <Select value={urgencyLevel} onValueChange={(value: 'Low' | 'Normal' | 'High' | 'Critical') => setUrgencyLevel(value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Normal">Normal</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Critical">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {requestType === 'Individual' && (
-                  <div>
-                    <Label htmlFor="returnDate">Expected Return Date</Label>
-                    <Input
-                      id="returnDate"
-                      type="date"
-                      value={expectedReturnDate}
-                      onChange={(e) => setExpectedReturnDate(e.target.value)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Justification */}
-              <div>
-                <Label htmlFor="justification">Additional Justification</Label>
-                <Textarea
-                  id="justification"
-                  value={justification}
-                  onChange={(e) => setJustification(e.target.value)}
-                  placeholder="Any additional context or justification"
-                  rows={2}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stock Availability Checker - NEW FEATURE */}
-          <Card className="border-blue-200 bg-blue-50/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-700">
-                <Search className="w-5 h-5" />
-                Check Stock Availability
-              </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Search for items and check their real-time availability before adding to your request
-              </p>
-            </CardHeader>
-            <CardContent>
-              <StockAvailabilityChecker
-                selectedItems={issuanceItems.map(item => ({
-                  item_master_id: item.inventory_id,
-                  requested_quantity: item.requested_quantity
-                }))}
-                onItemSelect={(item) => {
-                  // Add selected item to issuance list
-                  const newItem: IssuanceItem = {
-                    inventory_id: item.item_master_id,
-                    inventory_intOfficeID: item.item_master_id,
-                    nomenclature: item.nomenclature,
-                    requested_quantity: 1,
-                    available_stock: item.available_quantity,
-                    unit_price: item.unit_price || 0,
-                    item_type: 'inventory'
-                  };
+          {/* Left Column: Request Form */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Personal Stock Request Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Display Logged-in User Information */}
+                <div className="space-y-4 border-2 border-blue-200 p-4 rounded-lg bg-blue-50">
+                  <h3 className="font-semibold text-blue-800 flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Request For (Current User)
+                  </h3>
                   
-                  // Check if already added
-                  const existing = issuanceItems.find(i => i.inventory_id === item.item_master_id);
-                  if (!existing) {
-                    setIssuanceItems([...issuanceItems, newItem]);
-                    setSuccess(`✅ ${item.nomenclature} added to request`);
-                    setTimeout(() => setSuccess(''), 3000);
-                  } else {
-                    setError('Item already added to issuance list');
-                    setTimeout(() => setError(''), 3000);
-                  }
-                }}
-                onAvailabilityCheck={(result) => {
-                  // Show availability feedback
-                  if (!result.can_fulfill) {
-                    setError(`⚠️ Only ${result.available_quantity} units available for ${result.nomenclature}`);
-                    setTimeout(() => setError(''), 5000);
-                  }
-                }}
-              />
-            </CardContent>
-          </Card>
+                  <div className="space-y-2 bg-white p-3 rounded border">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Name:</span>
+                      <span className="text-gray-900">{user?.user_name || 'Not available'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Email:</span>
+                      <span className="text-gray-900">{user?.email || 'Not available'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Role:</span>
+                      <span className="text-gray-900">{user?.role || 'Not available'}</span>
+                    </div>
+                    <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
+                      <p className="text-sm text-green-700">
+                        ✅ <strong>Personal Request:</strong> This request is being created for your own use.
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-          {/* Items Selection */}
+                {/* Purpose and Urgency */}
+                <div>
+                  <Label htmlFor="purpose">Purpose *</Label>
+                  <Textarea
+                    id="purpose"
+                    value={purpose}
+                    onChange={(e) => setPurpose(e.target.value)}
+                    placeholder="Explain why these items are needed"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="urgency">Urgency Level</Label>
+                    <Select value={urgencyLevel} onValueChange={(value: 'Low' | 'Normal' | 'High' | 'Critical') => setUrgencyLevel(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Normal">Normal</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {requestType === 'Individual' && (
+                    <div>
+                      <Label htmlFor="returnDate">Expected Return Date</Label>
+                      <Input
+                        id="returnDate"
+                        type="date"
+                        value={expectedReturnDate}
+                        onChange={(e) => setExpectedReturnDate(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Justification */}
+                <div>
+                  <Label htmlFor="justification">Additional Justification</Label>
+                  <Textarea
+                    id="justification"
+                    value={justification}
+                    onChange={(e) => setJustification(e.target.value)}
+                    placeholder="Any additional context or justification"
+                    rows={2}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column: Stock Availability & Item Selection */}
+          <div className="space-y-6">
+            {/* Stock Availability Checker */}
+            <Card className="border-blue-200 bg-blue-50/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-700">
+                  <Search className="w-5 h-5" />
+                  Check Stock Availability
+                </CardTitle>
+                <p className="text-sm text-gray-600 mt-1">
+                  Search for items and check their real-time availability before adding to your request
+                </p>
+              </CardHeader>
+              <CardContent>
+                <StockAvailabilityChecker
+                  selectedItems={issuanceItems.map(item => ({
+                    item_master_id: item.inventory_id,
+                    requested_quantity: item.requested_quantity
+                  }))}
+                  onItemSelect={(item) => {
+                    // Add selected item to issuance list
+                    const newItem: IssuanceItem = {
+                      inventory_id: item.item_master_id,
+                      inventory_intOfficeID: item.item_master_id,
+                      nomenclature: item.nomenclature,
+                      requested_quantity: 1,
+                      available_stock: item.available_quantity,
+                      unit_price: item.unit_price || 0,
+                      item_type: 'inventory'
+                    };
+                    
+                    // Check if already added
+                    const existing = issuanceItems.find(i => i.inventory_id === item.item_master_id);
+                    if (!existing) {
+                      setIssuanceItems([...issuanceItems, newItem]);
+                      setSuccess(`✅ ${item.nomenclature} added to request`);
+                      setTimeout(() => setSuccess(''), 3000);
+                    } else {
+                      setError('Item already added to issuance list');
+                      setTimeout(() => setError(''), 3000);
+                    }
+                  }}
+                  onAvailabilityCheck={(result) => {
+                    // Show availability feedback
+                    if (!result.can_fulfill) {
+                      setError(`⚠️ Only ${result.available_quantity} units available for ${result.nomenclature}`);
+                      setTimeout(() => setError(''), 5000);
+                    }
+                  }}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Items Selection */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -647,6 +651,8 @@ const StockIssuancePersonal: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+          </div>
+          {/* End Right Column */}
         </div>
       </div>
     </div>
