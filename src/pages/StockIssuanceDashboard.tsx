@@ -298,10 +298,16 @@ export function StockIssuanceDashboard() {
             Manage stock issuance requests through organizational hierarchy
           </p>
         </div>
-        <Button onClick={() => navigate('/stock-issuance')}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Request
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/stock-issuance-personal')} variant="default">
+            <Plus className="h-4 w-4 mr-2" />
+            Personal Request
+          </Button>
+          <Button onClick={() => navigate('/stock-issuance-wing')} variant="outline">
+            <Plus className="h-4 w-4 mr-2" />
+            Wing Request
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -418,12 +424,12 @@ export function StockIssuanceDashboard() {
         </CardContent>
       </Card>
 
-      {/* Requests Table */}
+      {/* Personal Requests Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Stock Issuance Requests</CardTitle>
+          <CardTitle>Personal Requests (Individual)</CardTitle>
           <CardDescription>
-            Overview of all stock issuance requests with hierarchical organization
+            Stock issuance requests for individual use
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -431,16 +437,89 @@ export function StockIssuanceDashboard() {
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
-          ) : (!requests || requests.length === 0) ? (
+          ) : (!requests || requests.filter(r => r.request_type === 'Individual').length === 0) ? (
             <div className="text-center py-8">
               <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No requests found</h3>
+              <h3 className="text-lg font-semibold mb-2">No personal requests found</h3>
               <p className="text-muted-foreground mb-4">
-                No stock issuance requests match your current filters.
+                No personal stock issuance requests match your current filters.
               </p>
-              <Button onClick={() => navigate('/stock-issuance')}>
+              <Button onClick={() => navigate('/stock-issuance-personal')}>
                 <Plus className="h-4 w-4 mr-2" />
-                Create First Request
+                Create Personal Request
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Request #</TableHead>
+                    <TableHead>Requester</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Urgency</TableHead>
+                    <TableHead>Purpose</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requests
+                    .filter(r => r.request_type === 'Individual')
+                    .filter(req => 
+                      !searchTerm || 
+                      req.request_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      req.purpose.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((request) => (
+                      <TableRow key={request.id}>
+                        <TableCell className="font-medium">{request.request_number}</TableCell>
+                        <TableCell>{request.requester.full_name}</TableCell>
+                        <TableCell>{getStatusBadge(request.request_status)}</TableCell>
+                        <TableCell>{getUrgencyBadge(request.urgency_level)}</TableCell>
+                        <TableCell className="max-w-xs truncate">{request.purpose}</TableCell>
+                        <TableCell>{format(new Date(request.submitted_at), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/stock-issuance/${request.id}`)}
+                          >
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Wing Requests Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Wing Requests (Organizational)</CardTitle>
+          <CardDescription>
+            Stock issuance requests for organizational/department use
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : (!requests || requests.filter(r => r.request_type === 'Organizational').length === 0) ? (
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No wing requests found</h3>
+              <p className="text-muted-foreground mb-4">
+                No organizational stock issuance requests match your current filters.
+              </p>
+              <Button onClick={() => navigate('/stock-issuance-wing')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Wing Request
               </Button>
             </div>
           ) : (
@@ -460,7 +539,14 @@ export function StockIssuanceDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(requests || []).map((request) => (
+                  {(requests || [])
+                    .filter(r => r.request_type === 'Organizational')
+                    .filter(req => 
+                      !searchTerm || 
+                      req.request_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      req.purpose.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((request) => (
                     <TableRow key={request.id}>
                       <TableCell className="font-medium">
                         {request.request_number}
