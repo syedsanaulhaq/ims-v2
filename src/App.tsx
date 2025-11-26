@@ -44,6 +44,8 @@ import ApprovalManagement from "./pages/ApprovalManagement";
 import StockIssuanceProcessing from "./pages/StockIssuanceProcessing";
 import { StockIssuanceDashboard } from "./pages/StockIssuanceDashboard";
 import MyIssuedItems from "./pages/MyIssuedItems";
+import PersonalInventory from "./pages/PersonalInventory";
+import WingInventory from "./pages/WingInventory";
 import ExpandableReceivingForm from "./pages/ExpandableReceivingForm";
 import IntegratedStockAcquisition from "./pages/IntegratedStockAcquisition";
 import StockTransactionList from "./pages/StockTransactionList";
@@ -164,6 +166,8 @@ function App() {
                   <Route path="stock-issuance-dashboard" element={<StockIssuanceDashboard />} />
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="my-issued-items" element={<MyIssuedItems />} />
+                  <Route path="personal-inventory" element={<PersonalInventory />} />
+                  <Route path="wing-inventory" element={<WingInventory />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />

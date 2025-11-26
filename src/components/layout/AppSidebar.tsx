@@ -103,6 +103,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
         { title: "Wing Request", path: "/dashboard/stock-issuance-wing" },
         { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard" },
         { title: "My Issued Items", path: "/dashboard/my-issued-items" },
+        { title: "IMS-Personal", path: "/dashboard/personal-inventory" },
+        { title: "IMS-Wing", path: "/dashboard/wing-inventory" },
         { title: "Stock Returns", path: "/dashboard/stock-return" },
         { title: "Issue Processing", path: "/dashboard/stock-issuance-processing" },
         { title: "Historical Issuances", path: "/dashboard/issuances" }

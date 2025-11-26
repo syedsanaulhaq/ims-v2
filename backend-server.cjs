@@ -7143,6 +7143,170 @@ app.get('/api/issued-items/user/:userId', async (req, res) => {
   }
 });
 
+// ============================================================================
+// Personal Inventory API - IMS-Personal Page
+// ============================================================================
+app.get('/api/personal-inventory/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status, is_returnable, from_date, to_date } = req.query;
+
+    console.log('📦 Fetching personal inventory for user:', userId);
+
+    let query = `
+      SELECT * FROM vw_UserIssuedItemsHistory
+      WHERE issued_to_user_id = @userId
+    `;
+
+    const request = pool.request().input('userId', sql.UniqueIdentifier, userId);
+
+    if (status) {
+      query += ` AND status = @status`;
+      request.input('status', sql.NVarChar, status);
+    }
+
+    if (is_returnable !== undefined) {
+      query += ` AND is_returnable = @is_returnable`;
+      request.input('is_returnable', sql.Bit, is_returnable === 'true' ? 1 : 0);
+    }
+
+    if (from_date) {
+      query += ` AND issued_at >= @from_date`;
+      request.input('from_date', sql.Date, from_date);
+    }
+
+    if (to_date) {
+      query += ` AND issued_at <= @to_date`;
+      request.input('to_date', sql.Date, to_date);
+    }
+
+    query += ` ORDER BY issued_at DESC`;
+
+    const result = await request.query(query);
+
+    // Calculate summary statistics
+    const summary = {
+      total_items: result.recordset.length,
+      total_value: result.recordset.reduce((sum, item) => sum + (item.total_value || 0), 0),
+      returnable_items: result.recordset.filter(i => i.is_returnable).length,
+      not_returned: result.recordset.filter(i => i.is_returnable && i.return_status === 'Not Returned').length,
+      overdue: result.recordset.filter(i => i.current_return_status === 'Overdue').length
+    };
+
+    console.log('✅ Personal inventory fetched successfully:', {
+      items: result.recordset.length,
+      total_value: summary.total_value
+    });
+
+    res.json({
+      items: result.recordset,
+      summary: summary
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching personal inventory:', error);
+    res.status(500).json({ error: 'Failed to fetch personal inventory', details: error.message });
+  }
+});
+
+// ============================================================================
+// Wing Inventory API - IMS-Wing Page
+// ============================================================================
+app.get('/api/wing-inventory/:wingId', async (req, res) => {
+  try {
+    const { wingId } = req.params;
+    const { status, is_returnable, from_date, to_date } = req.query;
+
+    console.log('🏢 Fetching wing inventory for wing:', wingId);
+
+    // Query to get all issued items for users in this wing
+    let itemsQuery = `
+      SELECT 
+        l.*,
+        u.FullName as issued_to_name,
+        u.Id as issued_to_id
+      FROM vw_UserIssuedItemsHistory l
+      INNER JOIN AspNetUsers u ON l.issued_to_user_id = u.Id
+      WHERE u.intWingID = @wingId
+    `;
+
+    const request = pool.request().input('wingId', sql.Int, wingId);
+
+    if (status) {
+      itemsQuery += ` AND l.status = @status`;
+      request.input('status', sql.NVarChar, status);
+    }
+
+    if (is_returnable !== undefined) {
+      itemsQuery += ` AND l.is_returnable = @is_returnable`;
+      request.input('is_returnable', sql.Bit, is_returnable === 'true' ? 1 : 0);
+    }
+
+    if (from_date) {
+      itemsQuery += ` AND l.issued_at >= @from_date`;
+      request.input('from_date', sql.Date, from_date);
+    }
+
+    if (to_date) {
+      itemsQuery += ` AND l.issued_at <= @to_date`;
+      request.input('to_date', sql.Date, to_date);
+    }
+
+    itemsQuery += ` ORDER BY l.issued_at DESC`;
+
+    const itemsResult = await request.query(itemsQuery);
+
+    // Calculate summary statistics
+    const summary = {
+      total_items: itemsResult.recordset.length,
+      total_value: itemsResult.recordset.reduce((sum, item) => sum + (item.total_value || 0), 0),
+      unique_users: new Set(itemsResult.recordset.map(i => i.issued_to_id)).size,
+      returnable_items: itemsResult.recordset.filter(i => i.is_returnable).length,
+      not_returned: itemsResult.recordset.filter(i => i.is_returnable && i.return_status === 'Not Returned').length,
+      overdue: itemsResult.recordset.filter(i => i.current_return_status === 'Overdue').length
+    };
+
+    // Calculate user breakdown
+    const userMap = new Map();
+    itemsResult.recordset.forEach(item => {
+      const userId = item.issued_to_id;
+      if (!userMap.has(userId)) {
+        userMap.set(userId, {
+          user_id: userId,
+          user_name: item.issued_to_name,
+          items_count: 0,
+          total_value: 0,
+          overdue_count: 0
+        });
+      }
+      const userStats = userMap.get(userId);
+      userStats.items_count++;
+      userStats.total_value += item.total_value || 0;
+      if (item.current_return_status === 'Overdue') {
+        userStats.overdue_count++;
+      }
+    });
+
+    const userBreakdown = Array.from(userMap.values()).sort((a, b) => b.total_value - a.total_value);
+
+    console.log('✅ Wing inventory fetched successfully:', {
+      items: itemsResult.recordset.length,
+      total_value: summary.total_value,
+      unique_users: summary.unique_users
+    });
+
+    res.json({
+      items: itemsResult.recordset,
+      summary: summary,
+      userBreakdown: userBreakdown
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching wing inventory:', error);
+    res.status(500).json({ error: 'Failed to fetch wing inventory', details: error.message });
+  }
+});
+
 // 6. GET ALL ISSUED ITEMS (With filters)
 app.get('/api/issued-items', async (req, res) => {
   try {
