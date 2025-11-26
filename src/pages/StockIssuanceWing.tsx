@@ -437,20 +437,8 @@ const StockIssuanceWing: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Request Type */}
-              <div>
-                <Label htmlFor="requestType">Request Type *</Label>
-                <Select value={requestType} onValueChange={(value: 'Individual' | 'Organizational') => setRequestType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Individual">Individual (Personal Use)</SelectItem>
-                    <SelectItem value="Organizational">Organizational (Department Use)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
+              {/* Request Type - Hidden (always Organizational for Wing requests) */}
+              
               {/* Hierarchical User Selection */}
               <div className="space-y-4 border-2 border-blue-200 p-4 rounded-lg bg-blue-50">
                 <h3 className="font-semibold text-blue-800 flex items-center gap-2">
