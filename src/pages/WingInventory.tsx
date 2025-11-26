@@ -78,7 +78,7 @@ export default function WingInventory() {
   const [selectedUser, setSelectedUser] = useState<string>('all');
 
   useEffect(() => {
-    if (user?.intWingID) {
+    if (user?.wing_id) {
       fetchWingInventory();
     }
   }, [user]);
@@ -92,7 +92,7 @@ export default function WingInventory() {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`http://localhost:3001/api/wing-inventory/${user?.intWingID}`, {
+      const response = await fetch(`http://localhost:3001/api/wing-inventory/${user?.wing_id}`, {
         credentials: 'include'
       });
       

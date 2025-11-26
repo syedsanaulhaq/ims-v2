@@ -64,7 +64,7 @@ export default function PersonalInventory() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   useEffect(() => {
-    if (user?.Id) {
+    if (user?.user_id) {
       fetchPersonalInventory();
     }
   }, [user]);
@@ -78,7 +78,7 @@ export default function PersonalInventory() {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`http://localhost:3001/api/personal-inventory/${user?.Id}`, {
+      const response = await fetch(`http://localhost:3001/api/personal-inventory/${user?.user_id}`, {
         credentials: 'include'
       });
       
