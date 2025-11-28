@@ -147,6 +147,10 @@ async function initializeDatabase() {
 
 // API Routes
 
+// ============================================================================
+// IMS ROLE & PERMISSION MIDDLEWARE
+// ============================================================================
+
 // Authentication middleware
 const requireAuth = (req, res, next) => {
   if (req.session && req.session.userId) {
@@ -155,6 +159,127 @@ const requireAuth = (req, res, next) => {
     res.status(401).json({ error: 'Authentication required' });
   }
 };
+
+// Permission checking middleware - checks IMS permissions
+const requirePermission = (permissionKey) => {
+  return (req, res, next) => {
+    // Handle async operations properly in Express middleware
+    const checkPermission = async () => {
+      try {
+        if (!req.session || !req.session.userId) {
+          return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        if (!pool) {
+          console.warn('⚠️  Permission check skipped - no database connection');
+          return next(); // Allow in development mode
+        }
+
+        // Check if user has the required permission
+        const result = await pool.request()
+          .input('userId', sql.NVarChar(450), req.session.userId)
+          .input('permissionKey', sql.NVarChar(100), permissionKey)
+          .query('SELECT dbo.fn_HasPermission(@userId, @permissionKey) as hasPermission');
+
+        const hasPermission = result.recordset[0]?.hasPermission === 1;
+
+        if (hasPermission) {
+          console.log(`✅ Permission granted: ${permissionKey} for user ${req.session.userId}`);
+          next();
+        } else {
+          console.log(`❌ Permission denied: ${permissionKey} for user ${req.session.userId}`);
+          res.status(403).json({
+            error: 'Permission denied',
+            required_permission: permissionKey,
+            message: 'You do not have permission to perform this action'
+          });
+        }
+      } catch (error) {
+        console.error('Error checking permission:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Permission check failed' });
+        }
+      }
+    };
+
+    checkPermission();
+  };
+};
+
+// Check if user is Super Admin
+const requireSuperAdmin = (req, res, next) => {
+  // Handle async operations properly in Express middleware
+  const checkSuperAdmin = async () => {
+    try {
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!pool) {
+        console.warn('⚠️  Super admin check skipped - no database connection');
+        return next(); // Allow in development mode
+      }
+
+      const result = await pool.request()
+        .input('userId', sql.NVarChar(450), req.session.userId)
+        .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
+
+      const isSuperAdmin = result.recordset[0]?.isSuperAdmin === 1;
+
+      if (isSuperAdmin) {
+        console.log(`✅ Super Admin access granted for user ${req.session.userId}`);
+        next();
+      } else {
+        console.log(`❌ Super Admin access denied for user ${req.session.userId}`);
+        res.status(403).json({
+          error: 'Super Admin access required',
+          message: 'Only Super Administrators can perform this action'
+        });
+      }
+    } catch (error) {
+      console.error('Error checking super admin status:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Authorization check failed' });
+      }
+    }
+  };
+
+  checkSuperAdmin();
+};// Get user's IMS roles and permissions
+async function getUserImsData(userId) {
+  if (!pool) return null;
+
+  try {
+    // Get roles
+    const rolesResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query('SELECT * FROM dbo.fn_GetUserRoles(@userId)');
+
+    // Get permissions
+    const permsResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT DISTINCT permission_key, module_name, action_name, description
+        FROM vw_ims_user_permissions
+        WHERE user_id = @userId
+        ORDER BY module_name, action_name
+      `);
+
+    // Check if super admin
+    const superAdminResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
+
+    return {
+      roles: rolesResult.recordset,
+      permissions: permsResult.recordset,
+      is_super_admin: superAdminResult.recordset[0]?.isSuperAdmin === 1
+    };
+  } catch (error) {
+    console.error('Error getting user IMS data:', error);
+    return null;
+  }
+}
 
 // Authentication endpoints
 app.post('/api/auth/login', async (req, res) => {
@@ -241,6 +366,14 @@ app.post('/api/auth/login', async (req, res) => {
       intBranchID: user.intBranchID,
       intDesignationID: user.intDesignationID
     };
+
+    // Get IMS roles and permissions
+    const imsData = await getUserImsData(user.Id);
+    if (imsData) {
+      req.session.user.ims_roles = imsData.roles;
+      req.session.user.ims_permissions = imsData.permissions;
+      req.session.user.is_super_admin = imsData.is_super_admin;
+    }
 
     // Update last login time
     await pool.request()
@@ -496,27 +629,38 @@ app.get('/api/session', async (req, res) => {
       });
     }
     
-    // Try to get the current logged-in user from AspNetUsers
-    // For development, we'll check if there's a user with CNIC 1111111111111 (Simple Test User)
+    // Try to get the actual logged-in user from AspNetUsers
+    // Priority: CNIC 1730115698727 (Syed Sana ul Haq Fazli) -> then fallback to test user
     if (pool) {
       const result = await pool.request().query(`
-        SELECT Id, FullName, Email, CNIC 
+        SELECT TOP 1 Id, FullName, Email, CNIC, Role, intOfficeID, intWingID, intBranchID
         FROM AspNetUsers 
-        WHERE CNIC = '1111111111111'
+        WHERE CNIC = '1730115698727' AND ISACT = 1
       `);
       
       if (result.recordset.length > 0) {
         const user = result.recordset[0];
+        
+        // Get IMS roles and permissions
+        const imsData = await getUserImsData(user.Id);
+        
         const sessionUser = {
           user_id: user.Id,
           user_name: user.FullName,
           email: user.Email,
-          role: 'User',
-          office_id: 583,
-          wing_id: 19,
-          created_at: new Date().toISOString()
+          role: user.Role || 'User', // Legacy role for compatibility
+          office_id: user.intOfficeID || 583,
+          wing_id: user.intWingID || 19,
+          branch_id: user.intBranchID || null,
+          created_at: new Date().toISOString(),
+          // IMS Role System Data
+          ims_roles: imsData?.roles || [],
+          ims_permissions: imsData?.permissions || [],
+          is_super_admin: imsData?.is_super_admin || false
         };
         
+        console.log('🔐 Session: Returning real user:', sessionUser.user_name, '(', sessionUser.user_id, ')');
+        console.log('🎭 IMS Roles:', sessionUser.ims_roles.length, 'roles,', sessionUser.ims_permissions.length, 'permissions');
         return res.json({
           success: true,
           session: sessionUser,
@@ -565,6 +709,443 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     res.status(500).json({ error: 'File upload failed' });
   }
 });
+
+// ============================================================================
+// IMS ROLE & PERMISSION API ENDPOINTS
+// ============================================================================
+
+// Check if user has a specific permission
+app.get('/api/ims/check-permission', requireAuth, async (req, res) => {
+  try {
+    const { permission } = req.query;
+
+    if (!permission) {
+      return res.status(400).json({ error: 'Permission key is required' });
+    }
+
+    if (!pool) {
+      return res.json({ hasPermission: true }); // Allow in dev mode
+    }
+
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), req.session.userId)
+      .input('permissionKey', sql.NVarChar(100), permission)
+      .query('SELECT dbo.fn_HasPermission(@userId, @permissionKey) as hasPermission');
+
+    res.json({ 
+      hasPermission: result.recordset[0]?.hasPermission === 1,
+      permission: permission
+    });
+  } catch (error) {
+    console.error('Error checking permission:', error);
+    res.status(500).json({ error: 'Permission check failed' });
+  }
+});
+
+// Get current user's IMS roles
+app.get('/api/ims/my-roles', requireAuth, async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json({ roles: [], permissions: [], is_super_admin: false });
+    }
+
+    const imsData = await getUserImsData(req.session.userId);
+    
+    res.json({
+      roles: imsData?.roles || [],
+      permissions: imsData?.permissions || [],
+      is_super_admin: imsData?.is_super_admin || false
+    });
+  } catch (error) {
+    console.error('Error getting user roles:', error);
+    res.status(500).json({ error: 'Failed to retrieve roles' });
+  }
+});
+
+// Get all available IMS roles (Super Admin only)
+app.get('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json([]);
+    }
+
+    const result = await pool.request().query(`
+      SELECT 
+        role_id,
+        role_name,
+        display_name,
+        description,
+        is_system_role,
+        created_at,
+        (SELECT COUNT(*) FROM ims_user_roles WHERE role_id = r.role_id) as user_count,
+        (SELECT COUNT(*) FROM ims_role_permissions WHERE role_id = r.role_id) as permission_count
+      FROM ims_roles r
+      ORDER BY 
+        CASE 
+          WHEN role_name = 'IMS_SUPER_ADMIN' THEN 1
+          WHEN role_name = 'IMS_ADMIN' THEN 2
+          WHEN role_name = 'WING_SUPERVISOR' THEN 3
+          WHEN role_name = 'GENERAL_USER' THEN 4
+          ELSE 5
+        END,
+        display_name
+    `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error getting roles:', error);
+    res.status(500).json({ error: 'Failed to retrieve roles' });
+  }
+});
+
+// Get role details with permissions (Super Admin only)
+app.get('/api/ims/roles/:roleId', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { roleId } = req.params;
+
+    if (!pool) {
+      return res.json(null);
+    }
+
+    // Get role details
+    const roleResult = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT 
+          role_id,
+          role_name,
+          display_name,
+          description,
+          is_system_role,
+          created_at,
+          (SELECT COUNT(*) FROM ims_user_roles WHERE role_id = @roleId) as user_count
+        FROM ims_roles
+        WHERE role_id = @roleId
+      `);
+
+    if (roleResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+
+    // Get role permissions
+    const permsResult = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT 
+          p.permission_id,
+          p.permission_key,
+          p.module_name,
+          p.action_name,
+          p.description
+        FROM ims_role_permissions rp
+        INNER JOIN ims_permissions p ON rp.permission_id = p.permission_id
+        WHERE rp.role_id = @roleId
+        ORDER BY p.module_name, p.action_name
+      `);
+
+    res.json({
+      ...roleResult.recordset[0],
+      permissions: permsResult.recordset
+    });
+  } catch (error) {
+    console.error('Error getting role details:', error);
+    res.status(500).json({ error: 'Failed to retrieve role details' });
+  }
+});
+
+// Get all available permissions (Super Admin only)
+app.get('/api/ims/permissions', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    if (!pool) {
+      return res.json([]);
+    }
+
+    const result = await pool.request().query(`
+      SELECT 
+        permission_id,
+        permission_key,
+        module_name,
+        action_name,
+        description,
+        created_at
+      FROM ims_permissions
+      ORDER BY module_name, action_name
+    `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error getting permissions:', error);
+    res.status(500).json({ error: 'Failed to retrieve permissions' });
+  }
+});
+
+// Get users with their IMS roles
+app.get('/api/ims/users', requireAuth, requirePermission('users.manage'), async (req, res) => {
+  try {
+    const { search, wing_id, role_name } = req.query;
+
+    if (!pool) {
+      return res.json([]);
+    }
+
+    let query = `
+      SELECT DISTINCT
+        u.Id as user_id,
+        u.FullName as full_name,
+        u.Email,
+        u.CNIC,
+        u.intOfficeID as office_id,
+        u.intWingID as wing_id,
+        o.strOfficeName as office_name,
+        w.strWingName as wing_name,
+        dbo.fn_IsSuperAdmin(u.Id) as is_super_admin,
+        (
+          SELECT 
+            r.role_name,
+            r.display_name,
+            ur.scope_type,
+            ur.scope_wing_id
+          FROM ims_user_roles ur
+          INNER JOIN ims_roles r ON ur.role_id = r.role_id
+          WHERE ur.user_id = u.Id
+          FOR JSON PATH
+        ) as roles_json
+      FROM AspNetUsers u
+      LEFT JOIN tblOffice o ON u.intOfficeID = o.intOfficeID
+      LEFT JOIN tblWing w ON u.intWingID = w.intWingID
+      WHERE u.ISACT = 1
+    `;
+
+    const request = pool.request();
+
+    if (search) {
+      query += ` AND (u.FullName LIKE @search OR u.Email LIKE @search OR u.CNIC LIKE @search)`;
+      request.input('search', sql.NVarChar, `%${search}%`);
+    }
+
+    if (wing_id) {
+      query += ` AND u.intWingID = @wingId`;
+      request.input('wingId', sql.Int, parseInt(wing_id));
+    }
+
+    if (role_name) {
+      query += ` AND EXISTS (
+        SELECT 1 FROM ims_user_roles ur
+        INNER JOIN ims_roles r ON ur.role_id = r.role_id
+        WHERE ur.user_id = u.Id AND r.role_name = @roleName
+      )`;
+      request.input('roleName', sql.NVarChar, role_name);
+    }
+
+    query += ` ORDER BY u.FullName`;
+
+    const result = await request.query(query);
+
+    // Parse JSON roles
+    const users = result.recordset.map(user => ({
+      ...user,
+      roles: user.roles_json ? JSON.parse(user.roles_json) : []
+    }));
+
+    res.json(users);
+  } catch (error) {
+    console.error('Error getting users:', error);
+    res.status(500).json({ error: 'Failed to retrieve users' });
+  }
+});
+
+// Assign role to user (Super Admin or IMS Admin)
+app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.manage'), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { role_id, scope_type, scope_wing_id, notes } = req.body;
+
+    if (!role_id) {
+      return res.status(400).json({ error: 'Role ID is required' });
+    }
+
+    if (!pool) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    // Check if user exists
+    const userCheck = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query('SELECT Id FROM AspNetUsers WHERE Id = @userId AND ISACT = 1');
+
+    if (userCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if role exists
+    const roleCheck = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, role_id)
+      .query('SELECT role_id, role_name FROM ims_roles WHERE role_id = @roleId');
+
+    if (roleCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+
+    // Check if user already has this role with same scope
+    const existingCheck = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .input('roleId', sql.UniqueIdentifier, role_id)
+      .input('scopeType', sql.NVarChar(50), scope_type || 'Global')
+      .input('scopeWingId', sql.Int, scope_wing_id || null)
+      .query(`
+        SELECT user_role_id FROM ims_user_roles
+        WHERE user_id = @userId 
+        AND role_id = @roleId
+        AND scope_type = @scopeType
+        AND (scope_wing_id = @scopeWingId OR (scope_wing_id IS NULL AND @scopeWingId IS NULL))
+      `);
+
+    if (existingCheck.recordset.length > 0) {
+      return res.status(400).json({ error: 'User already has this role with the same scope' });
+    }
+
+    // Assign role
+    await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .input('roleId', sql.UniqueIdentifier, role_id)
+      .input('scopeType', sql.NVarChar(50), scope_type || 'Global')
+      .input('scopeWingId', sql.Int, scope_wing_id || null)
+      .input('assignedBy', sql.NVarChar(450), req.session.userId)
+      .input('notes', sql.NVarChar(sql.MAX), notes || null)
+      .query(`
+        INSERT INTO ims_user_roles (user_id, role_id, scope_type, scope_wing_id, assigned_by, notes)
+        VALUES (@userId, @roleId, @scopeType, @scopeWingId, @assignedBy, @notes)
+      `);
+
+    // Log to audit
+    await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .input('roleId', sql.UniqueIdentifier, role_id)
+      .input('action', sql.NVarChar(50), 'ASSIGNED')
+      .input('performedBy', sql.NVarChar(450), req.session.userId)
+      .input('notes', sql.NVarChar(sql.MAX), notes || 'Role assigned via API')
+      .query(`
+        INSERT INTO ims_role_audit_log (user_id, role_id, action, performed_by, notes)
+        VALUES (@userId, @roleId, @action, @performedBy, @notes)
+      `);
+
+    res.json({ 
+      success: true,
+      message: 'Role assigned successfully'
+    });
+  } catch (error) {
+    console.error('Error assigning role:', error);
+    res.status(500).json({ error: 'Failed to assign role' });
+  }
+});
+
+// Revoke role from user (Super Admin or IMS Admin)
+app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermission('users.manage'), async (req, res) => {
+  try {
+    const { userId, userRoleId } = req.params;
+    const { reason } = req.body;
+
+    if (!pool) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    // Get role details before deletion
+    const roleDetails = await pool.request()
+      .input('userRoleId', sql.UniqueIdentifier, userRoleId)
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT role_id, scope_type, scope_wing_id
+        FROM ims_user_roles
+        WHERE user_role_id = @userRoleId AND user_id = @userId
+      `);
+
+    if (roleDetails.recordset.length === 0) {
+      return res.status(404).json({ error: 'Role assignment not found' });
+    }
+
+    const roleId = roleDetails.recordset[0].role_id;
+
+    // Delete role assignment
+    await pool.request()
+      .input('userRoleId', sql.UniqueIdentifier, userRoleId)
+      .query('DELETE FROM ims_user_roles WHERE user_role_id = @userRoleId');
+
+    // Log to audit
+    await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .input('action', sql.NVarChar(50), 'REVOKED')
+      .input('performedBy', sql.NVarChar(450), req.session.userId)
+      .input('notes', sql.NVarChar(sql.MAX), reason || 'Role revoked via API')
+      .query(`
+        INSERT INTO ims_role_audit_log (user_id, role_id, action, performed_by, notes)
+        VALUES (@userId, @roleId, @action, @performedBy, @notes)
+      `);
+
+    res.json({ 
+      success: true,
+      message: 'Role revoked successfully'
+    });
+  } catch (error) {
+    console.error('Error revoking role:', error);
+    res.status(500).json({ error: 'Failed to revoke role' });
+  }
+});
+
+// Get role audit log (Super Admin only)
+app.get('/api/ims/audit-log', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { user_id, role_id, limit } = req.query;
+
+    if (!pool) {
+      return res.json([]);
+    }
+
+    let query = `
+      SELECT TOP ${limit || 100}
+        al.log_id,
+        al.user_id,
+        u.FullName as user_name,
+        u.Email as user_email,
+        al.role_id,
+        r.display_name as role_name,
+        al.action,
+        al.performed_by,
+        pb.FullName as performed_by_name,
+        al.performed_at,
+        al.notes
+      FROM ims_role_audit_log al
+      INNER JOIN AspNetUsers u ON al.user_id = u.Id
+      LEFT JOIN ims_roles r ON al.role_id = r.role_id
+      LEFT JOIN AspNetUsers pb ON al.performed_by = pb.Id
+      WHERE 1=1
+    `;
+
+    const request = pool.request();
+
+    if (user_id) {
+      query += ` AND al.user_id = @userId`;
+      request.input('userId', sql.NVarChar(450), user_id);
+    }
+
+    if (role_id) {
+      query += ` AND al.role_id = @roleId`;
+      request.input('roleId', sql.UniqueIdentifier, role_id);
+    }
+
+    query += ` ORDER BY al.performed_at DESC`;
+
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error getting audit log:', error);
+    res.status(500).json({ error: 'Failed to retrieve audit log' });
+  }
+});
+
+// ============================================================================
+// END IMS ROLE & PERMISSION API ENDPOINTS
+// ============================================================================
 
 // Get all active offices
 app.get('/api/offices', async (req, res) => {
@@ -7464,6 +8045,479 @@ app.get('/api/issued-items/pending-returns', async (req, res) => {
 });
 
 console.log('✅ Stock Issuance Workflow API endpoints loaded');
+
+// =====================================================================
+// THREE-LEVEL APPROVAL WORKFLOW API ENDPOINTS
+// =====================================================================
+// Supervisor → Admin → Issuance workflow
+// Implements: User → Supervisor → Admin approval chain
+
+// Get pending requests for supervisor
+app.get('/api/approvals/supervisor/pending', requireAuth, requirePermission('stock_request.view_wing'), async (req, res) => {
+  try {
+    const supervisorId = req.query.supervisor_id || req.session.userId;
+    const wingId = req.query.wing_id;
+
+    if (!wingId) {
+      return res.status(400).json({ error: 'wing_id is required' });
+    }
+
+    const result = await pool.request()
+      .input('wingId', sql.Int, wingId)
+      .query(`
+        SELECT * FROM vw_pending_supervisor_approvals
+        WHERE requester_wing_id = @wingId
+        ORDER BY is_urgent DESC, pending_hours DESC
+      `);
+
+    console.log(`📋 Found ${result.recordset.length} pending requests for wing ${wingId}`);
+    res.json({ requests: result.recordset, total: result.recordset.length });
+  } catch (error) {
+    console.error('❌ Error fetching supervisor pending requests:', error);
+    res.status(500).json({ error: 'Failed to fetch pending requests', details: error.message });
+  }
+});
+
+// Get pending requests for admin
+app.get('/api/approvals/admin/pending', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
+  try {
+    const result = await pool.request()
+      .query(`
+        SELECT * FROM vw_pending_admin_approvals
+        ORDER BY is_urgent DESC, pending_hours DESC
+      `);
+
+    console.log(`📋 Found ${result.recordset.length} pending requests for admin`);
+    res.json({ requests: result.recordset, total: result.recordset.length });
+  } catch (error) {
+    console.error('❌ Error fetching admin pending requests:', error);
+    res.status(500).json({ error: 'Failed to fetch pending requests', details: error.message });
+  }
+});
+
+// Get request details with items and availability
+app.get('/api/approvals/request/:requestId', async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Get request details
+    const requestResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .query(`
+        SELECT sir.*, u.FullName AS requester_name, u.Email AS requester_email
+        FROM stock_issuance_requests sir
+        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+        WHERE sir.id = @requestId
+      `);
+
+    if (requestResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    const request = requestResult.recordset[0];
+
+    // Get request items
+    const itemsResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .query(`
+        SELECT sii.*, im.nomenclature, im.category_name, im.unit_of_measurement
+        FROM stock_issuance_items sii
+        LEFT JOIN item_masters im ON sii.item_master_id = im.id
+        WHERE sii.request_id = @requestId
+      `);
+
+    // Check wing stock availability for each item
+    const itemsWithAvailability = await Promise.all(itemsResult.recordset.map(async (item) => {
+      if (item.is_custom_item) {
+        return { ...item, wing_stock_available: 'N/A - Custom Item', admin_stock_available: 'N/A' };
+      }
+
+      // Check wing stock
+      const wingStock = await pool.request()
+        .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+        .input('wingId', sql.Int, request.requester_wing_id)
+        .query(`
+          SELECT available_quantity FROM stock_wing 
+          WHERE item_master_id = @itemId AND wing_id = @wingId
+        `);
+
+      // Check admin stock
+      const adminStock = await pool.request()
+        .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+        .query(`
+          SELECT available_quantity FROM stock_admin 
+          WHERE item_master_id = @itemId
+        `);
+
+      return {
+        ...item,
+        wing_stock_available: wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0,
+        admin_stock_available: adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0,
+        can_fulfill_from_wing: wingStock.recordset.length > 0 && wingStock.recordset[0].available_quantity >= item.requested_quantity,
+        can_fulfill_from_admin: adminStock.recordset.length > 0 && adminStock.recordset[0].available_quantity >= item.requested_quantity
+      };
+    }));
+
+    // Get approval history
+    const historyResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .query(`
+        SELECT * FROM stock_issuance_approval_history
+        WHERE request_id = @requestId
+        ORDER BY action_date DESC
+      `);
+
+    res.json({
+      request,
+      items: itemsWithAvailability,
+      history: historyResult.recordset
+    });
+  } catch (error) {
+    console.error('❌ Error fetching request details:', error);
+    res.status(500).json({ error: 'Failed to fetch request details', details: error.message });
+  }
+});
+
+// Supervisor: Approve request (issue from wing stock)
+app.post('/api/approvals/supervisor/approve', requireAuth, requirePermission('stock_request.approve_supervisor'), async (req, res) => {
+  try {
+    const { requestId, supervisorId, comments, itemApprovals } = req.body;
+
+    if (!requestId || !supervisorId) {
+      return res.status(400).json({ error: 'requestId and supervisorId are required' });
+    }
+
+    // Start transaction
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update request status
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('supervisorId', sql.NVarChar(450), supervisorId)
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET approval_status = 'Approved by Supervisor',
+              supervisor_id = @supervisorId,
+              supervisor_reviewed_at = GETDATE(),
+              supervisor_comments = @comments,
+              supervisor_action = 'Approved',
+              source_store_type = 'Wing'
+          WHERE id = @requestId
+        `);
+
+      // Update item statuses if provided
+      if (itemApprovals && Array.isArray(itemApprovals)) {
+        for (const item of itemApprovals) {
+          await transaction.request()
+            .input('itemId', sql.UniqueIdentifier, item.itemId)
+            .input('approvedQty', sql.Int, item.approvedQuantity)
+            .input('status', sql.NVarChar(20), item.status)
+            .query(`
+              UPDATE stock_issuance_items
+              SET approved_quantity = @approvedQty,
+                  item_status = @status,
+                  source_store_type = 'Wing'
+              WHERE id = @itemId
+            `);
+        }
+      }
+
+      // Log approval history
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('actorId', sql.NVarChar(450), supervisorId)
+        .input('action', sql.NVarChar(30), 'Approved')
+        .input('newStatus', sql.NVarChar(30), 'Approved by Supervisor')
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          INSERT INTO stock_issuance_approval_history 
+          (request_id, actor_id, actor_name, actor_role, action, new_status, comments)
+          SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
+          FROM AspNetUsers WHERE Id = @actorId
+        `);
+
+      await transaction.commit();
+      console.log(`✅ Supervisor approved request ${requestId}`);
+      
+      res.json({ success: true, message: 'Request approved successfully', action: 'approved' });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error approving request:', error);
+    res.status(500).json({ error: 'Failed to approve request', details: error.message });
+  }
+});
+
+// Supervisor: Forward request to admin
+app.post('/api/approvals/supervisor/forward', requireAuth, requirePermission('stock_request.forward_to_admin'), async (req, res) => {
+  try {
+    const { requestId, supervisorId, forwardingReason, comments } = req.body;
+
+    if (!requestId || !supervisorId || !forwardingReason) {
+      return res.status(400).json({ error: 'requestId, supervisorId, and forwardingReason are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update request status
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('supervisorId', sql.NVarChar(450), supervisorId)
+        .input('forwardingReason', sql.NVarChar(sql.MAX), forwardingReason)
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET approval_status = 'Forwarded to Admin',
+              supervisor_id = @supervisorId,
+              supervisor_reviewed_at = GETDATE(),
+              supervisor_comments = @comments,
+              supervisor_action = 'Forwarded',
+              forwarding_reason = @forwardingReason
+          WHERE id = @requestId
+        `);
+
+      // Log history
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('actorId', sql.NVarChar(450), supervisorId)
+        .input('action', sql.NVarChar(30), 'Forwarded')
+        .input('newStatus', sql.NVarChar(30), 'Forwarded to Admin')
+        .input('reason', sql.NVarChar(sql.MAX), forwardingReason)
+        .query(`
+          INSERT INTO stock_issuance_approval_history 
+          (request_id, actor_id, actor_name, actor_role, action, new_status, forwarding_reason)
+          SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @reason
+          FROM AspNetUsers WHERE Id = @actorId
+        `);
+
+      await transaction.commit();
+      console.log(`✅ Supervisor forwarded request ${requestId} to admin`);
+      
+      res.json({ success: true, message: 'Request forwarded to admin successfully', action: 'forwarded' });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error forwarding request:', error);
+    res.status(500).json({ error: 'Failed to forward request', details: error.message });
+  }
+});
+
+// Supervisor: Reject request
+app.post('/api/approvals/supervisor/reject', requireAuth, requirePermission('stock_request.reject_supervisor'), async (req, res) => {
+  try {
+    const { requestId, supervisorId, comments } = req.body;
+
+    if (!requestId || !supervisorId || !comments) {
+      return res.status(400).json({ error: 'requestId, supervisorId, and comments are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update request status
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('supervisorId', sql.NVarChar(450), supervisorId)
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET approval_status = 'Rejected by Supervisor',
+              supervisor_id = @supervisorId,
+              supervisor_reviewed_at = GETDATE(),
+              supervisor_comments = @comments,
+              supervisor_action = 'Rejected'
+          WHERE id = @requestId
+        `);
+
+      // Log history
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('actorId', sql.NVarChar(450), supervisorId)
+        .input('action', sql.NVarChar(30), 'Rejected')
+        .input('newStatus', sql.NVarChar(30), 'Rejected by Supervisor')
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          INSERT INTO stock_issuance_approval_history 
+          (request_id, actor_id, actor_name, actor_role, action, new_status, comments)
+          SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
+          FROM AspNetUsers WHERE Id = @actorId
+        `);
+
+      await transaction.commit();
+      console.log(`✅ Supervisor rejected request ${requestId}`);
+      
+      res.json({ success: true, message: 'Request rejected', action: 'rejected' });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error rejecting request:', error);
+    res.status(500).json({ error: 'Failed to reject request', details: error.message });
+  }
+});
+
+// Admin: Approve request (issue from admin stock)
+app.post('/api/approvals/admin/approve', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
+  try {
+    const { requestId, adminId, comments, itemApprovals } = req.body;
+
+    if (!requestId || !adminId) {
+      return res.status(400).json({ error: 'requestId and adminId are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update request status
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('adminId', sql.NVarChar(450), adminId)
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET approval_status = 'Approved by Admin',
+              admin_id = @adminId,
+              admin_reviewed_at = GETDATE(),
+              admin_comments = @comments,
+              admin_action = 'Approved',
+              source_store_type = 'Admin'
+          WHERE id = @requestId
+        `);
+
+      // Update item statuses if provided
+      if (itemApprovals && Array.isArray(itemApprovals)) {
+        for (const item of itemApprovals) {
+          await transaction.request()
+            .input('itemId', sql.UniqueIdentifier, item.itemId)
+            .input('approvedQty', sql.Int, item.approvedQuantity)
+            .input('status', sql.NVarChar(20), item.status)
+            .query(`
+              UPDATE stock_issuance_items
+              SET approved_quantity = @approvedQty,
+                  item_status = @status,
+                  source_store_type = 'Admin'
+              WHERE id = @itemId
+            `);
+        }
+      }
+
+      // Log history
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('actorId', sql.NVarChar(450), adminId)
+        .input('action', sql.NVarChar(30), 'Approved')
+        .input('newStatus', sql.NVarChar(30), 'Approved by Admin')
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          INSERT INTO stock_issuance_approval_history 
+          (request_id, actor_id, actor_name, actor_role, action, new_status, comments)
+          SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
+          FROM AspNetUsers WHERE Id = @actorId
+        `);
+
+      await transaction.commit();
+      console.log(`✅ Admin approved request ${requestId}`);
+      
+      res.json({ success: true, message: 'Request approved successfully', action: 'approved' });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error approving request:', error);
+    res.status(500).json({ error: 'Failed to approve request', details: error.message });
+  }
+});
+
+// Admin: Reject request
+app.post('/api/approvals/admin/reject', requireAuth, requirePermission('stock_request.reject_admin'), async (req, res) => {
+  try {
+    const { requestId, adminId, comments } = req.body;
+
+    if (!requestId || !adminId || !comments) {
+      return res.status(400).json({ error: 'requestId, adminId, and comments are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update request status
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('adminId', sql.NVarChar(450), adminId)
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET approval_status = 'Rejected by Admin',
+              admin_id = @adminId,
+              admin_reviewed_at = GETDATE(),
+              admin_comments = @comments,
+              admin_action = 'Rejected'
+          WHERE id = @requestId
+        `);
+
+      // Log history
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('actorId', sql.NVarChar(450), adminId)
+        .input('action', sql.NVarChar(30), 'Rejected')
+        .input('newStatus', sql.NVarChar(30), 'Rejected by Admin')
+        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .query(`
+          INSERT INTO stock_issuance_approval_history 
+          (request_id, actor_id, actor_name, actor_role, action, new_status, comments)
+          SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
+          FROM AspNetUsers WHERE Id = @actorId
+        `);
+
+      await transaction.commit();
+      console.log(`✅ Admin rejected request ${requestId}`);
+      
+      res.json({ success: true, message: 'Request rejected', action: 'rejected' });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error rejecting request:', error);
+    res.status(500).json({ error: 'Failed to reject request', details: error.message });
+  }
+});
+
+// Get user's requests
+app.get('/api/approvals/my-requests/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT * FROM vw_my_issuance_requests
+        WHERE requester_user_id = @userId
+        ORDER BY submitted_at DESC
+      `);
+
+    res.json({ requests: result.recordset, total: result.recordset.length });
+  } catch (error) {
+    console.error('❌ Error fetching user requests:', error);
+    res.status(500).json({ error: 'Failed to fetch requests', details: error.message });
+  }
+});
+
+console.log('✅ Three-Level Approval Workflow API endpoints loaded');
 
 // =====================================================================
 // END OF STOCK ISSUANCE WORKFLOW ENDPOINTS

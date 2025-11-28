@@ -54,23 +54,42 @@ export default function StockAvailabilityChecker({
   const [batchCheckResult, setBatchCheckResult] = useState<any>(null);
 
   // Search items with stock availability
-  const searchItems = async () => {
-    if (!searchTerm.trim()) return;
+  const searchItems = async (term?: string) => {
+    const searchValue = term !== undefined ? term : searchTerm;
+    
+    if (!searchValue.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
     setLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:3001/api/stock/search-with-availability?search=${encodeURIComponent(searchTerm)}`
+        `http://localhost:3001/api/stock/search-with-availability?search=${encodeURIComponent(searchValue)}`
       );
       const data = await response.json();
       setSearchResults(data.items || []);
       console.log('📦 Stock search results:', data);
     } catch (error) {
       console.error('❌ Error searching items:', error);
+      setSearchResults([]);
     } finally {
       setLoading(false);
     }
   };
+
+  // Auto-search as user types (debounced)
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      if (searchTerm.trim().length >= 2) {
+        searchItems(searchTerm);
+      } else if (searchTerm.trim().length === 0) {
+        setSearchResults([]);
+      }
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchTerm]);
 
   // Check availability for a specific item
   const checkSingleItemAvailability = async (itemId: string, quantity: number) => {
@@ -181,16 +200,38 @@ export default function StockAvailabilityChecker({
 
         <div className="flex gap-2">
           <Input
-            placeholder="Search by name, code, or description..."
+            placeholder="Type at least 2 characters to search..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && searchItems()}
             className="flex-1"
           />
-          <Button onClick={searchItems} disabled={loading}>
+          <Button onClick={() => searchItems()} disabled={loading || searchTerm.trim().length < 2}>
             {loading ? 'Searching...' : 'Search'}
           </Button>
         </div>
+
+        {/* Search hint */}
+        {searchTerm.trim().length > 0 && searchTerm.trim().length < 2 && (
+          <p className="text-sm text-gray-500 mt-2">
+            ℹ️ Type at least 2 characters to search
+          </p>
+        )}
+
+        {/* Loading indicator */}
+        {loading && (
+          <div className="mt-4 text-center text-gray-500">
+            <p>🔍 Searching for items...</p>
+          </div>
+        )}
+
+        {/* No results message */}
+        {!loading && searchTerm.trim().length >= 2 && searchResults.length === 0 && (
+          <div className="mt-4 text-center text-gray-500 p-4 bg-gray-50 rounded-lg">
+            <p>📦 No items found matching "{searchTerm}"</p>
+            <p className="text-xs mt-1">Try a different search term or check the spelling</p>
+          </div>
+        )}
 
         {/* Search Results */}
         {searchResults.length > 0 && (
@@ -230,9 +271,11 @@ export default function StockAvailabilityChecker({
                         Reserved: {item.reserved_quantity}
                       </p>
                     )}
-                    <p className="text-sm text-gray-600 mt-1">
-                      ₨ {item.unit_price.toLocaleString()}
-                    </p>
+                    {item.unit_price !== undefined && item.unit_price !== null && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        ₨ {item.unit_price.toLocaleString()}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -274,7 +317,21 @@ export default function StockAvailabilityChecker({
             </div>
 
             {/* Availability Result */}
-            {availabilityResult && availabilityResult.stock_info && (
+            {availabilityResult && availabilityResult.error && (
+              <div className="p-4 rounded-lg border-2 border-yellow-500 bg-yellow-50">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="text-yellow-500" size={24} />
+                  <div className="flex-1">
+                    <p className="font-semibold text-lg text-yellow-800">Availability Check Not Available</p>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      The stock availability function is not yet set up in the database. You can still add items to your request.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {availabilityResult && !availabilityResult.error && availabilityResult.stock_info && (
               <div className={`p-4 rounded-lg border-2 ${
                 availabilityResult.available 
                   ? 'border-green-500 bg-green-50' 
@@ -320,7 +377,7 @@ export default function StockAvailabilityChecker({
       )}
 
       {/* Batch Availability Summary */}
-      {batchCheckResult && selectedItems.length > 0 && (
+      {batchCheckResult && !batchCheckResult.error && batchCheckResult.summary && selectedItems.length > 0 && (
         <div className="bg-white rounded-lg border p-6">
           <h3 className="text-lg font-semibold mb-4">
             Request Items Availability Summary
