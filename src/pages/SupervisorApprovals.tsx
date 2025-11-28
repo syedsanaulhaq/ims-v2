@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { 
-  CheckCircle, 
-  XCircle, 
-  ArrowUpCircle, 
-  Clock, 
-  Package, 
+import React, { useState, useEffect } from 'react';
+import {
+  CheckCircle,
+  XCircle,
+  ArrowUpCircle,
+  Clock,
+  Package,
   AlertCircle,
   User,
   MessageSquare,
@@ -13,7 +13,7 @@ import {
   Search,
   Filter
 } from 'lucide-react';
-import { SessionContext } from '../contexts/SessionContext';
+import { useSession } from '../contexts/SessionContext';
 
 interface RequestItem {
   id: string;
@@ -53,7 +53,7 @@ interface RequestDetails {
 }
 
 const SupervisorApprovals: React.FC = () => {
-  const { user } = useContext(SessionContext);
+  const { user } = useSession();
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<RequestDetails | null>(null);
   const [loading, setLoading] = useState(true);

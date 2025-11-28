@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Package, 
+import React, { useState, useEffect } from 'react';
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Package,
   AlertCircle,
   User,
   MessageSquare,
@@ -13,7 +13,7 @@ import {
   Filter,
   ArrowRight
 } from 'lucide-react';
-import { SessionContext } from '../contexts/SessionContext';
+import { useSession } from '../contexts/SessionContext';
 
 interface RequestItem {
   id: string;
@@ -55,7 +55,7 @@ interface RequestDetails {
 }
 
 const AdminApprovals: React.FC = () => {
-  const { user } = useContext(SessionContext);
+  const { user } = useSession();
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<RequestDetails | null>(null);
   const [loading, setLoading] = useState(true);
