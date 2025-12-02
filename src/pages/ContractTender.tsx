@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PermissionGate } from '@/components/PermissionGate';
 
 interface TenderItem {
   id: string;
@@ -356,28 +357,32 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                               <Eye className="w-4 h-4" />
                             </Button>
                             
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(tender)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
+                            <PermissionGate permission="tender.edit">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(tender)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </PermissionGate>
                             
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleFinalizeTender(tender.id)}
-                              disabled={finalizingTender === tender.id}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              title="Finalize Tender"
-                            >
-                              {finalizingTender === tender.id ? (
-                                <div className="w-4 h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
-                              ) : (
-                                <CheckCircle className="w-4 h-4" />
-                              )}
-                            </Button>
+                            <PermissionGate permission="tender.finalize">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleFinalizeTender(tender.id)}
+                                disabled={finalizingTender === tender.id}
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                title="Finalize Tender"
+                              >
+                                {finalizingTender === tender.id ? (
+                                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </PermissionGate>
                             
                         {/* Delete button hidden - prevents accidental deletion */}
                         {/* <Button

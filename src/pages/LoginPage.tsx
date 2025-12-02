@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, LogIn, User, Lock } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
+import { useSession } from '@/contexts/SessionContext';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -16,6 +17,7 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   
   const { login } = useAuth();
+  const { initializeSession } = useSession();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,6 +35,8 @@ const LoginPage: React.FC = () => {
       const result = await login(username.trim(), password);
       
       if (result.success) {
+        // Refresh session to get IMS roles and permissions
+        await initializeSession();
         navigate('/');
       } else {
         setError(result.error || 'Login failed');

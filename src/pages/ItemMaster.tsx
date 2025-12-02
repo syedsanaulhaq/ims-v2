@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PermissionGate } from '@/components/PermissionGate';
 
 // Interface for item masters from vw_item_masters_with_categories view
 interface ItemMaster {
@@ -436,15 +437,17 @@ const ItemMasterManagement = () => {
               }).length} of {items.length} items
             </p>
           </div>
-          <button
-            onClick={handleAddNew}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Item
-          </button>
+          <PermissionGate permission="inventory.create">
+            <button
+              onClick={handleAddNew}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Item
+            </button>
+          </PermissionGate>
         </div>
         
         {items.length === 0 ? (
@@ -498,15 +501,17 @@ const ItemMasterManagement = () => {
                     </td>
                     <td className="px-4 py-2 text-sm">
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-sm flex items-center gap-1.5 transition-colors"
-                          title="Edit Item"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
+                        <PermissionGate permission="inventory.edit">
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-sm flex items-center gap-1.5 transition-colors"
+                            title="Edit Item"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        </PermissionGate>
                         {/* Delete button hidden
                         <button
                           onClick={() => handleDelete(item)}

@@ -9,6 +9,20 @@ interface User {
   office_id: number;
   wing_id: number;
   created_at: string;
+  // IMS Role System fields
+  ims_roles?: Array<{
+    role_id: string;
+    role_name: string;
+    scope_type: string;
+    scope_wing_id?: number;
+  }>;
+  ims_permissions?: Array<{
+    permission_key: string;
+    module_name: string;
+    action_name: string;
+    description: string;
+  }>;
+  is_super_admin?: boolean;
 }
 
 interface SessionResponse {
@@ -43,7 +57,6 @@ class SessionService {
       if (data.success && data.session) {
         this.currentUser = data.session;
         this.sessionId = data.session_id || 'default-session';
-        console.log('✅ Session initialized:', this.currentUser);
         return this.currentUser;
       } else {
         console.warn('⚠️ Session response success was false or no session data');

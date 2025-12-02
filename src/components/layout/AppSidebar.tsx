@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
   Package,
@@ -24,8 +24,11 @@ import {
   CheckCircle,
   Users,
   Settings,
-  ArrowRight
+  ArrowRight,
+  Shield,
+  LogOut
 } from "lucide-react";
+import { usePermission } from '@/hooks/usePermission';
 import {
   Sidebar,
   SidebarContent,
@@ -52,7 +55,31 @@ interface AppSidebarProps {
 
 const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { state } = useSidebar();
+  const { hasPermission: canManageRoles } = usePermission('roles.manage');
+  const { hasPermission: canAssignRoles } = usePermission('users.assign_roles');
+
+  const handleLogout = async () => {
+    try {
+      // Call logout endpoint
+      await fetch('http://localhost:3001/api/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      // Clear any local storage
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Redirect to login
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Still redirect even if logout fails
+      navigate('/login');
+    }
+  };
 
   const allMenuItems = [
     {
@@ -123,6 +150,17 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       ]
     },
     {
+      title: "Role Management",
+      icon: Shield,
+      path: "/settings",
+      hasSubmenu: true,
+      showIfPermission: 'roles.manage',
+      submenu: [
+        { title: "Roles & Permissions", path: "/settings/roles" },
+        { title: "User Role Assignment", path: "/settings/users" }
+      ]
+    },
+    {
       title: "Reports & Analytics",
       icon: BarChart3,
       path: "/reports",
@@ -141,7 +179,17 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ? allMenuItems.filter(item =>
         item.title === "Main Dashboard" || item.title === "Complete Stock"
       )
-    : allMenuItems;
+    : allMenuItems.filter(item => {
+        // Filter out items that require permissions the user doesn't have
+        if (item.showIfPermission) {
+          // Check for role management permission
+          if (item.showIfPermission === 'roles.manage') {
+            return canManageRoles || canAssignRoles;
+          }
+          return false;
+        }
+        return true;
+      });
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -240,6 +288,23 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                   </SidebarMenuItem>
                 );
               })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Logout Section */}
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={handleLogout}
+                  className="text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">Logout</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

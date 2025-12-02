@@ -29,6 +29,7 @@ import { Office as ERPOffice, Wing as ERPWing, DEC as ERPDEC } from '@/types/off
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import StockAvailabilityChecker from '@/components/stock/StockAvailabilityChecker';
+import { PermissionGate } from '@/components/PermissionGate';
 
 interface InventoryItem {
   id: string;
@@ -634,20 +635,31 @@ const StockIssuancePersonal: React.FC = () => {
 
               {/* Submit Button */}
               <div className="mt-6">
-                <Button
-                  onClick={submitIssuanceRequest}
-                  disabled={isLoading || issuanceItems.length === 0}
-                  className="w-full"
+                <PermissionGate 
+                  permission="stock_request.create_personal"
+                  fallback={
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Access Restricted:</strong> You don't have permission to create personal stock requests.
+                      </p>
+                    </div>
+                  }
                 >
-                  {isLoading ? (
-                    <LoadingSpinner />
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Submit Issuance Request
-                    </>
-                  )}
-                </Button>
+                  <Button
+                    onClick={submitIssuanceRequest}
+                    disabled={isLoading || issuanceItems.length === 0}
+                    className="w-full"
+                  >
+                    {isLoading ? (
+                      <LoadingSpinner />
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Submit Issuance Request
+                      </>
+                    )}
+                  </Button>
+                </PermissionGate>
               </div>
             </CardContent>
           </Card>

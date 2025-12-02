@@ -5,7 +5,7 @@
 // ====================================================================
 
 // Environment-based API URL configuration
-const getApiBaseUrl = () => {
+export const getApiBaseUrl = () => {
   // Check if running on staging port (8081)
   const currentPort = window.location.port;
   const isStaging = currentPort === '8081' || window.location.hostname.includes('staging');

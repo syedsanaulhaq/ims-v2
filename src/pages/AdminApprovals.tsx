@@ -14,6 +14,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
+import { PermissionGate } from '@/components/PermissionGate';
+import { usePermission } from '@/hooks/usePermission';
 
 interface RequestItem {
   id: string;
@@ -56,6 +58,7 @@ interface RequestDetails {
 
 const AdminApprovals: React.FC = () => {
   const { user } = useSession();
+  const { hasPermission: canApproveAdmin } = usePermission('stock_request.approve_admin');
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<RequestDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -444,25 +447,36 @@ const AdminApprovals: React.FC = () => {
               {!actionType ? (
                 <div className="border-t pt-6">
                   <h3 className="text-lg font-semibold mb-4">Admin Decision</h3>
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => openActionModal('approve')}
-                      className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle size={20} />
-                      Approve & Issue from Admin Stock
-                    </button>
-                    <button
-                      onClick={() => openActionModal('reject')}
-                      className="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
-                    >
-                      <XCircle size={20} />
-                      Reject Request
-                    </button>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-4 text-center">
-                    Note: If items are not available in admin stock, approval will trigger procurement process
-                  </p>
+                  <PermissionGate 
+                    permission="stock_request.approve_admin"
+                    fallback={
+                      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                        <p className="text-sm text-yellow-800">
+                          <strong>Access Restricted:</strong> You don't have permission to approve admin-level requests.
+                        </p>
+                      </div>
+                    }
+                  >
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => openActionModal('approve')}
+                        className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle size={20} />
+                        Approve & Issue from Admin Stock
+                      </button>
+                      <button
+                        onClick={() => openActionModal('reject')}
+                        className="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
+                      >
+                        <XCircle size={20} />
+                        Reject Request
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-4 text-center">
+                      Note: If items are not available in admin stock, approval will trigger procurement process
+                    </p>
+                  </PermissionGate>
                 </div>
               ) : (
                 <div className="border-t pt-6">

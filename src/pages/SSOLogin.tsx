@@ -1,40 +1,43 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSession } from '@/contexts/SessionContext';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 /**
  * SSO Login Page
- * Handles authentication when user comes from Digital System
+ * Handles automatic authentication when user comes from Digital System
+ * No loading screen - silent authentication in background
  */
 export default function SSOLogin() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { initializeSession } = useSession();
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = searchParams.get('token');
 
     if (!token) {
       setError('No authentication token provided');
-      setLoading(false);
+      // Redirect to DS login after 2 seconds
+      setTimeout(() => {
+        window.location.href = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
+      }, 2000);
       return;
     }
 
-    // Validate token with backend
+    // Silently validate token with backend (no loading screen)
     authenticateWithToken(token);
   }, [searchParams]);
 
   const authenticateWithToken = async (token: string) => {
     try {
-      setLoading(true);
-      setError(null);
+      console.log('🔐 Silently validating SSO token from Digital System...');
 
-      console.log('🔐 Validating SSO token from Digital System...');
-
-      // Validate token with backend (Updated endpoint)
-      const response = await fetch('http://localhost:3001/api/auth/sso-validate', {
+      // Validate token with backend
+      const response = await fetch(`${getApiBaseUrl()}/auth/sso-validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -55,37 +58,31 @@ export default function SSOLogin() {
         // Store user in auth context
         await login(data.user);
         
+        // Refresh session to get IMS roles and permissions
+        await initializeSession();
+        
         // Store token in localStorage for API calls
         localStorage.setItem('sso_token', token);
         
-        console.log('✅ SSO Authentication successful');
+        console.log('✅ SSO Authentication successful - Redirecting to dashboard');
         
-        // Redirect to dashboard
-        navigate('/dashboard');
+        // Immediately redirect to dashboard (no delay)
+        navigate('/dashboard', { replace: true });
       } else {
         throw new Error('Authentication failed');
       }
     } catch (error) {
       console.error('❌ SSO Authentication error:', error);
       setError(error instanceof Error ? error.message : 'Authentication failed');
-      setLoading(false);
+      
+      // Redirect to DS login after showing error briefly
+      setTimeout(() => {
+        window.location.href = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
+      }, 2000);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
-          <h2 className="mt-4 text-xl font-semibold text-gray-700">
-            Authenticating from Digital System...
-          </h2>
-          <p className="mt-2 text-gray-500">Please wait while we verify your credentials</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Only show error state - no loading screen
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -110,19 +107,13 @@ export default function SSOLogin() {
               Authentication Failed
             </h3>
             <p className="mt-2 text-sm text-gray-500">{error}</p>
-            <div className="mt-6">
-              <a
-                href="http://localhost:5000" // Your DS URL
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Return to Digital System
-              </a>
-            </div>
+            <p className="mt-2 text-xs text-gray-400">Redirecting to Digital System login...</p>
           </div>
         </div>
       </div>
     );
   }
 
+  // Return null during authentication (no visible UI)
   return null;
 }

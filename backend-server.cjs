@@ -21,6 +21,8 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     secure: false, // Set to true in production with HTTPS
+    httpOnly: true,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
@@ -43,6 +45,9 @@ const JWT_AUDIENCE = 'IMS';
 // Global request logger to debug routing issues
 app.use((req, res, next) => {
   console.log(`🌍 ALL REQUESTS: ${req.method} ${req.originalUrl}`);
+  if (req.originalUrl.includes('/ims/check-permission')) {
+    console.log('🔍 PERMISSION CHECK REQUEST DETECTED!');
+  }
   if (req.originalUrl.includes('/finalize')) {
     console.log('🚨 FINALIZE REQUEST DETECTED!');
     console.log('🚨 Method:', req.method);
@@ -176,12 +181,14 @@ const requirePermission = (permissionKey) => {
         }
 
         // Check if user has the required permission
+        console.log(`🔍 Checking permission: ${permissionKey} for user ${req.session.userId}`);
         const result = await pool.request()
           .input('userId', sql.NVarChar(450), req.session.userId)
           .input('permissionKey', sql.NVarChar(100), permissionKey)
           .query('SELECT dbo.fn_HasPermission(@userId, @permissionKey) as hasPermission');
 
-        const hasPermission = result.recordset[0]?.hasPermission === 1;
+        console.log(`🔍 Permission check result:`, result.recordset[0]);
+        const hasPermission = result.recordset[0]?.hasPermission === 1 || result.recordset[0]?.hasPermission === true;
 
         if (hasPermission) {
           console.log(`✅ Permission granted: ${permissionKey} for user ${req.session.userId}`);
@@ -211,7 +218,10 @@ const requireSuperAdmin = (req, res, next) => {
   // Handle async operations properly in Express middleware
   const checkSuperAdmin = async () => {
     try {
+      console.log('🔍 requireSuperAdmin - Checking session:', !!req.session, 'userId:', req.session?.userId);
+      
       if (!req.session || !req.session.userId) {
+        console.log('❌ No session or userId');
         return res.status(401).json({ error: 'Authentication required' });
       }
 
@@ -220,11 +230,18 @@ const requireSuperAdmin = (req, res, next) => {
         return next(); // Allow in development mode
       }
 
+      console.log('🔍 Checking super admin status for user:', req.session.userId);
       const result = await pool.request()
         .input('userId', sql.NVarChar(450), req.session.userId)
         .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
 
-      const isSuperAdmin = result.recordset[0]?.isSuperAdmin === 1;
+      console.log('🔍 SQL result:', result.recordset[0]);
+
+      // SQL Server returns bit as boolean (true/false), not as 1/0
+      const isSuperAdmin = result.recordset[0]?.isSuperAdmin === true || 
+                           result.recordset[0]?.isSuperAdmin === 1;
+
+      console.log('🔍 isSuperAdmin:', isSuperAdmin);
 
       if (isSuperAdmin) {
         console.log(`✅ Super Admin access granted for user ${req.session.userId}`);
@@ -237,7 +254,7 @@ const requireSuperAdmin = (req, res, next) => {
         });
       }
     } catch (error) {
-      console.error('Error checking super admin status:', error);
+      console.error('❌ Error checking super admin status:', error);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Authorization check failed' });
       }
@@ -270,10 +287,14 @@ async function getUserImsData(userId) {
       .input('userId', sql.NVarChar(450), userId)
       .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
 
+    // SQL Server returns bit as boolean (true/false), not as 1/0
+    const isSuperAdmin = superAdminResult.recordset[0]?.isSuperAdmin === true || 
+                         superAdminResult.recordset[0]?.isSuperAdmin === 1;
+
     return {
       roles: rolesResult.recordset,
       permissions: permsResult.recordset,
-      is_super_admin: superAdminResult.recordset[0]?.isSuperAdmin === 1
+      is_super_admin: isSuperAdmin
     };
   } catch (error) {
     console.error('Error getting user IMS data:', error);
@@ -610,7 +631,9 @@ app.get('/api/session', async (req, res) => {
   try {
     // Check if we have a session user
     if (req.session && req.session.userId) {
-      // User is properly logged in via session
+      // User is properly logged in via session - GET IMS DATA!
+      const imsData = await getUserImsData(req.session.userId);
+      
       const sessionUser = {
         user_id: req.session.userId,
         user_name: req.session.user?.FullName || 'Unknown User',
@@ -618,10 +641,14 @@ app.get('/api/session', async (req, res) => {
         role: req.session.user?.Role || 'User',
         office_id: req.session.user?.intOfficeID || 583,
         wing_id: req.session.user?.intWingID || 19,
-        created_at: new Date().toISOString()
+        branch_id: req.session.user?.intBranchID || null,
+        created_at: new Date().toISOString(),
+        // IMS Role System Data
+        ims_roles: imsData?.roles || [],
+        ims_permissions: imsData?.permissions || [],
+        is_super_admin: imsData?.is_super_admin || false
       };
       
-      console.log('🔐 Session: Returning logged-in user:', sessionUser.user_name, '(', sessionUser.user_id, ')');
       return res.json({
         success: true,
         session: sessionUser,
@@ -629,8 +656,9 @@ app.get('/api/session', async (req, res) => {
       });
     }
     
-    // Try to get the actual logged-in user from AspNetUsers
-    // Priority: CNIC 1730115698727 (Syed Sana ul Haq Fazli) -> then fallback to test user
+    // DISABLED: Auto-login fallback (enable for development convenience)
+    // Uncomment to auto-login as a specific user without using login page
+    /*
     if (pool) {
       const result = await pool.request().query(`
         SELECT TOP 1 Id, FullName, Email, CNIC, Role, intOfficeID, intWingID, intBranchID
@@ -648,12 +676,11 @@ app.get('/api/session', async (req, res) => {
           user_id: user.Id,
           user_name: user.FullName,
           email: user.Email,
-          role: user.Role || 'User', // Legacy role for compatibility
+          role: user.Role || 'User',
           office_id: user.intOfficeID || 583,
           wing_id: user.intWingID || 19,
           branch_id: user.intBranchID || null,
           created_at: new Date().toISOString(),
-          // IMS Role System Data
           ims_roles: imsData?.roles || [],
           ims_permissions: imsData?.permissions || [],
           is_super_admin: imsData?.is_super_admin || false
@@ -668,16 +695,17 @@ app.get('/api/session', async (req, res) => {
         });
       }
     }
+    */
   } catch (error) {
     console.error('Error getting session user:', error);
   }
   
-  // Fallback to default session
-  console.log('🛠️ Session: Using default session for development');
+  // No session found - return null to redirect to login
+  console.log('⚠️  No active session - user needs to log in');
   res.json({
-    success: true,
-    session: DEFAULT_SESSION,
-    session_id: DEFAULT_SESSION_ID
+    success: false,
+    session: null,
+    message: 'No active session'
   });
 });
 
@@ -723,7 +751,11 @@ app.get('/api/ims/check-permission', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Permission key is required' });
     }
 
+    console.log('🔐 Permission check for:', permission, 'userId:', req.session.userId);
+    console.log('🔐 Session exists:', !!req.session);
+
     if (!pool) {
+      console.log('🔐 No pool, returning true for dev mode');
       return res.json({ hasPermission: true }); // Allow in dev mode
     }
 
@@ -732,9 +764,23 @@ app.get('/api/ims/check-permission', requireAuth, async (req, res) => {
       .input('permissionKey', sql.NVarChar(100), permission)
       .query('SELECT dbo.fn_HasPermission(@userId, @permissionKey) as hasPermission');
 
+    const rawValue = result.recordset[0]?.hasPermission;
+    console.log('🔐 SQL result:', rawValue, 'type:', typeof rawValue);
+    console.log('🔐 Comparison:', rawValue === 1, rawValue === true);
+
+    const hasPermission = rawValue === 1 || rawValue === true;
+    console.log('🔐 Final result:', hasPermission);
+
     res.json({ 
-      hasPermission: result.recordset[0]?.hasPermission === 1,
-      permission: permission
+      hasPermission: hasPermission,
+      permission: permission,
+      debug: {
+        userId: req.session.userId,
+        rawValue: rawValue,
+        rawValueType: typeof rawValue,
+        comparison1: rawValue === 1,
+        comparison2: rawValue === true
+      }
     });
   } catch (error) {
     console.error('Error checking permission:', error);
@@ -765,20 +811,22 @@ app.get('/api/ims/my-roles', requireAuth, async (req, res) => {
 // Get all available IMS roles (Super Admin only)
 app.get('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
   try {
+    console.log('📋 Fetching IMS roles...');
     if (!pool) {
+      console.log('⚠️  No database pool');
       return res.json([]);
     }
 
     const result = await pool.request().query(`
       SELECT 
-        role_id,
+        id as role_id,
         role_name,
         display_name,
         description,
         is_system_role,
         created_at,
-        (SELECT COUNT(*) FROM ims_user_roles WHERE role_id = r.role_id) as user_count,
-        (SELECT COUNT(*) FROM ims_role_permissions WHERE role_id = r.role_id) as permission_count
+        (SELECT COUNT(*) FROM ims_user_roles WHERE role_id = r.id) as user_count,
+        (SELECT COUNT(*) FROM ims_role_permissions WHERE role_id = r.id) as permission_count
       FROM ims_roles r
       ORDER BY 
         CASE 
@@ -791,6 +839,7 @@ app.get('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
         display_name
     `);
 
+    console.log(`✅ Found ${result.recordset.length} roles`);
     res.json(result.recordset);
   } catch (error) {
     console.error('Error getting roles:', error);
@@ -812,7 +861,7 @@ app.get('/api/ims/roles/:roleId', requireAuth, requireSuperAdmin, async (req, re
       .input('roleId', sql.UniqueIdentifier, roleId)
       .query(`
         SELECT 
-          role_id,
+          id as role_id,
           role_name,
           display_name,
           description,
@@ -820,7 +869,7 @@ app.get('/api/ims/roles/:roleId', requireAuth, requireSuperAdmin, async (req, re
           created_at,
           (SELECT COUNT(*) FROM ims_user_roles WHERE role_id = @roleId) as user_count
         FROM ims_roles
-        WHERE role_id = @roleId
+        WHERE id = @roleId
       `);
 
     if (roleResult.recordset.length === 0) {
@@ -832,24 +881,103 @@ app.get('/api/ims/roles/:roleId', requireAuth, requireSuperAdmin, async (req, re
       .input('roleId', sql.UniqueIdentifier, roleId)
       .query(`
         SELECT 
-          p.permission_id,
+          p.id as permission_id,
           p.permission_key,
           p.module_name,
           p.action_name,
           p.description
         FROM ims_role_permissions rp
-        INNER JOIN ims_permissions p ON rp.permission_id = p.permission_id
+        INNER JOIN ims_permissions p ON rp.permission_id = p.id
         WHERE rp.role_id = @roleId
         ORDER BY p.module_name, p.action_name
       `);
 
+    // Get users with this role
+    const usersResult = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT 
+          u.Id as user_id,
+          u.FullName as full_name,
+          u.Email,
+          u.CNIC,
+          ur.scope_type,
+          ur.assigned_at,
+          ur.assigned_by,
+          assignedBy.FullName as assigned_by_name
+        FROM ims_user_roles ur
+        INNER JOIN AspNetUsers u ON ur.user_id = u.Id
+        LEFT JOIN AspNetUsers assignedBy ON ur.assigned_by = assignedBy.Id
+        WHERE ur.role_id = @roleId AND ur.is_active = 1
+        ORDER BY u.FullName
+      `);
+
     res.json({
       ...roleResult.recordset[0],
-      permissions: permsResult.recordset
+      permissions: permsResult.recordset,
+      users: usersResult.recordset
     });
   } catch (error) {
     console.error('Error getting role details:', error);
     res.status(500).json({ error: 'Failed to retrieve role details' });
+  }
+});
+
+// Update role permissions (Super Admin only)
+app.put('/api/ims/roles/:roleId/permissions', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { roleId } = req.params;
+    const { permission_keys } = req.body;
+
+    if (!pool) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    if (!permission_keys || !Array.isArray(permission_keys)) {
+      return res.status(400).json({ error: 'permission_keys array is required' });
+    }
+
+    // Check if role is IMS_SUPER_ADMIN (protected)
+    const roleCheck = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query('SELECT role_name FROM ims_roles WHERE id = @roleId');
+    
+    if (roleCheck.recordset[0]?.role_name === 'IMS_SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Cannot modify IMS_SUPER_ADMIN role permissions' });
+    }
+
+    // Start transaction
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Delete existing permissions
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query('DELETE FROM ims_role_permissions WHERE role_id = @roleId');
+
+      // Insert new permissions
+      for (const permKey of permission_keys) {
+        await transaction.request()
+          .input('roleId', sql.UniqueIdentifier, roleId)
+          .input('permKey', sql.NVarChar(100), permKey)
+          .query(`
+            INSERT INTO ims_role_permissions (role_id, permission_id)
+            SELECT @roleId, id
+            FROM ims_permissions
+            WHERE permission_key = @permKey
+          `);
+      }
+
+      await transaction.commit();
+      res.json({ success: true, message: 'Permissions updated successfully' });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error updating role permissions:', error);
+    res.status(500).json({ error: 'Failed to update permissions' });
   }
 });
 
@@ -862,7 +990,7 @@ app.get('/api/ims/permissions', requireAuth, requireSuperAdmin, async (req, res)
 
     const result = await pool.request().query(`
       SELECT 
-        permission_id,
+        id as permission_id,
         permission_key,
         module_name,
         action_name,
@@ -893,26 +1021,27 @@ app.get('/api/ims/users', requireAuth, requirePermission('users.manage'), async 
         u.Id as user_id,
         u.FullName as full_name,
         u.Email,
-        u.CNIC,
+        u.CNIC as cnic,
         u.intOfficeID as office_id,
         u.intWingID as wing_id,
         o.strOfficeName as office_name,
-        w.strWingName as wing_name,
+        w.Name as wing_name,
         dbo.fn_IsSuperAdmin(u.Id) as is_super_admin,
         (
           SELECT 
+            ur.id as user_role_id,
             r.role_name,
             r.display_name,
             ur.scope_type,
             ur.scope_wing_id
           FROM ims_user_roles ur
-          INNER JOIN ims_roles r ON ur.role_id = r.role_id
-          WHERE ur.user_id = u.Id
+          INNER JOIN ims_roles r ON ur.role_id = r.id
+          WHERE ur.user_id = u.Id AND ur.is_active = 1
           FOR JSON PATH
         ) as roles_json
       FROM AspNetUsers u
-      LEFT JOIN tblOffice o ON u.intOfficeID = o.intOfficeID
-      LEFT JOIN tblWing w ON u.intWingID = w.intWingID
+      LEFT JOIN tblOffices o ON u.intOfficeID = o.intOfficeID
+      LEFT JOIN WingsInformation w ON u.intWingID = w.Id
       WHERE u.ISACT = 1
     `;
 
@@ -931,8 +1060,8 @@ app.get('/api/ims/users', requireAuth, requirePermission('users.manage'), async 
     if (role_name) {
       query += ` AND EXISTS (
         SELECT 1 FROM ims_user_roles ur
-        INNER JOIN ims_roles r ON ur.role_id = r.role_id
-        WHERE ur.user_id = u.Id AND r.role_name = @roleName
+        INNER JOIN ims_roles r ON ur.role_id = r.id
+        WHERE ur.user_id = u.Id AND r.role_name = @roleName AND ur.is_active = 1
       )`;
       request.input('roleName', sql.NVarChar, role_name);
     }

@@ -48,6 +48,8 @@ import PersonalInventory from "./pages/PersonalInventory";
 import WingInventory from "./pages/WingInventory";
 import SupervisorApprovals from "./pages/SupervisorApprovals";
 import AdminApprovals from "./pages/AdminApprovals";
+import RoleManagement from "./pages/RoleManagement";
+import UserRoleAssignment from "./pages/UserRoleAssignment";
 import ExpandableReceivingForm from "./pages/ExpandableReceivingForm";
 import IntegratedStockAcquisition from "./pages/IntegratedStockAcquisition";
 import StockTransactionList from "./pages/StockTransactionList";
@@ -255,16 +257,33 @@ function App() {
                   <Route path="stock-acquisition" element={<StockAcquisitionReport />} />
                 </Route>
 
-                {/* Settings - Admin Only */}
+                {/* Settings - Admin Only (except IMS role pages which have their own checks) */}
                 <Route path="/settings" element={
-                  <ProtectedRoute allowedRoles={['Admin']}>
-                    <Layout><Outlet /></Layout>
-                  </ProtectedRoute>
+                  <Layout><Outlet /></Layout>
                 }>
-                  <Route index element={<InventorySettings />} />
-                  <Route path="categories" element={<Categories />} />
-                  <Route path="vendors" element={<VendorManagementEnhanced />} />
-                  <Route path="item-master" element={<ItemMaster />} />
+                  <Route index element={
+                    <ProtectedRoute allowedRoles={['Admin']}>
+                      <InventorySettings />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="categories" element={
+                    <ProtectedRoute allowedRoles={['Admin']}>
+                      <Categories />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="vendors" element={
+                    <ProtectedRoute allowedRoles={['Admin']}>
+                      <VendorManagementEnhanced />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="item-master" element={
+                    <ProtectedRoute allowedRoles={['Admin']}>
+                      <ItemMaster />
+                    </ProtectedRoute>
+                  } />
+                  {/* IMS Role Management - uses its own Super Admin check */}
+                  <Route path="roles" element={<RoleManagement />} />
+                  <Route path="users" element={<UserRoleAssignment />} />
                 </Route>
 
                 {/* 404 route */}

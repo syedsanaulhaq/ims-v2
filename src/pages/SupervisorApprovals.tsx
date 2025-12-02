@@ -14,6 +14,8 @@ import {
   Filter
 } from 'lucide-react';
 import { useSession } from '../contexts/SessionContext';
+import { PermissionGate } from '@/components/PermissionGate';
+import { usePermission } from '@/hooks/usePermission';
 
 interface RequestItem {
   id: string;
@@ -54,6 +56,7 @@ interface RequestDetails {
 
 const SupervisorApprovals: React.FC = () => {
   const { user } = useSession();
+  const { hasPermission: canApproveSupervisor } = usePermission('stock_request.approve_supervisor');
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<RequestDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -453,30 +456,41 @@ const SupervisorApprovals: React.FC = () => {
               {!actionType ? (
                 <div className="border-t pt-6">
                   <h3 className="text-lg font-semibold mb-4">Take Action</h3>
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => openActionModal('approve')}
-                      disabled={selectedRequest.items.some(i => !i.can_fulfill_from_wing && !i.is_custom_item)}
-                      className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle size={20} />
-                      Approve & Issue from Wing Stock
-                    </button>
-                    <button
-                      onClick={() => openActionModal('forward')}
-                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
-                    >
-                      <ArrowUpCircle size={20} />
-                      Forward to Admin
-                    </button>
-                    <button
-                      onClick={() => openActionModal('reject')}
-                      className="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
-                    >
-                      <XCircle size={20} />
-                      Reject Request
-                    </button>
-                  </div>
+                  <PermissionGate 
+                    permission="stock_request.approve_supervisor"
+                    fallback={
+                      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                        <p className="text-sm text-yellow-800">
+                          <strong>Access Restricted:</strong> You don't have permission to approve supervisor-level requests.
+                        </p>
+                      </div>
+                    }
+                  >
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => openActionModal('approve')}
+                        disabled={selectedRequest.items.some(i => !i.can_fulfill_from_wing && !i.is_custom_item)}
+                        className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle size={20} />
+                        Approve & Issue from Wing Stock
+                      </button>
+                      <button
+                        onClick={() => openActionModal('forward')}
+                        className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                      >
+                        <ArrowUpCircle size={20} />
+                        Forward to Admin
+                      </button>
+                      <button
+                        onClick={() => openActionModal('reject')}
+                        className="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
+                      >
+                        <XCircle size={20} />
+                        Reject Request
+                      </button>
+                    </div>
+                  </PermissionGate>
                 </div>
               ) : (
                 <div className="border-t pt-6">
