@@ -12,6 +12,7 @@
     "backend": "node backend-server.cjs",
     "server": "node backend-server.cjs",
     "dev:start": "node backend-server.cjs",
+    "prod:start": "node backend-server.cjs",
     "dev:full": "concurrently \"npm run backend\" \"npm run dev\"",
     "test:full": "powershell -Command \"./switch-env.ps1 test; npm run build\" && concurrently \"npm run backend\" \"npm run preview\"",
     "prod:full": "powershell -Command \"./switch-env.ps1 prod; npm run build\" && concurrently \"npm run backend\" \"npm run preview\"",
