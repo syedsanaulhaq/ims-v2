@@ -656,9 +656,8 @@ app.get('/api/session', async (req, res) => {
       });
     }
     
-    // DISABLED: Auto-login fallback (enable for development convenience)
-    // Uncomment to auto-login as a specific user without using login page
-    /*
+    // Auto-login fallback for development (ENABLED for testing)
+    // Comment out in production and require proper login
     if (pool) {
       const result = await pool.request().query(`
         SELECT TOP 1 Id, FullName, Email, CNIC, Role, intOfficeID, intWingID, intBranchID
@@ -695,7 +694,6 @@ app.get('/api/session', async (req, res) => {
         });
       }
     }
-    */
   } catch (error) {
     console.error('Error getting session user:', error);
   }
