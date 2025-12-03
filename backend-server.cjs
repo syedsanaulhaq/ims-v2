@@ -176,8 +176,8 @@ const requirePermission = (permissionKey) => {
         }
 
         if (!pool) {
-          console.warn('⚠️  Permission check skipped - no database connection');
-          return next(); // Allow in development mode
+          console.error('❌ Permission check failed - no database connection');
+          return res.status(503).json({ error: 'Database connection unavailable' });
         }
 
         // Check if user has the required permission
@@ -312,29 +312,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (!pool) {
-      // Mock authentication for development
-      if (username === 'admin' && password === 'admin') {
-        const mockUser = {
-          Id: '1',
-          FullName: 'System Administrator',
-          UserName: 'admin',
-          Email: 'admin@company.com',
-          Role: 'Admin',
-          intOfficeID: 583,
-          intWingID: 16
-        };
-        
-        req.session.userId = mockUser.Id;
-        req.session.user = mockUser;
-        
-        return res.json({
-          success: true,
-          user: mockUser,
-          message: 'Login successful'
-        });
-      } else {
-        return res.status(401).json({ error: 'Invalid credentials' });
-      }
+      return res.status(503).json({ error: 'Database connection unavailable' });
     }
 
     // Query AspNetUsers table
