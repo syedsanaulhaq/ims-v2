@@ -65,23 +65,8 @@ class SessionService {
       console.error('❌ Failed to initialize session:', error);
     }
     
-    // Always provide a fallback session for development
-    if (!this.currentUser) {
-      const fallbackUser: User = {
-        user_id: 'DEV-USER-001',
-        user_name: 'Development User',
-        email: 'dev.user@system.com',
-        role: 'Admin',
-        office_id: 583,
-        wing_id: 19,
-        created_at: new Date().toISOString()
-      };
-      this.currentUser = fallbackUser;
-      this.sessionId = 'fallback-session';
-      console.log('🛠️ Using fallback session for development');
-    }
-    
-    return this.currentUser;
+    // No fallback - return null if no session exists
+    return null;
   }
 
   // Get current user
@@ -90,18 +75,18 @@ class SessionService {
   }
 
   // Get current user ID
-  getCurrentUserId(): string {
-    return this.currentUser?.user_id || 'DEV-USER-001';
+  getCurrentUserId(): string | null {
+    return this.currentUser?.user_id || null;
   }
 
   // Get current user name
-  getCurrentUserName(): string {
-    return this.currentUser?.user_name || 'Development User';
+  getCurrentUserName(): string | null {
+    return this.currentUser?.user_name || null;
   }
 
   // Get current session ID
-  getSessionId(): string {
-    return this.sessionId || 'default-session';
+  getSessionId(): string | null {
+    return this.sessionId;
   }
 
   // Check if user is authenticated
@@ -110,18 +95,18 @@ class SessionService {
   }
 
   // Get user role
-  getUserRole(): string {
-    return this.currentUser?.role || 'Admin';
+  getUserRole(): string | null {
+    return this.currentUser?.role || null;
   }
 
   // Get user office
-  getUserOfficeId(): number {
-    return this.currentUser?.office_id || 583;
+  getUserOfficeId(): number | null {
+    return this.currentUser?.office_id || null;
   }
 
   // Get user wing
-  getUserWingId(): number {
-    return this.currentUser?.wing_id || 19;
+  getUserWingId(): number | null {
+    return this.currentUser?.wing_id || null;
   }
 
   // Force refresh session from server
