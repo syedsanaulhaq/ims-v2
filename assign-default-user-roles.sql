@@ -7,18 +7,18 @@ GO
 DECLARE @UserRoleId UNIQUEIDENTIFIER;
 DECLARE @AssignedCount INT = 0;
 
--- Get the "User" role ID
+-- Get the "General User" role ID
 SELECT @UserRoleId = id 
 FROM ims_roles 
-WHERE role_name = 'IMS_USER';
+WHERE role_name = 'GENERAL_USER';
 
 IF @UserRoleId IS NULL
 BEGIN
-    PRINT '❌ Error: IMS_USER role not found. Please run create-ims-role-system.sql first.';
+    PRINT '❌ Error: GENERAL_USER role not found. Please run create-ims-role-system.sql first.';
 END
 ELSE
 BEGIN
-    PRINT '✅ Found IMS_USER role: ' + CAST(@UserRoleId AS NVARCHAR(50));
+    PRINT '✅ Found GENERAL_USER role: ' + CAST(@UserRoleId AS NVARCHAR(50));
     PRINT '';
     PRINT '🔍 Finding users without IMS roles...';
     
@@ -47,7 +47,7 @@ BEGIN
     
     SET @AssignedCount = @@ROWCOUNT;
     
-    PRINT '✅ Assigned default "User" role to ' + CAST(@AssignedCount AS NVARCHAR(10)) + ' users';
+    PRINT '✅ Assigned default "General User" role to ' + CAST(@AssignedCount AS NVARCHAR(10)) + ' users';
     PRINT '';
 END
 GO
@@ -68,7 +68,7 @@ ORDER BY
         WHEN 'IMS_SUPER_ADMIN' THEN 1
         WHEN 'IMS_ADMIN' THEN 2
         WHEN 'WING_SUPERVISOR' THEN 3
-        WHEN 'IMS_USER' THEN 4
+        WHEN 'GENERAL_USER' THEN 4
         WHEN 'PROCUREMENT_OFFICER' THEN 5
         WHEN 'AUDITOR' THEN 6
         ELSE 7
