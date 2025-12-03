@@ -72,6 +72,9 @@ const UserRoleAssignment: React.FC = () => {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [appliedWing, setAppliedWing] = useState('');
   const [appliedRole, setAppliedRole] = useState('');
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignForm, setAssignForm] = useState({
     role_id: '',
@@ -142,6 +145,7 @@ const UserRoleAssignment: React.FC = () => {
     setAppliedSearch(searchTerm);
     setAppliedWing(filterWing);
     setAppliedRole(filterRole);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
   // Handle clear filters
@@ -152,6 +156,7 @@ const UserRoleAssignment: React.FC = () => {
     setAppliedSearch('');
     setAppliedWing('');
     setAppliedRole('');
+    setCurrentPage(1); // Reset to first page
   };
 
   // Redirect if not Super Admin
@@ -233,6 +238,12 @@ const UserRoleAssignment: React.FC = () => {
   };
 
   const filteredUsers = users;
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentUsers = filteredUsers.slice(startIndex, endIndex);
 
   if (authLoading || loading) {
     return (
@@ -359,7 +370,7 @@ const UserRoleAssignment: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
+              {currentUsers.map((user) => (
                 <tr key={user.user_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div>
@@ -426,6 +437,62 @@ const UserRoleAssignment: React.FC = () => {
           <div className="text-center py-12 text-gray-500">
             <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No users found</p>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {filteredUsers.length > 0 && totalPages > 1 && (
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+              <span className="font-medium">{Math.min(endIndex, filteredUsers.length)}</span> of{' '}
+              <span className="font-medium">{filteredUsers.length}</span> users
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+              >
+                Previous
+              </button>
+              
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  // Show first page, last page, current page, and pages around current
+                  if (
+                    page === 1 ||
+                    page === totalPages ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1 border rounded-lg text-sm ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  } else if (page === currentPage - 2 || page === currentPage + 2) {
+                    return <span key={page} className="px-2">...</span>;
+                  }
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
