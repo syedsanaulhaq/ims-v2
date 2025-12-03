@@ -656,44 +656,10 @@ app.get('/api/session', async (req, res) => {
       });
     }
     
-    // Auto-login fallback for development (ENABLED for testing)
-    // Comment out in production and require proper login
-    if (pool) {
-      const result = await pool.request().query(`
-        SELECT TOP 1 Id, FullName, Email, CNIC, Role, intOfficeID, intWingID, intBranchID
-        FROM AspNetUsers 
-        WHERE CNIC = '1730115698727' AND ISACT = 1
-      `);
-      
-      if (result.recordset.length > 0) {
-        const user = result.recordset[0];
-        
-        // Get IMS roles and permissions
-        const imsData = await getUserImsData(user.Id);
-        
-        const sessionUser = {
-          user_id: user.Id,
-          user_name: user.FullName,
-          email: user.Email,
-          role: user.Role || 'User',
-          office_id: user.intOfficeID || 583,
-          wing_id: user.intWingID || 19,
-          branch_id: user.intBranchID || null,
-          created_at: new Date().toISOString(),
-          ims_roles: imsData?.roles || [],
-          ims_permissions: imsData?.permissions || [],
-          is_super_admin: imsData?.is_super_admin || false
-        };
-        
-        console.log('🔐 Session: Returning real user:', sessionUser.user_name, '(', sessionUser.user_id, ')');
-        console.log('🎭 IMS Roles:', sessionUser.ims_roles.length, 'roles,', sessionUser.ims_permissions.length, 'permissions');
-        return res.json({
-          success: true,
-          session: sessionUser,
-          session_id: 'auto-detected-session'
-        });
-      }
-    }
+    // No auto-login fallback - require proper authentication
+    // Users must either:
+    // 1. Come from DS with SSO token (handled by /api/sso-login)
+    // 2. Use the login page (handled by /api/auth/login)
   } catch (error) {
     console.error('Error getting session user:', error);
   }
