@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './invmisApi';
+
 interface StockReturnItem {
   issued_item_id: string;
   nomenclature: string;
@@ -16,7 +18,7 @@ interface StockReturn {
 }
 
 class StockReturnService {
-  private baseUrl = 'http://localhost:3001/api/stock-returns';
+  private baseUrl = `${getApiBaseUrl()}/stock-returns`;
 
   async createReturn(stockReturn: StockReturn): Promise<any> {
     try {

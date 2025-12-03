@@ -4,6 +4,8 @@
  * Service for stock issuance operations with SQL Server backend
  */
 
+import { getApiBaseUrl } from './invmisApi';
+
 export interface StockIssuanceRequest {
   request_number?: string; // Auto-generated on server side
   request_type: 'Individual' | 'Organizational';
@@ -39,7 +41,7 @@ export interface StockIssuanceFilters {
 }
 
 class StockIssuanceService {
-  private baseUrl = 'http://localhost:3001/api/stock-issuance';
+  private baseUrl = `${getApiBaseUrl()}/stock-issuance`;
 
   async submitRequest(request: StockIssuanceRequest): Promise<{ id: string; request_number: string }> {
     try {

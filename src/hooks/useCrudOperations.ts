@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getApiBaseUrl } from '../services/invmisApi';
 
 export interface CrudHookConfig<T> {
   endpoint: string;
@@ -23,7 +24,7 @@ export function useCrudOperations<T extends Record<string, any>>({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const baseUrl = 'http://localhost:3001';
+  const baseUrl = getApiBaseUrl().replace('/api', '');
 
   const fetchItems = async () => {
     try {

@@ -5,6 +5,8 @@
  * and allocation capabilities using SQL Server backend
  */
 
+import { getApiBaseUrl } from './invmisApi';
+
 export interface ApprovalRequest {
   id: string;
   request_number: string;
@@ -152,7 +154,7 @@ export interface ItemApproval {
 }
 
 class ApprovalService {
-  private baseUrl = 'http://localhost:3001/api/stock-issuance';
+  private baseUrl = `${getApiBaseUrl()}/stock-issuance`;
 
   async getPendingRequests(): Promise<ApprovalRequest[]> {
     try {
