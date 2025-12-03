@@ -1047,6 +1047,15 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
     const { userId } = req.params;
     const { role_id, scope_type, scope_wing_id, notes } = req.body;
 
+    console.log('📝 Role assignment request:', {
+      userId,
+      role_id,
+      scope_type,
+      scope_wing_id,
+      assigned_by: req.session.userId,
+      session: req.session
+    });
+
     if (!role_id) {
       return res.status(400).json({ error: 'Role ID is required' });
     }
@@ -1122,7 +1131,17 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
     });
   } catch (error) {
     console.error('Error assigning role:', error);
-    res.status(500).json({ error: 'Failed to assign role' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      number: error.number,
+      state: error.state,
+      procedure: error.procedure
+    });
+    res.status(500).json({ 
+      error: error.message || 'Failed to assign role',
+      details: process.env.NODE_ENV === 'development' ? error.toString() : undefined
+    });
   }
 });
 
