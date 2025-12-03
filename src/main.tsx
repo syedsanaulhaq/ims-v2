@@ -1,3 +1,5 @@
+// Global fetch wrapper - MUST be imported first before any other code
+import './lib/fetch-wrapper';
 
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
