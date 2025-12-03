@@ -66,9 +66,12 @@ const UserRoleAssignment: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [filterWing, setFilterWing] = useState('');
   const [filterRole, setFilterRole] = useState('');
+  // Applied filters (used for actual API calls)
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [appliedWing, setAppliedWing] = useState('');
+  const [appliedRole, setAppliedRole] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignForm, setAssignForm] = useState({
     role_id: '',
@@ -77,23 +80,14 @@ const UserRoleAssignment: React.FC = () => {
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-  // Debounce search term
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
   // Define fetch functions first with useCallback
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
-      if (filterWing) params.append('wing_id', filterWing);
-      if (filterRole) params.append('role_name', filterRole);
+      if (appliedSearch) params.append('search', appliedSearch);
+      if (appliedWing) params.append('wing_id', appliedWing);
+      if (appliedRole) params.append('role_name', appliedRole);
 
       const response = await fetch(`${API_BASE_URL}/api/ims/users?${params.toString()}`, {
         credentials: 'include',
@@ -111,7 +105,7 @@ const UserRoleAssignment: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearchTerm, filterWing, filterRole]);
+  }, [appliedSearch, appliedWing, appliedRole]);
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -142,6 +136,23 @@ const UserRoleAssignment: React.FC = () => {
       console.error('Error fetching wings:', error);
     }
   }, []);
+
+  // Handle manual search/filter submission
+  const handleSearch = () => {
+    setAppliedSearch(searchTerm);
+    setAppliedWing(filterWing);
+    setAppliedRole(filterRole);
+  };
+
+  // Handle clear filters
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setFilterWing('');
+    setFilterRole('');
+    setAppliedSearch('');
+    setAppliedWing('');
+    setAppliedRole('');
+  };
 
   // Redirect if not Super Admin
   useEffect(() => {
@@ -260,7 +271,7 @@ const UserRoleAssignment: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search Users</label>
             <div className="relative">
@@ -269,6 +280,7 @@ const UserRoleAssignment: React.FC = () => {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Search by name, email, or CNIC..."
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
@@ -305,6 +317,23 @@ const UserRoleAssignment: React.FC = () => {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <button
+              onClick={handleSearch}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <Search className="w-4 h-4" />
+              Search
+            </button>
+            <button
+              onClick={handleClearFilters}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center"
+              title="Clear Filters"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
