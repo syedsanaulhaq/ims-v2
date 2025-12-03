@@ -180,6 +180,18 @@ const requirePermission = (permissionKey) => {
           return res.status(503).json({ error: 'Database connection unavailable' });
         }
 
+        // First check if user is super admin - they bypass all permission checks
+        const superAdminResult = await pool.request()
+          .input('userId', sql.NVarChar(450), req.session.userId)
+          .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
+
+        const isSuperAdmin = superAdminResult.recordset[0]?.isSuperAdmin === 1 || superAdminResult.recordset[0]?.isSuperAdmin === true;
+
+        if (isSuperAdmin) {
+          console.log(`✅ Super Admin bypassing permission check: ${permissionKey}`);
+          return next();
+        }
+
         // Check if user has the required permission
         console.log(`🔍 Checking permission: ${permissionKey} for user ${req.session.userId}`);
         const result = await pool.request()
