@@ -980,19 +980,7 @@ app.get('/api/ims/users', requireAuth, requirePermission('users.manage'), async 
         u.intWingID as wing_id,
         o.strOfficeName as office_name,
         w.Name as wing_name,
-        dbo.fn_IsSuperAdmin(u.Id) as is_super_admin,
-        (
-          SELECT 
-            ur.id as user_role_id,
-            r.role_name,
-            r.display_name,
-            ur.scope_type,
-            ur.scope_wing_id
-          FROM ims_user_roles ur
-          INNER JOIN ims_roles r ON ur.role_id = r.id
-          WHERE ur.user_id = u.Id AND ur.is_active = 1
-          FOR JSON PATH
-        ) as roles_json
+        dbo.fn_IsSuperAdmin(u.Id) as is_super_admin
       FROM AspNetUsers u
       LEFT JOIN tblOffices o ON u.intOfficeID = o.intOfficeID
       LEFT JOIN WingsInformation w ON u.intWingID = w.Id
@@ -1024,10 +1012,26 @@ app.get('/api/ims/users', requireAuth, requirePermission('users.manage'), async 
 
     const result = await request.query(query);
 
-    // Parse JSON roles
-    const users = result.recordset.map(user => ({
-      ...user,
-      roles: user.roles_json ? JSON.parse(user.roles_json) : []
+    // Fetch roles separately for each user (SQL Server 2012 compatible)
+    const users = await Promise.all(result.recordset.map(async (user) => {
+      const rolesResult = await pool.request()
+        .input('userId', sql.NVarChar(450), user.user_id)
+        .query(`
+          SELECT 
+            ur.id as user_role_id,
+            r.role_name,
+            r.display_name,
+            ur.scope_type,
+            ur.scope_wing_id
+          FROM ims_user_roles ur
+          INNER JOIN ims_roles r ON ur.role_id = r.id
+          WHERE ur.user_id = @userId AND ur.is_active = 1
+        `);
+      
+      return {
+        ...user,
+        roles: rolesResult.recordset
+      };
     }));
 
     res.json(users);
