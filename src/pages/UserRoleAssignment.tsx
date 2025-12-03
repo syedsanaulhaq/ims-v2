@@ -169,12 +169,12 @@ const UserRoleAssignment: React.FC = () => {
     }
   }, [authLoading, isSuperAdmin, fetchRoles, fetchWings]);
 
-  // Fetch users when search or filters change
+  // Fetch users when applied filters change
   useEffect(() => {
     if (!authLoading && isSuperAdmin) {
       fetchUsers();
     }
-  }, [debouncedSearchTerm, filterWing, filterRole, authLoading, isSuperAdmin, fetchUsers]);
+  }, [appliedSearch, appliedWing, appliedRole, authLoading, isSuperAdmin, fetchUsers]);
 
   const handleAssignRole = async () => {
     if (!selectedUser || !assignForm.role_id) return;
