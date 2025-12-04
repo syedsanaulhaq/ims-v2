@@ -1076,7 +1076,7 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
     // Check if role exists
     const roleCheck = await pool.request()
       .input('roleId', sql.UniqueIdentifier, role_id)
-      .query('SELECT role_id, role_name FROM ims_roles WHERE role_id = @roleId');
+      .query('SELECT id, role_name FROM ims_roles WHERE id = @roleId');
 
     if (roleCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Role not found' });
@@ -1089,7 +1089,7 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
       .input('scopeType', sql.NVarChar(50), scope_type || 'Global')
       .input('scopeWingId', sql.Int, scope_wing_id || null)
       .query(`
-        SELECT user_role_id FROM ims_user_roles
+        SELECT id FROM ims_user_roles
         WHERE user_id = @userId 
         AND role_id = @roleId
         AND scope_type = @scopeType
@@ -1149,7 +1149,7 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
 app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermission('users.manage'), async (req, res) => {
   try {
     const { userId, userRoleId } = req.params;
-    const { reason } = req.body;
+    const { reason } = req.body || {}; // Handle undefined body for DELETE requests
 
     if (!pool) {
       return res.status(500).json({ error: 'Database not connected' });
@@ -1162,7 +1162,7 @@ app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermi
       .query(`
         SELECT role_id, scope_type, scope_wing_id
         FROM ims_user_roles
-        WHERE user_role_id = @userRoleId AND user_id = @userId
+        WHERE id = @userRoleId AND user_id = @userId
       `);
 
     if (roleDetails.recordset.length === 0) {
@@ -1174,7 +1174,7 @@ app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermi
     // Delete role assignment
     await pool.request()
       .input('userRoleId', sql.UniqueIdentifier, userRoleId)
-      .query('DELETE FROM ims_user_roles WHERE user_role_id = @userRoleId');
+      .query('DELETE FROM ims_user_roles WHERE id = @userRoleId');
 
     // Log to audit
     await pool.request()
