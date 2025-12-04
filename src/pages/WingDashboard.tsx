@@ -37,30 +37,31 @@ const WingDashboard = () => {
         setDataLoading(true);
         const apiBase = getApiBaseUrl();
         
-        // Fetch wing-level data (similar to personal dashboard but for wing)
+        // Fetch wing-level data - use the same endpoints as personal dashboard
+        // but wing supervisors can see all requests for their wing members
         const [
           requestsRes,
           issuedItemsRes,
           approvalsRes,
           notificationsRes
         ] = await Promise.all([
-          // Wing stock issuance requests
-          fetch(`${apiBase}/wing-requests`, { credentials: 'include' })
+          // All stock issuance requests (not filtered, for wing overview)
+          fetch(`${apiBase}/stock-issuance/requests`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           
-          // Wing issued items
-          fetch(`${apiBase}/issued-items/wing/${user?.intWingID}`, { credentials: 'include' })
+          // My issued items (wing supervisor's own items)
+          fetch(`${apiBase}/issued-items/user/${user?.user_id}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           
-          // Wing pending approvals
-          fetch(`${apiBase}/approvals/wing-pending`, { credentials: 'include' })
+          // My pending approvals (if wing supervisor is an approver)
+          fetch(`${apiBase}/approvals/my-pending`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           
-          // Wing notifications
-          fetch(`${apiBase}/wing-notifications?limit=10`, { credentials: 'include' })
+          // My notifications
+          fetch(`${apiBase}/my-notifications?limit=10`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => [])
         ]);
@@ -84,10 +85,10 @@ const WingDashboard = () => {
       }
     };
 
-    if (user?.intWingID) {
+    if (user?.user_id) {
       fetchWingData();
     }
-  }, [user?.intWingID]);
+  }, [user?.user_id]);
 
   if (dataLoading) {
     return (
