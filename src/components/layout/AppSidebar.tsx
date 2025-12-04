@@ -26,9 +26,13 @@ import {
   Settings,
   ArrowRight,
   Shield,
-  LogOut
+  LogOut,
+  User,
+  AlertTriangle,
+  ShoppingCart
 } from "lucide-react";
 import { usePermission } from '@/hooks/usePermission';
+import { useSession } from '@/contexts/SessionContext';
 import {
   Sidebar,
   SidebarContent,
@@ -43,11 +47,19 @@ import {
   SidebarGroupContent,
   useSidebar,
 } from "@/components/ui/sidebar";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+
+interface MenuItem {
+  title: string;
+  icon: React.ComponentType<any>;
+  path: string;
+  permission?: string;
+}
+
+interface MenuGroup {
+  label: string;
+  icon: React.ComponentType<any>;
+  items: MenuItem[];
+}
 
 interface AppSidebarProps {
   limitedMenu?: boolean;
@@ -57,6 +69,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { state } = useSidebar();
+  const { user } = useSession();
   
   // Permission hooks
   const { hasPermission: canManageRoles } = usePermission('roles.manage');
@@ -69,142 +82,117 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: canProcessIssuance } = usePermission('issuance.process');
   const { hasPermission: canApprove } = usePermission('approval.approve');
   const { hasPermission: canViewReports } = usePermission('reports.view');
+  const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
+  const { hasPermission: isSuperAdmin } = usePermission('admin.super');
 
   const handleLogout = async () => {
     try {
-      // Call logout endpoint
       await fetch('http://localhost:3001/api/logout', {
         method: 'POST',
         credentials: 'include'
       });
       
-      // Clear any local storage
       localStorage.clear();
       sessionStorage.clear();
-      
-      // Redirect to login
       navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
-      // Still redirect even if logout fails
       navigate('/login');
     }
   };
 
-  const allMenuItems = [
-    {
-      title: "Main Dashboard",
-      icon: Home,
-      path: "/",
-      hasSubmenu: false,
-      alwaysShow: true // Always visible to all users
-    },
-    {
-      title: "Quick Access",
-      icon: TrendingUp,
-      path: "/quick",
-      hasSubmenu: true,
-      alwaysShow: true, // Always show for general users
-      submenu: [
-        { title: "My Requests", path: "/dashboard/my-requests", alwaysShow: true },
-        { title: "My Issued Items", path: "/dashboard/my-issued-items", alwaysShow: true },
-        { title: "Request Item", path: "/dashboard/stock-issuance-personal", alwaysShow: true },
-        { title: "Return Item", path: "/dashboard/stock-return", alwaysShow: true },
-        { title: "Notifications", path: "/notifications", alwaysShow: true }
-      ]
-    },
-    {
-      title: "Complete Stock",
-      icon: BarChart3,
-      path: "/dashboard",
-      hasSubmenu: false,
-      showIfPermission: 'inventory.view' // Show if user can view inventory
-    },
-    {
-      title: "Inventory Manager",
-      icon: Package,
-      path: "/inventory",
-      hasSubmenu: true,
-      showIfPermission: 'inventory.view',
-      submenu: [
-        { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard", permission: 'inventory.view' },
-        { title: "Item Manager", path: "/dashboard/item-master", permission: 'inventory.manage' },
-        { title: "Categories", path: "/dashboard/categories", permission: 'inventory.manage' },
-        { title: "Sub-Categories", path: "/dashboard/sub-categories", permission: 'inventory.manage' },
-      ]
-    },
-    {
-      title: "Procurement Manager",
-      icon: Building2,
-      path: "/procurement",
-      hasSubmenu: true,
-      showIfPermission: 'procurement.view',
-      submenu: [
-        { title: "Contract/Tender", path: "/dashboard/contract-tender", permission: 'procurement.manage' },
-        { title: "Spot Purchase", path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
-        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard", permission: 'procurement.view' },
-        { title: "Vendor Management", path: "/dashboard/vendors", permission: 'procurement.manage' }
-      ]
-    },
-    {
-      title: "Issuance Manager",
-      icon: Warehouse,
-      path: "/issuance",
-      hasSubmenu: true,
-      showIfPermission: 'issuance.request',
-      submenu: [
-        { title: "Personal Request", path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
-        { title: "Wing Request", path: "/dashboard/stock-issuance-wing", permission: 'issuance.request' },
-        { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard", permission: 'issuance.view' },
-        { title: "My Issued Items", path: "/dashboard/my-issued-items", permission: 'issuance.request' },
-        { title: "IMS-Personal", path: "/dashboard/personal-inventory", permission: 'issuance.request' },
-        { title: "IMS-Wing", path: "/dashboard/wing-inventory", permission: 'issuance.view' },
-        { title: "Stock Returns", path: "/dashboard/stock-return", permission: 'issuance.request' },
-        { title: "Issue Processing", path: "/dashboard/stock-issuance-processing", permission: 'issuance.process' },
-        { title: "Historical Issuances", path: "/dashboard/issuances", permission: 'issuance.view' }
-      ]
-    },
-    {
-      title: "Approval System",
-      icon: CheckCircle,
-      path: "/approval",
-      hasSubmenu: true,
-      showIfPermission: 'approval.approve',
-      submenu: [
-        { title: "My Pending Approvals", path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
-        { title: "My Requests", path: "/dashboard/my-requests", alwaysShow: true },
-        { title: "Request History", path: "/dashboard/request-history", alwaysShow: true },
-        { title: "Workflow Configuration", path: "/dashboard/workflow-admin", permission: 'approval.manage' }
-      ]
-    },
-    {
-      title: "Role Management",
-      icon: Shield,
-      path: "/settings",
-      hasSubmenu: true,
-      showIfPermission: 'roles.manage',
-      submenu: [
-        { title: "Roles & Permissions", path: "/settings/roles", permission: 'roles.manage' },
-        { title: "User Role Assignment", path: "/settings/users", permission: 'users.assign_roles' }
-      ]
-    },
-    {
-      title: "Reports & Analytics",
-      icon: BarChart3,
-      path: "/reports",
-      hasSubmenu: true,
-      showIfPermission: 'reports.view',
-      submenu: [
-        { title: "Overview", path: "/reports?tab=overview", permission: 'reports.view' },
-        { title: "Inventory Report", path: "/reports?tab=inventory", permission: 'reports.view' },
-        { title: "Transaction Report", path: "/reports?tab=transactions", permission: 'reports.view' },
-        { title: "Analytics", path: "/reports?tab=analytics", permission: 'reports.view' }
-      ]
-    }
-  ];
+  // PERSONAL MENU - For all individual users
+  const personalMenuGroup: MenuGroup = {
+    label: "Personal Menu",
+    icon: User,
+    items: [
+      { title: "My Dashboard", icon: Home, path: "/", permission: undefined },
+      { title: "My Requests", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
+      { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
+      { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
+      { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
+      { title: "My Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+    ]
+  };
 
-  // Helper function to check if user has permission
-  const checkPermission = (permissionKey: string) => {
+  // WING MENU - For wing supervisors
+  const wingMenuGroup: MenuGroup = {
+    label: "Wing Menu",
+    icon: Building2,
+    items: [
+      { title: "Wing Dashboard", icon: BarChart3, path: "/dashboard/wing-dashboard", permission: 'wing.supervisor' },
+      { title: "Wing Requests", icon: ClipboardList, path: "/dashboard/wing-requests", permission: 'wing.supervisor' },
+      { title: "Wing Inventory", icon: Warehouse, path: "/dashboard/wing-inventory", permission: 'wing.supervisor' },
+      { title: "Wing Members", icon: Users, path: "/dashboard/wing-members", permission: 'wing.supervisor' },
+    ]
+  };
+
+  // INVENTORY MENU - For inventory managers
+  const inventoryMenuGroup: MenuGroup = {
+    label: "Inventory Menu",
+    icon: Package,
+    items: [
+      { title: "Inventory Dashboard", icon: BarChart3, path: "/dashboard/inventory-dashboard", permission: 'inventory.view' },
+      { title: "Item Master", icon: Package, path: "/dashboard/item-master", permission: 'inventory.manage' },
+      { title: "Categories", icon: Boxes, path: "/dashboard/categories", permission: 'inventory.manage' },
+      { title: "Sub-Categories", icon: Boxes, path: "/dashboard/sub-categories", permission: 'inventory.manage' },
+      { title: "Stock Quantities", icon: BarChart3, path: "/dashboard/inventory-stock-quantities", permission: 'inventory.view' },
+      { title: "Stock Alerts", icon: AlertTriangle, path: "/dashboard/inventory-alerts", permission: 'inventory.view' },
+    ]
+  };
+
+  // PROCUREMENT MENU - For procurement managers
+  const procurementMenuGroup: MenuGroup = {
+    label: "Procurement Menu",
+    icon: Building2,
+    items: [
+      { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
+      { title: "Spot Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
+      { title: "Stock Acquisition", icon: Warehouse, path: "/dashboard/stock-acquisition-dashboard", permission: 'procurement.view' },
+      { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
+    ]
+  };
+
+  // ISSUANCE MENU - For issuance processors
+  const issuanceMenuGroup: MenuGroup = {
+    label: "Stock Issuance Menu",
+    icon: Warehouse,
+    items: [
+      { title: "Issuance Dashboard", icon: BarChart3, path: "/dashboard/stock-issuance-dashboard", permission: 'issuance.view' },
+      { title: "Process Issuance", icon: ArrowRightLeft, path: "/dashboard/stock-issuance-processing", permission: 'issuance.process' },
+      { title: "Historical Issuances", icon: FileText, path: "/dashboard/issuances", permission: 'issuance.view' },
+      { title: "Stock Transactions", icon: ArrowRightLeft, path: "/dashboard/stock-transactions", permission: 'issuance.view' },
+    ]
+  };
+
+  // APPROVAL MENU - For approvers
+  const approvalMenuGroup: MenuGroup = {
+    label: "Approval Menu",
+    icon: CheckCircle,
+    items: [
+      { title: "My Pending Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "Request History", icon: FileText, path: "/dashboard/request-history", permission: 'approval.approve' },
+      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
+    ]
+  };
+
+  // ADMIN MENU - For super admins
+  const adminMenuGroup: MenuGroup = {
+    label: "Super Admin Menu",
+    icon: Shield,
+    items: [
+      { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/admin-dashboard", permission: 'admin.super' },
+      { title: "Roles & Permissions", icon: Shield, path: "/dashboard/roles", permission: 'roles.manage' },
+      { title: "User Management", icon: Users, path: "/dashboard/user-role-assignment", permission: 'users.assign_roles' },
+      { title: "System Settings", icon: Settings, path: "/dashboard/inventory-settings", permission: 'admin.super' },
+      { title: "Reports & Analytics", icon: BarChart3, path: "/dashboard/reports", permission: 'reports.view' },
+    ]
+  };
+
+  // Helper to check permission
+  const checkPermission = (permissionKey?: string) => {
+    if (!permissionKey) return true;
+    
     switch (permissionKey) {
       case 'inventory.view': return canViewInventory;
       case 'inventory.manage': return canManageInventory;
@@ -214,52 +202,84 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       case 'issuance.process': return canProcessIssuance;
       case 'issuance.view': return canRequestIssuance || canProcessIssuance;
       case 'approval.approve': return canApprove;
-      case 'approval.manage': return canManageRoles; // Workflow config requires role management
       case 'roles.manage': return canManageRoles;
       case 'users.assign_roles': return canAssignRoles;
       case 'reports.view': return canViewReports;
+      case 'wing.supervisor': return isWingSupervisor;
+      case 'admin.super': return isSuperAdmin;
       default: return false;
     }
   };
 
-  // Filter menu items based on limitedMenu prop and permissions
-  const menuItems = limitedMenu
-    ? allMenuItems.filter(item =>
-        item.title === "Main Dashboard" || item.title === "Complete Stock"
-      )
-    : allMenuItems.filter(item => {
-        // Always show items marked as alwaysShow
-        if (item.alwaysShow) return true;
-        
-        // Check if item requires a permission
-        if (item.showIfPermission) {
-          const hasRequiredPermission = checkPermission(item.showIfPermission);
-          
-          // If parent has permission, filter submenu items
-          if (hasRequiredPermission && item.submenu) {
-            item.submenu = item.submenu.filter(subItem => {
-              if (subItem.alwaysShow) return true;
-              if (subItem.permission) {
-                return checkPermission(subItem.permission);
-              }
-              return true;
-            });
-            // Only show parent if there are visible submenu items
-            return item.submenu.length > 0;
-          }
-          
-          return hasRequiredPermission;
-        }
-        
-        return true;
-      });
+  // Filter menu groups and items based on permissions
+  const getVisibleMenuGroups = () => {
+    const groups: MenuGroup[] = [];
+
+    // Always show personal menu
+    const visiblePersonalItems = personalMenuGroup.items.filter(item => checkPermission(item.permission));
+    if (visiblePersonalItems.length > 0) {
+      groups.push({ ...personalMenuGroup, items: visiblePersonalItems });
+    }
+
+    // Show wing menu if user is wing supervisor
+    if (isWingSupervisor) {
+      const visibleWingItems = wingMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleWingItems.length > 0) {
+        groups.push({ ...wingMenuGroup, items: visibleWingItems });
+      }
+    }
+
+    // Show inventory menu if user has inventory permissions
+    if (canViewInventory || canManageInventory) {
+      const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleInventoryItems.length > 0) {
+        groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });
+      }
+    }
+
+    // Show procurement menu if user has procurement permissions
+    if (canViewProcurement || canManageProcurement) {
+      const visibleProcurementItems = procurementMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleProcurementItems.length > 0) {
+        groups.push({ ...procurementMenuGroup, items: visibleProcurementItems });
+      }
+    }
+
+    // Show issuance menu if user has issuance permissions
+    if (canProcessIssuance || (canRequestIssuance && canProcessIssuance)) {
+      const visibleIssuanceItems = issuanceMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleIssuanceItems.length > 0) {
+        groups.push({ ...issuanceMenuGroup, items: visibleIssuanceItems });
+      }
+    }
+
+    // Show approval menu if user has approval permissions
+    if (canApprove || canManageRoles) {
+      const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleApprovalItems.length > 0) {
+        groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
+      }
+    }
+
+    // Show admin menu if user is super admin
+    if (isSuperAdmin || canManageRoles) {
+      const visibleAdminItems = adminMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleAdminItems.length > 0) {
+        groups.push({ ...adminMenuGroup, items: visibleAdminItems });
+      }
+    }
+
+    return groups;
+  };
+
+  const menuGroups = getVisibleMenuGroups();
 
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
-  const isParentActive = (submenu: any[]) => {
-    return submenu?.some(item => location.pathname === item.path);
+  const isGroupActive = (items: MenuItem[]) => {
+    return items.some(item => location.pathname === item.path);
   };
 
   return (
@@ -284,74 +304,57 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       </SidebarHeader>
 
       <SidebarContent className="p-4 bg-teal-600">
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {menuItems.map((item) => {
-                if (item.hasSubmenu) {
-                  const hasActiveChild = isParentActive(item.submenu);
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <Collapsible defaultOpen={hasActiveChild}>
-                        <CollapsibleTrigger asChild>
+        <SidebarMenu className="space-y-4">
+          {menuGroups.map((group) => {
+            const GroupIcon = group.icon;
+            const groupActive = isGroupActive(group.items);
+
+            return (
+              <div key={group.label} className="space-y-2">
+                {/* Group Label */}
+                {state !== "collapsed" && (
+                  <div className="flex items-center gap-2 px-2 py-1">
+                    <GroupIcon className="w-4 h-4 text-teal-200" />
+                    <span className="text-xs font-semibold text-teal-100 uppercase tracking-wider">
+                      {group.label}
+                    </span>
+                  </div>
+                )}
+
+                {/* Group Items */}
+                <SidebarGroup className="p-0">
+                  <SidebarGroupContent>
+                    <SidebarMenu className="space-y-1">
+                      {group.items.map((item) => (
+                        <SidebarMenuItem key={item.path}>
                           <SidebarMenuButton
-                            className={`justify-between text-teal-100 hover:bg-teal-700 hover:text-white data-[state=open]:bg-teal-700 data-[state=open]:text-white group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!w-auto ${
-                              hasActiveChild ? 'bg-teal-700 text-white' : ''
+                            asChild
+                            isActive={isActive(item.path)}
+                            className={`text-teal-100 hover:bg-teal-700 hover:text-white group-data-[collapsible=icon]:!justify-center transition-colors ${
+                              isActive(item.path)
+                                ? 'bg-teal-700 text-white'
+                                : ''
                             }`}
                           >
-                            <item.icon className="w-5 h-5 flex-shrink-0" />
-                            <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
-                            <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
+                            <Link
+                              to={item.path}
+                              className="flex items-center gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center"
+                            >
+                              <item.icon className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-sm group-data-[collapsible=icon]:hidden">
+                                {item.title}
+                              </span>
+                            </Link>
                           </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub className="ml-8 mt-2 group-data-[collapsible=icon]:hidden">
-                            {item.submenu?.map((subItem) => (
-                              <SidebarMenuSubItem key={subItem.path}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={isActive(subItem.path)}
-                                  className={`text-teal-200 hover:bg-teal-700 hover:text-white ${
-                                    isActive(subItem.path)
-                                      ? 'bg-teal-800 text-white'
-                                      : ''
-                                  }`}
-                                >
-                                  <Link to={subItem.path}>
-                                    <span className="ml-1">- {subItem.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </SidebarMenuItem>
-                  );
-                }
-
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.path)}
-                      className={`text-teal-100 hover:bg-teal-700 hover:text-white group-data-[collapsible=icon]:!justify-center ${
-                        isActive(item.path)
-                          ? 'bg-teal-700 text-white'
-                          : ''
-                      }`}
-                    >
-                      <Link to={item.path} className="flex items-center gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center">
-                        <item.icon className="w-5 h-5 flex-shrink-0" />
-                        <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </div>
+            );
+          })}
+        </SidebarMenu>
 
         {/* Logout Section */}
         <SidebarGroup className="mt-auto">
@@ -360,10 +363,10 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleLogout}
-                  className="text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer group-data-[collapsible=icon]:!justify-center"
+                  className="text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer group-data-[collapsible=icon]:!justify-center transition-colors"
                 >
-                  <LogOut className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">Logout</span>
+                  <LogOut className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm group-data-[collapsible=icon]:hidden">Logout</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
