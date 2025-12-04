@@ -13116,7 +13116,7 @@ app.get('/api/my-requests', async (req, res) => {
       FROM request_approvals ra
       LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
       LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
-      LEFT JOIN stock_issuance si ON si.id = ra.request_id
+      LEFT JOIN StockIssuances si ON si.id = ra.request_id
       LEFT JOIN Offices o ON o.Id = u_requester.intOfficeID  
       LEFT JOIN Wings w ON w.Id = u_requester.intWingID
       WHERE ra.submitted_by = @userId
