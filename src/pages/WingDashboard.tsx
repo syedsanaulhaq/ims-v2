@@ -240,7 +240,11 @@ const WingDashboard = () => {
           ) : (
             <div className="divide-y">
               {wingRequests.slice(0, 5).map((request) => (
-                <div key={request.request_id || request.id} className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                <div 
+                  key={request.request_id || request.id} 
+                  className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/dashboard/request-details/${request.request_id || request.id}`)}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium text-gray-900">{request.justification || request.item_name || 'Stock Request'}</h4>
                     <Badge 
@@ -282,7 +286,11 @@ const WingDashboard = () => {
           <CardContent className="p-0">
             <div className="divide-y">
               {wingIssuedItems.slice(0, 5).map((item, idx) => (
-                <div key={idx} className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                <div 
+                  key={idx} 
+                  className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/dashboard/item-details/${item.item_id || item.id}`)}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium text-gray-900">{item.item_name || item.description}</h4>
                     <Badge variant="outline" className="text-blue-700 border-blue-300">{item.quantity || 0} units</Badge>
