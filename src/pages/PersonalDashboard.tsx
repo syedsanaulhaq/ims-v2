@@ -107,121 +107,167 @@ const PersonalDashboard = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-lg p-6 text-white">
-        <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.userName || 'User'}!</h1>
-        <p className="text-teal-100">Here's what's happening with your inventory activities</p>
+    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-4xl font-bold text-gray-900">Personal Dashboard</h1>
+        <p className="text-lg text-gray-600 mt-2">
+          Welcome back, {user?.userName || 'User'}! Here's your inventory activity overview
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Active
+          </Badge>
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+            <Clock className="h-3 w-3 mr-1" />
+            Last Updated: {new Date().toLocaleTimeString()}
+          </Badge>
+        </div>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/dashboard/my-requests')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">My Requests</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/my-requests')}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-orange-700">
+              <ClipboardList className="h-5 w-5" />
+              My Requests
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalRequests}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.pendingRequests} pending
-            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Total</span>
+                <span className="text-2xl font-bold text-orange-600">{stats.totalRequests}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Pending</span>
+                <span className="font-semibold text-orange-500">{stats.pendingRequests}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Approved</span>
+                <span className="font-semibold text-green-600">{stats.approvedRequests}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/dashboard/my-issued-items')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Items in Possession</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/my-issued-items')}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-blue-700">
+              <Package className="h-5 w-5" />
+              Items in Possession
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.itemsInPossession}</div>
-            <p className="text-xs text-muted-foreground">
-              Currently issued to you
-            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Total</span>
+                <span className="text-2xl font-bold text-blue-600">{stats.itemsInPossession}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Currently issued to you
+              </p>
+            </div>
           </CardContent>
         </Card>
 
         {stats.pendingApprovals > 0 && (
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/dashboard/approval-dashboard')}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/approval-dashboard')}>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-purple-700">
+                <CheckCircle className="h-5 w-5" />
+                Pending Approvals
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingApprovals}</div>
-              <p className="text-xs text-muted-foreground">
-                Awaiting your action
-              </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Total</span>
+                  <span className="text-2xl font-bold text-purple-600">{stats.pendingApprovals}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Awaiting your action
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/notifications')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Notifications</CardTitle>
-            <Bell className="h-4 w-4 text-muted-foreground" />
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-teal-50 to-teal-100 border-l-4 border-l-teal-500" onClick={() => navigate('/notifications')}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-teal-700">
+              <Bell className="h-5 w-5" />
+              Notifications
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{myNotifications.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.unreadNotifications} unread
-            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Total</span>
+                <span className="text-2xl font-bold text-teal-600">{myNotifications.length}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Unread</span>
+                <span className="font-semibold text-teal-500">{stats.unreadNotifications}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+      <Card className="shadow-lg">
+        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
+          <CardTitle className="text-xl">Quick Actions</CardTitle>
           <CardDescription>Common tasks you can perform</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Button 
               variant="outline" 
-              className="h-24 flex flex-col items-center justify-center space-y-2"
+              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-teal-50 hover:border-teal-500 transition-all"
               onClick={() => navigate('/dashboard/stock-issuance-personal')}
             >
-              <Send className="h-8 w-8 text-teal-600" />
-              <span className="text-sm">Request Item</span>
+              <Send className="h-10 w-10 text-teal-600" />
+              <span className="text-sm font-semibold">Request Item</span>
             </Button>
             
             <Button 
               variant="outline" 
-              className="h-24 flex flex-col items-center justify-center space-y-2"
+              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-orange-50 hover:border-orange-500 transition-all"
               onClick={() => navigate('/dashboard/stock-return')}
             >
-              <Undo2 className="h-8 w-8 text-orange-600" />
-              <span className="text-sm">Return Item</span>
+              <Undo2 className="h-10 w-10 text-orange-600" />
+              <span className="text-sm font-semibold">Return Item</span>
             </Button>
             
             <Button 
               variant="outline" 
-              className="h-24 flex flex-col items-center justify-center space-y-2"
+              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-blue-50 hover:border-blue-500 transition-all"
               onClick={() => navigate('/dashboard/my-requests')}
             >
-              <ClipboardList className="h-8 w-8 text-blue-600" />
-              <span className="text-sm">View Requests</span>
+              <ClipboardList className="h-10 w-10 text-blue-600" />
+              <span className="text-sm font-semibold">View Requests</span>
             </Button>
             
             <Button 
               variant="outline" 
-              className="h-24 flex flex-col items-center justify-center space-y-2"
+              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-purple-50 hover:border-purple-500 transition-all"
               onClick={() => navigate('/dashboard/my-issued-items')}
             >
-              <Box className="h-8 w-8 text-purple-600" />
-              <span className="text-sm">My Items</span>
+              <Box className="h-10 w-10 text-purple-600" />
+              <span className="text-sm font-semibold">My Items</span>
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Recent Requests */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Requests</CardTitle>
+      <Card className="shadow-lg">
+        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
+          <CardTitle className="text-xl">Recent Requests</CardTitle>
           <CardDescription>Your latest stock issuance requests</CardDescription>
         </CardHeader>
         <CardContent>

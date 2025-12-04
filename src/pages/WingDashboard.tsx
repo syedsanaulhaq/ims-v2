@@ -117,61 +117,99 @@ const WingDashboard = () => {
   ].filter(item => item.value > 0);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white">
-        <h1 className="text-3xl font-bold mb-2">Wing Dashboard</h1>
-        <p className="text-blue-100">Overview of your wing's inventory activities</p>
+    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-4xl font-bold text-gray-900">Wing Dashboard</h1>
+        <p className="text-lg text-gray-600 mt-2">
+          Comprehensive overview of your wing's inventory activities
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Active
+          </Badge>
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+            <Clock className="h-3 w-3 mr-1" />
+            Last Updated: {new Date().toLocaleTimeString()}
+          </Badge>
+        </div>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Wing Requests</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-orange-700">
+              <ClipboardList className="h-5 w-5" />
+              Wing Requests
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalRequests}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.pendingRequests} pending
-            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Total</span>
+                <span className="text-2xl font-bold text-orange-600">{stats.totalRequests}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Pending</span>
+                <span className="font-semibold text-orange-500">{stats.pendingRequests}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Wing Inventory</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+        <Card className="hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-blue-700">
+              <Package className="h-5 w-5" />
+              Wing Inventory
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalItems}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalQuantity} total items
-            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Items</span>
+                <span className="text-2xl font-bold text-blue-600">{stats.totalItems}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Total Quantity</span>
+                <span className="font-semibold text-blue-500">{stats.totalQuantity}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Wing Members</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+        <Card className="hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-purple-700">
+              <Users className="h-5 w-5" />
+              Wing Members
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.wingMembers}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.activeMembers} active
-            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Total</span>
+                <span className="text-2xl font-bold text-purple-600">{stats.wingMembers}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Active</span>
+                <span className="font-semibold text-purple-500">{stats.activeMembers}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/dashboard/stock-issuance-wing')}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">New Request</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-teal-50 to-teal-100 border-l-4 border-l-teal-500" onClick={() => navigate('/dashboard/stock-issuance-wing')}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-teal-700">
+              <Building2 className="h-5 w-5" />
+              New Request
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full hover:bg-teal-100 transition-all">
               Request for Wing
             </Button>
           </CardContent>
@@ -182,9 +220,9 @@ const WingDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Request Status Distribution */}
         {requestStatusData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Request Status Distribution</CardTitle>
+          <Card className="shadow-lg">
+            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
+              <CardTitle className="text-xl">Request Status Distribution</CardTitle>
               <CardDescription>Breakdown of wing request statuses</CardDescription>
             </CardHeader>
             <CardContent>
@@ -211,10 +249,10 @@ const WingDashboard = () => {
           </Card>
         )}
 
-        {/* Top Requested Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Wing Activity Summary</CardTitle>
+        {/* Wing Activity Summary */}
+        <Card className="shadow-lg">
+          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
+            <CardTitle className="text-xl">Wing Activity Summary</CardTitle>
             <CardDescription>Recent activity metrics</CardDescription>
           </CardHeader>
           <CardContent>
@@ -252,11 +290,11 @@ const WingDashboard = () => {
       </div>
 
       {/* Recent Wing Requests */}
-      <Card>
-        <CardHeader>
+      <Card className="shadow-lg">
+        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Recent Wing Requests</CardTitle>
+              <CardTitle className="text-xl">Recent Wing Requests</CardTitle>
               <CardDescription>Latest stock requests for your wing</CardDescription>
             </div>
             <Button variant="outline" onClick={() => navigate('/dashboard/stock-issuance-dashboard')}>
@@ -299,11 +337,11 @@ const WingDashboard = () => {
 
       {/* Wing Inventory Overview */}
       {wingInventory.length > 0 && (
-        <Card>
-          <CardHeader>
+        <Card className="shadow-lg">
+          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Wing Inventory</CardTitle>
+                <CardTitle className="text-xl">Wing Inventory</CardTitle>
                 <CardDescription>Items currently with wing members</CardDescription>
               </div>
               <Button variant="outline" onClick={() => navigate('/dashboard/wing-inventory')}>
