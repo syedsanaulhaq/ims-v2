@@ -13101,24 +13101,19 @@ app.get('/api/my-requests', async (req, res) => {
         -- Get approver name
         u_approver.FullName as current_approver_name,
         
-        -- Get requester office and wing info
+        -- Get requester info
         u_requester.FullName as requester_name,
         
         -- Use stock issuance data for titles and descriptions
         sir.justification as title,
         sir.purpose as description,
         sir.created_at as requested_date,
-        
-        -- Get office and wing from user profile  
-        o.Name as office_name,
-        w.Name as wing_name
+        sir.request_status
         
       FROM request_approvals ra
       LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
       LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
       LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
-      LEFT JOIN Offices o ON o.Id = u_requester.intOfficeID  
-      LEFT JOIN Wings w ON w.Id = u_requester.intWingID
       WHERE ra.submitted_by = @userId
       ORDER BY ra.created_date DESC;
     `;
