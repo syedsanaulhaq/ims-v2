@@ -47,6 +47,7 @@ import { StockIssuanceDashboard } from "./pages/StockIssuanceDashboard";
 import MyIssuedItems from "./pages/MyIssuedItems";
 import PersonalInventory from "./pages/PersonalInventory";
 import WingInventory from "./pages/WingInventory";
+import WingDashboard from "./pages/WingDashboard";
 import SupervisorApprovals from "./pages/SupervisorApprovals";
 import AdminApprovals from "./pages/AdminApprovals";
 import RoleManagement from "./pages/RoleManagement";
@@ -178,6 +179,7 @@ function App() {
                   <Route path="my-issued-items" element={<MyIssuedItems />} />
                   <Route path="personal-inventory" element={<PersonalInventory />} />
                   <Route path="wing-inventory" element={<WingInventory />} />
+                  <Route path="wing-dashboard" element={<WingDashboard />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />
