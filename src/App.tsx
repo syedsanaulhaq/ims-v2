@@ -133,13 +133,17 @@ function App() {
                 {/* Protected routes */}
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <SmartDashboard />
+                    <Layout>
+                      <SmartDashboard />
+                    </Layout>
                   </ProtectedRoute>
                 } />
                 
                 <Route path="/user-dashboard" element={
                   <ProtectedRoute>
-                    <UserDashboard />
+                    <Layout>
+                      <UserDashboard />
+                    </Layout>
                   </ProtectedRoute>
                 } />
                 
