@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateDMY } from '@/utils/dateUtils';
 import { getApiBaseUrl } from '@/services/invmisApi';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSession } from '@/contexts/SessionContext';
 import { 
   Package, 
   ClipboardList,
@@ -21,7 +21,7 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 const PersonalDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useSession();
   const [dataLoading, setDataLoading] = useState(true);
   
   // Personal data state
@@ -49,7 +49,7 @@ const PersonalDashboard = () => {
             .catch(() => []),
           
           // My issued items (items currently in my possession)
-          fetch(`${apiBase}/issued-items/user/${user?.userId}`, { credentials: 'include' })
+          fetch(`${apiBase}/issued-items/user/${user?.user_id}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           
@@ -83,10 +83,10 @@ const PersonalDashboard = () => {
       }
     };
 
-    if (user?.userId) {
+    if (user?.user_id) {
       fetchPersonalData();
     }
-  }, [user?.userId]);
+  }, [user?.user_id]);
 
   if (dataLoading) {
     return (
