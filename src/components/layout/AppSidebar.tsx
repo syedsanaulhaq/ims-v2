@@ -100,6 +100,20 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       alwaysShow: true // Always visible to all users
     },
     {
+      title: "Quick Access",
+      icon: TrendingUp,
+      path: "/quick",
+      hasSubmenu: true,
+      alwaysShow: true, // Always show for general users
+      submenu: [
+        { title: "My Requests", path: "/dashboard/my-requests", alwaysShow: true },
+        { title: "My Issued Items", path: "/dashboard/my-issued-items", alwaysShow: true },
+        { title: "Request Item", path: "/dashboard/stock-issuance-personal", alwaysShow: true },
+        { title: "Return Item", path: "/dashboard/stock-return", alwaysShow: true },
+        { title: "Notifications", path: "/notifications", alwaysShow: true }
+      ]
+    },
+    {
       title: "Complete Stock",
       icon: BarChart3,
       path: "/dashboard",

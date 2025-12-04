@@ -127,7 +127,7 @@ const PersonalDashboard = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/my-requests')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-orange-700">
@@ -173,27 +173,25 @@ const PersonalDashboard = () => {
           </CardContent>
         </Card>
 
-        {stats.pendingApprovals > 0 && (
-          <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/approval-dashboard')}>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-purple-700">
-                <CheckCircle className="h-5 w-5" />
-                Pending Approvals
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Total</span>
-                  <span className="text-2xl font-bold text-purple-600">{stats.pendingApprovals}</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Awaiting your action
-                </p>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/approval-dashboard')}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-purple-700">
+              <CheckCircle className="h-5 w-5" />
+              My Approvals
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Pending</span>
+                <span className="text-2xl font-bold text-purple-600">{stats.pendingApprovals}</span>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <p className="text-xs text-gray-500 mt-2">
+                {stats.pendingApprovals > 0 ? 'Awaiting your action' : 'No pending approvals'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-teal-50 to-teal-100 border-l-4 border-l-teal-500" onClick={() => navigate('/notifications')}>
           <CardHeader className="pb-2">
