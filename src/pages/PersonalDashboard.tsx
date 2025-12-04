@@ -44,12 +44,12 @@ const PersonalDashboard = () => {
           notificationsRes
         ] = await Promise.all([
           // My stock issuance requests
-          fetch(`${apiBase}/stock-issuance/my-requests`, { credentials: 'include' })
+          fetch(`${apiBase}/my-requests`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           
           // My issued items (items currently in my possession)
-          fetch(`${apiBase}/stock-issuance/my-issued-items`, { credentials: 'include' })
+          fetch(`${apiBase}/issued-items/user/${user?.userId}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           
@@ -64,6 +64,13 @@ const PersonalDashboard = () => {
             .catch(() => [])
         ]);
 
+        console.log('Personal Dashboard Data:', {
+          requests: requestsRes,
+          issuedItems: issuedItemsRes,
+          approvals: approvalsRes,
+          notifications: notificationsRes
+        });
+
         setMyRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.data || []));
         setMyIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
         setMyPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
@@ -76,8 +83,10 @@ const PersonalDashboard = () => {
       }
     };
 
-    fetchPersonalData();
-  }, []);
+    if (user?.userId) {
+      fetchPersonalData();
+    }
+  }, [user?.userId]);
 
   if (dataLoading) {
     return (
