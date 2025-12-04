@@ -36,7 +36,7 @@ export function usePermission(permissionKey: string) {
 
         // Server-side verification for security
         const response = await fetch(
-          `/api/ims/check-permission?permission=${encodeURIComponent(permissionKey)}`,
+          `http://localhost:3001/api/ims/check-permission?permission=${encodeURIComponent(permissionKey)}`,
           {
             method: 'GET',
             credentials: 'include',
