@@ -47,6 +47,11 @@ import {
   SidebarGroupContent,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface MenuItem {
   title: string;
@@ -310,48 +315,51 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
             const groupActive = isGroupActive(group.items);
 
             return (
-              <div key={group.label} className="space-y-2">
-                {/* Group Label */}
-                {state !== "collapsed" && (
-                  <div className="flex items-center gap-2 px-2 py-1">
-                    <GroupIcon className="w-4 h-4 text-teal-200" />
-                    <span className="text-xs font-semibold text-teal-100 uppercase tracking-wider">
-                      {group.label}
-                    </span>
+              <Collapsible key={group.label} defaultOpen={groupActive} className="space-y-2">
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between px-2 py-2 cursor-pointer hover:bg-teal-700 rounded transition-colors group-data-[collapsible=icon]:!p-2 group-data-[collapsible=icon]:!justify-center">
+                    <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+                      <GroupIcon className="w-4 h-4 text-teal-200" />
+                      <span className="text-xs font-semibold text-teal-100 uppercase tracking-wider">
+                        {group.label}
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-teal-200 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
                   </div>
-                )}
+                </CollapsibleTrigger>
 
-                {/* Group Items */}
-                <SidebarGroup className="p-0">
-                  <SidebarGroupContent>
-                    <SidebarMenu className="space-y-1">
-                      {group.items.map((item) => (
-                        <SidebarMenuItem key={item.path}>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={isActive(item.path)}
-                            className={`text-teal-100 hover:bg-teal-700 hover:text-white group-data-[collapsible=icon]:!justify-center transition-colors ${
-                              isActive(item.path)
-                                ? 'bg-teal-700 text-white'
-                                : ''
-                            }`}
-                          >
-                            <Link
-                              to={item.path}
-                              className="flex items-center gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center"
+                <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
+                  <SidebarGroup className="p-0">
+                    <SidebarGroupContent>
+                      <SidebarMenu className="space-y-1">
+                        {group.items.map((item) => (
+                          <SidebarMenuItem key={item.path}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={isActive(item.path)}
+                              className={`text-teal-100 hover:bg-teal-700 hover:text-white group-data-[collapsible=icon]:!justify-center transition-colors ${
+                                isActive(item.path)
+                                  ? 'bg-teal-700 text-white'
+                                  : ''
+                              }`}
                             >
-                              <item.icon className="w-4 h-4 flex-shrink-0" />
-                              <span className="text-sm group-data-[collapsible=icon]:hidden">
-                                {item.title}
-                              </span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              </div>
+                              <Link
+                                to={item.path}
+                                className="flex items-center gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center ml-2"
+                              >
+                                <item.icon className="w-4 h-4 flex-shrink-0" />
+                                <span className="text-sm group-data-[collapsible=icon]:hidden">
+                                  {item.title}
+                                </span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </SidebarGroup>
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
         </SidebarMenu>
