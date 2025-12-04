@@ -57,8 +57,18 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { state } = useSidebar();
+  
+  // Permission hooks
   const { hasPermission: canManageRoles } = usePermission('roles.manage');
   const { hasPermission: canAssignRoles } = usePermission('users.assign_roles');
+  const { hasPermission: canViewInventory } = usePermission('inventory.view');
+  const { hasPermission: canManageInventory } = usePermission('inventory.manage');
+  const { hasPermission: canViewProcurement } = usePermission('procurement.view');
+  const { hasPermission: canManageProcurement } = usePermission('procurement.manage');
+  const { hasPermission: canRequestIssuance } = usePermission('issuance.request');
+  const { hasPermission: canProcessIssuance } = usePermission('issuance.process');
+  const { hasPermission: canApprove } = usePermission('approval.approve');
+  const { hasPermission: canViewReports } = usePermission('reports.view');
 
   const handleLogout = async () => {
     try {
@@ -86,26 +96,27 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       title: "Main Dashboard",
       icon: Home,
       path: "/",
-      hasSubmenu: false
+      hasSubmenu: false,
+      alwaysShow: true // Always visible to all users
     },
     {
       title: "Complete Stock",
       icon: BarChart3,
       path: "/dashboard",
-      hasSubmenu: false
+      hasSubmenu: false,
+      showIfPermission: 'inventory.view' // Show if user can view inventory
     },
     {
       title: "Inventory Manager",
       icon: Package,
       path: "/inventory",
       hasSubmenu: true,
+      showIfPermission: 'inventory.view',
       submenu: [
-        // { title: "Initial Stock", path: "/dashboard/initial-setup" },
-        { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard" },
-        { title: "Item Manager", path: "/dashboard/item-master" },
-        { title: "Categories", path: "/dashboard/categories" },
-        { title: "Sub-Categories", path: "/dashboard/sub-categories" },
-        // { title: "Inventory Settings", path: "/dashboard/inventory-settings" }
+        { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard", permission: 'inventory.view' },
+        { title: "Item Manager", path: "/dashboard/item-master", permission: 'inventory.manage' },
+        { title: "Categories", path: "/dashboard/categories", permission: 'inventory.manage' },
+        { title: "Sub-Categories", path: "/dashboard/sub-categories", permission: 'inventory.manage' },
       ]
     },
     {
@@ -113,11 +124,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       icon: Building2,
       path: "/procurement",
       hasSubmenu: true,
+      showIfPermission: 'procurement.view',
       submenu: [
-        { title: "Contract/Tender", path: "/dashboard/contract-tender" },
-        { title: "Spot Purchase", path: "/dashboard/spot-purchases" },
-        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard" },
-        { title: "Vendor Management", path: "/dashboard/vendors" }
+        { title: "Contract/Tender", path: "/dashboard/contract-tender", permission: 'procurement.manage' },
+        { title: "Spot Purchase", path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
+        { title: "Stock Acquisition", path: "/dashboard/stock-acquisition-dashboard", permission: 'procurement.view' },
+        { title: "Vendor Management", path: "/dashboard/vendors", permission: 'procurement.manage' }
       ]
     },
     {
@@ -125,16 +137,17 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       icon: Warehouse,
       path: "/issuance",
       hasSubmenu: true,
+      showIfPermission: 'issuance.request',
       submenu: [
-        { title: "Personal Request", path: "/dashboard/stock-issuance-personal" },
-        { title: "Wing Request", path: "/dashboard/stock-issuance-wing" },
-        { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard" },
-        { title: "My Issued Items", path: "/dashboard/my-issued-items" },
-        { title: "IMS-Personal", path: "/dashboard/personal-inventory" },
-        { title: "IMS-Wing", path: "/dashboard/wing-inventory" },
-        { title: "Stock Returns", path: "/dashboard/stock-return" },
-        { title: "Issue Processing", path: "/dashboard/stock-issuance-processing" },
-        { title: "Historical Issuances", path: "/dashboard/issuances" }
+        { title: "Personal Request", path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
+        { title: "Wing Request", path: "/dashboard/stock-issuance-wing", permission: 'issuance.request' },
+        { title: "Issuance Dashboard", path: "/dashboard/stock-issuance-dashboard", permission: 'issuance.view' },
+        { title: "My Issued Items", path: "/dashboard/my-issued-items", permission: 'issuance.request' },
+        { title: "IMS-Personal", path: "/dashboard/personal-inventory", permission: 'issuance.request' },
+        { title: "IMS-Wing", path: "/dashboard/wing-inventory", permission: 'issuance.view' },
+        { title: "Stock Returns", path: "/dashboard/stock-return", permission: 'issuance.request' },
+        { title: "Issue Processing", path: "/dashboard/stock-issuance-processing", permission: 'issuance.process' },
+        { title: "Historical Issuances", path: "/dashboard/issuances", permission: 'issuance.view' }
       ]
     },
     {
@@ -142,11 +155,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       icon: CheckCircle,
       path: "/approval",
       hasSubmenu: true,
+      showIfPermission: 'approval.approve',
       submenu: [
-        { title: "My Pending Approvals", path: "/dashboard/approval-dashboard" },
-        { title: "My Requests", path: "/dashboard/my-requests" },
-        { title: "Request History", path: "/dashboard/request-history" },
-        { title: "Workflow Configuration", path: "/dashboard/workflow-admin" }
+        { title: "My Pending Approvals", path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+        { title: "My Requests", path: "/dashboard/my-requests", alwaysShow: true },
+        { title: "Request History", path: "/dashboard/request-history", alwaysShow: true },
+        { title: "Workflow Configuration", path: "/dashboard/workflow-admin", permission: 'approval.manage' }
       ]
     },
     {
@@ -156,8 +170,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       hasSubmenu: true,
       showIfPermission: 'roles.manage',
       submenu: [
-        { title: "Roles & Permissions", path: "/settings/roles" },
-        { title: "User Role Assignment", path: "/settings/users" }
+        { title: "Roles & Permissions", path: "/settings/roles", permission: 'roles.manage' },
+        { title: "User Role Assignment", path: "/settings/users", permission: 'users.assign_roles' }
       ]
     },
     {
@@ -165,29 +179,64 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       icon: BarChart3,
       path: "/reports",
       hasSubmenu: true,
+      showIfPermission: 'reports.view',
       submenu: [
-        { title: "Overview", path: "/reports?tab=overview" },
-        { title: "Inventory Report", path: "/reports?tab=inventory" },
-        { title: "Transaction Report", path: "/reports?tab=transactions" },
-        { title: "Analytics", path: "/reports?tab=analytics" }
+        { title: "Overview", path: "/reports?tab=overview", permission: 'reports.view' },
+        { title: "Inventory Report", path: "/reports?tab=inventory", permission: 'reports.view' },
+        { title: "Transaction Report", path: "/reports?tab=transactions", permission: 'reports.view' },
+        { title: "Analytics", path: "/reports?tab=analytics", permission: 'reports.view' }
       ]
     }
   ];
 
-  // Filter menu items based on limitedMenu prop
+  // Helper function to check if user has permission
+  const checkPermission = (permissionKey: string) => {
+    switch (permissionKey) {
+      case 'inventory.view': return canViewInventory;
+      case 'inventory.manage': return canManageInventory;
+      case 'procurement.view': return canViewProcurement;
+      case 'procurement.manage': return canManageProcurement;
+      case 'issuance.request': return canRequestIssuance;
+      case 'issuance.process': return canProcessIssuance;
+      case 'issuance.view': return canRequestIssuance || canProcessIssuance;
+      case 'approval.approve': return canApprove;
+      case 'approval.manage': return canManageRoles; // Workflow config requires role management
+      case 'roles.manage': return canManageRoles;
+      case 'users.assign_roles': return canAssignRoles;
+      case 'reports.view': return canViewReports;
+      default: return false;
+    }
+  };
+
+  // Filter menu items based on limitedMenu prop and permissions
   const menuItems = limitedMenu
     ? allMenuItems.filter(item =>
         item.title === "Main Dashboard" || item.title === "Complete Stock"
       )
     : allMenuItems.filter(item => {
-        // Filter out items that require permissions the user doesn't have
+        // Always show items marked as alwaysShow
+        if (item.alwaysShow) return true;
+        
+        // Check if item requires a permission
         if (item.showIfPermission) {
-          // Check for role management permission
-          if (item.showIfPermission === 'roles.manage') {
-            return canManageRoles || canAssignRoles;
+          const hasRequiredPermission = checkPermission(item.showIfPermission);
+          
+          // If parent has permission, filter submenu items
+          if (hasRequiredPermission && item.submenu) {
+            item.submenu = item.submenu.filter(subItem => {
+              if (subItem.alwaysShow) return true;
+              if (subItem.permission) {
+                return checkPermission(subItem.permission);
+              }
+              return true;
+            });
+            // Only show parent if there are visible submenu items
+            return item.submenu.length > 0;
           }
-          return false;
+          
+          return hasRequiredPermission;
         }
+        
         return true;
       });
 
