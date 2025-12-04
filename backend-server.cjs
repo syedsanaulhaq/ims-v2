@@ -13160,10 +13160,9 @@ app.get('/api/my-requests', async (req, res) => {
         requested_date: request.requested_date || request.created_date,
         submitted_date: request.submitted_date || request.created_date,
         current_status: request.current_status || 'pending',
+        request_status: request.request_status || request.current_status || 'pending',
         current_approver_name: request.current_approver_name,
         priority: 'Medium', // Default priority since not in current schema
-        office_name: request.office_name,
-        wing_name: request.wing_name,
         items: items,
         total_items: items.length
       };

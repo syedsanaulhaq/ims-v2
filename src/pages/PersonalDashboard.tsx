@@ -101,15 +101,14 @@ const PersonalDashboard = () => {
 
   const stats = {
     totalRequests: myRequests.length,
-    pendingRequests: myRequests.filter(r => 
-      r.request_status === 'Submitted' || 
-      r.request_status === 'Pending' ||
-      r.ApprovalStatus === 'PENDING'
-    ).length,
-    approvedRequests: myRequests.filter(r => 
-      r.request_status === 'Approved' ||
-      r.ApprovalStatus === 'APPROVED'
-    ).length,
+    pendingRequests: myRequests.filter(r => {
+      const status = (r.request_status || r.current_status || '').toLowerCase();
+      return status === 'submitted' || status === 'pending' || status === 'under_review';
+    }).length,
+    approvedRequests: myRequests.filter(r => {
+      const status = (r.request_status || r.current_status || '').toLowerCase();
+      return status === 'approved' || status === 'completed';
+    }).length,
     itemsInPossession: myIssuedItems.length,
     pendingApprovals: myPendingApprovals.length,
     unreadNotifications: myNotifications.filter(n => !n.is_read).length
