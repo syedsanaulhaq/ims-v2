@@ -111,7 +111,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Personal Menu",
     icon: User,
     items: [
-      { title: "My Dashboard", icon: Home, path: "/", permission: undefined },
+      { title: "My Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
       { title: "My Requests", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
       { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },

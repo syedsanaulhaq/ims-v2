@@ -144,7 +144,7 @@ function App() {
                 <Route path="/user-dashboard" element={
                   <ProtectedRoute>
                     <Layout>
-                      <UserDashboard />
+                      <PersonalDashboard />
                     </Layout>
                   </ProtectedRoute>
                 } />
@@ -152,6 +152,14 @@ function App() {
                 <Route path="/notifications" element={
                   <ProtectedRoute>
                     <NotificationsPage />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/personal-dashboard" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <PersonalDashboard />
+                    </Layout>
                   </ProtectedRoute>
                 } />
                 
