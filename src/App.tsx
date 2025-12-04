@@ -8,6 +8,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import LoginPage from "@/pages/LoginPage";
 import UserDashboard from "@/pages/UserDashboard";
+import SmartDashboard from "@/pages/SmartDashboard";
 // import ApprovalManager from "@/pages/ApprovalManager"; // REMOVED - File is corrupted and not used in any routes
 import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
@@ -132,7 +133,7 @@ function App() {
                 {/* Protected routes */}
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <UserDashboard />
+                    <SmartDashboard />
                   </ProtectedRoute>
                 } />
                 
