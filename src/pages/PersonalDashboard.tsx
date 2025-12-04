@@ -71,7 +71,7 @@ const PersonalDashboard = () => {
           notifications: notificationsRes
         });
 
-        setMyRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.data || []));
+        setMyRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
         setMyIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
         setMyPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
         setMyNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
