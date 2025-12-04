@@ -1,5 +1,6 @@
 import React from 'react';
 import { usePermission } from '@/hooks/usePermission';
+import { useSession } from '@/contexts/SessionContext';
 import PersonalDashboard from './PersonalDashboard';
 import WingDashboard from './WingDashboard';
 import Dashboard from './Dashboard'; // System-wide dashboard
@@ -10,10 +11,13 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
  * 
  * Priority:
  * 1. Super Admin / IMS Admin -> System Dashboard (full system stats)
- * 2. Wing Supervisor -> Wing Dashboard (wing-level stats)
- * 3. General User -> Personal Dashboard (personal stats only)
+ * 2. General User / Wing Supervisor -> Personal Dashboard (default)
+ * 
+ * Note: Wing Supervisors will see both Personal and Wing menus in the sidebar
+ * and can navigate to Wing Dashboard via the menu
  */
 const SmartDashboard = () => {
+  const { user } = useSession();
   const { hasPermission: canViewInventory, loading: loadingInventoryView } = usePermission('inventory.view');
   const { hasPermission: canManageInventory, loading: loadingInventoryManage } = usePermission('inventory.manage');
   const { hasPermission: canManageRoles, loading: loadingRoles } = usePermission('roles.manage');
@@ -30,20 +34,14 @@ const SmartDashboard = () => {
     );
   }
   
-  // Super Admin / IMS Admin - has inventory management and role management permissions
+  // Super Admin / IMS Admin - has role management permissions
   // Show full system dashboard
-  if (canManageRoles || (canManageInventory && canViewReports)) {
+  if (canManageRoles) {
     return <Dashboard />;
   }
   
-  // Wing Supervisor - has inventory view permission
-  // Show wing-level dashboard
-  if (canViewInventory) {
-    return <WingDashboard />;
-  }
-  
-  // General User - default fallback
-  // Show personal dashboard
+  // All other users (including Wing Supervisors) default to Personal Dashboard
+  // Wing Supervisors can access Wing Dashboard via the sidebar menu
   return <PersonalDashboard />;
 };
 
