@@ -295,14 +295,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                       <Collapsible defaultOpen={hasActiveChild}>
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
-                            className={`w-full justify-between text-teal-100 hover:bg-teal-700 hover:text-white data-[state=open]:bg-teal-700 data-[state=open]:text-white ${
+                            className={`justify-between text-teal-100 hover:bg-teal-700 hover:text-white data-[state=open]:bg-teal-700 data-[state=open]:text-white group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!w-auto ${
                               hasActiveChild ? 'bg-teal-700 text-white' : ''
                             }`}
                           >
-                            <div className="flex items-center space-x-3">
-                              <item.icon className="w-5 h-5" />
-                              <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
-                            </div>
+                            <item.icon className="w-5 h-5 flex-shrink-0" />
+                            <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                             <ChevronRight className="w-4 h-4 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
@@ -337,14 +335,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive(item.path)}
-                      className={`text-teal-100 hover:bg-teal-700 hover:text-white ${
+                      className={`text-teal-100 hover:bg-teal-700 hover:text-white group-data-[collapsible=icon]:!justify-center ${
                         isActive(item.path)
                           ? 'bg-teal-700 text-white'
                           : ''
                       }`}
                     >
-                      <Link to={item.path}>
-                        <item.icon className="w-5 h-5" />
+                      <Link to={item.path} className="flex items-center gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center">
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
                         <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -362,9 +360,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleLogout}
-                  className="text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer"
+                  className="text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer group-data-[collapsible=icon]:!justify-center"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <LogOut className="w-5 h-5 flex-shrink-0" />
                   <span className="font-medium text-sm group-data-[collapsible=icon]:hidden">Logout</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>

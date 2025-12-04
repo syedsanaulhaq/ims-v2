@@ -304,3 +304,18 @@
 .status-pending {
   @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800;
 }
+
+/* SIDEBAR ICON CENTERING - DISABLE PROBLEMATIC CLASSES WHEN COLLAPSED */
+[data-state="collapsed"] [data-sidebar="menu-button"],
+div[data-collapsible="icon"] [data-sidebar="menu-button"] {
+  width: auto !important;
+  padding: 0.5rem !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+/* Hide text in collapsed state */
+[data-state="collapsed"] [data-sidebar="menu-button"] span,
+div[data-collapsible="icon"] [data-sidebar="menu-button"] span {
+  display: none !important;
+}
