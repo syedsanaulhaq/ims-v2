@@ -28,7 +28,6 @@ import type { User as UserType } from '@/services/erpDatabaseService';
 import { Office as ERPOffice, Wing as ERPWing, DEC as ERPDEC } from '@/types/office';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import StockAvailabilityChecker from '@/components/stock/StockAvailabilityChecker';
 import { PermissionGate } from '@/components/PermissionGate';
 
 interface InventoryItem {
@@ -428,58 +427,6 @@ const StockIssuancePersonal: React.FC = () => {
 
           {/* Right Column: Item Selection */}
           <div className="space-y-6">
-            {/* Item Selection */}
-            <Card className="border-blue-200 bg-blue-50/30">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-700">
-                  <Search className="w-5 h-5" />
-                  Select Items
-                </CardTitle>
-                <p className="text-sm text-gray-600 mt-1">
-                  Search for items and add them to your request
-                </p>
-              </CardHeader>
-              <CardContent>
-                <StockAvailabilityChecker
-                  selectedItems={issuanceItems.map(item => ({
-                    item_master_id: item.inventory_id,
-                    requested_quantity: item.requested_quantity
-                  }))}
-                  onItemSelect={(item) => {
-                    // Add selected item to issuance list
-                    const newItem: IssuanceItem = {
-                      inventory_id: item.item_master_id,
-                      inventory_intOfficeID: item.item_master_id,
-                      nomenclature: item.nomenclature,
-                      requested_quantity: 1,
-                      available_stock: item.available_quantity,
-                      unit_price: item.unit_price || 0,
-                      item_type: 'inventory'
-                    };
-                    
-                    // Check if already added
-                    const existing = issuanceItems.find(i => i.inventory_id === item.item_master_id);
-                    if (!existing) {
-                      setIssuanceItems([...issuanceItems, newItem]);
-                      setSuccess(`✅ ${item.nomenclature} added to request`);
-                      setTimeout(() => setSuccess(''), 3000);
-                    } else {
-                      setError('Item already added to issuance list');
-                      setTimeout(() => setError(''), 3000);
-                    }
-                  }}
-                  onAvailabilityCheck={(result) => {
-                    // Show availability feedback
-                    if (!result.can_fulfill) {
-                      setError(`⚠️ Only ${result.available_quantity} units available for ${result.nomenclature}`);
-                      setTimeout(() => setError(''), 5000);
-                    }
-                  }}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Items Selection */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
