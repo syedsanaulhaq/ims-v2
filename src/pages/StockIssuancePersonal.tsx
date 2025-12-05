@@ -66,6 +66,7 @@ const StockIssuancePersonal: React.FC = () => {
   // Custom items state
   const [customItemName, setCustomItemName] = useState('');
   const [customItemQuantity, setCustomItemQuantity] = useState(1);
+  const [showCustomItemForm, setShowCustomItemForm] = useState(false);
 
   // Form fields - PERSONAL REQUEST (Individual only)
   const [requestType] = useState<'Individual' | 'Organizational'>('Individual');
@@ -168,6 +169,7 @@ const StockIssuancePersonal: React.FC = () => {
       setIssuanceItems([...issuanceItems, newCustomItem]);
       setCustomItemName('');
       setCustomItemQuantity(1);
+      setShowCustomItemForm(false);
       setError('');
     } else {
       setError('Please enter a valid custom item name and quantity');
@@ -305,6 +307,7 @@ const StockIssuancePersonal: React.FC = () => {
     setUrgencyLevel('Normal');
     setCustomItemName('');
     setCustomItemQuantity(1);
+    setShowCustomItemForm(false);
   };
 
   return (
@@ -528,6 +531,7 @@ const StockIssuancePersonal: React.FC = () => {
                       onClick={() => {
                         setCustomItemName(searchTerm);
                         setCustomItemQuantity(1);
+                        setShowCustomItemForm(true);
                       }}
                       className="w-full bg-amber-600 hover:bg-amber-700"
                       size="sm"
@@ -543,65 +547,79 @@ const StockIssuancePersonal: React.FC = () => {
                 )}
               </div>
 
-              {/* Custom Items Section */}
-              <div className="border-t pt-4 mb-4">
-                <h4 className="font-medium mb-3 text-blue-700">Add Custom Items</h4>
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-600 mb-3">
-                    💡 {customItemName.trim() ? 'Configure and add this custom item' : 'Add items that are not in the inventory system'}
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="customItemName">Item Name</Label>
-                      <Input
-                        id="customItemName"
-                        value={customItemName}
-                        onChange={(e) => setCustomItemName(e.target.value)}
-                        placeholder="Enter custom item name..."
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="customItemQuantity">Quantity</Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setCustomItemQuantity(Math.max(1, customItemQuantity - 1))}
-                          type="button"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
+              {/* Custom Items Section - Only show when user clicks to add custom item */}
+              {showCustomItemForm && (
+                <div className="border-t pt-4 mb-4">
+                  <h4 className="font-medium mb-3 text-blue-700">Add Custom Item</h4>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-600 mb-3">
+                      💡 Configure your custom item details
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="md:col-span-2">
+                        <Label htmlFor="customItemName">Item Name</Label>
                         <Input
-                          id="customItemQuantity"
-                          type="number"
-                          value={customItemQuantity}
-                          onChange={(e) => setCustomItemQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-16 text-center"
-                          min="1"
+                          id="customItemName"
+                          value={customItemName}
+                          onChange={(e) => setCustomItemName(e.target.value)}
+                          placeholder="Enter custom item name..."
+                          className="mt-1"
                         />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setCustomItemQuantity(customItemQuantity + 1)}
-                          type="button"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
+                      </div>
+                      <div>
+                        <Label htmlFor="customItemQuantity">Quantity</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setCustomItemQuantity(Math.max(1, customItemQuantity - 1))}
+                            type="button"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <Input
+                            id="customItemQuantity"
+                            type="number"
+                            value={customItemQuantity}
+                            onChange={(e) => setCustomItemQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-16 text-center"
+                            min="1"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setCustomItemQuantity(customItemQuantity + 1)}
+                            type="button"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        onClick={addCustomItem}
+                        disabled={!customItemName.trim()}
+                        className="flex-1"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Custom Item
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowCustomItemForm(false);
+                          setCustomItemName('');
+                          setCustomItemQuantity(1);
+                        }}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    onClick={addCustomItem}
-                    disabled={!customItemName.trim()}
-                    className="mt-3 w-full"
-                    variant="outline"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Custom Item
-                  </Button>
                 </div>
-              </div>
+              )}
 
               {/* Selected Items */}
               <div className="border-t pt-4">
