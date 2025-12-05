@@ -250,16 +250,16 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show issuance menu if user has issuance permissions
-    if (canProcessIssuance || (canRequestIssuance && canProcessIssuance)) {
+    // Show issuance menu if user has issuance PROCESSING permissions
+    if (canProcessIssuance) {
       const visibleIssuanceItems = issuanceMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleIssuanceItems.length > 0) {
         groups.push({ ...issuanceMenuGroup, items: visibleIssuanceItems });
       }
     }
 
-    // Show approval menu if user has approval permissions
-    if (canApprove || canManageRoles) {
+    // Show approval menu if user has APPROVAL permissions (approvers only)
+    if (canApprove) {
       const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleApprovalItems.length > 0) {
         groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
