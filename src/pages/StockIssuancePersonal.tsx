@@ -99,22 +99,14 @@ const StockIssuancePersonal: React.FC = () => {
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
           .map((item) => {
-            // Try multiple fields to get the item name
-            let itemName = 'Unknown Item';
-            if (item.item_masters?.nomenclature) {
-              itemName = item.item_masters.nomenclature;
-            } else if (typeof item.item_masters === 'string') {
-              itemName = item.item_masters;
-            }
-            
             return {
-              id: `inventory-${item.intOfficeID}-${item.intItemMasterID}`,
-              intOfficeID: item.intOfficeID,
-              nomenclature: itemName,
-              current_stock: item.intCurrentStock,
-              minimum_stock_level: item.intMinimumLevel,
-              weighted_avg_price: item.fltUnitPrice,
-              primary_Location: item.strStockLocation || 'Main Warehouse'
+              id: item.id || `inventory-${item.item_master_id}`,
+              intOfficeID: item.id,
+              nomenclature: item.item_name || 'Unknown Item',
+              current_stock: item.current_quantity || 0,
+              minimum_stock_level: item.minimum_stock_level || 0,
+              weighted_avg_price: 0,
+              primary_Location: 'Warehouse'
             };
           });
 
