@@ -426,17 +426,17 @@ const StockIssuancePersonal: React.FC = () => {
             </Card>
           </div>
 
-          {/* Right Column: Stock Availability & Item Selection */}
+          {/* Right Column: Item Selection */}
           <div className="space-y-6">
-            {/* Stock Availability Checker */}
+            {/* Item Selection */}
             <Card className="border-blue-200 bg-blue-50/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-blue-700">
                   <Search className="w-5 h-5" />
-                  Check Stock Availability
+                  Select Items
                 </CardTitle>
                 <p className="text-sm text-gray-600 mt-1">
-                  Search for items and check their real-time availability before adding to your request
+                  Search for items and add them to your request
                 </p>
               </CardHeader>
               <CardContent>
@@ -634,11 +634,7 @@ const StockIssuancePersonal: React.FC = () => {
                             {item.item_type === 'custom' ? 'Custom' : 'Inventory'}
                           </Badge>
                         </div>
-                        {item.item_type === 'inventory' ? (
-                          <div className="text-xs text-gray-600">
-                            Available: {item.available_stock}
-                          </div>
-                        ) : (
+                        {item.item_type === 'custom' && (
                           <div className="text-xs text-green-700">
                             Custom item (not tracked in inventory)
                           </div>
