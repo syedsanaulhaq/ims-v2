@@ -12576,7 +12576,7 @@ app.get('/api/workflows', async (req, res) => {
         office_id,
         description,
         is_active,
-        created_at
+        created_date
       FROM approval_workflows
       WHERE is_active = 1
       ORDER BY workflow_name
