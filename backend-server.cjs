@@ -5657,7 +5657,8 @@ app.get('/api/inventory-stock', async (req, res) => {
         im.item_code,
         im.unit,
         im.category_id,
-        im.specifications
+        im.specifications,
+        im.description
       FROM current_inventory_stock cis
       LEFT JOIN item_masters im ON cis.item_master_id = im.id
       ORDER BY cis.last_updated DESC
