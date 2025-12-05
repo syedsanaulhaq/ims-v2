@@ -32,6 +32,7 @@ import { PermissionGate } from '@/components/PermissionGate';
 
 interface InventoryItem {
   id: string;
+  item_master_id?: string;  // Add this field
   intOfficeID: string;
   nomenclature: string;
   description?: string;
@@ -44,6 +45,7 @@ interface InventoryItem {
 interface IssuanceItem {
   inventory_id: string;
   inventory_intOfficeID: string;
+  item_master_id?: string;  // Add this field for the actual item master ID
   nomenclature: string;
   requested_quantity: number;
   available_stock: number;
@@ -102,9 +104,10 @@ const StockIssuancePersonal: React.FC = () => {
           .map((item) => {
             return {
               id: item.id || `inventory-${item.item_master_id}`,
+              item_master_id: item.item_master_id,  // Add this field
               intOfficeID: item.id,
               nomenclature: item.item_name || 'Unknown Item',
-              description: item.description || item.item_description || '',
+              description: item.description || '',
               current_stock: item.current_quantity || 0,
               minimum_stock_level: item.minimum_stock_level || 0,
               weighted_avg_price: 0,
@@ -145,6 +148,7 @@ const StockIssuancePersonal: React.FC = () => {
     const newItem: IssuanceItem = {
       inventory_id: item.id,
       inventory_intOfficeID: item.intOfficeID,
+      item_master_id: item.item_master_id,  // Add the actual item master ID
       nomenclature: item.nomenclature,
       requested_quantity: 1,
       available_stock: item.current_stock,
@@ -250,7 +254,7 @@ const StockIssuancePersonal: React.FC = () => {
 
       // Add issuance items
       const requestItems = issuanceItems.map(item => ({
-        item_master_id: item.item_type === 'inventory' ? item.inventory_intOfficeID : undefined,
+        item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
         nomenclature: item.nomenclature,
         requested_quantity: item.requested_quantity,
         unit_price: 0, // Value field removed from UI
