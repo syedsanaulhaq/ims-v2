@@ -624,11 +624,16 @@ app.get('/api/session', async (req, res) => {
       // User is properly logged in via session - GET IMS DATA!
       const imsData = await getUserImsData(req.session.userId);
       
+      // Get the primary IMS role display name (first role if multiple)
+      const primaryRole = imsData?.roles?.length > 0 
+        ? (imsData.roles[0].display_name || imsData.roles[0].role_name || 'User')
+        : 'User';
+      
       const sessionUser = {
         user_id: req.session.userId,
         user_name: req.session.user?.FullName || 'Unknown User',
         email: req.session.user?.Email || '',
-        role: req.session.user?.Role || 'User',
+        role: primaryRole,
         office_id: req.session.user?.intOfficeID || 583,
         wing_id: req.session.user?.intWingID || 19,
         branch_id: req.session.user?.intBranchID || null,
