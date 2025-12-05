@@ -99,6 +99,7 @@ const StockIssuancePersonal: React.FC = () => {
 
       if (inventory && inventory.length > 0) {
         console.log('📦 First item structure:', JSON.stringify(inventory[0], null, 2));
+        console.log('📦 API returned item_master_id:', inventory[0].item_master_id);
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
           .map((item) => {
@@ -253,14 +254,18 @@ const StockIssuancePersonal: React.FC = () => {
       const requestResult = await stockIssuanceService.submitRequest(requestData);
 
       // Add issuance items
-      const requestItems = issuanceItems.map(item => ({
-        item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
-        nomenclature: item.nomenclature,
-        requested_quantity: item.requested_quantity,
-        unit_price: 0, // Value field removed from UI
-        item_type: item.item_type,
-        custom_item_name: item.item_type === 'custom' ? item.custom_item_name : undefined
-      }));
+      const requestItems = issuanceItems.map(item => {
+        const itemData = {
+          item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
+          nomenclature: item.nomenclature,
+          requested_quantity: item.requested_quantity,
+          unit_price: 0, // Value field removed from UI
+          item_type: item.item_type,
+          custom_item_name: item.item_type === 'custom' ? item.custom_item_name : undefined
+        };
+        console.log('📦 Submitting item:', itemData);
+        return itemData;
+      });
 
       await stockIssuanceService.submitItems(requestResult.id, requestItems);
 
