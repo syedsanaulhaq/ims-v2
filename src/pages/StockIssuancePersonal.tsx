@@ -290,9 +290,9 @@ const StockIssuancePersonal: React.FC = () => {
       // Reset form
       resetForm();
 
-      // Navigate to approval dashboard to see the submitted request
+      // Navigate to my requests page to see the submitted request
       setTimeout(() => {
-        navigate('/dashboard/approval-dashboard');
+        navigate('/dashboard/my-requests');
       }, 3000);
 
     } catch (error: any) {
