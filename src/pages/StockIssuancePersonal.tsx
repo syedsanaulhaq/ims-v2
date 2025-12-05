@@ -95,17 +95,28 @@ const StockIssuancePersonal: React.FC = () => {
       console.log('📦 Inventory response:', inventory);
 
       if (inventory && inventory.length > 0) {
+        console.log('📦 First item structure:', JSON.stringify(inventory[0], null, 2));
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
-          .map((item) => ({
-            id: `inventory-${item.intOfficeID}-${item.intItemMasterID}`,
-            intOfficeID: item.intOfficeID,
-            nomenclature: item.item_masters?.nomenclature || 'Unknown Item',
-            current_stock: item.intCurrentStock,
-            minimum_stock_level: item.intMinimumLevel,
-            weighted_avg_price: item.fltUnitPrice,
-            primary_Location: item.strStockLocation || 'Main Warehouse'
-          }));
+          .map((item) => {
+            // Try multiple fields to get the item name
+            let itemName = 'Unknown Item';
+            if (item.item_masters?.nomenclature) {
+              itemName = item.item_masters.nomenclature;
+            } else if (typeof item.item_masters === 'string') {
+              itemName = item.item_masters;
+            }
+            
+            return {
+              id: `inventory-${item.intOfficeID}-${item.intItemMasterID}`,
+              intOfficeID: item.intOfficeID,
+              nomenclature: itemName,
+              current_stock: item.intCurrentStock,
+              minimum_stock_level: item.intMinimumLevel,
+              weighted_avg_price: item.fltUnitPrice,
+              primary_Location: item.strStockLocation || 'Main Warehouse'
+            };
+          });
 
         setInventoryItems(transformedItems);
         console.log('✅ Inventory items loaded:', transformedItems.length);
