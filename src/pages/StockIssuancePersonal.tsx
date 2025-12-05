@@ -456,11 +456,11 @@ const StockIssuancePersonal: React.FC = () => {
               <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
                 {filteredInventory.length > 0 ? (
                   filteredInventory.map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 group" title={item.description || 'No description'}>
+                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">{item.nomenclature}</div>
                         {item.description && (
-                          <div className="text-xs text-gray-600 line-clamp-2 group-hover:line-clamp-none group-hover:bg-white group-hover:p-2 group-hover:rounded group-hover:border group-hover:border-gray-200 group-hover:shadow-md group-hover:z-10 group-hover:absolute group-hover:max-w-xs">
+                          <div className="text-xs text-gray-600 line-clamp-2">
                             {item.description}
                           </div>
                         )}
