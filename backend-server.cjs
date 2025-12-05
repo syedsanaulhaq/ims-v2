@@ -5652,8 +5652,17 @@ app.get('/api/inventory-stock', async (req, res) => {
   try {
     const result = await pool.request().query(`
       SELECT 
-        cis.*,
+        cis.id,
         cis.item_master_id,
+        cis.current_quantity,
+        cis.reserved_quantity,
+        cis.available_quantity,
+        cis.minimum_stock_level,
+        cis.reorder_point,
+        cis.maximum_stock_level,
+        cis.last_updated,
+        cis.created_at,
+        cis.updated_by,
         im.nomenclature as item_name,
         im.item_code,
         im.unit,
