@@ -9,22 +9,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAuth } from '@/contexts/AuthContext';
+import { useSession } from '@/contexts/SessionContext';
 import { useNavigate } from 'react-router-dom';
 
 const UserProfileDropdown: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user } = useSession();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
-      await logout();
-      // No need to navigate - logout will redirect to DS login automatically
+      // Redirect to DS login page
+      const dsLoginUrl = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
+      window.location.href = dsLoginUrl;
     } catch (error) {
       console.error('Logout failed:', error);
-      // Fallback: redirect to DS login even if logout API fails
-      window.location.href = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
     }
   };
 
@@ -53,12 +52,12 @@ const UserProfileDropdown: React.FC = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="flex items-center space-x-3 hover:bg-gray-50">
           <div className="text-right hidden md:block">
-            <p className="text-sm font-medium text-gray-900">{user.FullName}</p>
-            <p className="text-xs text-gray-500">{user.Role} (IMS)</p>
+            <p className="text-sm font-medium text-gray-900">{user.user_name}</p>
+            <p className="text-xs text-gray-500">{user.role} (IMS)</p>
           </div>
           <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center ring-2 ring-white shadow-md">
             <span className="text-white font-medium text-sm">
-              {user.FullName?.charAt(0) || 'U'}
+              {user.user_name?.charAt(0) || 'U'}
             </span>
           </div>
         </Button>
@@ -70,22 +69,22 @@ const UserProfileDropdown: React.FC = () => {
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-teal-600 rounded-full flex items-center justify-center">
               <span className="text-white font-semibold text-lg">
-                {user.FullName?.charAt(0) || 'U'}
+                {user.user_name?.charAt(0) || 'U'}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">
-                {user.FullName}
+                {user.user_name}
               </p>
               <p className="text-xs text-gray-600 truncate">
-                {user.UserName}
+                {user.email}
               </p>
               <Badge 
                 variant="secondary" 
-                className={`mt-1 text-xs ${getRoleBadgeColor(user.Role)}`}
+                className={`mt-1 text-xs ${getRoleBadgeColor(user.role)}`}
               >
                 <Shield className="h-3 w-3 mr-1" />
-                {user.Role}
+                {user.role}
               </Badge>
             </div>
           </div>
@@ -93,19 +92,10 @@ const UserProfileDropdown: React.FC = () => {
 
         {/* User Details */}
         <div className="p-3 space-y-2 border-b">
-          {user.Email && (
+          {user.email && (
             <div className="flex items-center space-x-2 text-xs text-gray-600">
               <Mail className="h-3 w-3" />
-              <span className="truncate">{user.Email}</span>
-            </div>
-          )}
-          
-          {(user.officeName || user.wingName) && (
-            <div className="flex items-center space-x-2 text-xs text-gray-600">
-              <MapPin className="h-3 w-3" />
-              <span className="truncate">
-                {[user.officeName, user.wingName].filter(Boolean).join(' - ')}
-              </span>
+              <span className="truncate">{user.email}</span>
             </div>
           )}
           
@@ -125,7 +115,7 @@ const UserProfileDropdown: React.FC = () => {
             Dashboard Settings
           </DropdownMenuItem>
 
-          {(user.Role === 'Admin' || user.Role === 'Manager') && (
+          {user.is_super_admin && (
             <DropdownMenuItem
               onClick={() => handleMenuItemClick('/admin-settings')}
               className="cursor-pointer"
