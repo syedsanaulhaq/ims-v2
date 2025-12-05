@@ -500,23 +500,47 @@ const StockIssuancePersonal: React.FC = () => {
 
               {/* Available Items */}
               <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
-                {filteredInventory.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{item.nomenclature}</div>
-                      <div className="text-xs text-gray-500">
-                        Location: {item.primary_Location}
+                {filteredInventory.length > 0 ? (
+                  filteredInventory.map(item => (
+                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{item.nomenclature}</div>
+                        <div className="text-xs text-gray-500">
+                          Location: {item.primary_Location}
+                        </div>
                       </div>
+                      <Button
+                        size="sm"
+                        onClick={() => addIssuanceItem(item)}
+                        disabled={issuanceItems.some(i => i.inventory_id === item.id)}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
                     </div>
+                  ))
+                ) : searchTerm.trim() ? (
+                  // No items found - show quick add custom item option
+                  <div className="p-4 border border-dashed border-amber-300 rounded-lg bg-amber-50">
+                    <p className="text-sm text-amber-800 mb-3">
+                      ❌ No items found for "<span className="font-semibold">{searchTerm}</span>"
+                    </p>
                     <Button
+                      onClick={() => {
+                        setCustomItemName(searchTerm);
+                        setCustomItemQuantity(1);
+                      }}
+                      className="w-full bg-amber-600 hover:bg-amber-700"
                       size="sm"
-                      onClick={() => addIssuanceItem(item)}
-                      disabled={issuanceItems.some(i => i.inventory_id === item.id)}
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add "{searchTerm}" as Custom Item
                     </Button>
                   </div>
-                ))}
+                ) : (
+                  <div className="p-4 text-center text-gray-500">
+                    <p className="text-sm">Search for items to get started...</p>
+                  </div>
+                )}
               </div>
 
               {/* Custom Items Section */}
@@ -524,7 +548,7 @@ const StockIssuancePersonal: React.FC = () => {
                 <h4 className="font-medium mb-3 text-blue-700">Add Custom Items</h4>
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <p className="text-sm text-blue-600 mb-3">
-                    💡 Add items that are not in the inventory system
+                    💡 {customItemName.trim() ? 'Configure and add this custom item' : 'Add items that are not in the inventory system'}
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="md:col-span-2">
@@ -533,7 +557,7 @@ const StockIssuancePersonal: React.FC = () => {
                         id="customItemName"
                         value={customItemName}
                         onChange={(e) => setCustomItemName(e.target.value)}
-                        placeholder="Enter custom item strOfficeName..."
+                        placeholder="Enter custom item name..."
                         className="mt-1"
                       />
                     </div>
