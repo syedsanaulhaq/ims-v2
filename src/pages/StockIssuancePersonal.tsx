@@ -97,7 +97,6 @@ const StockIssuancePersonal: React.FC = () => {
       if (inventory && inventory.length > 0) {
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
-          .filter(item => item.intCurrentStock > 0) // Only items with stock
           .map((item) => ({
             id: `inventory-${item.intOfficeID}-${item.intItemMasterID}`,
             intOfficeID: item.intOfficeID,
