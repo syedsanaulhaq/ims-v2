@@ -186,9 +186,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Super Admin Menu",
     icon: Shield,
     items: [
-      { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/admin-dashboard", permission: 'admin.super' },
-      { title: "Roles & Permissions", icon: Shield, path: "/dashboard/roles", permission: 'roles.manage' },
-      { title: "User Management", icon: Users, path: "/dashboard/user-role-assignment", permission: 'users.assign_roles' },
+      { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard", permission: 'admin.super' },
+      { title: "Roles & Permissions", icon: Shield, path: "/settings/roles", permission: 'roles.manage' },
+      { title: "User Management", icon: Users, path: "/settings/users", permission: 'users.assign_roles' },
       { title: "System Settings", icon: Settings, path: "/dashboard/inventory-settings", permission: 'admin.super' },
       { title: "Reports & Analytics", icon: BarChart3, path: "/dashboard/reports", permission: 'reports.view' },
     ]
