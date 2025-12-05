@@ -12057,7 +12057,7 @@ app.get('/api/approval-items/:approvalId', async (req, res) => {
             ELSE ISNULL(im.nomenclature, 'Unknown Item')
           END as nomenclature,
           si_items.requested_quantity as requested_quantity,
-          si_items.requested_quantity as approved_quantity,
+          NULL as approved_quantity,
           0 as issued_quantity,
           'pending' as item_status,
           CASE 
@@ -12066,7 +12066,7 @@ app.get('/api/approval-items/:approvalId', async (req, res) => {
           END as item_code,
           CASE 
             WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
-            ELSE ISNULL(im.description, '')
+            ELSE ISNULL(im.description, 'No description')
           END as item_description,
           CASE 
             WHEN si_items.item_type = 'custom' THEN 'pcs'
