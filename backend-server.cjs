@@ -5653,6 +5653,7 @@ app.get('/api/inventory-stock', async (req, res) => {
     const result = await pool.request().query(`
       SELECT 
         cis.*,
+        cis.item_master_id,
         im.nomenclature as item_name,
         im.item_code,
         im.unit,
