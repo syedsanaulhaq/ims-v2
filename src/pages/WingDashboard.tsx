@@ -86,52 +86,6 @@ const WingDashboard = () => {
         setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
         setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
         setMyVerificationRequests(verificationsRes?.data || []);
-        const [
-          requestsRes,
-          issuedItemsRes,
-          approvalsRes,
-          notificationsRes,
-          verificationsRes
-        ] = await Promise.all([
-          // All stock issuance requests (not filtered, for wing overview)
-          fetch(`${apiBase}/stock-issuance/requests`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => []),
-          
-          // My issued items (wing supervisor's own items)
-          fetch(`${apiBase}/issued-items/user/${user?.user_id}`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => []),
-          
-          // My pending approvals (if wing supervisor is an approver)
-          fetch(`${apiBase}/approvals/my-pending`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => []),
-          
-          // My notifications
-          fetch(`${apiBase}/my-notifications?limit=10`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => []),
-          
-          // My verification requests (inventory checks I've requested)
-          fetch(`${apiBase}/inventory/my-verification-requests?userId=${user?.user_id}`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : { data: [] })
-            .catch(() => ({ data: [] }))
-        ]);
-
-        console.log('Wing Dashboard Data:', {
-          requests: requestsRes,
-          issuedItems: issuedItemsRes,
-          approvals: approvalsRes,
-          notifications: notificationsRes,
-          verifications: verificationsRes
-        });
-
-        setWingRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
-        setWingIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
-        setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
-        setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
-        setMyVerificationRequests(verificationsRes?.data || []);
 
       } catch (error) {
         console.error('Error fetching wing dashboard data:', error);
