@@ -6,15 +6,20 @@ import { AlertCircle, CheckCircle2, XCircle, Clock, Eye, Edit2, Send } from 'luc
 import axios from 'axios';
 
 interface InventoryVerificationRequest {
-  id: string;
-  stock_issuance_item_id: string;
-  item_nomenclature: string;
-  requested_quantity: number;
+  id: number;
+  stock_issuance_id: string;
+  item_master_id: string;
+  requested_by_user_id: string;
+  requested_by_name: string;
+  status: 'pending' | 'verified' | 'rejected';
+  verified_by_user_id?: string;
+  verified_by_name?: string;
+  physical_count?: number;
+  available_quantity?: number;
+  verification_notes?: string;
   wing_id: number;
   wing_name: string;
-  created_at: string;
-  status: 'pending' | 'verified' | 'rejected';
-  verified_by?: string;
+  requested_at: string;
   verified_at?: string;
 }
 
@@ -70,26 +75,45 @@ export const PendingVerificationsPage: React.FC = () => {
     try {
       // Get availability data for this item
       const response = await axios.post('/api/inventory/check-availability', {
-        item_master_id: request.stock_issuance_item_id,
-        wing_id: request.wing_id
+        itemMasterId: request.item_master_id,
+        wingId: request.wing_id
       });
 
       if (response.data.success) {
         setItemDetails({
-          id: request.id,
-          nomenclature: request.item_nomenclature,
-          requested_quantity: request.requested_quantity,
-          wing_available: response.data.wing_available || 0,
+          id: String(request.id),
+          nomenclature: request.item_master_id || 'Item',
+          requested_quantity: request.requested_quantity || 0,
+          wing_available: response.data.data?.available_quantity || response.data.wing_available || 0,
           admin_available: response.data.admin_available || 0,
           verification_status: 'pending'
         });
         
         // Pre-fill available quantity
-        const totalAvailable = (response.data.wing_available || 0) + (response.data.admin_available || 0);
-        setAvailableQuantity(Math.min(totalAvailable, request.requested_quantity));
+        const totalAvailable = (response.data.data?.available_quantity || response.data.wing_available || 0) + (response.data.admin_available || 0);
+        setAvailableQuantity(Math.min(totalAvailable, request.requested_quantity || 0));
+      } else {
+        // Use default values if check fails
+        setItemDetails({
+          id: String(request.id),
+          nomenclature: request.item_master_id || 'Item',
+          requested_quantity: request.requested_quantity || 0,
+          wing_available: 0,
+          admin_available: 0,
+          verification_status: 'pending'
+        });
       }
     } catch (error) {
       console.error('Error fetching item details:', error);
+      // Set minimal defaults on error
+      setItemDetails({
+        id: String(request.id),
+        nomenclature: request.item_master_id || 'Item',
+        requested_quantity: request.requested_quantity || 0,
+        wing_available: 0,
+        admin_available: 0,
+        verification_status: 'pending'
+      });
     }
     
     setShowModal(true);
@@ -219,7 +243,7 @@ export const PendingVerificationsPage: React.FC = () => {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-semibold text-gray-900">{request.item_nomenclature}</h4>
+                      <h4 className="font-semibold text-gray-900">{request.item_master_id}</h4>
                       <Badge
                         variant={
                           request.status === 'pending'
@@ -243,12 +267,12 @@ export const PendingVerificationsPage: React.FC = () => {
                       </div>
                       <div>
                         <p className="font-medium">Created</p>
-                        <p className="text-gray-900">{new Date(request.created_at).toLocaleDateString()}</p>
+                        <p className="text-gray-900">{new Date(request.requested_at).toLocaleDateString()}</p>
                       </div>
                       {request.status !== 'pending' && (
                         <div>
                           <p className="font-medium">Verified By</p>
-                          <p className="text-gray-900">{request.verified_by || 'N/A'}</p>
+                          <p className="text-gray-900">{request.verified_by_name || 'N/A'}</p>
                         </div>
                       )}
                     </div>
