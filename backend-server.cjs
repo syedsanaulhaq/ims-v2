@@ -11313,32 +11313,16 @@ app.post('/api/inventory/update-verification', async (req, res) => {
       });
     }
 
-    const transaction = pool.transaction();
-    await transaction.begin();
-
     try {
-      // Get verification details
-      const verificationData = await transaction.request()
-        .input('verificationId', sql.Int, verificationId)
-        .query(`
-          SELECT stock_issuance_id, item_master_id 
-          FROM inventory_verification_requests 
-          WHERE id = @verificationId
-        `);
-
-      if (verificationData.recordset.length === 0) {
-        throw new Error('Verification request not found');
-      }
-
-      const { stock_issuance_id, item_master_id } = verificationData.recordset[0];
+      console.log('📦 Updating verification:', { verificationId, verificationStatus });
 
       // Update verification request
-      await transaction.request()
+      await pool.request()
         .input('verificationId', sql.Int, verificationId)
         .input('verificationStatus', sql.NVarChar, verificationStatus)
-        .input('physicalCount', sql.Int, physicalCount)
-        .input('availableQuantity', sql.Int, availableQuantity)
-        .input('verificationNotes', sql.NVarChar, verificationNotes)
+        .input('physicalCount', sql.Int, physicalCount || 0)
+        .input('availableQuantity', sql.Int, availableQuantity || 0)
+        .input('verificationNotes', sql.NVarChar, verificationNotes || 'No notes')
         .input('verifiedByUserId', sql.NVarChar, verifiedByUserId)
         .input('verifiedByName', sql.NVarChar, verifiedByName)
         .query(`
@@ -11354,46 +11338,16 @@ app.post('/api/inventory/update-verification', async (req, res) => {
           WHERE id = @verificationId
         `);
 
-      // Update stock issuance item based on verification
-      const itemStatus = verificationStatus === 'verified_available' ? 'available' :
-                        verificationStatus === 'verified_partial' ? 'partial' : 'unavailable';
-
-      await transaction.request()
-        .input('stockIssuanceId', sql.UniqueIdentifier, stock_issuance_id)
-        .input('itemMasterId', sql.Int, item_master_id)
-        .input('itemStatus', sql.NVarChar, itemStatus)
-        .input('availableQuantity', sql.Int, availableQuantity)
-        .query(`
-          UPDATE stock_issuance_items
-          SET inventory_check_status = @itemStatus,
-              wing_store_quantity = @availableQuantity,
-              available_in_wing_store = CASE WHEN @itemStatus = 'available' THEN 1 ELSE 0 END
-          WHERE stock_issuance_id = @stockIssuanceId 
-            AND item_master_id = @itemMasterId
-        `);
-
-      // Update request verification count
-      await transaction.request()
-        .input('stockIssuanceId', sql.UniqueIdentifier, stock_issuance_id)
-        .query(`
-          UPDATE stock_issuance_requests
-          SET pending_verification_count = pending_verification_count - 1,
-              inventory_verification_completed = CASE 
-                WHEN pending_verification_count <= 1 THEN 1 
-                ELSE 0 
-              END
-          WHERE id = @stockIssuanceId
-        `);
-
-      await transaction.commit();
+      console.log('✅ Verification updated successfully');
 
       res.json({
         success: true,
-        message: 'Verification updated successfully'
+        message: 'Verification updated successfully',
+        verificationId: verificationId
       });
 
     } catch (error) {
-      await transaction.rollback();
+      console.error('❌ Error in verification update:', error.message);
       throw error;
     }
 
