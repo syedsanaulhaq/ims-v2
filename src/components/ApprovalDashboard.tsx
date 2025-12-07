@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { 
   approvalForwardingService, 
   RequestApproval 
 } from '../services/approvalForwardingService';
 import ApprovalForwarding from './ApprovalForwarding';
+import { CheckCircle, Clock, RefreshCw, Settings, Users } from "lucide-react";
+import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 export const ApprovalDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -74,221 +79,259 @@ export const ApprovalDashboard: React.FC = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      case 'finalized': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getRequestTypeColor = (requestType: string) => {
-    switch (requestType) {
-      case 'stock_issuance': return 'bg-purple-100 text-purple-800';
-      case 'tender': return 'bg-blue-100 text-blue-800';
-      case 'procurement': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading approval dashboard...</div>
+      <div className="p-6 flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <LoadingSpinner size="lg" className="mx-auto mb-4" />
+          <p className="text-gray-600">Loading your approval dashboard...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Approval Dashboard
-        </h1>
-        <button
-          onClick={() => setRefreshTrigger(prev => prev + 1)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Refresh
-        </button>
+    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-4xl font-bold text-gray-900">My Approvals</h1>
+        <p className="text-lg text-gray-600 mt-2">
+          Manage requests awaiting your approval
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            {dashboardStats.pending_count} Pending
+          </Badge>
+          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+            <Clock className="h-3 w-3 mr-1" />
+            Last Updated: {new Date().toLocaleTimeString()}
+          </Badge>
+        </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <button
           onClick={() => setActiveFilter('pending')}
-          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
-            activeFilter === 'pending' ? 'border-yellow-600 shadow-md' : 'border-gray-200'
+          className={`transition-all duration-300 rounded-lg border-l-4 ${
+            activeFilter === 'pending' 
+              ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 shadow-lg' 
+              : 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 hover:shadow-xl'
           }`}
         >
-          <div className="text-2xl font-bold text-yellow-600">
-            {dashboardStats.pending_count}
-          </div>
-          <div className="text-sm text-gray-600">Pending Approvals</div>
-          {activeFilter === 'pending' && (
-            <div className="mt-2 text-xs text-yellow-600 font-medium">● Active</div>
-          )}
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-yellow-700 font-semibold">Pending Approvals</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-yellow-600">{dashboardStats.pending_count}</div>
+              <p className="text-xs text-gray-600 mt-2">Awaiting your action</p>
+            </CardContent>
+          </Card>
         </button>
-        
+
         <button
           onClick={() => setActiveFilter('approved')}
-          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
-            activeFilter === 'approved' ? 'border-green-600 shadow-md' : 'border-gray-200'
+          className={`transition-all duration-300 rounded-lg border-l-4 ${
+            activeFilter === 'approved' 
+              ? 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 shadow-lg' 
+              : 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 hover:shadow-xl'
           }`}
         >
-          <div className="text-2xl font-bold text-green-600">
-            {dashboardStats.approved_count}
-          </div>
-          <div className="text-sm text-gray-600">Approved</div>
-          {activeFilter === 'approved' && (
-            <div className="mt-2 text-xs text-green-600 font-medium">● Active</div>
-          )}
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-green-700 font-semibold">Approved</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">{dashboardStats.approved_count}</div>
+              <p className="text-xs text-gray-600 mt-2">Requests approved</p>
+            </CardContent>
+          </Card>
         </button>
-        
+
         <button
           onClick={() => setActiveFilter('rejected')}
-          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
-            activeFilter === 'rejected' ? 'border-red-600 shadow-md' : 'border-gray-200'
+          className={`transition-all duration-300 rounded-lg border-l-4 ${
+            activeFilter === 'rejected' 
+              ? 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 shadow-lg' 
+              : 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 hover:shadow-xl'
           }`}
         >
-          <div className="text-2xl font-bold text-red-600">
-            {dashboardStats.rejected_count}
-          </div>
-          <div className="text-sm text-gray-600">Rejected</div>
-          {activeFilter === 'rejected' && (
-            <div className="mt-2 text-xs text-red-600 font-medium">● Active</div>
-          )}
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-red-700 font-semibold">Rejected</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">{dashboardStats.rejected_count}</div>
+              <p className="text-xs text-gray-600 mt-2">Requests rejected</p>
+            </CardContent>
+          </Card>
         </button>
-        
+
         <button
           onClick={() => setActiveFilter('forwarded')}
-          className={`bg-white p-6 border-2 rounded-lg text-left transition-all hover:shadow-lg ${
-            activeFilter === 'forwarded' ? 'border-blue-600 shadow-md' : 'border-gray-200'
+          className={`transition-all duration-300 rounded-lg border-l-4 ${
+            activeFilter === 'forwarded' 
+              ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 shadow-lg' 
+              : 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 hover:shadow-xl'
           }`}
         >
-          <div className="text-2xl font-bold text-blue-600">
-            {dashboardStats.forwarded_count}
-          </div>
-          <div className="text-sm text-gray-600">Forwarded</div>
-          {activeFilter === 'forwarded' && (
-            <div className="mt-2 text-xs text-blue-600 font-medium">● Active</div>
-          )}
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-blue-700 font-semibold">Forwarded</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{dashboardStats.forwarded_count}</div>
+              <p className="text-xs text-gray-600 mt-2">Forwarded to others</p>
+            </CardContent>
+          </Card>
         </button>
       </div>
 
-      {/* Filtered Approvals */}
-      <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Requests ({pendingApprovals.length})
-          </h2>
-        </div>
-        
-        {pendingApprovals.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No {activeFilter} requests
+      {/* Requests List */}
+      <Card className="border border-gray-200">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Requests
+              <Badge className="ml-2 bg-gray-100 text-gray-800">{pendingApprovals.length}</Badge>
+            </CardTitle>
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => setRefreshTrigger(prev => prev + 1)}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
           </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {pendingApprovals.map((approval) => (
-              <div key={approval.id} className="p-6">
-                <div 
-                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-3 rounded-lg"
-                  onClick={() => handleApprovalClick(approval.id)}
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getRequestTypeColor(approval.request_type)}`}>
-                        {approval.request_type.replace('_', ' ').toUpperCase()}
-                      </span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(approval.current_status)}`}>
-                        {approval.current_status.toUpperCase()}
-                      </span>
+        </CardHeader>
+        <CardContent>
+          {pendingApprovals.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <CheckCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-lg font-medium">No {activeFilter} requests</p>
+              <p className="text-sm">All caught up!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pendingApprovals.map((approval) => (
+                <div key={approval.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div 
+                    className="p-4 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer flex items-start justify-between"
+                    onClick={() => handleApprovalClick(approval.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge className="text-xs">{approval.request_type.replace('_', ' ').toUpperCase()}</Badge>
+                        <Badge 
+                          variant="outline"
+                          className={`text-xs ${
+                            approval.current_status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                            approval.current_status === 'approved' ? 'bg-green-100 text-green-800 border-green-300' :
+                            approval.current_status === 'rejected' ? 'bg-red-100 text-red-800 border-red-300' :
+                            'bg-blue-100 text-blue-800 border-blue-300'
+                          }`}
+                        >
+                          {approval.current_status.toUpperCase()}
+                        </Badge>
+                      </div>
+                      
+                      <div className="text-sm font-semibold text-gray-900 mb-1">
+                        Request ID: {approval.request_id}
+                      </div>
+                      
+                      <div className="text-sm text-gray-600">
+                        <span>Submitted by: <span className="font-medium text-gray-900">{approval.submitted_by_name}</span></span>
+                        <span className="mx-2">•</span>
+                        <span>
+                          {(() => {
+                            const date = new Date(approval.submitted_date);
+                            return date.toLocaleString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            });
+                          })()}
+                        </span>
+                      </div>
                     </div>
                     
-                    <div className="text-sm font-medium text-gray-900 mb-1">
-                      Request ID: {approval.request_id}
-                    </div>
-                    
-                    <div className="text-sm text-gray-600">
-                      Submitted by: <span className="font-medium">{approval.submitted_by_name}</span>
-                      {' • '}
-                      {(() => {
-                        const date = new Date(approval.submitted_date);
-                        return date.toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true
-                        });
-                      })()}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleApprovalClick(approval.id);
                       }}
-                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      className="ml-4 flex-shrink-0"
                     >
-                      {selectedApproval === approval.id ? 'Hide Details' : 'View Details'}
-                    </button>
+                      {selectedApproval === approval.id ? 'Hide' : 'View Details'}
+                    </Button>
                   </div>
+                  
+                  {/* Expanded Details */}
+                  {selectedApproval === approval.id && (
+                    <div className="bg-gray-50 border-t border-gray-200 p-4 overflow-x-auto">
+                      <ApprovalForwarding 
+                        approvalId={approval.id}
+                        onActionComplete={handleActionComplete}
+                      />
+                    </div>
+                  )}
                 </div>
-                
-                {/* Expanded Approval Details */}
-                {selectedApproval === approval.id && (
-                  <div className="mt-4 border-t border-gray-200 pt-4">
-                    <ApprovalForwarding 
-                      approvalId={approval.id}
-                      onActionComplete={handleActionComplete}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button 
-            onClick={handleConfigureWorkflows}
-            className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors"
-          >
-            <div className="font-medium text-gray-900">Configure Workflows</div>
-            <div className="text-sm text-gray-600">Set up approval workflows for different request types</div>
-          </button>
-          
-          <button 
-            onClick={handleManageApprovers}
-            className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors"
-          >
-            <div className="font-medium text-gray-900">Manage Approvers</div>
-            <div className="text-sm text-gray-600">Add or remove approvers from workflows</div>
-          </button>
-          
-          <button 
-            onClick={handleViewAllRequests}
-            className="p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors"
-          >
-            <div className="font-medium text-gray-900">Refresh Dashboard</div>
-            <div className="text-sm text-gray-600">Refresh to see latest approval requests</div>
-          </button>
-        </div>
-      </div>
+      <Card className="border border-gray-200">
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button 
+              onClick={handleConfigureWorkflows}
+              className="p-4 text-left border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <Settings className="h-5 w-5 text-blue-600 group-hover:text-blue-700" />
+                <div className="font-semibold text-gray-900">Configure Workflows</div>
+              </div>
+              <div className="text-sm text-gray-600">Set up approval workflows for different request types</div>
+            </button>
+            
+            <button 
+              onClick={handleManageApprovers}
+              className="p-4 text-left border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <Users className="h-5 w-5 text-green-600 group-hover:text-green-700" />
+                <div className="font-semibold text-gray-900">Manage Approvers</div>
+              </div>
+              <div className="text-sm text-gray-600">Add or remove approvers from workflows</div>
+            </button>
+            
+            <button 
+              onClick={handleViewAllRequests}
+              className="p-4 text-left border border-gray-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-colors group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <RefreshCw className="h-5 w-5 text-purple-600 group-hover:text-purple-700" />
+                <div className="font-semibold text-gray-900">Refresh Dashboard</div>
+              </div>
+              <div className="text-sm text-gray-600">Refresh to see latest approval requests</div>
+            </button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

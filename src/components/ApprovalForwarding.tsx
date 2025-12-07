@@ -8,6 +8,7 @@ import {
   ApprovalAction 
 } from '../services/approvalForwardingService';
 import { sessionService } from '../services/sessionService';
+import InventoryCheckModal from './InventoryCheckModal';
 
 interface ApprovalForwardingProps {
   approvalId: string;
@@ -40,6 +41,10 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
   const [selectedWorkflow, setSelectedWorkflow] = useState('');
   const [workflowUsers, setWorkflowUsers] = useState<any[]>([]);
   const [showActionPanel, setShowActionPanel] = useState(false);
+  
+  // Inventory check state
+  const [showInventoryCheck, setShowInventoryCheck] = useState(false);
+  const [selectedItemForCheck, setSelectedItemForCheck] = useState<any>(null);
 
   // Helper functions for timeline display
   const getActionIcon = (actionType: string) => {
@@ -246,6 +251,88 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
           break;
         case 'approved':
           result = await approvalForwardingService.approveRequest(approvalId, action);
+          
+          // After approval, trigger issuance workflow if this is a stock issuance request
+          if (approval.request_type === 'stock_issuance') {
+            try {
+              console.log('📦 Starting issuance workflow for request:', approval.request_id);
+              
+              // Step 1: Determine issuance source for each approved item
+              const itemsResponse = await fetch(`http://localhost:3001/api/stock-issuance/requests/${approval.request_id}`);
+              const itemsData = await itemsResponse.json();
+              
+              if (itemsData.success && itemsData.data && itemsData.data.length > 0) {
+                const requestData = itemsData.data[0];
+                const items = requestData.items || [];
+                
+                for (const item of items) {
+                  if (item.item_status !== 'Approved') continue; // Only issue approved items
+                  
+                  // Determine source for this item
+                  const sourceResponse = await fetch('http://localhost:3001/api/issuance/determine-source', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      stock_issuance_item_id: item.id,
+                      item_master_id: item.item_master_id,
+                      required_quantity: item.approved_quantity || item.requested_quantity,
+                      wing_id: requestData.wing?.wing_id || 1
+                    })
+                  });
+                  
+                  const sourceData = await sourceResponse.json();
+                  
+                  if (sourceData.success) {
+                    const issuanceSource = sourceData.issuance_source;
+                    const qtyToIssue = item.approved_quantity || item.requested_quantity;
+                    
+                    // Issue from determined source
+                    if (issuanceSource === 'wing_store') {
+                      await fetch('http://localhost:3001/api/issuance/issue-from-wing', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          stock_issuance_item_id: item.id,
+                          stock_issuance_request_id: approval.request_id,
+                          item_master_id: item.item_master_id,
+                          quantity: qtyToIssue,
+                          wing_id: requestData.wing?.wing_id || 1,
+                          issued_by: currentUser?.user_name || 'System'
+                        })
+                      });
+                    } else if (issuanceSource === 'admin_store') {
+                      await fetch('http://localhost:3001/api/issuance/issue-from-admin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          stock_issuance_item_id: item.id,
+                          stock_issuance_request_id: approval.request_id,
+                          item_master_id: item.item_master_id,
+                          quantity: qtyToIssue,
+                          issued_by: currentUser?.user_name || 'System'
+                        })
+                      });
+                    }
+                  }
+                }
+                
+                // Step 2: Finalize issuance
+                await fetch('http://localhost:3001/api/issuance/finalize', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    stock_issuance_request_id: approval.request_id,
+                    finalized_by: currentUser?.user_name || 'System'
+                  })
+                });
+                
+                console.log('✅ Issuance workflow completed successfully');
+              }
+            } catch (issuanceError) {
+              console.error('⚠️ Issuance workflow error (non-blocking):', issuanceError);
+              // Don't fail the approval if issuance fails - it can be processed manually
+            }
+          }
           break;
         case 'rejected':
           if (!comments?.trim()) {
@@ -364,7 +451,45 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
       {/* Items Requested Section */}
       {approval.request_type === 'stock_issuance' && (
-        <ItemsList approvalId={approvalId} canApprove={userPermissions.canApprove} />
+        <>
+          <ItemsList 
+            approvalId={approvalId} 
+            canApprove={userPermissions.canApprove}
+            onCheckInventory={(item) => {
+              setSelectedItemForCheck(item);
+              setShowInventoryCheck(true);
+            }}
+          />
+          
+          {/* Inventory Check Modal */}
+          {showInventoryCheck && selectedItemForCheck && approval && (
+            <InventoryCheckModal
+              isOpen={showInventoryCheck}
+              onClose={() => {
+                setShowInventoryCheck(false);
+                setSelectedItemForCheck(null);
+              }}
+              itemDetails={{
+                item_master_id: selectedItemForCheck.item_id || selectedItemForCheck.item_master_id,
+                item_name: selectedItemForCheck.nomenclature || selectedItemForCheck.item_name,
+                requested_quantity: selectedItemForCheck.requested_quantity,
+                unit: selectedItemForCheck.unit || 'units'
+              }}
+              stockIssuanceId={approval.request_id}
+              wingId={selectedItemForCheck.wing_id || 1}
+              wingName={selectedItemForCheck.wing_name || 'Wing 1'}
+              currentUser={currentUser}
+              onVerificationRequested={() => {
+                // Refresh approval data after verification request
+                loadApprovalData();
+              }}
+              onConfirmAvailable={() => {
+                // Item confirmed available - supervisor can proceed with approval
+                console.log('Item confirmed available in wing store');
+              }}
+            />
+          )}
+        </>
       )}
 
       {/* Action Panel */}
@@ -721,7 +846,11 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 };
 
 // Items List Component
-const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ approvalId, canApprove }) => {
+const ItemsList: React.FC<{ 
+  approvalId: string; 
+  canApprove: boolean;
+  onCheckInventory?: (item: any) => void;
+}> = ({ approvalId, canApprove, onCheckInventory }) => {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [itemDecisions, setItemDecisions] = useState<{ [key: string]: { status: 'approved' | 'rejected' | null; comment: string } }>({});
@@ -771,7 +900,7 @@ const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ appr
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <div className="bg-white border border-gray-200 rounded-lg p-6 w-full">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
         Items Requested ({items.length})
       </h3>
@@ -779,31 +908,34 @@ const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ appr
       {items.length === 0 ? (
         <div className="text-gray-500">No items found for this request.</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="w-full overflow-x-auto -mx-6 px-6">
+          <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Item
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Description
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quantity
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  Qty
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Unit
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                   Status
                 </th>
                 {canApprove && (
                   <>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      Inventory
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Comment
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       Action
                     </th>
                   </>
@@ -817,53 +949,59 @@ const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ appr
                 
                 return (
                   <tr key={itemKey} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {item.nomenclature}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
+                    <td className="px-4 py-4 text-sm text-gray-700 max-w-xs truncate">
                       {item.item_description || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                       {item.requested_quantity}
                       {item.approved_quantity && (
-                        <span className="text-green-600 ml-1">
-                          (Approved: {item.approved_quantity})
+                        <span className="text-green-600 ml-1 text-xs">
+                          (✓ {item.approved_quantity})
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {item.unit || 'N/A'}
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
+                      {item.unit || 'units'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    <td className="px-4 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
                         decision.status === 'approved' ? 'bg-green-100 text-green-800' :
                         decision.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                        item.item_status === 'approved' ? 'bg-green-100 text-green-800' :
-                        item.item_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        item.item_status === 'rejected' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {decision.status ? decision.status.charAt(0).toUpperCase() + decision.status.slice(1) : (item.item_status || 'Pending')}
+                        {decision.status ? decision.status.charAt(0).toUpperCase() + decision.status.slice(1) : 'Pending'}
                       </span>
                     </td>
                     {canApprove && (
                       <>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => onCheckInventory && onCheckInventory(item)}
+                            className="px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 whitespace-nowrap"
+                          >
+                            Check
+                          </button>
+                        </td>
+                        <td className="px-4 py-4 text-sm">
                           <input
                             type="text"
-                            placeholder="Add comment..."
                             value={decision.comment}
                             onChange={(e) => {
+                              const value = e.target.value;
                               setItemDecisions(prev => ({
                                 ...prev,
-                                [itemKey]: { ...prev[itemKey], status: prev[itemKey]?.status || null, comment: e.target.value }
+                                [itemKey]: { ...prev[itemKey], comment: value, status: prev[itemKey]?.status || null }
                               }));
                             }}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs w-24"
+                            placeholder="Note"
                           />
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex gap-2">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-1">
                             <button
                               onClick={() => {
                                 setItemDecisions(prev => ({
@@ -872,13 +1010,13 @@ const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ appr
                                 }));
                               }}
                               disabled={decision.status === 'approved'}
-                              className={`px-3 py-1 rounded text-xs font-medium ${
+                              className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
                                 decision.status === 'approved'
                                   ? 'bg-green-100 text-green-800 cursor-not-allowed'
                                   : 'bg-green-600 text-white hover:bg-green-700'
                               }`}
                             >
-                              ✓ Accept
+                              ✓
                             </button>
                             <button
                               onClick={() => {
@@ -888,13 +1026,13 @@ const ItemsList: React.FC<{ approvalId: string; canApprove: boolean }> = ({ appr
                                 }));
                               }}
                               disabled={decision.status === 'rejected'}
-                              className={`px-3 py-1 rounded text-xs font-medium ${
+                              className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
                                 decision.status === 'rejected'
                                   ? 'bg-red-100 text-red-800 cursor-not-allowed'
                                   : 'bg-red-600 text-white hover:bg-red-700'
                               }`}
                             >
-                              ✗ Reject
+                              ✗
                             </button>
                           </div>
                         </td>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDateDMY } from '@/utils/dateUtils';
+import { formatDateDMY, formatDateTimeDMY } from '@/utils/dateUtils';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import { useSession } from '@/contexts/SessionContext';
 import { 
@@ -29,6 +29,7 @@ const PersonalDashboard = () => {
   const [myIssuedItems, setMyIssuedItems] = useState<any[]>([]);
   const [myPendingApprovals, setMyPendingApprovals] = useState<any[]>([]);
   const [myNotifications, setMyNotifications] = useState<any[]>([]);
+  const [searchRequestsFilter, setSearchRequestsFilter] = useState('');
 
   useEffect(() => {
     const fetchPersonalData = async () => {
@@ -273,34 +274,104 @@ const PersonalDashboard = () => {
       {/* Recent Requests */}
       <Card className="shadow-lg">
         <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
-          <CardTitle className="text-xl">Recent Requests</CardTitle>
-          <CardDescription>Your latest stock issuance requests</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Recent Requests</CardTitle>
+              <CardDescription>Your latest stock issuance requests</CardDescription>
+            </div>
+          </div>
+          <div className="mt-4">
+            <input
+              type="text"
+              placeholder="Search requests by title, description, or item name..."
+              value={searchRequestsFilter}
+              onChange={(e) => setSearchRequestsFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {myRequests.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No requests yet. Start by requesting an item!</p>
           ) : (
             <div className="space-y-4">
-              {myRequests.slice(0, 5).map((request) => (
-                <div key={request.request_id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                  <div className="flex-1">
-                    <h4 className="font-medium">{request.item_name || 'Item Request'}</h4>
-                    <p className="text-sm text-gray-500">
-                      Quantity: {request.requested_quantity} | 
-                      Date: {formatDateDMY(request.request_date || request.created_at)}
-                    </p>
+                {myRequests
+                .filter((request) => {
+                  const searchLower = searchRequestsFilter.toLowerCase();
+                  const title = request.title || '';
+                  const description = request.description || request.purpose || '';
+                  const submittedBy = request.current_approver_name || '';
+                  const itemNames = (request.items || []).map(i => i.item_name || '').join(' ');
+                  
+                  return (
+                    title.toLowerCase().includes(searchLower) ||
+                    description.toLowerCase().includes(searchLower) ||
+                    submittedBy.toLowerCase().includes(searchLower) ||
+                    itemNames.toLowerCase().includes(searchLower)
+                  );
+                })
+                .slice(0, 5)
+                .map((request) => (
+                <div 
+                  key={request.id || request.request_id} 
+                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                >
+                  {/* Request Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg text-gray-900">{request.title || 'Stock Issuance Request'}</h4>
+                      <p className="text-sm text-gray-600 mt-1">{request.description || request.purpose || 'N/A'}</p>
+                      {request.current_approver_name && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          <span className="font-medium">Submitted by:</span> {request.current_approver_name}
+                        </p>
+                      )}
+                    </div>
+                    <Badge 
+                      variant={
+                        request.request_status === 'Approved' || request.current_status === 'APPROVED' 
+                          ? 'default' 
+                          : request.request_status === 'Rejected' || request.current_status === 'REJECTED'
+                          ? 'destructive'
+                          : 'secondary'
+                      }
+                    >
+                      {request.request_status || request.current_status || 'Pending'}
+                    </Badge>
                   </div>
-                  <Badge 
-                    variant={
-                      request.request_status === 'Approved' || request.ApprovalStatus === 'APPROVED' 
-                        ? 'default' 
-                        : request.request_status === 'Rejected' || request.ApprovalStatus === 'REJECTED'
-                        ? 'destructive'
-                        : 'secondary'
-                    }
-                  >
-                    {request.request_status || request.ApprovalStatus || 'Pending'}
-                  </Badge>
+
+                  {/* Request Items */}
+                  {request.items && request.items.length > 0 ? (
+                    <div className="mb-3 bg-gray-50 rounded p-3">
+                      <p className="text-xs font-semibold text-gray-600 mb-2">REQUESTED ITEMS:</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {request.items.slice(0, 3).map((item, idx) => (
+                          <div key={idx} className="bg-white border border-gray-200 rounded px-3 py-2">
+                            <div className="text-sm text-gray-700 font-medium truncate">{item.item_name || 'Unknown Item'}</div>
+                            <div className="text-sm font-semibold text-blue-600 mt-1">Qty: {item.requested_quantity}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {request.items.length > 3 && (
+                        <p className="text-xs text-gray-500 pt-2">+{request.items.length - 3} more items</p>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {/* Request Meta and Button */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="text-xs text-gray-500">
+                      <span>Date: {formatDateTimeDMY(request.submitted_date || request.requested_date || request.created_date)}</span>
+                      {request.total_items > 0 && <span className="ml-4">Items: {request.total_items}</span>}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigate(`/dashboard/request-details/${request.id || request.request_id}`)}
+                    >
+                      View Details
+                    </Button>
+                  </div>
                 </div>
               ))}
               {myRequests.length > 5 && (

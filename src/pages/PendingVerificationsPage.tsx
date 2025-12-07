@@ -1,0 +1,429 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { AlertCircle, CheckCircle2, XCircle, Clock, Eye, Edit2, Send } from 'lucide-react';
+import axios from 'axios';
+
+interface InventoryVerificationRequest {
+  id: string;
+  stock_issuance_item_id: string;
+  item_nomenclature: string;
+  requested_quantity: number;
+  wing_id: number;
+  wing_name: string;
+  created_at: string;
+  status: 'pending' | 'verified' | 'rejected';
+  verified_by?: string;
+  verified_at?: string;
+}
+
+interface VerificationItemDetail {
+  id: string;
+  nomenclature: string;
+  requested_quantity: number;
+  wing_available: number;
+  admin_available: number;
+  verification_status: 'pending' | 'available' | 'partial' | 'unavailable';
+  verification_notes?: string;
+}
+
+export const PendingVerificationsPage: React.FC = () => {
+  const [verificationRequests, setVerificationRequests] = useState<InventoryVerificationRequest[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<InventoryVerificationRequest | null>(null);
+  const [itemDetails, setItemDetails] = useState<VerificationItemDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [verificationNotes, setVerificationNotes] = useState('');
+  const [verificationResult, setVerificationResult] = useState<'available' | 'partial' | 'unavailable'>('available');
+  const [availableQuantity, setAvailableQuantity] = useState<number>(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch pending verification requests
+  useEffect(() => {
+    fetchPendingVerifications();
+  }, []);
+
+  const fetchPendingVerifications = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/inventory/pending-verifications');
+      
+      if (response.data.success) {
+        setVerificationRequests(response.data.data);
+      } else {
+        console.error('Failed to fetch verifications:', response.data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching pending verifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDetails = async (request: InventoryVerificationRequest) => {
+    setSelectedRequest(request);
+    
+    // Fetch detailed inventory information
+    try {
+      // Get availability data for this item
+      const response = await axios.post('/api/inventory/check-availability', {
+        item_master_id: request.stock_issuance_item_id,
+        wing_id: request.wing_id
+      });
+
+      if (response.data.success) {
+        setItemDetails({
+          id: request.id,
+          nomenclature: request.item_nomenclature,
+          requested_quantity: request.requested_quantity,
+          wing_available: response.data.wing_available || 0,
+          admin_available: response.data.admin_available || 0,
+          verification_status: 'pending'
+        });
+        
+        // Pre-fill available quantity
+        const totalAvailable = (response.data.wing_available || 0) + (response.data.admin_available || 0);
+        setAvailableQuantity(Math.min(totalAvailable, request.requested_quantity));
+      }
+    } catch (error) {
+      console.error('Error fetching item details:', error);
+    }
+    
+    setShowModal(true);
+  };
+
+  const handleSubmitVerification = async () => {
+    if (!selectedRequest) return;
+
+    try {
+      setSubmitting(true);
+      
+      const verificationPayload = {
+        inventory_verification_request_id: selectedRequest.id,
+        stock_issuance_item_id: selectedRequest.stock_issuance_item_id,
+        verification_result: verificationResult,
+        available_quantity: availableQuantity,
+        verification_notes: verificationNotes,
+        verified_by: sessionStorage.getItem('user_name') || 'System'
+      };
+
+      const response = await axios.post(
+        '/api/inventory/update-verification',
+        verificationPayload
+      );
+
+      if (response.data.success) {
+        // Show success message
+        alert('✅ Verification submitted successfully!');
+        
+        // Refresh the list
+        await fetchPendingVerifications();
+        
+        // Clear form and close modal
+        setShowModal(false);
+        setSelectedRequest(null);
+        setItemDetails(null);
+        setVerificationNotes('');
+        setVerificationResult('available');
+      } else {
+        alert('❌ Failed to submit verification: ' + response.data.error);
+      }
+    } catch (error) {
+      console.error('Error submitting verification:', error);
+      alert('❌ Error submitting verification. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getPendingCount = () => verificationRequests.filter(r => r.status === 'pending').length;
+  const getVerifiedCount = () => verificationRequests.filter(r => r.status === 'verified').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading pending verifications...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <Clock className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+              <p className="text-gray-600">Pending Verifications</p>
+              <p className="text-3xl font-bold text-yellow-600">{getPendingCount()}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <p className="text-gray-600">Verified</p>
+              <p className="text-3xl font-bold text-green-600">{getVerifiedCount()}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <AlertCircle className="w-8 h-8 text-teal-600 mx-auto mb-2" />
+              <p className="text-gray-600">Total</p>
+              <p className="text-3xl font-bold text-teal-600">{verificationRequests.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Verification Requests List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Eye className="w-5 h-5 text-teal-600" />
+            Pending Inventory Verifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {verificationRequests.length === 0 ? (
+            <div className="text-center py-12">
+              <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-4 opacity-50" />
+              <p className="text-gray-600">No pending verifications at the moment</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {verificationRequests.map((request) => (
+                <div
+                  key={request.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h4 className="font-semibold text-gray-900">{request.item_nomenclature}</h4>
+                      <Badge
+                        variant={
+                          request.status === 'pending'
+                            ? 'warning'
+                            : request.status === 'verified'
+                            ? 'success'
+                            : 'danger'
+                        }
+                      >
+                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
+                      <div>
+                        <p className="font-medium">Quantity Requested</p>
+                        <p className="text-lg font-bold text-gray-900">{request.requested_quantity}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Wing</p>
+                        <p className="text-gray-900">{request.wing_name}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Created</p>
+                        <p className="text-gray-900">{new Date(request.created_at).toLocaleDateString()}</p>
+                      </div>
+                      {request.status !== 'pending' && (
+                        <div>
+                          <p className="font-medium">Verified By</p>
+                          <p className="text-gray-900">{request.verified_by || 'N/A'}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {request.status === 'pending' && (
+                    <Button
+                      onClick={() => handleViewDetails(request)}
+                      className="ml-4 whitespace-nowrap"
+                      size="sm"
+                    >
+                      <Edit2 className="w-4 h-4 mr-1" />
+                      Verify Item
+                    </Button>
+                  )}
+                  {request.status === 'verified' && (
+                    <CheckCircle2 className="w-6 h-6 text-green-600 ml-4" />
+                  )}
+                  {request.status === 'rejected' && (
+                    <XCircle className="w-6 h-6 text-red-600 ml-4" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Verification Modal */}
+      {showModal && itemDetails && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-2xl mx-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="w-5 h-5 text-teal-600" />
+                Verify Item Inventory
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Item Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Item</p>
+                  <p className="font-semibold text-gray-900">{itemDetails.nomenclature}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Quantity Requested</p>
+                  <p className="font-semibold text-gray-900">{itemDetails.requested_quantity}</p>
+                </div>
+              </div>
+
+              {/* Availability Information */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-gray-900 mb-3">Available Stock Levels</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Wing Store Available</p>
+                    <p className="text-2xl font-bold text-teal-600">{itemDetails.wing_available}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Admin Store Available</p>
+                    <p className="text-2xl font-bold text-blue-600">{itemDetails.admin_available}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Verification Result Selection */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-900">Verification Result</p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                    style={{ borderColor: verificationResult === 'available' ? '#0d9488' : '#e5e7eb' }}>
+                    <input
+                      type="radio"
+                      name="verification"
+                      value="available"
+                      checked={verificationResult === 'available'}
+                      onChange={(e) => {
+                        setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
+                        setAvailableQuantity(itemDetails.requested_quantity);
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">✅ Available</p>
+                      <p className="text-xs text-gray-600">Item is fully available in stock</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                    style={{ borderColor: verificationResult === 'partial' ? '#0d9488' : '#e5e7eb' }}>
+                    <input
+                      type="radio"
+                      name="verification"
+                      value="partial"
+                      checked={verificationResult === 'partial'}
+                      onChange={(e) => setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable')}
+                      className="w-4 h-4"
+                    />
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">⚠️ Partial</p>
+                      <p className="text-xs text-gray-600">Item is available in reduced quantity</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                    style={{ borderColor: verificationResult === 'unavailable' ? '#0d9488' : '#e5e7eb' }}>
+                    <input
+                      type="radio"
+                      name="verification"
+                      value="unavailable"
+                      checked={verificationResult === 'unavailable'}
+                      onChange={(e) => {
+                        setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
+                        setAvailableQuantity(0);
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">❌ Unavailable</p>
+                      <p className="text-xs text-gray-600">Item is not available in stock</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Available Quantity Input (for partial) */}
+              {verificationResult === 'partial' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Quantity Found in Stock
+                  </label>
+                  <input
+                    type="number"
+                    value={availableQuantity}
+                    onChange={(e) => setAvailableQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                    max={Math.max(itemDetails.wing_available, itemDetails.admin_available)}
+                    min={0}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  />
+                </div>
+              )}
+
+              {/* Verification Notes */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Verification Notes
+                </label>
+                <textarea
+                  value={verificationNotes}
+                  onChange={(e) => setVerificationNotes(e.target.value)}
+                  placeholder="Add any notes about the verification, condition of items, location found, etc."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 resize-none"
+                  rows={4}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowModal(false);
+                    setSelectedRequest(null);
+                    setItemDetails(null);
+                  }}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmitVerification}
+                  disabled={submitting}
+                  className="bg-teal-600 hover:bg-teal-700"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {submitting ? 'Submitting...' : 'Submit Verification'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PendingVerificationsPage;

@@ -2443,7 +2443,7 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
       .query(`
         SELECT 
           sii.id as requested_item_id,
-          sii.nomenclature as requested_nomenclature,
+          sii.nomenclature,
           sii.requested_quantity,
           sii.custom_item_name,
           sii.item_type
@@ -2459,7 +2459,7 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
       requestedItems.map(async (requestedItem) => {
         try {
           // Search for inventory items that match the requested nomenclature
-          const searchTerm = requestedItem.requested_nomenclature || requestedItem.custom_item_name || '';
+          const searchTerm = requestedItem.nomenclature || requestedItem.custom_item_name || '';
           const searchWords = searchTerm.split(' ').filter(word => word.length > 2);
           
           let inventoryMatches = [];
@@ -8242,7 +8242,7 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
     const itemsResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`
-        SELECT sii.*, im.nomenclature, im.category_name, im.unit_of_measurement
+        SELECT sii.*, im.nomenclature, im.unit
         FROM stock_issuance_items sii
         LEFT JOIN item_masters im ON sii.item_master_id = im.id
         WHERE sii.request_id = @requestId
@@ -11090,6 +11090,385 @@ app.get('/api/approvals/status/:issuanceId', async (req, res) => {
 });
 
 // ============================================================================
+// INVENTORY VERIFICATION ENDPOINTS
+// ============================================================================
+
+// Check wing inventory availability for an item
+app.post('/api/inventory/check-availability', async (req, res) => {
+  try {
+    const { itemMasterId, wingId, requestedQuantity } = req.body;
+
+    console.log('📦 Inventory Check Request:', { itemMasterId, wingId, requestedQuantity });
+
+    if (!itemMasterId || !requestedQuantity) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: itemMasterId, requestedQuantity' 
+      });
+    }
+
+    if (!pool) {
+      // Mock data for testing
+      return res.json({
+        success: true,
+        data: {
+          item_master_id: itemMasterId,
+          item_name: 'HP ENVY 6',
+          unit: 'PCS',
+          requested_quantity: requestedQuantity,
+          available_quantity: 3,
+          is_available: true,
+          availability_status: 'Sufficient Stock'
+        }
+      });
+    }
+
+    // Query the current inventory to check availability
+    const result = await pool.request()
+      .input('ItemMasterId', sql.NVarChar, itemMasterId)
+      .input('RequestedQuantity', sql.Int, requestedQuantity)
+      .query(`
+        SELECT 
+          CAST(cis.item_master_id AS NVARCHAR(450)) as item_master_id,
+          ISNULL(im.nomenclature, 'Unknown Item') as item_name,
+          ISNULL(im.unit, 'PCS') as unit,
+          @RequestedQuantity as requested_quantity,
+          ISNULL(cis.available_quantity, 0) as available_quantity,
+          CASE 
+            WHEN ISNULL(cis.available_quantity, 0) >= @RequestedQuantity THEN 1
+            ELSE 0
+          END as is_available,
+          CASE 
+            WHEN ISNULL(cis.available_quantity, 0) >= @RequestedQuantity THEN 'Sufficient Stock'
+            ELSE 'Insufficient Stock (' + CAST(ISNULL(cis.available_quantity, 0) AS NVARCHAR(10)) + ' available)'
+          END as availability_status
+        FROM current_inventory_stock cis
+        LEFT JOIN item_masters im ON CAST(im.id AS NVARCHAR(450)) = CAST(cis.item_master_id AS NVARCHAR(450))
+        WHERE CAST(cis.item_master_id AS NVARCHAR(450)) = @ItemMasterId
+      `);
+
+    console.log('📦 Inventory Query Result:', result.recordset);
+
+    if (result.recordset.length === 0) {
+      console.warn('⚠️ No inventory found for item:', itemMasterId);
+      return res.json({
+        success: true,
+        data: {
+          item_master_id: itemMasterId,
+          item_name: 'Unknown Item',
+          unit: 'PCS',
+          requested_quantity: requestedQuantity,
+          available_quantity: 0,
+          is_available: false,
+          availability_status: 'Item not found in inventory'
+        }
+      });
+    }
+
+    console.log('✅ Inventory check successful for item:', itemMasterId);
+    res.json({
+      success: true,
+      data: result.recordset[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Error checking inventory availability:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to check inventory availability', 
+      details: error.message 
+    });
+  }
+});
+
+// Request inventory verification from inventory supervisor
+app.post('/api/inventory/request-verification', async (req, res) => {
+  try {
+    const { 
+      stockIssuanceId,
+      itemMasterId,
+      requestedQuantity,
+      requestedByUserId,
+      requestedByName,
+      wingId,
+      wingName
+    } = req.body;
+
+    if (!stockIssuanceId || !itemMasterId || !requestedByUserId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields' 
+      });
+    }
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        message: 'Verification request created (mock)',
+        verificationId: 'mock-' + Date.now()
+      });
+    }
+
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Create verification request
+      const result = await transaction.request()
+        .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
+        .input('itemMasterId', sql.Int, itemMasterId)
+        .input('requestedByUserId', sql.NVarChar, requestedByUserId)
+        .input('requestedByName', sql.NVarChar, requestedByName)
+        .input('requestedQuantity', sql.Int, requestedQuantity)
+        .input('wingId', sql.Int, wingId)
+        .input('wingName', sql.NVarChar, wingName)
+        .query(`
+          INSERT INTO inventory_verification_requests 
+          (stock_issuance_id, item_master_id, requested_by_user_id, requested_by_name, 
+           requested_quantity, verification_status, wing_id, wing_name)
+          OUTPUT INSERTED.id
+          VALUES (@stockIssuanceId, @itemMasterId, @requestedByUserId, @requestedByName,
+                  @requestedQuantity, 'pending', @wingId, @wingName)
+        `);
+
+      const verificationId = result.recordset[0].id;
+
+      // Update stock issuance item status
+      await transaction.request()
+        .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
+        .input('itemMasterId', sql.Int, itemMasterId)
+        .query(`
+          UPDATE stock_issuance_items
+          SET inventory_check_status = 'verification_requested'
+          WHERE stock_issuance_id = @stockIssuanceId 
+            AND item_master_id = @itemMasterId
+        `);
+
+      // Update request verification tracking
+      await transaction.request()
+        .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET inventory_verification_required = 1,
+              pending_verification_count = pending_verification_count + 1
+          WHERE id = @stockIssuanceId
+        `);
+
+      await transaction.commit();
+
+      // TODO: Create notification for inventory supervisor
+      console.log('✅ Inventory verification requested:', verificationId);
+
+      res.json({
+        success: true,
+        message: 'Verification request created successfully',
+        verificationId: verificationId
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error requesting verification:', error);
+    res.status(500).json({ 
+      error: 'Failed to request verification', 
+      details: error.message 
+    });
+  }
+});
+
+// Get pending verification requests for inventory supervisor
+app.get('/api/inventory/pending-verifications', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Get pending verifications for wings this user manages
+    const result = await pool.request()
+      .query(`
+        SELECT * FROM View_Pending_Inventory_Verifications
+        ORDER BY requested_at DESC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching pending verifications:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch pending verifications', 
+      details: error.message 
+    });
+  }
+});
+
+// Update verification status (by inventory supervisor)
+app.post('/api/inventory/update-verification', async (req, res) => {
+  try {
+    const {
+      verificationId,
+      verificationStatus,
+      physicalCount,
+      availableQuantity,
+      verificationNotes,
+      verifiedByUserId,
+      verifiedByName
+    } = req.body;
+
+    if (!verificationId || !verificationStatus || !verifiedByUserId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields' 
+      });
+    }
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        message: 'Verification updated (mock)'
+      });
+    }
+
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Get verification details
+      const verificationData = await transaction.request()
+        .input('verificationId', sql.Int, verificationId)
+        .query(`
+          SELECT stock_issuance_id, item_master_id 
+          FROM inventory_verification_requests 
+          WHERE id = @verificationId
+        `);
+
+      if (verificationData.recordset.length === 0) {
+        throw new Error('Verification request not found');
+      }
+
+      const { stock_issuance_id, item_master_id } = verificationData.recordset[0];
+
+      // Update verification request
+      await transaction.request()
+        .input('verificationId', sql.Int, verificationId)
+        .input('verificationStatus', sql.NVarChar, verificationStatus)
+        .input('physicalCount', sql.Int, physicalCount)
+        .input('availableQuantity', sql.Int, availableQuantity)
+        .input('verificationNotes', sql.NVarChar, verificationNotes)
+        .input('verifiedByUserId', sql.NVarChar, verifiedByUserId)
+        .input('verifiedByName', sql.NVarChar, verifiedByName)
+        .query(`
+          UPDATE inventory_verification_requests
+          SET verification_status = @verificationStatus,
+              physical_count = @physicalCount,
+              available_quantity = @availableQuantity,
+              verification_notes = @verificationNotes,
+              verified_by_user_id = @verifiedByUserId,
+              verified_by_name = @verifiedByName,
+              verified_at = GETDATE(),
+              updated_at = GETDATE()
+          WHERE id = @verificationId
+        `);
+
+      // Update stock issuance item based on verification
+      const itemStatus = verificationStatus === 'verified_available' ? 'available' :
+                        verificationStatus === 'verified_partial' ? 'partial' : 'unavailable';
+
+      await transaction.request()
+        .input('stockIssuanceId', sql.UniqueIdentifier, stock_issuance_id)
+        .input('itemMasterId', sql.Int, item_master_id)
+        .input('itemStatus', sql.NVarChar, itemStatus)
+        .input('availableQuantity', sql.Int, availableQuantity)
+        .query(`
+          UPDATE stock_issuance_items
+          SET inventory_check_status = @itemStatus,
+              wing_store_quantity = @availableQuantity,
+              available_in_wing_store = CASE WHEN @itemStatus = 'available' THEN 1 ELSE 0 END
+          WHERE stock_issuance_id = @stockIssuanceId 
+            AND item_master_id = @itemMasterId
+        `);
+
+      // Update request verification count
+      await transaction.request()
+        .input('stockIssuanceId', sql.UniqueIdentifier, stock_issuance_id)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET pending_verification_count = pending_verification_count - 1,
+              inventory_verification_completed = CASE 
+                WHEN pending_verification_count <= 1 THEN 1 
+                ELSE 0 
+              END
+          WHERE id = @stockIssuanceId
+        `);
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: 'Verification updated successfully'
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error updating verification:', error);
+    res.status(500).json({ 
+      error: 'Failed to update verification', 
+      details: error.message 
+    });
+  }
+});
+
+// Get verification history for a stock issuance
+app.get('/api/inventory/verification-history/:stockIssuanceId', async (req, res) => {
+  try {
+    const { stockIssuanceId } = req.params;
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    const result = await pool.request()
+      .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
+      .query(`
+        SELECT 
+          ivr.*,
+          im.nomenclature as item_name,
+          im.item_code
+        FROM inventory_verification_requests ivr
+        LEFT JOIN item_master im ON ivr.item_master_id = im.id
+        WHERE ivr.stock_issuance_id = @stockIssuanceId
+        ORDER BY ivr.created_at DESC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching verification history:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch verification history', 
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // NOTIFICATION SYSTEM
 // ============================================================================
 
@@ -12052,6 +12431,7 @@ app.get('/api/approval-items/:approvalId', async (req, res) => {
       .query(`
         SELECT 
           si_items.id as item_id,
+          CAST(si_items.item_master_id AS NVARCHAR(450)) as item_master_id,
           CASE 
             WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
             ELSE ISNULL(im.nomenclature, 'Unknown Item')
@@ -12066,7 +12446,7 @@ app.get('/api/approval-items/:approvalId', async (req, res) => {
           END as item_code,
           CASE 
             WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
-            ELSE ISNULL(im.description, 'No description')
+            ELSE ISNULL(im.specifications, 'No specifications')
           END as item_description,
           CASE 
             WHEN si_items.item_type = 'custom' THEN 'pcs'
@@ -13104,21 +13484,19 @@ app.get('/api/my-requests', async (req, res) => {
     const userId = req.session.userId;
     console.log('Loading requests for user:', userId);
 
-    // Get all requests submitted by the current user with their current status
+    // Get all requests REQUESTED by the current user (filter by requester_user_id, not approvals)
     const requestsQuery = `
       SELECT 
-        ra.request_id,
-        ra.request_type,
-        ra.submitted_date,
-        ra.submitted_by,
-        ra.current_status,
-        ra.created_date,
-        
-        -- Get approver name
-        u_approver.FullName as current_approver_name,
+        sir.id as request_id,
+        sir.request_type,
+        sir.submitted_at as submitted_date,
+        sir.requester_user_id as submitted_by,
+        sir.request_status as current_status,
+        sir.created_at as created_date,
         
         -- Get requester info
         u_requester.FullName as requester_name,
+        u_requester.FullName as current_approver_name,
         
         -- Use stock issuance data for titles and descriptions
         sir.justification as title,
@@ -13126,12 +13504,10 @@ app.get('/api/my-requests', async (req, res) => {
         sir.created_at as requested_date,
         sir.request_status
         
-      FROM request_approvals ra
-      LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
-      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
-      LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
-      WHERE ra.submitted_by = @userId
-      ORDER BY ra.created_date DESC;
+      FROM stock_issuance_requests sir
+      LEFT JOIN AspNetUsers u_requester ON CAST(sir.requester_user_id AS NVARCHAR(450)) = CAST(u_requester.Id AS NVARCHAR(450))
+      WHERE CAST(sir.requester_user_id AS NVARCHAR(450)) = @userId
+      ORDER BY sir.created_at DESC;
     `;
 
     const requestsResult = await pool.request()
@@ -13146,16 +13522,17 @@ app.get('/api/my-requests', async (req, res) => {
       try {
         const stockItemsQuery = `
           SELECT 
+            si_items.id,
             si_items.item_master_id as item_id,
-            COALESCE(im.item_name, 'Unknown Item') as item_name,
+            si_items.nomenclature as item_name,
             si_items.requested_quantity,
             si_items.approved_quantity,
-            COALESCE(im.unit, 'units') as unit,
-            '' as specifications
+            'units' as unit,
+            si_items.item_type,
+            si_items.custom_item_name
           FROM stock_issuance_items si_items
-          LEFT JOIN item_master im ON im.id = si_items.item_master_id
-          WHERE si_items.stock_issuance_id = @requestId
-          ORDER BY im.item_name;
+          WHERE si_items.request_id = @requestId
+          ORDER BY si_items.nomenclature;
         `;
         
         const stockItemsResult = await pool.request()
@@ -13163,6 +13540,9 @@ app.get('/api/my-requests', async (req, res) => {
           .query(stockItemsQuery);
           
         items = stockItemsResult.recordset || [];
+        
+        // Debug log - show what we got
+        console.log(`✓ Loaded ${items.length} items for request ${request.request_id.toString().substring(0, 8)}:`, JSON.stringify(items.map(i => ({ name: i.item_name, qty: i.requested_quantity }))));
       } catch (itemError) {
         console.log('Could not load stock issuance items for request', request.request_id, ':', itemError.message);
         items = [];
@@ -13277,7 +13657,7 @@ app.get('/api/request-details/:requestId', async (req, res) => {
       const stockItemsQuery = `
         SELECT 
           si_items.item_master_id as item_id,
-          COALESCE(im.item_name, 'Unknown Item') as item_name,
+          COALESCE(im.nomenclature, 'Unknown Item') as item_name,
           si_items.requested_quantity,
           si_items.approved_quantity,
           COALESCE(im.unit, 'units') as unit,
@@ -13285,7 +13665,7 @@ app.get('/api/request-details/:requestId', async (req, res) => {
         FROM stock_issuance_items si_items
         LEFT JOIN item_masters im ON im.id = si_items.item_master_id
         WHERE si_items.request_id = @requestId
-        ORDER BY im.item_name;
+        ORDER BY im.nomenclature;
       `;
       
       const stockItemsResult = await pool.request()
@@ -13539,6 +13919,290 @@ app.get('/api/my-approval-history', async (req, res) => {
       success: false, 
       error: 'Failed to fetch approval history: ' + error.message,
       details: error.stack
+    });
+  }
+});
+
+// =============================================================================
+// ISSUANCE WORKFLOW API ENDPOINTS (NEW)
+// =============================================================================
+
+// Determine issuance source - checks wing/admin inventory availability
+app.post('/api/issuance/determine-source', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { stock_issuance_item_id, item_master_id, required_quantity, wing_id } = req.body;
+
+    if (!item_master_id || !required_quantity || !wing_id) {
+      return res.status(400).json({ error: 'item_master_id, required_quantity, and wing_id are required' });
+    }
+
+    // Call the stored procedure
+    const result = await pool.request()
+      .input('item_master_id', sql.UniqueIdentifier, item_master_id)
+      .input('required_quantity', sql.Int, required_quantity)
+      .input('wing_id', sql.Int, wing_id)
+      .execute('sp_DetermineIssuanceSource');
+
+    if (result.recordset.length === 0) {
+      return res.json({
+        success: true,
+        issuance_source: 'procurement',
+        wing_available: 0,
+        admin_available: 0,
+        message: 'Item not available in stock - procurement required'
+      });
+    }
+
+    const sourceData = result.recordset[0];
+
+    res.json({
+      success: true,
+      issuance_source: sourceData.issuance_source,
+      wing_available: sourceData.wing_available_quantity || 0,
+      admin_available: sourceData.admin_available_quantity || 0,
+      total_available: (sourceData.wing_available_quantity || 0) + (sourceData.admin_available_quantity || 0),
+      message: `Item can be issued from ${sourceData.issuance_source}`,
+      details: sourceData
+    });
+
+  } catch (error) {
+    console.error('Error determining issuance source:', error);
+    res.status(500).json({ 
+      error: 'Failed to determine issuance source', 
+      details: error.message 
+    });
+  }
+});
+
+// Issue item from wing store
+app.post('/api/issuance/issue-from-wing', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { stock_issuance_item_id, stock_issuance_request_id, item_master_id, quantity, wing_id, issued_by } = req.body;
+
+    if (!stock_issuance_item_id || !quantity || !issued_by) {
+      return res.status(400).json({ error: 'Required fields: stock_issuance_item_id, quantity, issued_by' });
+    }
+
+    // Call stored procedure
+    const result = await pool.request()
+      .input('stock_issuance_item_id', sql.UniqueIdentifier, stock_issuance_item_id)
+      .input('stock_issuance_request_id', sql.UniqueIdentifier, stock_issuance_request_id)
+      .input('item_master_id', sql.UniqueIdentifier, item_master_id)
+      .input('quantity', sql.Int, quantity)
+      .input('wing_id', sql.Int, wing_id)
+      .input('issued_by', sql.NVarChar, issued_by)
+      .execute('sp_IssueFromWingStore');
+
+    const transactionResult = result.recordset[0] || {};
+
+    res.json({
+      success: true,
+      message: 'Item issued from wing store successfully',
+      transaction_id: transactionResult.transaction_id,
+      quantity_issued: transactionResult.quantity_issued,
+      remaining_wing_stock: transactionResult.remaining_wing_stock,
+      issued_at: transactionResult.issued_at
+    });
+
+  } catch (error) {
+    console.error('Error issuing from wing store:', error);
+    res.status(500).json({ 
+      error: 'Failed to issue from wing store', 
+      details: error.message 
+    });
+  }
+});
+
+// Issue item from admin store
+app.post('/api/issuance/issue-from-admin', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { stock_issuance_item_id, stock_issuance_request_id, item_master_id, quantity, issued_by } = req.body;
+
+    if (!stock_issuance_item_id || !quantity || !issued_by) {
+      return res.status(400).json({ error: 'Required fields: stock_issuance_item_id, quantity, issued_by' });
+    }
+
+    // Call stored procedure
+    const result = await pool.request()
+      .input('stock_issuance_item_id', sql.UniqueIdentifier, stock_issuance_item_id)
+      .input('stock_issuance_request_id', sql.UniqueIdentifier, stock_issuance_request_id)
+      .input('item_master_id', sql.UniqueIdentifier, item_master_id)
+      .input('quantity', sql.Int, quantity)
+      .input('issued_by', sql.NVarChar, issued_by)
+      .execute('sp_IssueFromAdminStore');
+
+    const transactionResult = result.recordset[0] || {};
+
+    res.json({
+      success: true,
+      message: 'Item issued from admin store successfully',
+      transaction_id: transactionResult.transaction_id,
+      quantity_issued: transactionResult.quantity_issued,
+      remaining_admin_stock: transactionResult.remaining_admin_stock,
+      issued_at: transactionResult.issued_at
+    });
+
+  } catch (error) {
+    console.error('Error issuing from admin store:', error);
+    res.status(500).json({ 
+      error: 'Failed to issue from admin store', 
+      details: error.message 
+    });
+  }
+});
+
+// Handle verification result - update item status based on inventory check
+app.post('/api/issuance/handle-verification-result', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { 
+      stock_issuance_item_id, 
+      verification_result, // 'available', 'partial', 'unavailable'
+      available_quantity,
+      verification_notes,
+      verified_by 
+    } = req.body;
+
+    if (!stock_issuance_item_id || !verification_result) {
+      return res.status(400).json({ error: 'stock_issuance_item_id and verification_result are required' });
+    }
+
+    // Call stored procedure
+    const result = await pool.request()
+      .input('stock_issuance_item_id', sql.UniqueIdentifier, stock_issuance_item_id)
+      .input('verification_result', sql.NVarChar, verification_result)
+      .input('available_quantity', sql.Int, available_quantity || 0)
+      .input('verification_notes', sql.NVarChar, verification_notes || null)
+      .input('verified_by', sql.NVarChar, verified_by)
+      .execute('sp_HandleVerificationResult');
+
+    const verificationResult = result.recordset[0] || {};
+
+    res.json({
+      success: true,
+      message: `Item verification recorded - ${verification_result}`,
+      item_status: verificationResult.new_status,
+      available_quantity: verificationResult.available_quantity,
+      verified_at: verificationResult.verified_at
+    });
+
+  } catch (error) {
+    console.error('Error handling verification result:', error);
+    res.status(500).json({ 
+      error: 'Failed to handle verification result', 
+      details: error.message 
+    });
+  }
+});
+
+// Finalize issuance - mark request as finalized after all items issued
+app.post('/api/issuance/finalize', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { stock_issuance_request_id, finalized_by } = req.body;
+
+    if (!stock_issuance_request_id || !finalized_by) {
+      return res.status(400).json({ error: 'stock_issuance_request_id and finalized_by are required' });
+    }
+
+    // Call stored procedure
+    const result = await pool.request()
+      .input('stock_issuance_request_id', sql.UniqueIdentifier, stock_issuance_request_id)
+      .input('finalized_by', sql.NVarChar, finalized_by)
+      .execute('sp_FinalizeIssuance');
+
+    const finalizeResult = result.recordset[0] || {};
+
+    res.json({
+      success: true,
+      message: 'Issuance finalized successfully',
+      request_status: finalizeResult.request_status,
+      total_items: finalizeResult.total_items,
+      issued_items: finalizeResult.issued_items,
+      rejected_items: finalizeResult.rejected_items,
+      finalized_at: finalizeResult.finalized_at
+    });
+
+  } catch (error) {
+    console.error('Error finalizing issuance:', error);
+    res.status(500).json({ 
+      error: 'Failed to finalize issuance', 
+      details: error.message 
+    });
+  }
+});
+
+// Get issuance status for a request - shows what items are issued, pending, rejected
+app.get('/api/issuance/status/:stock_issuance_request_id', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { stock_issuance_request_id } = req.params;
+
+    // Get issuance status from view
+    const result = await pool.request()
+      .input('request_id', sql.UniqueIdentifier, stock_issuance_request_id)
+      .query(`
+        SELECT 
+          request_id,
+          total_items,
+          issued_items,
+          rejected_items,
+          pending_items,
+          issuance_rate,
+          last_updated,
+          finalized_at
+        FROM View_Issuance_Status
+        WHERE request_id = @request_id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.json({
+        success: true,
+        request_id: stock_issuance_request_id,
+        total_items: 0,
+        issued_items: 0,
+        rejected_items: 0,
+        pending_items: 0,
+        issuance_rate: 0,
+        message: 'No issuance data found for this request'
+      });
+    }
+
+    const statusData = result.recordset[0];
+
+    res.json({
+      success: true,
+      ...statusData,
+      completion_percentage: statusData.issuance_rate || 0,
+      is_complete: (statusData.pending_items || 0) === 0
+    });
+
+  } catch (error) {
+    console.error('Error fetching issuance status:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch issuance status', 
+      details: error.message 
     });
   }
 });
