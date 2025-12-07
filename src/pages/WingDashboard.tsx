@@ -307,8 +307,10 @@ const WingDashboard = () => {
 
       {/* Verification Details Modal */}
       {selectedVerification && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+        <>
+          <style>{`body { overflow: hidden; }`}</style>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
             <CardHeader className="border-b bg-gradient-to-r from-indigo-100 to-indigo-50 sticky top-0">
               <div className="flex items-center justify-between">
                 <div>
@@ -408,7 +410,8 @@ const WingDashboard = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Recent Wing Requests */}
