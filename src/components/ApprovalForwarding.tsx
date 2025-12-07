@@ -472,6 +472,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
               itemDetails={{
                 item_master_id: selectedItemForCheck.item_id || selectedItemForCheck.item_master_id,
                 item_name: selectedItemForCheck.nomenclature || selectedItemForCheck.item_name,
+                nomenclature: selectedItemForCheck.nomenclature,
                 requested_quantity: selectedItemForCheck.requested_quantity,
                 unit: selectedItemForCheck.unit || 'units'
               }}

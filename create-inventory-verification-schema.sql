@@ -21,6 +21,7 @@ BEGIN
         -- Links to existing tables
         stock_issuance_id UNIQUEIDENTIFIER NOT NULL,
         item_master_id NVARCHAR(450) NULL,  -- Using NVARCHAR to match item_master.id type
+        item_nomenclature NVARCHAR(500) NULL,  -- Store item name directly for reliability
         
         -- Who requested
         requested_by_user_id NVARCHAR(450) NOT NULL,
@@ -71,27 +72,30 @@ GO
 
 CREATE VIEW dbo.View_Pending_Inventory_Verifications AS
 SELECT 
-    ivr.id AS verification_id,
+    ivr.id,
     ivr.stock_issuance_id,
     ivr.item_master_id,
-    im.nomenclature AS item_name,
-    im.item_code,
+    ISNULL(ivr.item_nomenclature, 'Unknown Item') AS item_nomenclature,
     ivr.requested_quantity,
     ivr.requested_by_name,
+    ivr.requested_by_user_id,
     ivr.requested_at,
     ivr.verification_status,
+    CASE 
+        WHEN ivr.verification_status LIKE 'verified%' THEN 'verified'
+        ELSE 'pending'
+    END AS status,
+    ivr.verified_by_user_id,
+    ivr.verified_by_name,
+    ivr.verified_at,
+    ivr.physical_count,
+    ivr.available_quantity,
+    ivr.verification_notes,
     ivr.wing_id,
     ivr.wing_name,
-    w.wing_name AS wing_full_name,
-    sir.purpose AS request_purpose,
-    sir.request_type,
-    u.FullName AS requester_name
-FROM dbo.inventory_verification_requests ivr
-LEFT JOIN dbo.item_masters im ON ivr.item_master_id = im.id
-LEFT JOIN dbo.wings w ON ivr.wing_id = w.id
-LEFT JOIN dbo.stock_issuance_requests sir ON ivr.stock_issuance_id = sir.id
-LEFT JOIN dbo.AspNetUsers u ON sir.requester_user_id = u.Id
-WHERE ivr.verification_status = 'pending';
+    ivr.created_at,
+    ivr.updated_at
+FROM dbo.inventory_verification_requests ivr;
 GO
 
 PRINT '✅ Created View_Pending_Inventory_Verifications';

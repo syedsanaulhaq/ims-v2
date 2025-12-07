@@ -9,8 +9,9 @@ interface InventoryCheckModalProps {
   isOpen: boolean;
   onClose: () => void;
   itemDetails: {
-    item_master_id: number;
+    item_master_id: number | string;
     item_name: string;
+    nomenclature?: string;
     requested_quantity: number;
     unit?: string;
   };
@@ -131,6 +132,7 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
         body: JSON.stringify({
           stockIssuanceId: stockIssuanceId,
           itemMasterId: itemDetails.item_master_id,
+          itemNomenclature: itemDetails.nomenclature || itemDetails.item_name || 'Unknown Item',
           requestedQuantity: itemDetails.requested_quantity,
           requestedByUserId: userId,
           requestedByName: userName,

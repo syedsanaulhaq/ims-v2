@@ -11186,6 +11186,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
     const { 
       stockIssuanceId,
       itemMasterId,
+      itemNomenclature,
       requestedQuantity,
       requestedByUserId,
       requestedByName,
@@ -11193,7 +11194,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       wingName
     } = req.body;
 
-    console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, requestedByUserId });
+    console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, itemNomenclature, requestedByUserId });
 
     if (!stockIssuanceId || !itemMasterId || !requestedByUserId) {
       return res.status(400).json({ 
@@ -11216,6 +11217,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       const result = await pool.request()
         .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
         .input('itemMasterId', sql.NVarChar, itemMasterId)  // Changed to NVarChar to match actual ID type
+        .input('itemNomenclature', sql.NVarChar, itemNomenclature || 'Unknown Item')
         .input('requestedByUserId', sql.NVarChar, requestedByUserId)
         .input('requestedByName', sql.NVarChar, requestedByName || 'System')
         .input('requestedQuantity', sql.Int, requestedQuantity || 0)
@@ -11223,10 +11225,10 @@ app.post('/api/inventory/request-verification', async (req, res) => {
         .input('wingName', sql.NVarChar, wingName || 'Unknown')
         .query(`
           INSERT INTO inventory_verification_requests 
-          (stock_issuance_id, item_master_id, requested_by_user_id, requested_by_name, 
+          (stock_issuance_id, item_master_id, item_nomenclature, requested_by_user_id, requested_by_name, 
            requested_quantity, verification_status, wing_id, wing_name, created_at, updated_at)
           OUTPUT INSERTED.id
-          VALUES (@stockIssuanceId, @itemMasterId, @requestedByUserId, @requestedByName,
+          VALUES (@stockIssuanceId, @itemMasterId, @itemNomenclature, @requestedByUserId, @requestedByName,
                   @requestedQuantity, 'pending', @wingId, @wingName, GETDATE(), GETDATE())
         `);
 
