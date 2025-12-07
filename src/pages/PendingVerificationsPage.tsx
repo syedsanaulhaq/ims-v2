@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { AlertCircle, CheckCircle2, XCircle, Clock, Eye, Edit2, Send } from 'lucide-react';
-import axios from 'axios';
 
 interface InventoryVerificationRequest {
   id: number;
@@ -54,12 +53,13 @@ export const PendingVerificationsPage: React.FC = () => {
   const fetchPendingVerifications = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/inventory/pending-verifications');
+      const response = await fetch('http://localhost:3001/api/inventory/pending-verifications');
+      const data = await response.json();
       
-      if (response.data.success) {
-        setVerificationRequests(response.data.data);
+      if (data.success) {
+        setVerificationRequests(data.data);
       } else {
-        console.error('Failed to fetch verifications:', response.data.error);
+        console.error('Failed to fetch verifications:', data.error);
       }
     } catch (error) {
       console.error('Error fetching pending verifications:', error);
@@ -74,23 +74,28 @@ export const PendingVerificationsPage: React.FC = () => {
     // Fetch detailed inventory information
     try {
       // Get availability data for this item
-      const response = await axios.post('/api/inventory/check-availability', {
-        itemMasterId: request.item_master_id,
-        wingId: request.wing_id
+      const response = await fetch('http://localhost:3001/api/inventory/check-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemMasterId: request.item_master_id,
+          wingId: request.wing_id
+        })
       });
+      const data = await response.json();
 
-      if (response.data.success) {
+      if (data.success) {
         setItemDetails({
           id: String(request.id),
           nomenclature: request.item_master_id || 'Item',
           requested_quantity: request.requested_quantity || 0,
-          wing_available: response.data.data?.available_quantity || response.data.wing_available || 0,
-          admin_available: response.data.admin_available || 0,
+          wing_available: data.data?.available_quantity || data.wing_available || 0,
+          admin_available: data.admin_available || 0,
           verification_status: 'pending'
         });
         
         // Pre-fill available quantity
-        const totalAvailable = (response.data.data?.available_quantity || response.data.wing_available || 0) + (response.data.admin_available || 0);
+        const totalAvailable = (data.data?.available_quantity || data.wing_available || 0) + (data.admin_available || 0);
         setAvailableQuantity(Math.min(totalAvailable, request.requested_quantity || 0));
       } else {
         // Use default values if check fails
@@ -144,12 +149,14 @@ export const PendingVerificationsPage: React.FC = () => {
 
       console.log('📦 Submitting verification:', verificationPayload);
 
-      const response = await axios.post(
-        '/api/inventory/update-verification',
-        verificationPayload
-      );
+      const response = await fetch('http://localhost:3001/api/inventory/update-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(verificationPayload)
+      });
+      const result = await response.json();
 
-      if (response.data.success) {
+      if (result.success) {
         console.log('✅ Verification submitted successfully');
         // Show success state instead of closing immediately
         setVerificationSubmitted(true);
@@ -160,8 +167,8 @@ export const PendingVerificationsPage: React.FC = () => {
           await fetchPendingVerifications();
         }, 3000);
       } else {
-        console.error('❌ Verification failed:', response.data.error);
-        alert('❌ Failed to submit verification: ' + (response.data.error || 'Unknown error'));
+        console.error('❌ Verification failed:', result.error);
+        alert('❌ Failed to submit verification: ' + (result.error || 'Unknown error'));
       }
     } catch (err: any) {
       console.error('Error submitting verification:', err);
