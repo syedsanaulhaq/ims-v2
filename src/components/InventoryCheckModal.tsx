@@ -102,6 +102,12 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
   const handleRequestVerification = async () => {
     try {
       setRequestingVerification(true);
+      console.log('🔵 Starting verification request with:', {
+        stockIssuanceId,
+        itemMasterId: itemDetails.item_master_id,
+        requestedQuantity: itemDetails.requested_quantity,
+        currentUserId: currentUser?.Id || currentUser?.user_id
+      });
 
       const response = await fetch('http://localhost:3001/api/inventory/request-verification', {
         method: 'POST',
@@ -121,20 +127,22 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       });
 
       const data = await response.json();
+      console.log('🟢 Verification response received:', data);
 
       if (data.success) {
-        console.log('✅ Verification request sent successfully:', data.verificationId);
+        console.log('✅ Verification request sent successfully, ID:', data.verificationId);
+        console.log('📍 Setting verificationRequested to true, ID:', data.verificationId);
         setVerificationRequested(true);
         setVerificationId(data.verificationId);
         if (onVerificationRequested) {
           onVerificationRequested();
         }
       } else {
-        console.error('❌ Verification request failed:', data.error);
+        console.error('❌ Verification request failed:', data.error || data);
         setError(data.error || 'Failed to request verification');
       }
     } catch (err: any) {
-      console.error('Error requesting verification:', err);
+      console.error('❌ Error requesting verification:', err);
       setError(err.message || 'Failed to send verification request');
     } finally {
       setRequestingVerification(false);
