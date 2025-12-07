@@ -76,6 +76,7 @@ import InventoryAlertsPage from "./pages/InventoryAlertsPage";
 import InventoryDetails from "./pages/InventoryDetails";
 import ItemDetailsPage from "./pages/ItemDetailsPage";
 import StockOperations from "./pages/StockOperations";
+import { PendingVerificationsPage } from "./pages/PendingVerificationsPage";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
@@ -189,6 +190,7 @@ function App() {
                   <Route path="personal-inventory" element={<PersonalInventory />} />
                   <Route path="wing-inventory" element={<WingInventory />} />
                   <Route path="wing-dashboard" element={<WingDashboard />} />
+                  <Route path="pending-verifications" element={<PendingVerificationsPage />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />
