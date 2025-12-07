@@ -3,6 +3,7 @@ import { X, Package, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { sessionService } from '@/services/sessionService';
 
 interface InventoryCheckModalProps {
   isOpen: boolean;
@@ -102,11 +103,23 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
   const handleRequestVerification = async () => {
     try {
       setRequestingVerification(true);
+      
+      // Get user ID from currentUser or from sessionService as fallback
+      let userId = currentUser?.user_id || currentUser?.Id;
+      let userName = currentUser?.user_name || currentUser?.FullName;
+      
+      if (!userId) {
+        const sessionUser = sessionService.getCurrentUser();
+        userId = sessionUser?.user_id;
+        userName = sessionUser?.user_name;
+      }
+      
       console.log('🔵 Starting verification request with:', {
         stockIssuanceId,
         itemMasterId: itemDetails.item_master_id,
         requestedQuantity: itemDetails.requested_quantity,
-        currentUserId: currentUser?.Id || currentUser?.user_id
+        userId,
+        userName
       });
 
       const response = await fetch('http://localhost:3001/api/inventory/request-verification', {
@@ -119,8 +132,8 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
           stockIssuanceId: stockIssuanceId,
           itemMasterId: itemDetails.item_master_id,
           requestedQuantity: itemDetails.requested_quantity,
-          requestedByUserId: currentUser?.Id || currentUser?.user_id,
-          requestedByName: currentUser?.FullName || currentUser?.user_name,
+          requestedByUserId: userId,
+          requestedByName: userName,
           wingId: wingId,
           wingName: wingName
         })
