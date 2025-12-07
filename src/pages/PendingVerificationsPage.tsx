@@ -179,7 +179,7 @@ export const PendingVerificationsPage: React.FC = () => {
   };
 
   const getPendingCount = () => verificationRequests.filter(r => r.status === 'pending').length;
-  const getVerifiedCount = () => verificationRequests.filter(r => r.status === 'verified').length;
+  const getVerifiedCount = () => verificationRequests.filter(r => r.status?.startsWith('verified')).length;
 
   if (loading) {
     return (
@@ -255,7 +255,7 @@ export const PendingVerificationsPage: React.FC = () => {
                         variant={
                           request.status === 'pending'
                             ? 'warning'
-                            : request.status === 'verified'
+                            : request.status?.startsWith('verified')
                             ? 'success'
                             : 'danger'
                         }
