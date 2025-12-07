@@ -11287,6 +11287,47 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
   }
 });
 
+// Get verification requests made by the current user (wing supervisor/requester)
+app.get('/api/inventory/my-verification-requests', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ 
+        error: 'User ID is required' 
+      });
+    }
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Get verification requests made by this user
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT * FROM View_Pending_Inventory_Verifications
+        WHERE requested_by_user_id = @userId
+        ORDER BY requested_at DESC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching my verification requests:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch verification requests', 
+      details: error.message 
+    });
+  }
+});
+
 // Update verification status (by inventory supervisor)
 app.post('/api/inventory/update-verification', async (req, res) => {
   try {

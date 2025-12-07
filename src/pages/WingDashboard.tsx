@@ -30,6 +30,7 @@ const WingDashboard = () => {
   const [wingIssuedItems, setWingIssuedItems] = useState<any[]>([]);
   const [wingPendingApprovals, setWingPendingApprovals] = useState<any[]>([]);
   const [wingNotifications, setWingNotifications] = useState<any[]>([]);
+  const [myVerificationRequests, setMyVerificationRequests] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchWingData = async () => {
@@ -39,11 +40,35 @@ const WingDashboard = () => {
         
         // Fetch wing-level data - use the same endpoints as personal dashboard
         // but wing supervisors can see all requests for their wing members
+        // My notifications
+          fetch(`${apiBase}/my-notifications?limit=10`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => []),
+          
+          // My verification requests (inventory checks I've requested)
+          fetch(`${apiBase}/inventory/my-verification-requests?userId=${user?.user_id}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : { data: [] })
+            .catch(() => ({ data: [] }))
+        ]);
+
+        console.log('Wing Dashboard Data:', {
+          requests: requestsRes,
+          issuedItems: issuedItemsRes,
+          approvals: approvalsRes,
+          notifications: notificationsRes,
+          verifications: result
+        });
+
+        setWingRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
+        setWingIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
+        setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
+        setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
         const [
           requestsRes,
           issuedItemsRes,
           approvalsRes,
-          notificationsRes
+          notificationsRes,
+          verificationsRes
         ] = await Promise.all([
           // All stock issuance requests (not filtered, for wing overview)
           fetch(`${apiBase}/stock-issuance/requests`, { credentials: 'include' })
@@ -63,20 +88,27 @@ const WingDashboard = () => {
           // My notifications
           fetch(`${apiBase}/my-notifications?limit=10`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
-            .catch(() => [])
+            .catch(() => []),
+          
+          // My verification requests (inventory checks I've requested)
+          fetch(`${apiBase}/inventory/my-verification-requests?userId=${user?.user_id}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : { data: [] })
+            .catch(() => ({ data: [] }))
         ]);
 
         console.log('Wing Dashboard Data:', {
           requests: requestsRes,
           issuedItems: issuedItemsRes,
           approvals: approvalsRes,
-          notifications: notificationsRes
+          notifications: notificationsRes,
+          verifications: verificationsRes
         });
 
         setWingRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
         setWingIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
         setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
         setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
+        setMyVerificationRequests(verificationsRes?.data || []);
 
       } catch (error) {
         console.error('Error fetching wing dashboard data:', error);
@@ -217,6 +249,74 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* My Verification Requests */}
+      {myVerificationRequests && myVerificationRequests.length > 0 && (
+        <Card className="shadow-lg">
+          <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-indigo-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Package className="h-5 w-5 text-indigo-600" />
+                  My Verification Requests
+                </CardTitle>
+                <CardDescription>Inventory checks I've requested</CardDescription>
+              </div>
+              <Button variant="outline" onClick={() => navigate('/dashboard/pending-verifications')}>
+                View All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {myVerificationRequests.map((request) => {
+                const isPending = request.status === 'pending';
+                const isVerified = request.status && request.status.startsWith('verified');
+                const statusColor = isPending ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                   request.status === 'verified_available' ? 'bg-green-100 text-green-800 border-green-300' :
+                                   request.status === 'verified_partial' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                                   request.status === 'verified_unavailable' ? 'bg-red-100 text-red-800 border-red-300' :
+                                   'bg-gray-100 text-gray-800 border-gray-300';
+
+                return (
+                  <div 
+                    key={request.id} 
+                    className="p-4 hover:bg-indigo-50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">Reference: #{request.id}</h4>
+                        <p className="text-sm text-gray-600 mt-1">Item: {request.item_nomenclature || request.item_id}</p>
+                      </div>
+                      <Badge variant="outline" className={statusColor}>
+                        {isPending ? '⏳ Pending' : isVerified ? '✓ Verified' : request.status}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                      <div>
+                        <span className="font-semibold">Quantity Requested:</span> {request.quantity_requested || '-'}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Requested on:</span> {formatDateDMY(request.requested_at || request.created_at)}
+                      </div>
+                    </div>
+                    {isVerified && (
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mt-2 bg-indigo-50 p-2 rounded">
+                        <div>
+                          <span className="font-semibold">Found:</span> {request.physical_count || '-'}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Available:</span> {request.available_quantity || '-'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Wing Requests */}
       <Card className="shadow-lg">
