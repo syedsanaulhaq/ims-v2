@@ -38,6 +38,8 @@ export const PendingVerificationsPage: React.FC = () => {
   const [verificationResult, setVerificationResult] = useState<'available' | 'partial' | 'unavailable'>('available');
   const [availableQuantity, setAvailableQuantity] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
+  const [verificationSubmitted, setVerificationSubmitted] = useState(false);
+  const [submittedVerificationId, setSubmittedVerificationId] = useState<number | null>(null);
 
   // Fetch pending verification requests
   useEffect(() => {
@@ -99,14 +101,24 @@ export const PendingVerificationsPage: React.FC = () => {
     try {
       setSubmitting(true);
       
-      const verificationPayload = {
-        inventory_verification_request_id: selectedRequest.id,
-        stock_issuance_item_id: selectedRequest.stock_issuance_item_id,
-        verification_result: verificationResult,
-        available_quantity: availableQuantity,
-        verification_notes: verificationNotes,
-        verified_by: sessionStorage.getItem('user_name') || 'System'
+      // Map user-friendly status to backend format
+      const statusMap: { [key: string]: string } = {
+        'available': 'verified_available',
+        'partial': 'verified_partial',
+        'unavailable': 'verified_unavailable'
       };
+
+      const verificationPayload = {
+        verificationId: parseInt(selectedRequest.id),
+        verificationStatus: statusMap[verificationResult] || 'verified_available',
+        physicalCount: availableQuantity,
+        availableQuantity: availableQuantity,
+        verificationNotes: verificationNotes,
+        verifiedByUserId: sessionStorage.getItem('user_id') || 'system-user',
+        verifiedByName: sessionStorage.getItem('user_name') || 'System'
+      };
+
+      console.log('📦 Submitting verification:', verificationPayload);
 
       const response = await axios.post(
         '/api/inventory/update-verification',
@@ -114,24 +126,22 @@ export const PendingVerificationsPage: React.FC = () => {
       );
 
       if (response.data.success) {
-        // Show success message
-        alert('✅ Verification submitted successfully!');
+        console.log('✅ Verification submitted successfully');
+        // Show success state instead of closing immediately
+        setVerificationSubmitted(true);
+        setSubmittedVerificationId(parseInt(selectedRequest.id));
         
-        // Refresh the list
-        await fetchPendingVerifications();
-        
-        // Clear form and close modal
-        setShowModal(false);
-        setSelectedRequest(null);
-        setItemDetails(null);
-        setVerificationNotes('');
-        setVerificationResult('available');
+        // Refresh the list after a delay
+        setTimeout(async () => {
+          await fetchPendingVerifications();
+        }, 3000);
       } else {
-        alert('❌ Failed to submit verification: ' + response.data.error);
+        console.error('❌ Verification failed:', response.data.error);
+        alert('❌ Failed to submit verification: ' + (response.data.error || 'Unknown error'));
       }
-    } catch (error) {
-      console.error('Error submitting verification:', error);
-      alert('❌ Error submitting verification. Please try again.');
+    } catch (err: any) {
+      console.error('Error submitting verification:', err);
+      alert('❌ Error submitting verification: ' + (err.message || 'Unknown error'));
     } finally {
       setSubmitting(false);
     }
@@ -274,150 +284,209 @@ export const PendingVerificationsPage: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Eye className="w-5 h-5 text-teal-600" />
-                Verify Item Inventory
+                {verificationSubmitted ? 'Verification Submitted ✅' : 'Verify Item Inventory'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Item Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Item</p>
-                  <p className="font-semibold text-gray-900">{itemDetails.nomenclature}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Quantity Requested</p>
-                  <p className="font-semibold text-gray-900">{itemDetails.requested_quantity}</p>
-                </div>
-              </div>
-
-              {/* Availability Information */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm font-semibold text-gray-900 mb-3">Available Stock Levels</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Wing Store Available</p>
-                    <p className="text-2xl font-bold text-teal-600">{itemDetails.wing_available}</p>
+              {!verificationSubmitted ? (
+                <>
+                  {/* Item Information */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Item</p>
+                      <p className="font-semibold text-gray-900">{itemDetails.nomenclature}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Quantity Requested</p>
+                      <p className="font-semibold text-gray-900">{itemDetails.requested_quantity}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Admin Store Available</p>
-                    <p className="text-2xl font-bold text-blue-600">{itemDetails.admin_available}</p>
+
+                  {/* Availability Information */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-gray-900 mb-3">Available Stock Levels</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Wing Store Available</p>
+                        <p className="text-2xl font-bold text-teal-600">{itemDetails.wing_available}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Admin Store Available</p>
+                        <p className="text-2xl font-bold text-blue-600">{itemDetails.admin_available}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Verification Result Selection */}
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-900">Verification Result</p>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                    style={{ borderColor: verificationResult === 'available' ? '#0d9488' : '#e5e7eb' }}>
-                    <input
-                      type="radio"
-                      name="verification"
-                      value="available"
-                      checked={verificationResult === 'available'}
-                      onChange={(e) => {
-                        setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
-                        setAvailableQuantity(itemDetails.requested_quantity);
+                  {/* Verification Result Selection */}
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-gray-900">Verification Result</p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                        style={{ borderColor: verificationResult === 'available' ? '#0d9488' : '#e5e7eb' }}>
+                        <input
+                          type="radio"
+                          name="verification"
+                          value="available"
+                          checked={verificationResult === 'available'}
+                          onChange={(e) => {
+                            setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
+                            setAvailableQuantity(itemDetails.requested_quantity);
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">✅ Available</p>
+                          <p className="text-xs text-gray-600">Item is fully available in stock</p>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                        style={{ borderColor: verificationResult === 'partial' ? '#0d9488' : '#e5e7eb' }}>
+                        <input
+                          type="radio"
+                          name="verification"
+                          value="partial"
+                          checked={verificationResult === 'partial'}
+                          onChange={(e) => setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable')}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">⚠️ Partial</p>
+                          <p className="text-xs text-gray-600">Item is available in reduced quantity</p>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                        style={{ borderColor: verificationResult === 'unavailable' ? '#0d9488' : '#e5e7eb' }}>
+                        <input
+                          type="radio"
+                          name="verification"
+                          value="unavailable"
+                          checked={verificationResult === 'unavailable'}
+                          onChange={(e) => {
+                            setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
+                            setAvailableQuantity(0);
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">❌ Unavailable</p>
+                          <p className="text-xs text-gray-600">Item is not available in stock</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Available Quantity Input (for partial) */}
+                  {verificationResult === 'partial' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Quantity Found in Stock
+                      </label>
+                      <input
+                        type="number"
+                        value={availableQuantity}
+                        onChange={(e) => setAvailableQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                        max={Math.max(itemDetails.wing_available, itemDetails.admin_available)}
+                        min={0}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                      />
+                    </div>
+                  )}
+
+                  {/* Verification Notes */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Verification Notes
+                    </label>
+                    <textarea
+                      value={verificationNotes}
+                      onChange={(e) => setVerificationNotes(e.target.value)}
+                      placeholder="Add any notes about the verification, condition of items, location found, etc."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 resize-none"
+                      rows={4}
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 justify-end pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowModal(false);
+                        setSelectedRequest(null);
+                        setItemDetails(null);
+                        setVerificationSubmitted(false);
                       }}
-                      className="w-4 h-4"
-                    />
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">✅ Available</p>
-                      <p className="text-xs text-gray-600">Item is fully available in stock</p>
-                    </div>
-                  </label>
+                      disabled={submitting}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmitVerification}
+                      disabled={submitting}
+                      className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      {submitting ? 'Submitting...' : 'Submit Verification'}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Success State */}
+                  <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6">
+                    <div className="flex items-start gap-4">
+                      <CheckCircle2 className="w-8 h-8 text-green-600 flex-shrink-0 mt-1" />
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-green-900 mb-3">
+                          ✅ Verification Submitted Successfully!
+                        </h3>
+                        <div className="space-y-3 text-sm text-green-800">
+                          <div className="bg-white p-3 rounded border border-green-200">
+                            <p className="font-medium mb-1">Reference ID: #{submittedVerificationId}</p>
+                            <p className="text-xs text-gray-600">
+                              Item: <strong>{itemDetails.nomenclature}</strong>
+                            </p>
+                          </div>
 
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                    style={{ borderColor: verificationResult === 'partial' ? '#0d9488' : '#e5e7eb' }}>
-                    <input
-                      type="radio"
-                      name="verification"
-                      value="partial"
-                      checked={verificationResult === 'partial'}
-                      onChange={(e) => setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable')}
-                      className="w-4 h-4"
-                    />
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">⚠️ Partial</p>
-                      <p className="text-xs text-gray-600">Item is available in reduced quantity</p>
-                    </div>
-                  </label>
+                          <div>
+                            <p className="font-medium mb-2">What happens next:</p>
+                            <ul className="list-disc list-inside space-y-1 ml-1">
+                              <li>Your verification is recorded in the system</li>
+                              <li>The wing supervisor will see your findings</li>
+                              <li>They will proceed with approval based on your verification</li>
+                              <li>If item was unavailable, procurement will be initiated</li>
+                            </ul>
+                          </div>
 
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                    style={{ borderColor: verificationResult === 'unavailable' ? '#0d9488' : '#e5e7eb' }}>
-                    <input
-                      type="radio"
-                      name="verification"
-                      value="unavailable"
-                      checked={verificationResult === 'unavailable'}
-                      onChange={(e) => {
-                        setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
-                        setAvailableQuantity(0);
+                          <div className="bg-white p-3 rounded border border-green-200">
+                            <p className="text-xs font-medium">Result: <strong>{verificationResult.toUpperCase()}</strong></p>
+                            <p className="text-xs font-medium mt-1">Quantity Found: <strong>{availableQuantity}</strong></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Close Button */}
+                  <div className="flex gap-3 justify-end pt-4 border-t">
+                    <Button
+                      onClick={() => {
+                        setShowModal(false);
+                        setSelectedRequest(null);
+                        setItemDetails(null);
+                        setVerificationSubmitted(false);
+                        setVerificationNotes('');
+                        setVerificationResult('available');
                       }}
-                      className="w-4 h-4"
-                    />
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">❌ Unavailable</p>
-                      <p className="text-xs text-gray-600">Item is not available in stock</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Available Quantity Input (for partial) */}
-              {verificationResult === 'partial' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Quantity Found in Stock
-                  </label>
-                  <input
-                    type="number"
-                    value={availableQuantity}
-                    onChange={(e) => setAvailableQuantity(Math.max(0, parseInt(e.target.value) || 0))}
-                    max={Math.max(itemDetails.wing_available, itemDetails.admin_available)}
-                    min={0}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-                  />
-                </div>
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      Got It, Close Modal
+                    </Button>
+                  </div>
+                </>
               )}
-
-              {/* Verification Notes */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Verification Notes
-                </label>
-                <textarea
-                  value={verificationNotes}
-                  onChange={(e) => setVerificationNotes(e.target.value)}
-                  placeholder="Add any notes about the verification, condition of items, location found, etc."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 resize-none"
-                  rows={4}
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowModal(false);
-                    setSelectedRequest(null);
-                    setItemDetails(null);
-                  }}
-                  disabled={submitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSubmitVerification}
-                  disabled={submitting}
-                  className="bg-teal-600 hover:bg-teal-700"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  {submitting ? 'Submitting...' : 'Submit Verification'}
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
