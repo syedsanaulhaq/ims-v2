@@ -16,7 +16,8 @@ import {
   Bell,
   TrendingUp,
   Box,
-  Building2
+  Building2,
+  X
 } from "lucide-react";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
@@ -304,109 +305,110 @@ const WingDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Verification Details Panel */}
+      {/* Verification Details Modal */}
       {selectedVerification && (
-        <Card className="shadow-lg border-2 border-indigo-300 bg-indigo-50">
-          <CardHeader className="border-b bg-gradient-to-r from-indigo-100 to-indigo-50">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">Verification Request Details</CardTitle>
-                <CardDescription>Reference: #{selectedVerification.id}</CardDescription>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={() => setSelectedVerification(null)}
-                className="text-gray-600"
-              >
-                Close
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            {/* Request Summary */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase">Item</p>
-                <p className="text-lg font-medium text-gray-900">{selectedVerification.item_nomenclature || 'Unknown Item'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase">Status</p>
-                <Badge className={selectedVerification.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}>
-                  {selectedVerification.status === 'pending' ? '⏳ Pending Verification' : '✓ Verified'}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase">Requested By</p>
-                <p className="text-sm text-gray-700">{selectedVerification.requested_by_name}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase">Quantity Requested</p>
-                <p className="text-sm text-gray-700">{selectedVerification.requested_quantity || '-'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase">Requested On</p>
-                <p className="text-sm text-gray-700">{formatDateDMY(selectedVerification.requested_at)}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase">Wing</p>
-                <p className="text-sm text-gray-700">{selectedVerification.wing_name}</p>
-              </div>
-            </div>
-
-            {/* Activity Feed */}
-            <div className="border-t pt-4">
-              <h5 className="font-semibold text-gray-900 mb-4">Activity Timeline</h5>
-              <div className="space-y-4">
-                {/* Verification Request Created */}
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="w-3 h-3 rounded-full bg-indigo-600 mt-2"></div>
-                    <div className="w-0.5 h-12 bg-gray-200"></div>
-                  </div>
-                  <div className="flex-1 pb-4">
-                    <p className="font-medium text-gray-900">Verification Requested</p>
-                    <p className="text-xs text-gray-600">{selectedVerification.requested_by_name} requested inventory verification</p>
-                    <p className="text-xs text-gray-500 mt-1">{formatDateDMY(selectedVerification.requested_at)}</p>
-                  </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <CardHeader className="border-b bg-gradient-to-r from-indigo-100 to-indigo-50 sticky top-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl">Verification Request Details</CardTitle>
+                  <CardDescription>Reference: #{selectedVerification.id}</CardDescription>
                 </div>
-
-                {/* Verification Completed */}
-                {selectedVerification.status && selectedVerification.status.startsWith('verified') && (
-                  <div className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full bg-green-600 mt-2"></div>
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">Verification Completed</p>
-                      <p className="text-xs text-gray-600">{selectedVerification.verified_by_name} verified the inventory</p>
-                      <div className="mt-2 p-3 bg-white border border-green-200 rounded text-sm space-y-1">
-                        <div><span className="font-semibold">Status:</span> {selectedVerification.status.replace('verified_', '').charAt(0).toUpperCase() + selectedVerification.status.replace('verified_', '').slice(1)}</div>
-                        <div><span className="font-semibold">Physical Count:</span> {selectedVerification.physical_count || '-'}</div>
-                        <div><span className="font-semibold">Available Quantity:</span> {selectedVerification.available_quantity || '-'}</div>
-                        {selectedVerification.verification_notes && (
-                          <div><span className="font-semibold">Notes:</span> {selectedVerification.verification_notes}</div>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">{formatDateDMY(selectedVerification.verified_at)}</p>
-                    </div>
-                  </div>
-                )}
-
-                {selectedVerification.status === 'pending' && (
-                  <div className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full bg-yellow-400 mt-2"></div>
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">Awaiting Verification</p>
-                      <p className="text-xs text-gray-600">Waiting for inventory supervisor to verify</p>
-                    </div>
-                  </div>
-                )}
+                <button 
+                  onClick={() => setSelectedVerification(null)}
+                  className="p-1 hover:bg-gray-200 rounded transition-colors"
+                >
+                  <X className="h-5 w-5 text-gray-600" />
+                </button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6 pb-6">
+              {/* Request Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Item</p>
+                  <p className="text-lg font-medium text-gray-900">{selectedVerification.item_nomenclature || 'Unknown Item'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Status</p>
+                  <Badge className={selectedVerification.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}>
+                    {selectedVerification.status === 'pending' ? '⏳ Pending Verification' : '✓ Verified'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Requested By</p>
+                  <p className="text-sm text-gray-700">{selectedVerification.requested_by_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Quantity Requested</p>
+                  <p className="text-sm text-gray-700">{selectedVerification.requested_quantity || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Requested On</p>
+                  <p className="text-sm text-gray-700">{formatDateDMY(selectedVerification.requested_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Wing</p>
+                  <p className="text-sm text-gray-700">{selectedVerification.wing_name}</p>
+                </div>
+              </div>
+
+              {/* Activity Feed */}
+              <div className="border-t pt-4">
+                <h5 className="font-semibold text-gray-900 mb-4">Activity Timeline</h5>
+                <div className="space-y-4">
+                  {/* Verification Request Created */}
+                  <div className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 rounded-full bg-indigo-600 mt-2"></div>
+                      <div className="w-0.5 h-12 bg-gray-200"></div>
+                    </div>
+                    <div className="flex-1 pb-4">
+                      <p className="font-medium text-gray-900">Verification Requested</p>
+                      <p className="text-xs text-gray-600">{selectedVerification.requested_by_name} requested inventory verification</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatDateDMY(selectedVerification.requested_at)}</p>
+                    </div>
+                  </div>
+
+                  {/* Verification Completed */}
+                  {selectedVerification.status && selectedVerification.status.startsWith('verified') && (
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-green-600 mt-2"></div>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">Verification Completed</p>
+                        <p className="text-xs text-gray-600">{selectedVerification.verified_by_name} verified the inventory</p>
+                        <div className="mt-2 p-3 bg-white border border-green-200 rounded text-sm space-y-1">
+                          <div><span className="font-semibold">Status:</span> {selectedVerification.status.replace('verified_', '').charAt(0).toUpperCase() + selectedVerification.status.replace('verified_', '').slice(1)}</div>
+                          <div><span className="font-semibold">Physical Count:</span> {selectedVerification.physical_count || '-'}</div>
+                          <div><span className="font-semibold">Available Quantity:</span> {selectedVerification.available_quantity || '-'}</div>
+                          {selectedVerification.verification_notes && (
+                            <div><span className="font-semibold">Notes:</span> {selectedVerification.verification_notes}</div>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">{formatDateDMY(selectedVerification.verified_at)}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedVerification.status === 'pending' && (
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-yellow-400 mt-2"></div>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">Awaiting Verification</p>
+                        <p className="text-xs text-gray-600">Waiting for inventory supervisor to verify</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Recent Wing Requests */}
