@@ -11193,13 +11193,17 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       wingName
     } = req.body;
 
+    console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, requestedByUserId });
+
     if (!stockIssuanceId || !itemMasterId || !requestedByUserId) {
       return res.status(400).json({ 
-        error: 'Missing required fields' 
+        error: 'Missing required fields',
+        received: { stockIssuanceId, itemMasterId, requestedByUserId }
       });
     }
 
     if (!pool) {
+      console.log('⚠️  No database pool, returning mock response');
       return res.json({
         success: true,
         message: 'Verification request created (mock)',
@@ -11207,55 +11211,28 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       });
     }
 
-    const transaction = pool.transaction();
-    await transaction.begin();
-
     try {
       // Create verification request
-      const result = await transaction.request()
+      const result = await pool.request()
         .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
-        .input('itemMasterId', sql.Int, itemMasterId)
+        .input('itemMasterId', sql.NVarChar, itemMasterId)  // Changed to NVarChar to match actual ID type
         .input('requestedByUserId', sql.NVarChar, requestedByUserId)
-        .input('requestedByName', sql.NVarChar, requestedByName)
-        .input('requestedQuantity', sql.Int, requestedQuantity)
-        .input('wingId', sql.Int, wingId)
-        .input('wingName', sql.NVarChar, wingName)
+        .input('requestedByName', sql.NVarChar, requestedByName || 'System')
+        .input('requestedQuantity', sql.Int, requestedQuantity || 0)
+        .input('wingId', sql.Int, wingId || 0)
+        .input('wingName', sql.NVarChar, wingName || 'Unknown')
         .query(`
           INSERT INTO inventory_verification_requests 
           (stock_issuance_id, item_master_id, requested_by_user_id, requested_by_name, 
-           requested_quantity, verification_status, wing_id, wing_name)
+           requested_quantity, verification_status, wing_id, wing_name, created_at, updated_at)
           OUTPUT INSERTED.id
           VALUES (@stockIssuanceId, @itemMasterId, @requestedByUserId, @requestedByName,
-                  @requestedQuantity, 'pending', @wingId, @wingName)
+                  @requestedQuantity, 'pending', @wingId, @wingName, GETDATE(), GETDATE())
         `);
 
-      const verificationId = result.recordset[0].id;
-
-      // Update stock issuance item status
-      await transaction.request()
-        .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
-        .input('itemMasterId', sql.Int, itemMasterId)
-        .query(`
-          UPDATE stock_issuance_items
-          SET inventory_check_status = 'verification_requested'
-          WHERE stock_issuance_id = @stockIssuanceId 
-            AND item_master_id = @itemMasterId
-        `);
-
-      // Update request verification tracking
-      await transaction.request()
-        .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
-        .query(`
-          UPDATE stock_issuance_requests
-          SET inventory_verification_required = 1,
-              pending_verification_count = pending_verification_count + 1
-          WHERE id = @stockIssuanceId
-        `);
-
-      await transaction.commit();
-
-      // TODO: Create notification for inventory supervisor
-      console.log('✅ Inventory verification requested:', verificationId);
+      const verificationId = result.recordset[0]?.id;
+      
+      console.log('✅ Verification request created:', verificationId);
 
       res.json({
         success: true,
@@ -11264,7 +11241,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       });
 
     } catch (error) {
-      await transaction.rollback();
+      console.error('❌ Error in verification request:', error.message);
       throw error;
     }
 

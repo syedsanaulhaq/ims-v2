@@ -46,9 +46,13 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
   const [availability, setAvailability] = useState<InventoryAvailability | null>(null);
   const [requestingVerification, setRequestingVerification] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verificationRequested, setVerificationRequested] = useState(false);
+  const [verificationId, setVerificationId] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setVerificationRequested(false);
+      setVerificationId(null);
       checkInventoryAvailability();
     }
   }, [isOpen, itemDetails]);
@@ -119,17 +123,19 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       const data = await response.json();
 
       if (data.success) {
-        alert('Verification request sent to Wing Inventory Supervisor!');
+        console.log('✅ Verification request sent successfully:', data.verificationId);
+        setVerificationRequested(true);
+        setVerificationId(data.verificationId);
         if (onVerificationRequested) {
           onVerificationRequested();
         }
-        onClose();
       } else {
-        alert('Failed to request verification: ' + (data.error || 'Unknown error'));
+        console.error('❌ Verification request failed:', data.error);
+        setError(data.error || 'Failed to request verification');
       }
     } catch (err: any) {
       console.error('Error requesting verification:', err);
-      alert('Failed to send verification request');
+      setError(err.message || 'Failed to send verification request');
     } finally {
       setRequestingVerification(false);
     }
@@ -143,18 +149,6 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
   };
 
   if (!isOpen) return null;
-
-  const getStatusColor = (status: string) => {
-    if (status.includes('Sufficient')) return 'text-green-600 bg-green-50 border-green-200';
-    if (status.includes('Partial')) return 'text-orange-600 bg-orange-50 border-orange-200';
-    return 'text-red-600 bg-red-50 border-red-200';
-  };
-
-  const getStatusIcon = (status: string) => {
-    if (status.includes('Sufficient')) return <CheckCircle className="w-6 h-6 text-green-600" />;
-    if (status.includes('Partial')) return <AlertCircle className="w-6 h-6 text-orange-600" />;
-    return <AlertCircle className="w-6 h-6 text-red-600" />;
-  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -200,8 +194,39 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
             </CardContent>
           </Card>
 
+          {/* Verification Requested State */}
+          {verificationRequested && (
+            <Card className="bg-green-50 border-2 border-green-300">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <CheckCircle className="w-6 h-6 text-green-600 mt-1 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-green-900 mb-2">
+                      ✅ Verification Request Sent!
+                    </h3>
+                    <div className="space-y-2 text-sm text-green-800">
+                      <p>
+                        <strong>Reference ID:</strong> #{verificationId}
+                      </p>
+                      <p className="font-medium">What happens next:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Inventory Supervisor will receive this request</li>
+                        <li>They will physically verify the item in the wing store</li>
+                        <li>You'll be notified once verification is complete</li>
+                        <li>You can then proceed with approval based on verification results</li>
+                      </ul>
+                      <p className="mt-3 text-xs text-green-700">
+                        Check the Pending Verifications dashboard to track status
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Loading State */}
-          {loading && (
+          {loading && !verificationRequested && (
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
@@ -211,7 +236,7 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
           )}
 
           {/* Error State */}
-          {error && (
+          {error && !verificationRequested && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
               <div>
@@ -222,13 +247,19 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
           )}
 
           {/* Availability Results */}
-          {!loading && !error && availability && (
+          {!loading && !error && availability && !verificationRequested && (
             <>
-              <Card className={`border-2 ${getStatusColor(availability.availability_status)}`}>
+              <Card className={`border-2 ${availability.is_available ? 'bg-green-50 border-green-300' : availability.available_quantity > 0 ? 'bg-yellow-50 border-yellow-300' : 'bg-red-50 border-red-300'}`}>
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-4">
                     <div className="flex-shrink-0">
-                      {getStatusIcon(availability.availability_status)}
+                      {availability.is_available ? (
+                        <CheckCircle className="w-6 h-6 text-green-600" />
+                      ) : availability.available_quantity > 0 ? (
+                        <AlertCircle className="w-6 h-6 text-yellow-600" />
+                      ) : (
+                        <AlertCircle className="w-6 h-6 text-red-600" />
+                      )}
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold mb-2">
@@ -268,30 +299,30 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
                         ✅ The requested item is available in the wing store. You can:
                       </p>
                       <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                        <li>Confirm availability and proceed with approval</li>
-                        <li>Request physical verification from Inventory Supervisor for accuracy</li>
+                        <li><strong>Confirm & Proceed:</strong> Approve immediately based on system check</li>
+                        <li><strong>Request Verification:</strong> Ask Inventory Supervisor to physically verify for accuracy</li>
                       </ul>
                     </>
                   ) : availability.available_quantity > 0 ? (
                     <>
                       <p className="text-sm text-gray-700">
-                        ⚠️ Partial stock available ({availability.available_quantity} of {availability.requested_quantity} requested).
+                        ⚠️ <strong>Partial stock available</strong> ({availability.available_quantity} of {availability.requested_quantity} requested).
                       </p>
                       <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                        <li>Approve partial quantity from wing store</li>
-                        <li>Forward remaining quantity to Admin Store</li>
-                        <li>Request verification to confirm exact count</li>
+                        <li><strong>Verify Partial:</strong> Request supervisor to confirm exact count</li>
+                        <li><strong>Split Request:</strong> Approve partial from wing, forward rest to Admin Store</li>
+                        <li><strong>Check Admin Store:</strong> Remaining quantity may be available from central store</li>
                       </ul>
                     </>
                   ) : (
                     <>
                       <p className="text-sm text-gray-700">
-                        ❌ Item not available in wing store.
+                        ❌ <strong>Item not available in wing store.</strong>
                       </p>
                       <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                        <li>Forward entire request to Admin Store</li>
-                        <li>Request verification to confirm zero stock</li>
-                        <li>Consider procurement if needed</li>
+                        <li><strong>Confirm Zero Stock:</strong> Request supervisor to verify item is truly unavailable</li>
+                        <li><strong>Forward to Admin:</strong> Check if central store has the item</li>
+                        <li><strong>Procurement:</strong> Consider placing a new order if urgent</li>
                       </ul>
                     </>
                   )}
@@ -312,23 +343,23 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
               Close
             </Button>
             
-            {availability && (
+            {!verificationRequested && availability && (
               <>
                 <Button
                   variant="outline"
                   onClick={handleRequestVerification}
                   disabled={requestingVerification}
-                  className="bg-orange-600 text-white hover:bg-orange-700"
+                  className="bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
                 >
                   {requestingVerification ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Requesting...
+                      Sending Request...
                     </>
                   ) : (
                     <>
                       <AlertCircle className="w-4 h-4 mr-2" />
-                      Ask Inventory Supervisor to Verify
+                      Ask Supervisor to Verify
                     </>
                   )}
                 </Button>
@@ -337,13 +368,22 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
                   <Button
                     onClick={handleConfirmAvailable}
                     disabled={requestingVerification}
-                    className="bg-green-600 text-white hover:bg-green-700"
+                    className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    Confirm Available & Proceed
+                    Confirm & Proceed
                   </Button>
                 )}
               </>
+            )}
+
+            {verificationRequested && (
+              <Button
+                onClick={onClose}
+                className="bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Got It, Close Modal
+              </Button>
             )}
           </div>
         </div>
