@@ -78,7 +78,8 @@ const WingDashboard = () => {
           issuedItems: issuedItemsRes,
           approvals: approvalsRes,
           notifications: notificationsRes,
-          verifications: verificationsRes
+          verifications: verificationsRes,
+          userId: user?.user_id
         });
 
         setWingRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
@@ -228,23 +229,29 @@ const WingDashboard = () => {
       </div>
 
       {/* My Verification Requests */}
-      {myVerificationRequests && myVerificationRequests.length > 0 && (
-        <Card className="shadow-lg">
-          <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-indigo-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Package className="h-5 w-5 text-indigo-600" />
-                  My Verification Requests
-                </CardTitle>
-                <CardDescription>Inventory checks I've requested</CardDescription>
-              </div>
-              <Button variant="outline" onClick={() => navigate('/dashboard/pending-verifications')}>
-                View All
-              </Button>
+      <Card className="shadow-lg border-2 border-indigo-200">
+        <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-indigo-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Package className="h-5 w-5 text-indigo-600" />
+                My Verification Requests
+              </CardTitle>
+              <CardDescription>Inventory checks I've requested</CardDescription>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
+            <Button variant="outline" onClick={() => navigate('/dashboard/pending-verifications')}>
+              View All
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {!myVerificationRequests || myVerificationRequests.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p className="text-gray-600">No verification requests yet</p>
+              <p className="text-xs text-gray-400 mt-2">Click "Ask Supervisor to Verify" on any inventory item to create a request</p>
+            </div>
+          ) : (
             <div className="divide-y">
               {myVerificationRequests.map((request) => {
                 const isPending = request.status === 'pending';
@@ -291,9 +298,9 @@ const WingDashboard = () => {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent Wing Requests */}
       <Card className="shadow-lg">
