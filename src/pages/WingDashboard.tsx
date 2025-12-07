@@ -40,7 +40,29 @@ const WingDashboard = () => {
         
         // Fetch wing-level data - use the same endpoints as personal dashboard
         // but wing supervisors can see all requests for their wing members
-        // My notifications
+        const [
+          requestsRes,
+          issuedItemsRes,
+          approvalsRes,
+          notificationsRes,
+          verificationsRes
+        ] = await Promise.all([
+          // All stock issuance requests (not filtered, for wing overview)
+          fetch(`${apiBase}/stock-issuance/requests`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => []),
+          
+          // My issued items (wing supervisor's own items)
+          fetch(`${apiBase}/issued-items/user/${user?.user_id}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => []),
+          
+          // My pending approvals (if wing supervisor is an approver)
+          fetch(`${apiBase}/approvals/my-pending`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => []),
+          
+          // My notifications
           fetch(`${apiBase}/my-notifications?limit=10`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
@@ -56,13 +78,14 @@ const WingDashboard = () => {
           issuedItems: issuedItemsRes,
           approvals: approvalsRes,
           notifications: notificationsRes,
-          verifications: result
+          verifications: verificationsRes
         });
 
         setWingRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
         setWingIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
         setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
         setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
+        setMyVerificationRequests(verificationsRes?.data || []);
         const [
           requestsRes,
           issuedItemsRes,
