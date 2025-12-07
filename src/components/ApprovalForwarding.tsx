@@ -480,8 +480,9 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
               wingName={selectedItemForCheck.wing_name || 'Wing 1'}
               currentUser={currentUser}
               onVerificationRequested={() => {
-                // Refresh approval data after verification request
-                loadApprovalData();
+                // Verification request sent - keep modal open to show success state
+                // Don't reload approval data - user can manually refresh if needed
+                console.log('✅ Verification request sent successfully');
               }}
               onConfirmAvailable={() => {
                 // Item confirmed available - supervisor can proceed with approval
