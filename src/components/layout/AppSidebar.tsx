@@ -350,7 +350,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                       state === "collapsed" ? "hidden" : ""
                     }`}>
                       <GroupIcon className="w-4 h-4 text-white flex-shrink-0" />
-                      <span className="text-sm font-bold text-white uppercase tracking-widest">
+                      <span className="text-xs font-bold text-white uppercase tracking-wide">
                         {group.label}
                       </span>
                     </div>
