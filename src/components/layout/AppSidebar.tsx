@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -75,6 +75,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const navigate = useNavigate();
   const { state } = useSidebar();
   const { user } = useSession();
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   
   // Debug: Log user permissions
   useEffect(() => {
@@ -300,6 +301,24 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     return items.some(item => location.pathname === item.path);
   };
 
+  // Handle accordion menu - close others when one opens
+  const handleMenuGroupChange = (groupLabel: string, isOpen: boolean) => {
+    if (isOpen) {
+      setOpenGroup(groupLabel);
+    } else {
+      setOpenGroup(null);
+    }
+  };
+
+  // Open the active group on mount
+  useEffect(() => {
+    const menuGroups = getVisibleMenuGroups();
+    const activeGroup = menuGroups.find(group => isGroupActive(group.items));
+    if (activeGroup) {
+      setOpenGroup(activeGroup.label);
+    }
+  }, [location.pathname]);
+
   return (
     <Sidebar
       className="!bg-teal-600 border-r border-teal-500"
@@ -331,11 +350,13 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
           {menuGroups.map((group) => {
             const GroupIcon = group.icon;
             const groupActive = isGroupActive(group.items);
+            const isGroupOpen = openGroup === group.label;
 
             return (
               <Collapsible 
                 key={group.label} 
-                defaultOpen={groupActive} 
+                open={isGroupOpen}
+                onOpenChange={(isOpen) => handleMenuGroupChange(group.label, isOpen)}
                 className={`space-y-2 transition-all duration-300 ${
                   state === "collapsed" ? "" : ""
                 }`}
