@@ -330,7 +330,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
           <img
             src="/ecp-logo.png"
             alt="ECP Logo"
-            className="h-12 w-auto object-contain"
+            className="w-auto object-contain"
           />
         </div>
       </SidebarHeader>
