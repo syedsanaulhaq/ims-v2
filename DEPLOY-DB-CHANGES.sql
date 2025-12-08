@@ -17,12 +17,32 @@ PRINT '========================================';
 PRINT '';
 
 -- =========================================
+-- CLEANUP: Drop existing objects if they exist (from failed runs)
+-- =========================================
+
+PRINT '🧹 CLEANUP: Removing any existing objects from failed runs...';
+
+IF EXISTS (SELECT * FROM sys.views WHERE name = 'View_Pending_Inventory_Verifications')
+BEGIN
+    DROP VIEW dbo.View_Pending_Inventory_Verifications;
+    PRINT '   ✅ Dropped existing view';
+END
+
+IF OBJECT_ID('dbo.inventory_verification_requests', 'U') IS NOT NULL
+BEGIN
+    DROP TABLE dbo.inventory_verification_requests;
+    PRINT '   ✅ Dropped existing table';
+END
+
+PRINT '';
+
+-- =========================================
 -- PHASE 1: INVENTORY VERIFICATION REQUESTS TABLE
 -- =========================================
 
-PRINT '📋 PHASE 1: Creating/Updating inventory_verification_requests table...';
+PRINT '📋 PHASE 1: Creating inventory_verification_requests table...';
 
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[inventory_verification_requests]') AND type in (N'U'))
+IF OBJECT_ID('dbo.inventory_verification_requests', 'U') IS NULL
 BEGIN
     PRINT '   Creating inventory_verification_requests table...';
     CREATE TABLE dbo.inventory_verification_requests (
@@ -30,7 +50,7 @@ BEGIN
         
         -- Link to stock issuance request
         stock_issuance_id UNIQUEIDENTIFIER NOT NULL,
-        item_master_id INT NOT NULL,
+        item_master_id UNIQUEIDENTIFIER NOT NULL,
         
         -- Who requested verification
         requested_by_user_id NVARCHAR(450) NOT NULL,
@@ -91,9 +111,8 @@ GO
 -- =========================================
 
 PRINT '';
-PRINT '📋 PHASE 2: Adding nomenclature to inventory verification...';
+PRINT '📋 PHASE 2: Adding nomenclature column to inventory verification...';
 
--- Check if column exists, if not add it
 IF NOT EXISTS (
     SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
     WHERE TABLE_NAME = 'inventory_verification_requests' 
@@ -116,10 +135,7 @@ GO
 -- =========================================
 
 PRINT '';
-PRINT '📋 PHASE 3: Creating/Updating View_Pending_Inventory_Verifications...';
-
-IF EXISTS (SELECT * FROM sys.views WHERE name = 'View_Pending_Inventory_Verifications')
-    DROP VIEW dbo.View_Pending_Inventory_Verifications;
+PRINT '📋 PHASE 3: Creating View_Pending_Inventory_Verifications...';
 GO
 
 CREATE VIEW dbo.View_Pending_Inventory_Verifications AS
