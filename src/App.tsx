@@ -49,6 +49,7 @@ import MyIssuedItems from "./pages/MyIssuedItems";
 import PersonalInventory from "./pages/PersonalInventory";
 import WingInventory from "./pages/WingInventory";
 import WingDashboard from "./pages/WingDashboard";
+import WingMembers from "./pages/WingMembers";
 import SupervisorApprovals from "./pages/SupervisorApprovals";
 import AdminApprovals from "./pages/AdminApprovals";
 import RoleManagement from "./pages/RoleManagement";
@@ -190,6 +191,7 @@ function App() {
                   <Route path="personal-inventory" element={<PersonalInventory />} />
                   <Route path="wing-inventory" element={<WingInventory />} />
                   <Route path="wing-dashboard" element={<WingDashboard />} />
+                  <Route path="wing-members" element={<WingMembers />} />
                   <Route path="pending-verifications" element={<PendingVerificationsPage />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />

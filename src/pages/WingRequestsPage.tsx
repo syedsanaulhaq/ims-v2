@@ -89,7 +89,7 @@ const WingRequestsPage: React.FC = () => {
             priority: request.urgency_level || 'Medium',
             office_name: request.office?.name,
             wing_name: request.wing?.name,
-            requester_name: request.requester?.user_name || request.requester?.display_name || 'Unknown'
+            requester_name: request.requester?.full_name || request.requester_full_name || 'Unknown'
           }));
           
           setRequests(mappedRequests);
@@ -127,16 +127,18 @@ const WingRequestsPage: React.FC = () => {
     );
   };
 
-  const filteredRequests = requests.filter(request => {
-    const matchesSearch = 
-      request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.requester_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.wing_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || request.current_status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+  const filteredRequests = requests
+    .filter(request => {
+      const matchesSearch = 
+        request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.requester_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.wing_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || request.current_status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => new Date(b.submitted_date).getTime() - new Date(a.submitted_date).getTime());
 
   if (loading) {
     return <LoadingSpinner />;
@@ -240,7 +242,7 @@ const WingRequestsPage: React.FC = () => {
                         <span className="font-medium">Items:</span> {request.total_items} item(s)
                       </p>
                       <p className="text-xs text-gray-500">
-                        Submitted: {format(new Date(request.submitted_date), 'MMM dd, yyyy HH:mm')}
+                        Submitted: {format(new Date(request.submitted_date), 'MMMM dd, yyyy HH:mm')}
                       </p>
                     </div>
                   </div>

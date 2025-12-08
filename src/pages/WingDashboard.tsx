@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { format } from 'date-fns';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import { useSession } from '@/contexts/SessionContext';
 import { 
@@ -17,9 +18,11 @@ import {
   TrendingUp,
   Box,
   Building2,
+  Users,
   X
 } from "lucide-react";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const WingDashboard = () => {
   const navigate = useNavigate();
@@ -33,12 +36,31 @@ const WingDashboard = () => {
   const [wingNotifications, setWingNotifications] = useState<any[]>([]);
   const [myVerificationRequests, setMyVerificationRequests] = useState<any[]>([]);
   const [selectedVerification, setSelectedVerification] = useState<any>(null);
+  const [userWingName, setUserWingName] = useState<string>('');
+  const [wingMembers, setWingMembers] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchWingData = async () => {
       try {
         setDataLoading(true);
         const apiBase = getApiBaseUrl();
+        
+        // First, get the current user's wing information
+        let wingName = '';
+        if (user?.wing_id) {
+          try {
+            const wingsRes = await fetch(`${apiBase}/wings`, { credentials: 'include' });
+            if (wingsRes.ok) {
+              const wingsData = await wingsRes.json();
+              const wingsList = Array.isArray(wingsData) ? wingsData : (wingsData?.data || []);
+              const currentWing = wingsList.find(w => w.Id === user.wing_id || w.id === user.wing_id);
+              wingName = currentWing?.Name || currentWing?.name || '';
+            }
+          } catch (error) {
+            console.error('Error fetching wing information:', error);
+          }
+          setUserWingName(wingName);
+        }
         
         // Fetch wing-level data - use the same endpoints as personal dashboard
         // but wing supervisors can see all requests for their wing members
@@ -47,7 +69,8 @@ const WingDashboard = () => {
           issuedItemsRes,
           approvalsRes,
           notificationsRes,
-          verificationsRes
+          verificationsRes,
+          membersRes
         ] = await Promise.all([
           // All stock issuance requests (not filtered, for wing overview)
           fetch(`${apiBase}/stock-issuance/requests`, { credentials: 'include' })
@@ -72,7 +95,12 @@ const WingDashboard = () => {
           // My verification requests (inventory checks I've requested)
           fetch(`${apiBase}/inventory/my-verification-requests?userId=${user?.user_id}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : { data: [] })
-            .catch(() => ({ data: [] }))
+            .catch(() => ({ data: [] })),
+          
+          // Wing members
+          fetch(`${apiBase}/ims/users?wing_id=${user?.wing_id}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => [])
         ]);
 
         console.log('Wing Dashboard Data:', {
@@ -89,6 +117,7 @@ const WingDashboard = () => {
         setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
         setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
         setMyVerificationRequests(verificationsRes?.data || []);
+        setWingMembers(Array.isArray(membersRes) ? membersRes : (membersRes?.data || []));
 
       } catch (error) {
         console.error('Error fetching wing dashboard data:', error);
@@ -125,30 +154,38 @@ const WingDashboard = () => {
     }).length,
     itemsInWing: wingIssuedItems.length,
     pendingApprovals: wingPendingApprovals.length,
-    unreadNotifications: wingNotifications.filter(n => !n.is_read).length
+    unreadNotifications: wingNotifications.filter(n => !n.is_read).length,
+    totalMembers: wingMembers.length
   };
 
   return (
-    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900">Wing Dashboard</h1>
-        <p className="text-lg text-gray-600 mt-2">
-          Manage wing-level stock operations and inventory
-        </p>
-        <div className="flex items-center gap-2 mt-3">
-          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Active
-          </Badge>
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-            <Clock className="h-3 w-3 mr-1" />
-            Last Updated: {new Date().toLocaleTimeString()}
-          </Badge>
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6 space-y-8">
+        {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-gray-900">Wing Dashboard</h1>
+          <p className="text-lg text-gray-600 mt-2">
+            Manage wing-level stock operations and inventory
+          </p>
+          <div className="flex items-center gap-2 mt-3">
+            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Active
+            </Badge>
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+              <Clock className="h-3 w-3 mr-1" />
+              Last Updated: {new Date().toLocaleTimeString()}
+            </Badge>
+          </div>
         </div>
+        <Button onClick={() => navigate('/stock-issuance')} className="bg-teal-600 hover:bg-teal-700 text-white">
+          <Send className="h-4 w-4 mr-2" />
+          Create Request
+        </Button>
       </div>
 
-      {/* Quick Stats - 4 Cards in One Line */}
+      {/* Quick Stats - 4 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/wing-requests')}>
           <CardHeader className="pb-2">
@@ -215,17 +252,137 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-teal-50 to-teal-100 border-l-4 border-l-teal-500" onClick={() => navigate('/stock-issuance')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-l-green-500" onClick={() => navigate('/dashboard/wing-members')}>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-teal-700">
-              <Send className="h-5 w-5" />
-              New Request
+            <CardTitle className="flex items-center gap-2 text-green-700">
+              <Users className="h-5 w-5" />
+              Wing Members
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" size="sm" className="w-full hover:bg-teal-100 transition-all mt-2">
-              Create Request
-            </Button>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Total</span>
+                <span className="text-2xl font-bold text-green-600">{stats.totalMembers}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Members in wing
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Request Status Distribution */}
+        <Card className="shadow-lg border-2 border-teal-200">
+          <CardHeader className="border-b bg-gradient-to-r from-teal-50 to-teal-100">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-teal-600" />
+              Request Status Distribution
+            </CardTitle>
+            <CardDescription>Overview of request statuses</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 flex items-center justify-center">
+            {wingRequests.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <Package className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                <p>No requests yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Pending', value: stats.pendingRequests },
+                      { name: 'Approved', value: stats.approvedRequests },
+                      { name: 'Other', value: stats.totalRequests - stats.pendingRequests - stats.approvedRequests }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    <Cell fill="#f97316" />
+                    <Cell fill="#22c55e" />
+                    <Cell fill="#6b7280" />
+                  </Pie>
+                  <Tooltip formatter={(value) => value} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Monthly Requests Trend */}
+        <Card className="shadow-lg border-2 border-indigo-200">
+          <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-indigo-100">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-indigo-600" />
+              Requests Trend
+            </CardTitle>
+            <CardDescription>Requests created in the last 6 months</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 flex items-center justify-center">
+            {wingRequests.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <Package className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                <p>No requests yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={(() => {
+                    // Group requests by month
+                    const monthData: Record<string, number> = {};
+                    const now = new Date();
+                    
+                    // Initialize last 6 months
+                    for (let i = 5; i >= 0; i--) {
+                      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                      const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                      monthData[monthKey] = 0;
+                    }
+                    
+                    // Count requests by month
+                    wingRequests.forEach(req => {
+                      const reqDate = new Date(req.created_at || req.submitted_date || req.request_date || new Date());
+                      const monthKey = reqDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                      if (monthData.hasOwnProperty(monthKey)) {
+                        monthData[monthKey]++;
+                      }
+                    });
+                    
+                    return Object.entries(monthData).map(([month, count]) => ({
+                      month,
+                      requests: count
+                    }));
+                  })()}
+                  margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="month" stroke="#6b7280" />
+                  <YAxis stroke="#6b7280" />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc' }}
+                    formatter={(value) => value}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="requests" 
+                    stroke="#6366f1" 
+                    strokeWidth={2}
+                    dot={{ fill: '#6366f1', r: 5 }}
+                    activeDot={{ r: 7 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -274,6 +431,8 @@ const WingDashboard = () => {
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900">Reference: #{request.id}</h4>
                         <p className="text-sm text-gray-600 mt-1">Item: {request.item_nomenclature || request.item_id}</p>
+                        <p className="text-xs text-gray-500 mt-1">Requester: {request.requested_by_name || 'Unknown'}</p>
+                        <p className="text-xs text-gray-500">Wing: {request.wing_name || 'Unknown Wing'}</p>
                       </div>
                       <Badge variant="outline" className={statusColor}>
                         {isPending ? '⏳ Pending' : isVerified ? '✓ Verified' : request.status}
@@ -281,7 +440,7 @@ const WingDashboard = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
                       <div>
-                        <span className="font-semibold">Quantity Requested:</span> {request.quantity_requested || '-'}
+                        <span className="font-semibold">Quantity Requested:</span> {request.requested_quantity || '-'}
                       </div>
                       <div>
                         <span className="font-semibold">Requested on:</span> {formatDateDMY(request.requested_at || request.created_at)}
@@ -352,7 +511,7 @@ const WingDashboard = () => {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase">Wing</p>
-                  <p className="text-sm text-gray-700">{selectedVerification.wing_name}</p>
+                  <p className="text-sm text-gray-700">{userWingName || 'Unknown'}</p>
                 </div>
               </div>
 
@@ -422,7 +581,7 @@ const WingDashboard = () => {
               <CardTitle className="text-xl">Recent Wing Requests</CardTitle>
               <CardDescription>Latest stock requests from wing members</CardDescription>
             </div>
-            <Button variant="outline" onClick={() => navigate('/stock-issuance')}>
+            <Button variant="outline" onClick={() => navigate('/dashboard/wing-requests')}>
               View All
             </Button>
           </div>
@@ -437,12 +596,12 @@ const WingDashboard = () => {
             <div className="divide-y">
               {wingRequests.slice(0, 5).map((request) => (
                 <div 
-                  key={request.request_id || request.id} 
+                  key={request.id} 
                   className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/dashboard/request-details/${request.request_id || request.id}`)}
+                  onClick={() => navigate(`/dashboard/request-details/${request.id}`)}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900">{request.justification || request.item_name || 'Stock Request'}</h4>
+                    <h4 className="font-medium text-gray-900">{request.purpose || request.title || 'Stock Request'}</h4>
                     <Badge 
                       variant={
                         (request.request_status || '').toLowerCase() === 'approved' 
@@ -456,8 +615,16 @@ const WingDashboard = () => {
                     </Badge>
                   </div>
                   <p className="text-sm text-gray-600">
-                    {formatDateDMY(request.created_at)} • {request.purpose || 'No description'}
+                    {format(new Date(request.created_at || request.submitted_at), 'MM/dd/yyyy')} • {request.justification || request.purpose || 'No description'}
                   </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                    <div>
+                      Requester: {request.requester?.full_name || 'Unknown'}
+                    </div>
+                    <div>
+                      Wing: {request.wing?.name || 'Unknown'}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -498,6 +665,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 };
