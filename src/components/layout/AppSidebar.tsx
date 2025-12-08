@@ -309,14 +309,19 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       <SidebarHeader className="p-3 border-b border-teal-500 bg-teal-600">
         <div className="flex items-center justify-center h-14">
           <div className="w-full h-full flex items-center justify-center overflow-hidden">
-            <img
-              src="/ecp-logo.png"
-              alt="ECP Logo"
-              className={state === "collapsed"
-                ? "h-7 w-7 object-contain transition-all duration-300"
-                : "h-10 w-auto object-contain max-w-full transition-all duration-300"
-              }
-            />
+            {state === "collapsed" ? (
+              <img
+                src="/ecp-logo-small.png"
+                alt="ECP Logo"
+                className="h-8 w-8 object-contain transition-all duration-300"
+              />
+            ) : (
+              <img
+                src="/ecp-logo.png"
+                alt="ECP Logo"
+                className="h-10 w-auto object-contain max-w-full transition-all duration-300"
+              />
+            )}
           </div>
         </div>
       </SidebarHeader>
