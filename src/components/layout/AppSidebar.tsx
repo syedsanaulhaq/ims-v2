@@ -337,8 +337,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
               >
                 <CollapsibleTrigger asChild>
                   <button 
-                    className={`w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-teal-700 rounded transition-all duration-200 ${
-                      state === "collapsed" ? "justify-center p-2" : ""
+                    className={`w-full flex items-center px-3 py-2 cursor-pointer hover:bg-teal-700 rounded transition-all duration-200 ${
+                      state === "collapsed" ? "justify-center" : "justify-between"
                     }`}
                   >
                     <div className={`flex items-center gap-2 ${
@@ -403,8 +403,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleLogout}
-                  className={`text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer transition-all duration-150 justify-start ${
-                    state === "collapsed" ? "justify-center" : ""
+                  className={`text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer transition-all duration-150 ${
+                    state === "collapsed" ? "justify-center" : "justify-start"
                   }`}
                 >
                   <LogOut className="w-4 h-4 flex-shrink-0" />
