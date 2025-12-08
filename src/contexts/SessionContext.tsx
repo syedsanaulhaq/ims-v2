@@ -24,6 +24,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setIsLoading(true);
       const sessionUser = await sessionService.initializeSession();
       setUser(sessionUser);
+      
+      // Debug logging
+      console.log('🎯 SessionContext - User loaded:', {
+        userId: sessionUser?.user_id,
+        userName: sessionUser?.user_name,
+        imsRoles: sessionUser?.ims_roles?.length || 0,
+        imsPerms: sessionUser?.ims_permissions?.length || 0,
+        isSuperAdmin: sessionUser?.is_super_admin,
+        permissionKeys: sessionUser?.ims_permissions?.map(p => p.permission_key) || []
+      });
     } catch (error) {
       console.error('Failed to initialize session:', error);
     } finally {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -75,6 +75,18 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const navigate = useNavigate();
   const { state } = useSidebar();
   const { user } = useSession();
+  
+  // Debug: Log user permissions
+  useEffect(() => {
+    console.log('👤 AppSidebar - User data:', {
+      user_id: user?.user_id,
+      user_name: user?.user_name,
+      ims_permissions: user?.ims_permissions?.length || 0,
+      ims_roles: user?.ims_roles?.length || 0,
+      is_super_admin: user?.is_super_admin,
+      wing_id: user?.wing_id,
+    });
+  }, [user]);
   
   // Permission hooks
   const { hasPermission: canManageRoles } = usePermission('roles.manage');

@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { useSession } from '@/contexts/SessionContext';
+import { usePermission } from '@/hooks/usePermission';
 import { 
   Package, 
   AlertTriangle, 
@@ -35,6 +37,19 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useSession();
+  const { hasPermission: canAccessDashboard } = usePermission('admin.super');
+  const { hasPermission: canViewInventory } = usePermission('inventory.view');
+  const { hasPermission: canViewProcurement } = usePermission('procurement.view');
+  const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
+
+  // Check if user has access to dashboard - if not, redirect to personal dashboard
+  useEffect(() => {
+    if (user && !canAccessDashboard && !canViewInventory && !canViewProcurement && !isWingSupervisor) {
+      console.log('⚠️ User does not have permission to access main dashboard, redirecting to personal dashboard');
+      navigate('/personal-dashboard', { replace: true });
+    }
+  }, [user, canAccessDashboard, canViewInventory, canViewProcurement, isWingSupervisor, navigate]);
 
   // State for real SQL Server data
   const [tenders, setTenders] = useState<any[]>([]);

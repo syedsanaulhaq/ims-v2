@@ -621,8 +621,22 @@ app.get('/api/session', async (req, res) => {
   try {
     // Check if we have a session user
     if (req.session && req.session.userId) {
+      console.log('📊 /api/session request - Session found:', {
+        userId: req.session.userId,
+        userName: req.session.user?.FullName || req.session.user?.UserName,
+        sessionID: req.sessionID,
+        hasImsRoles: !!req.session.user?.ims_roles?.length,
+        hasImsPerms: !!req.session.user?.ims_permissions?.length
+      });
+      
       // User is properly logged in via session - GET IMS DATA!
       const imsData = await getUserImsData(req.session.userId);
+      
+      console.log('🔐 IMS Data fetched:', {
+        rolesCount: imsData?.roles?.length || 0,
+        permsCount: imsData?.permissions?.length || 0,
+        isSuperAdmin: imsData?.is_super_admin
+      });
       
       // Get the primary IMS role display name (first role if multiple)
       const primaryRole = imsData?.roles?.length > 0 
@@ -631,7 +645,7 @@ app.get('/api/session', async (req, res) => {
       
       const sessionUser = {
         user_id: req.session.userId,
-        user_name: req.session.user?.FullName || 'Unknown User',
+        user_name: req.session.user?.FullName || req.session.user?.UserName || 'Unknown User',
         email: req.session.user?.Email || '',
         role: primaryRole,
         office_id: req.session.user?.intOfficeID || 583,
@@ -643,6 +657,12 @@ app.get('/api/session', async (req, res) => {
         ims_permissions: imsData?.permissions || [],
         is_super_admin: imsData?.is_super_admin || false
       };
+      
+      console.log('✅ Session response prepared:', {
+        userId: sessionUser.user_id,
+        rolesCount: sessionUser.ims_roles?.length || 0,
+        permsCount: sessionUser.ims_permissions?.length || 0
+      });
       
       return res.json({
         success: true,
@@ -656,7 +676,7 @@ app.get('/api/session', async (req, res) => {
     // 1. Come from DS with SSO token (handled by /api/sso-login)
     // 2. Use the login page (handled by /api/auth/login)
   } catch (error) {
-    console.error('Error getting session user:', error);
+    console.error('❌ Error getting session user:', error);
   }
   
   // No session found - return null to redirect to login
@@ -13438,6 +13458,84 @@ app.get('/api/dev/set-session/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error setting session:', error);
     res.status(500).json({ error: 'Failed to set session' });
+  }
+});
+
+// Debug endpoint to check user roles and permissions
+app.get('/api/dev/debug-user-permissions/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log('🔍 DEBUG: Checking permissions for user:', userId);
+    
+    // Get user from database
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT Id, FullName, UserName, Email
+        FROM AspNetUsers 
+        WHERE Id = @userId
+      `);
+    
+    if (userResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'User not found', userId });
+    }
+    
+    const user = userResult.recordset[0];
+    
+    // Get roles using the function
+    const rolesResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query('SELECT * FROM dbo.fn_GetUserRoles(@userId)');
+    
+    // Get permissions using the view
+    const permsResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT DISTINCT permission_key, module_name, action_name, description
+        FROM vw_ims_user_permissions
+        WHERE user_id = @userId
+        ORDER BY module_name, action_name
+      `);
+    
+    // Check if super admin
+    const superAdminResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
+    
+    const isSuperAdmin = superAdminResult.recordset[0]?.isSuperAdmin === true || 
+                         superAdminResult.recordset[0]?.isSuperAdmin === 1;
+    
+    res.json({
+      success: true,
+      user: {
+        id: user.Id,
+        fullName: user.FullName,
+        userName: user.UserName,
+        email: user.Email
+      },
+      roles: {
+        count: rolesResult.recordset.length,
+        data: rolesResult.recordset
+      },
+      permissions: {
+        count: permsResult.recordset.length,
+        data: permsResult.recordset
+      },
+      isSuperAdmin: isSuperAdmin,
+      summary: {
+        hasRoles: rolesResult.recordset.length > 0,
+        hasPermissions: permsResult.recordset.length > 0,
+        rolesCount: rolesResult.recordset.length,
+        permsCount: permsResult.recordset.length
+      }
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ 
+      error: 'Debug check failed',
+      message: error.message 
+    });
   }
 });
 
