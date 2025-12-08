@@ -375,7 +375,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                 isActive={isActive(item.path)}
                                 className={`text-teal-100 hover:bg-teal-700 hover:text-white transition-all duration-150 ${
                                   isActive(item.path)
-                                    ? 'bg-teal-700 text-white'
+                                    ? 'bg-white text-teal-700'
                                     : ''
                                 }`}
                               >
@@ -384,7 +384,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                   className="flex items-center gap-2 ml-2"
                                 >
                                   <item.icon className="w-4 h-4 flex-shrink-0" />
-                                  <span className="text-xs font-normal text-teal-100">
+                                  <span className={`text-xs font-normal ${
+                                    isActive(item.path)
+                                      ? 'text-teal-700'
+                                      : 'text-teal-100'
+                                  }`}>
                                     {item.title}
                                   </span>
                                 </Link>
