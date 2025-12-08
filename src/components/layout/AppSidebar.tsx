@@ -306,72 +306,91 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       collapsible="icon"
       style={{ backgroundColor: '#0d9488' }}
     >
-      <SidebarHeader className="p-4 border-b border-teal-500 bg-teal-600">
-        <div className="flex items-center justify-center h-16">
+      <SidebarHeader className="p-3 border-b border-teal-500 bg-teal-600">
+        <div className="flex items-center justify-center h-14">
           <div className="w-full h-full flex items-center justify-center overflow-hidden">
             <img
               src="/ecp-logo.png"
               alt="ECP Logo"
               className={state === "collapsed"
-                ? "h-8 w-8 object-contain"
-                : "h-12 w-auto object-contain max-w-full"
+                ? "h-7 w-7 object-contain transition-all duration-300"
+                : "h-10 w-auto object-contain max-w-full transition-all duration-300"
               }
             />
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="p-4 bg-teal-600">
-        <SidebarMenu className="space-y-4">
+      <SidebarContent className="p-3 bg-teal-600">
+        <SidebarMenu className="space-y-3">
           {menuGroups.map((group) => {
             const GroupIcon = group.icon;
             const groupActive = isGroupActive(group.items);
 
             return (
-              <Collapsible key={group.label} defaultOpen={groupActive} className="space-y-2">
+              <Collapsible 
+                key={group.label} 
+                defaultOpen={groupActive} 
+                className={`space-y-2 transition-all duration-300 ${
+                  state === "collapsed" ? "" : ""
+                }`}
+              >
                 <CollapsibleTrigger asChild>
-                  <div className="flex items-center justify-between px-2 py-2 cursor-pointer hover:bg-teal-700 rounded transition-colors group-data-[collapsible=icon]:!p-2 group-data-[collapsible=icon]:!justify-center">
-                    <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
-                      <GroupIcon className="w-4 h-4 text-teal-200" />
+                  <button 
+                    className={`w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-teal-700 rounded transition-all duration-200 ${
+                      state === "collapsed" ? "justify-center p-2" : ""
+                    }`}
+                  >
+                    <div className={`flex items-center gap-2 ${
+                      state === "collapsed" ? "hidden" : ""
+                    }`}>
+                      <GroupIcon className="w-4 h-4 text-teal-200 flex-shrink-0" />
                       <span className="text-xs font-semibold text-teal-100 uppercase tracking-wider">
                         {group.label}
                       </span>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-teal-200 transition-transform group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden" />
-                  </div>
+                    {state === "collapsed" && (
+                      <GroupIcon className="w-4 h-4 text-teal-200 flex-shrink-0" />
+                    )}
+                    {state !== "collapsed" && (
+                      <ChevronRight className="w-4 h-4 text-teal-200 transition-transform duration-200" />
+                    )}
+                  </button>
                 </CollapsibleTrigger>
 
-                <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
-                  <SidebarGroup className="p-0">
-                    <SidebarGroupContent>
-                      <SidebarMenu className="space-y-1">
-                        {group.items.map((item) => (
-                          <SidebarMenuItem key={item.path}>
-                            <SidebarMenuButton
-                              asChild
-                              isActive={isActive(item.path)}
-                              className={`text-teal-100 hover:bg-teal-700 hover:text-white group-data-[collapsible=icon]:!justify-center transition-colors ${
-                                isActive(item.path)
-                                  ? 'bg-teal-700 text-white'
-                                  : ''
-                              }`}
-                            >
-                              <Link
-                                to={item.path}
-                                className="flex items-center gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center ml-2"
+                {state !== "collapsed" && (
+                  <CollapsibleContent className="transition-all duration-200">
+                    <SidebarGroup className="p-0">
+                      <SidebarGroupContent>
+                        <SidebarMenu className="space-y-1">
+                          {group.items.map((item) => (
+                            <SidebarMenuItem key={item.path}>
+                              <SidebarMenuButton
+                                asChild
+                                isActive={isActive(item.path)}
+                                className={`text-teal-100 hover:bg-teal-700 hover:text-white transition-all duration-150 ${
+                                  isActive(item.path)
+                                    ? 'bg-teal-700 text-white'
+                                    : ''
+                                }`}
                               >
-                                <item.icon className="w-4 h-4 flex-shrink-0" />
-                                <span className="text-sm group-data-[collapsible=icon]:hidden">
-                                  {item.title}
-                                </span>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
-                      </SidebarMenu>
-                    </SidebarGroupContent>
-                  </SidebarGroup>
-                </CollapsibleContent>
+                                <Link
+                                  to={item.path}
+                                  className="flex items-center gap-2 ml-2"
+                                >
+                                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                                  <span className="text-sm">
+                                    {item.title}
+                                  </span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </SidebarMenu>
+                      </SidebarGroupContent>
+                    </SidebarGroup>
+                  </CollapsibleContent>
+                )}
               </Collapsible>
             );
           })}
@@ -384,10 +403,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleLogout}
-                  className="text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer group-data-[collapsible=icon]:!justify-center transition-colors"
+                  className={`text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer transition-all duration-150 justify-start ${
+                    state === "collapsed" ? "justify-center" : ""
+                  }`}
                 >
                   <LogOut className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm group-data-[collapsible=icon]:hidden">Logout</span>
+                  {state !== "collapsed" && (
+                    <span className="text-sm">Logout</span>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
