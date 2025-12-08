@@ -371,10 +371,10 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                             <SidebarMenuButton
                               asChild
                               isActive={isActive(item.path)}
-                              className={`px-4 py-2.5 text-white hover:bg-teal-600 transition-colors duration-150 mx-2 ${
+                              className={`px-4 py-2.5 text-white transition-colors duration-150 mx-2 ${
                                 isActive(item.path)
-                                  ? 'bg-teal-500/60 rounded-lg'
-                                  : 'rounded-none'
+                                  ? '!bg-teal-500/60 !rounded-lg !text-white'
+                                  : '!rounded-none !bg-transparent hover:!bg-teal-600'
                               }`}
                             >
                               <Link
