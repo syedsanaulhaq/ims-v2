@@ -380,7 +380,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                 className="flex items-center gap-3"
                               >
                                 <span className="text-white text-lg">–</span>
-                                <span className="text-sm font-semibold text-white">
+                                <span className="text-sm font-normal text-white">
                                   {item.title}
                                 </span>
                               </Link>
