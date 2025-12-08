@@ -322,7 +322,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   return (
     <Sidebar
       className="!bg-teal-700 border-r border-teal-600"
-      collapsible="none"
+      collapsible="icon"
       style={{ backgroundColor: '#0d8b81' }}
     >
       <SidebarHeader className="p-4 border-b border-teal-600">

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import UserInfo from "@/components/common/UserInfo";
 import NotificationDropdown from "@/components/ui/NotificationDropdown";
@@ -24,10 +25,13 @@ const Navbar = () => {
     <div className="bg-white border-b border-gray-200 shadow-sm">
       <div className="flex items-center justify-between p-4">
         
-        {/* Left Section - Title */}
-        <div className="flex items-center space-x-2">
-          <div className="w-2 h-6 bg-teal-600"></div>
-          <h1 className="text-xl font-semibold text-gray-800">Inventory Management System</h1>
+        {/* Left Section - Sidebar Trigger & Title */}
+        <div className="flex items-center space-x-4">
+          <SidebarTrigger className="text-gray-600 hover:bg-gray-100" />
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-6 bg-teal-600"></div>
+            <h1 className="text-xl font-semibold text-gray-800">Inventory Management System</h1>
+          </div>
         </div>
 
         {/* Right Section - Actions & Profile */}
