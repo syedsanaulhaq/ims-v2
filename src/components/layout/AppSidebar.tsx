@@ -349,8 +349,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                     <div className={`flex items-center gap-2 ${
                       state === "collapsed" ? "hidden" : ""
                     }`}>
-                      <GroupIcon className="w-4 h-4 text-teal-200 flex-shrink-0" />
-                      <span className="text-xs font-semibold text-teal-100 uppercase tracking-wider">
+                      <GroupIcon className="w-4 h-4 text-white flex-shrink-0" />
+                      <span className="text-sm font-bold text-white uppercase tracking-widest">
                         {group.label}
                       </span>
                     </div>
@@ -384,7 +384,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                                   className="flex items-center gap-2 ml-2"
                                 >
                                   <item.icon className="w-4 h-4 flex-shrink-0" />
-                                  <span className="text-sm">
+                                  <span className="text-xs font-normal text-teal-100">
                                     {item.title}
                                   </span>
                                 </Link>
