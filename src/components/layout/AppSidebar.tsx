@@ -321,32 +321,22 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
   return (
     <Sidebar
-      className="!bg-teal-600 border-r border-teal-500"
-      collapsible="icon"
-      style={{ backgroundColor: '#0d9488' }}
+      className="!bg-teal-700 border-r border-teal-600"
+      collapsible="none"
+      style={{ backgroundColor: '#0d8b81' }}
     >
-      <SidebarHeader className="p-3 border-b border-teal-500 bg-teal-600">
-        <div className="flex items-center justify-center h-14">
-          <div className="w-full h-full flex items-center justify-center overflow-hidden">
-            {state === "collapsed" ? (
-              <img
-                src="/ecp-logo-small.png"
-                alt="ECP Logo"
-                className="h-8 w-8 object-contain transition-all duration-300"
-              />
-            ) : (
-              <img
-                src="/ecp-logo.png"
-                alt="ECP Logo"
-                className="h-10 w-auto object-contain max-w-full transition-all duration-300"
-              />
-            )}
-          </div>
+      <SidebarHeader className="p-4 border-b border-teal-600">
+        <div className="flex items-center justify-start">
+          <img
+            src="/ecp-logo.png"
+            alt="ECP Logo"
+            className="h-12 w-auto object-contain"
+          />
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="p-3 bg-teal-600">
-        <SidebarMenu className="space-y-3">
+      <SidebarContent className="p-0 bg-teal-700">
+        <SidebarMenu className="space-y-0">
           {menuGroups.map((group) => {
             const GroupIcon = group.icon;
             const groupActive = isGroupActive(group.items);
@@ -357,90 +347,66 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                 key={group.label} 
                 open={isGroupOpen}
                 onOpenChange={(isOpen) => handleMenuGroupChange(group.label, isOpen)}
-                className={`space-y-2 transition-all duration-300 ${
-                  state === "collapsed" ? "" : ""
-                }`}
+                className="space-y-0"
               >
                 <CollapsibleTrigger asChild>
                   <button 
-                    className={`w-full flex items-center px-3 py-2 cursor-pointer hover:bg-teal-700 rounded transition-all duration-200 ${
-                      state === "collapsed" ? "justify-center" : "justify-between"
-                    }`}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-600 transition-colors duration-150 text-white"
                   >
-                    <div className={`flex items-center gap-2 ${
-                      state === "collapsed" ? "hidden" : ""
-                    }`}>
-                      <GroupIcon className="w-4 h-4 text-white flex-shrink-0" />
-                      <span className="text-xs font-bold text-white uppercase tracking-wide">
-                        {group.label}
-                      </span>
-                    </div>
-                    {state === "collapsed" && (
-                      <GroupIcon className="w-4 h-4 text-teal-200 flex-shrink-0" />
-                    )}
-                    {state !== "collapsed" && (
-                      <ChevronRight className="w-4 h-4 text-teal-200 transition-transform duration-200" />
-                    )}
+                    <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-sm font-bold text-white">
+                      {group.label.replace(' Menu', '')}
+                    </span>
                   </button>
                 </CollapsibleTrigger>
 
-                {state !== "collapsed" && (
-                  <CollapsibleContent className="transition-all duration-200">
-                    <SidebarGroup className="p-0">
-                      <SidebarGroupContent>
-                        <SidebarMenu className="space-y-1">
-                          {group.items.map((item) => (
-                            <SidebarMenuItem key={item.path}>
-                              <SidebarMenuButton
-                                asChild
-                                isActive={isActive(item.path)}
-                                className={`text-teal-100 hover:bg-teal-700 hover:text-white transition-all duration-150 ${
-                                  isActive(item.path)
-                                    ? 'bg-white text-teal-700'
-                                    : ''
-                                }`}
+                <CollapsibleContent className="transition-all duration-200">
+                  <SidebarGroup className="p-0">
+                    <SidebarGroupContent>
+                      <SidebarMenu className="space-y-0">
+                        {group.items.map((item) => (
+                          <SidebarMenuItem key={item.path}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={isActive(item.path)}
+                              className={`px-4 py-2.5 text-white hover:bg-teal-600 transition-colors duration-150 rounded-none ${
+                                isActive(item.path)
+                                  ? 'bg-teal-600 font-semibold'
+                                  : ''
+                              }`}
+                            >
+                              <Link
+                                to={item.path}
+                                className="flex items-center gap-3"
                               >
-                                <Link
-                                  to={item.path}
-                                  className="flex items-center gap-2 ml-2"
-                                >
-                                  <item.icon className="w-4 h-4 flex-shrink-0" />
-                                  <span className={`text-xs font-normal ${
-                                    isActive(item.path)
-                                      ? 'text-teal-700'
-                                      : 'text-teal-100'
-                                  }`}>
-                                    {item.title}
-                                  </span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </SidebarMenu>
-                      </SidebarGroupContent>
-                    </SidebarGroup>
-                  </CollapsibleContent>
-                )}
+                                <span className="text-white text-lg">–</span>
+                                <span className="text-sm font-normal text-white">
+                                  {item.title}
+                                </span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </SidebarGroup>
+                </CollapsibleContent>
               </Collapsible>
             );
           })}
         </SidebarMenu>
 
         {/* Logout Section */}
-        <SidebarGroup className="mt-auto">
-          <SidebarGroupContent>
+        <SidebarGroup className="mt-auto border-t border-teal-600">
+          <SidebarGroupContent className="p-0">
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleLogout}
-                  className={`text-teal-100 hover:bg-red-600 hover:text-white cursor-pointer transition-all duration-150 ${
-                    state === "collapsed" ? "justify-center" : "justify-start"
-                  }`}
+                  className="w-full px-4 py-3 text-white hover:bg-red-700 cursor-pointer transition-colors duration-150 rounded-none"
                 >
-                  <LogOut className="w-4 h-4 flex-shrink-0" />
-                  {state !== "collapsed" && (
-                    <span className="text-sm">Logout</span>
-                  )}
+                  <LogOut className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-normal">Logout</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
