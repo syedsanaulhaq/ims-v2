@@ -45,6 +45,7 @@ import {
   SidebarMenuSubButton,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -325,14 +326,15 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       collapsible="none"
       style={{ backgroundColor: '#0d8b81' }}
     >
-      <SidebarHeader className="p-4 border-b border-teal-600">
-        <div className="flex items-center justify-start">
+      <SidebarHeader className="p-4 border-b border-teal-600 flex items-center justify-between">
+        <div className="flex items-center justify-start flex-1">
           <img
             src="/ecp-logo.png"
             alt="ECP Logo"
             className="w-auto object-contain"
           />
         </div>
+        <SidebarTrigger className="text-white hover:bg-teal-600" />
       </SidebarHeader>
 
       <SidebarContent className="p-0 bg-teal-700">
