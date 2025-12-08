@@ -351,14 +351,19 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
               >
                 <CollapsibleTrigger asChild>
                   <button 
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-600 transition-colors duration-150 text-white"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-600 transition-colors duration-150 text-white justify-between"
                   >
-                    <div className="p-2 rounded-lg bg-teal-600/50">
-                      <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-teal-600/50">
+                        <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                      </div>
+                      <span className="text-sm font-bold text-white">
+                        {group.label.replace(' Menu', '')}
+                      </span>
                     </div>
-                    <span className="text-sm font-bold text-white">
-                      {group.label.replace(' Menu', '')}
-                    </span>
+                    <ChevronRight className={`w-4 h-4 text-white transition-transform duration-300 ${
+                      isGroupOpen ? 'rotate-90' : ''
+                    }`} />
                   </button>
                 </CollapsibleTrigger>
 
