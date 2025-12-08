@@ -353,7 +353,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                   <button 
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-600 transition-colors duration-150 text-white"
                   >
-                    <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                    <div className="p-2 rounded-lg bg-teal-600/50">
+                      <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                    </div>
                     <span className="text-sm font-bold text-white">
                       {group.label.replace(' Menu', '')}
                     </span>
@@ -371,13 +373,13 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
                               isActive={isActive(item.path)}
                               className={`px-4 py-2.5 text-white hover:bg-teal-600 transition-colors duration-150 rounded-none ${
                                 isActive(item.path)
-                                  ? 'bg-teal-600 font-semibold'
+                                  ? 'bg-teal-600/60 font-semibold'
                                   : ''
                               }`}
                             >
                               <Link
                                 to={item.path}
-                                className="flex items-center gap-3"
+                                className="flex items-center gap-3 ml-6"
                               >
                                 <span className="text-white text-lg">–</span>
                                 <span className="text-sm font-normal text-white">
