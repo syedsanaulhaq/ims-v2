@@ -140,15 +140,31 @@ const RoleManagement: React.FC = () => {
         alert('Role updated successfully!');
       } else {
         // Create new role
-        // This would require a new endpoint - for now just update permissions
-        alert('Create role feature requires backend endpoint');
+        const response = await fetch(`${API_BASE_URL}/api/ims/roles`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            display_name: formData.displayName,
+            description: formData.description,
+            permission_keys: selectedPermissions
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create role');
+        }
+        
+        const result = await response.json();
+        alert('Role created successfully!');
       }
 
       setShowModal(false);
       fetchRoles();
     } catch (error) {
       console.error('Error saving role:', error);
-      alert('Error saving role');
+      alert(`Error: ${error instanceof Error ? error.message : 'Failed to save role'}`);
     }
   };
 

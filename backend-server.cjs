@@ -826,6 +826,84 @@ app.get('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
   }
 });
 
+// Create new custom role (Super Admin only)
+app.post('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { display_name, description, permission_keys } = req.body;
+
+    if (!display_name || !display_name.trim()) {
+      return res.status(400).json({ error: 'Role name is required' });
+    }
+
+    if (!pool) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    // Generate role name from display name (uppercase, spaces to underscores)
+    const role_name = 'CUSTOM_' + display_name.toUpperCase().replace(/\s+/g, '_');
+
+    // Start transaction
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Check if role name already exists
+      const existing = await transaction.request()
+        .input('roleName', sql.NVarChar(100), role_name)
+        .query('SELECT id FROM ims_roles WHERE role_name = @roleName');
+
+      if (existing.recordset.length > 0) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'A role with this name already exists' });
+      }
+
+      // Insert new role
+      const roleId = new sql.UniqueIdentifier();
+      const insertResult = await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .input('roleName', sql.NVarChar(100), role_name)
+        .input('displayName', sql.NVarChar(255), display_name)
+        .input('description', sql.NVarChar(500), description || null)
+        .input('isSystemRole', sql.Bit, 0)
+        .query(`
+          INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role, created_at)
+          VALUES (@roleId, @roleName, @displayName, @description, @isSystemRole, GETDATE())
+        `);
+
+      // Add permissions if provided
+      if (permission_keys && Array.isArray(permission_keys) && permission_keys.length > 0) {
+        for (const permKey of permission_keys) {
+          await transaction.request()
+            .input('roleId', sql.UniqueIdentifier, roleId)
+            .input('permKey', sql.NVarChar(100), permKey)
+            .query(`
+              INSERT INTO ims_role_permissions (role_id, permission_id)
+              SELECT @roleId, id
+              FROM ims_permissions
+              WHERE permission_key = @permKey
+            `);
+        }
+      }
+
+      await transaction.commit();
+      
+      res.json({
+        success: true,
+        message: 'Role created successfully',
+        role_id: roleId,
+        role_name: role_name,
+        display_name: display_name
+      });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating role:', error);
+    res.status(500).json({ error: 'Failed to create role' });
+  }
+});
+
 // Get role details with permissions (Super Admin only)
 app.get('/api/ims/roles/:roleId', requireAuth, requireSuperAdmin, async (req, res) => {
   try {
