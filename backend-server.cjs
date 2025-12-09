@@ -826,8 +826,8 @@ app.get('/api/ims/roles', requireAuth, async (req, res) => {
   }
 });
 
-// Create new custom role (Super Admin only)
-app.post('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
+// Create new custom role (requires roles.manage permission)
+app.post('/api/ims/roles', requireAuth, requirePermission('roles.manage'), async (req, res) => {
   try {
     const { display_name, description, permission_keys } = req.body;
 
@@ -980,8 +980,8 @@ app.get('/api/ims/roles/:roleId', requireAuth, async (req, res) => {
   }
 });
 
-// Update role permissions (Super Admin only)
-app.put('/api/ims/roles/:roleId/permissions', requireAuth, requireSuperAdmin, async (req, res) => {
+// Update role permissions (requires roles.manage permission)
+app.put('/api/ims/roles/:roleId/permissions', requireAuth, requirePermission('roles.manage'), async (req, res) => {
   try {
     const { roleId } = req.params;
     const { permission_keys } = req.body;
