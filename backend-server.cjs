@@ -787,8 +787,8 @@ app.get('/api/ims/my-roles', requireAuth, async (req, res) => {
   }
 });
 
-// Get all available IMS roles (Super Admin only)
-app.get('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
+// Get all available IMS roles (requires auth)
+app.get('/api/ims/roles', requireAuth, async (req, res) => {
   try {
     console.log('📋 Fetching IMS roles...');
     if (!pool) {
@@ -899,13 +899,13 @@ app.post('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
       throw error;
     }
   } catch (error) {
-    console.error('Error creating role:', error);
-    res.status(500).json({ error: 'Failed to create role' });
+    console.error('❌ Error creating role:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create role' });
   }
 });
 
-// Get role details with permissions (Super Admin only)
-app.get('/api/ims/roles/:roleId', requireAuth, requireSuperAdmin, async (req, res) => {
+// Get role details with permissions (requires auth)
+app.get('/api/ims/roles/:roleId', requireAuth, async (req, res) => {
   try {
     const { roleId } = req.params;
 
@@ -1039,7 +1039,7 @@ app.put('/api/ims/roles/:roleId/permissions', requireAuth, requireSuperAdmin, as
 });
 
 // Get all available permissions (Super Admin only)
-app.get('/api/ims/permissions', requireAuth, requireSuperAdmin, async (req, res) => {
+app.get('/api/ims/permissions', requireAuth, async (req, res) => {
   try {
     if (!pool) {
       return res.json([]);
