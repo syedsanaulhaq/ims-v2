@@ -91,8 +91,25 @@ const RoleManagement: React.FC = () => {
   const handleEditRole = (role: Role) => {
     setEditingRole(role);
     setFormData({ displayName: role.display_name, description: role.description || '' });
-    setSelectedPermissions([]); // Will load from API if needed
+    // Fetch the role details to load current permissions
+    fetchRolePermissions(role.role_id);
     setShowModal(true);
+  };
+
+  const fetchRolePermissions = async (roleId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ims/roles/${roleId}`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const permKeys = (data.permissions || []).map((p: Permission) => p.permission_key);
+        setSelectedPermissions(permKeys);
+      }
+    } catch (error) {
+      console.error('Error fetching role permissions:', error);
+      setSelectedPermissions([]);
+    }
   };
 
   const handleTogglePermission = (permissionKey: string) => {
