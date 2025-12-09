@@ -850,7 +850,7 @@ app.post('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
       // Check if role name already exists
       const existing = await transaction.request()
         .input('roleName', sql.NVarChar(100), role_name)
-        .query('SELECT id FROM ims_roles WHERE role_name = @roleName');
+        .query('SELECT id FROM dbo.ims_roles WHERE role_name = @roleName');
 
       if (existing.recordset.length > 0) {
         await transaction.rollback();
@@ -866,7 +866,7 @@ app.post('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
         .input('description', sql.NVarChar(500), description || null)
         .input('isSystemRole', sql.Bit, 0)
         .query(`
-          INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role, created_at)
+          INSERT INTO dbo.ims_roles (id, role_name, display_name, description, is_system_role, created_at)
           VALUES (@roleId, @roleName, @displayName, @description, @isSystemRole, GETDATE())
         `);
 
@@ -877,9 +877,9 @@ app.post('/api/ims/roles', requireAuth, requireSuperAdmin, async (req, res) => {
             .input('roleId', sql.UniqueIdentifier, roleId)
             .input('permKey', sql.NVarChar(100), permKey)
             .query(`
-              INSERT INTO ims_role_permissions (role_id, permission_id)
+              INSERT INTO dbo.ims_role_permissions (role_id, permission_id)
               SELECT @roleId, id
-              FROM ims_permissions
+              FROM dbo.ims_permissions
               WHERE permission_key = @permKey
             `);
         }
