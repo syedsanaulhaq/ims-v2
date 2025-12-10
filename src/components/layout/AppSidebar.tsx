@@ -325,8 +325,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       collapsible="icon"
       style={{ backgroundColor: '#0d8b81' }}
     >
-      <SidebarHeader className="p-4 border-b border-teal-600">
-        <div className="flex items-center justify-start">
+      <SidebarHeader className="p-4 border-b border-teal-600 bg-teal-700">
+        <div className="flex items-center justify-start bg-teal-700">
           <img
             src="/ecp-logo.png"
             alt="ECP Logo"
