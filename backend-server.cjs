@@ -857,18 +857,23 @@ app.post('/api/ims/roles', requireAuth, requirePermission('roles.manage'), async
         return res.status(400).json({ error: 'A role with this name already exists' });
       }
 
-      // Insert new role
-      const roleId = new sql.UniqueIdentifier();
+      // Insert new role - generate GUID using NEWID() in SQL
       const insertResult = await transaction.request()
-        .input('roleId', sql.UniqueIdentifier, roleId)
         .input('roleName', sql.NVarChar(100), role_name)
         .input('displayName', sql.NVarChar(255), display_name)
         .input('description', sql.NVarChar(500), description || null)
         .input('isSystemRole', sql.Bit, 0)
         .query(`
           INSERT INTO dbo.ims_roles (id, role_name, display_name, description, is_system_role, created_at)
-          VALUES (@roleId, @roleName, @displayName, @description, @isSystemRole, GETDATE())
+          VALUES (NEWID(), @roleName, @displayName, @description, @isSystemRole, GETDATE());
+          SELECT id FROM dbo.ims_roles WHERE role_name = @roleName
         `);
+
+      const roleId = insertResult.recordset[0]?.id;
+      if (!roleId) {
+        await transaction.rollback();
+        return res.status(500).json({ error: 'Failed to retrieve created role ID' });
+      }
 
       // Add permissions if provided
       if (permission_keys && Array.isArray(permission_keys) && permission_keys.length > 0) {
