@@ -105,7 +105,11 @@ const LoginPage: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Username"
-              className="w-full h-12 bg-transparent text-white text-base placeholder-white/70 border-0 border-b-2 border-white px-0 pb-2 focus:outline-none focus:placeholder-transparent"
+              className="w-full h-12 bg-transparent text-white text-base placeholder-white/70 border-0 border-b-2 border-white px-0 pb-2 focus:outline-none focus:placeholder-transparent autofill:shadow-md autofill:bg-transparent"
+              style={{
+                WebkitTextFillColor: '#ffffff',
+                WebkitBoxShadow: 'inset 0 0 0 1000px transparent'
+              }}
               required
             />
           </div>
@@ -117,7 +121,11 @@ const LoginPage: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
-              className="w-full h-12 bg-transparent text-white text-base placeholder-white/70 border-0 border-b-2 border-white px-0 pb-2 focus:outline-none focus:placeholder-transparent"
+              className="w-full h-12 bg-transparent text-white text-base placeholder-white/70 border-0 border-b-2 border-white px-0 pb-2 focus:outline-none focus:placeholder-transparent autofill:shadow-md autofill:bg-transparent"
+              style={{
+                WebkitTextFillColor: '#ffffff',
+                WebkitBoxShadow: 'inset 0 0 0 1000px transparent'
+              }}
               required
             />
             <button
