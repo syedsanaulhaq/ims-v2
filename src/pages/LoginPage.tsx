@@ -109,7 +109,8 @@ const LoginPage: React.FC = () => {
               className="w-full bg-transparent text-white text-base placeholder-white/70 border-0 px-0 py-3 focus:outline-none focus:placeholder-transparent"
               style={{
                 WebkitTextFillColor: '#ffffff',
-                WebkitBoxShadow: 'inset 0 0 0 1000px transparent'
+                WebkitBoxShadow: 'inset 0 0 0 1000px rgba(0,0,0,0)',
+                backgroundColor: 'transparent !important'
               }}
               required
             />
@@ -126,7 +127,8 @@ const LoginPage: React.FC = () => {
               className="w-full bg-transparent text-white text-base placeholder-white/70 border-0 px-0 py-3 focus:outline-none focus:placeholder-transparent"
               style={{
                 WebkitTextFillColor: '#ffffff',
-                WebkitBoxShadow: 'inset 0 0 0 1000px transparent'
+                WebkitBoxShadow: 'inset 0 0 0 1000px rgba(0,0,0,0)',
+                backgroundColor: 'transparent !important'
               }}
               required
             />

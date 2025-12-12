@@ -325,8 +325,9 @@ input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-box-shadow: inset 0 0 0 1000px transparent !important;
-  box-shadow: inset 0 0 0 1000px transparent !important;
+  -webkit-box-shadow: inset 0 0 0 1000px rgba(0,0,0,0) !important;
+  box-shadow: inset 0 0 0 1000px rgba(0,0,0,0) !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 input:-webkit-autofill {
@@ -334,6 +335,20 @@ input:-webkit-autofill {
 }
 
 input:-webkit-autofill::first-line {
-  color: #ffffff;
+  color: #ffffff !important;
+}
+
+/* Override autofill background color */
+input:-webkit-autofill {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+input:-webkit-autofill:hover {
+  background-color: transparent !important;
+}
+
+input:-webkit-autofill:focus {
+  background-color: transparent !important;
 }
 
