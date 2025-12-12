@@ -49,9 +49,9 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#f5f5f5' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#0d8b81' }}>
       <div className="w-full max-w-2xl">
-        <Card className="bg-white border-0 shadow-2xl overflow-hidden rounded-lg">
+        <Card className="border-0 shadow-2xl overflow-hidden rounded-lg" style={{ backgroundColor: '#0d8b81' }}>
           <CardContent className="p-0">
             {/* Header Section with Teal Background */}
             <div className="text-center py-12 px-8" style={{ backgroundColor: '#0d8b81' }}>
@@ -72,7 +72,7 @@ const LoginPage: React.FC = () => {
             </div>
 
             {/* Login Form */}
-            <div className="px-12 py-12">
+            <div className="px-12 py-12" style={{ backgroundColor: '#0d8b81' }}>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Error Message */}
                 {error && (
@@ -84,7 +84,7 @@ const LoginPage: React.FC = () => {
                 {/* Username Field */}
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M2.167 4.999C2.167 4.078 3.065 3.33 4.028 3.33h11.944c.963 0 1.861.748 1.861 1.669v10.002c0 .921-.898 1.669-1.861 1.669H4.028c-.963 0-1.861-.748-1.861-1.669V4.999z"/>
                     </svg>
                   </div>
@@ -93,7 +93,8 @@ const LoginPage: React.FC = () => {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="17301-1569872-7"
-                    className="h-12 pl-12 pr-4 bg-white border-0 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-0 focus:ring-0 focus:outline-none"
+                    className="h-12 pl-12 pr-4 bg-transparent border-0 border-b-2 text-white placeholder-white/60 rounded-none focus:bg-transparent focus:border-0 focus:border-b-2 focus:ring-0 focus:outline-none"
+                    style={{ borderColor: 'white' }}
                     required
                   />
                 </div>
@@ -101,7 +102,7 @@ const LoginPage: React.FC = () => {
                 {/* Password Field */}
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/>
                     </svg>
                   </div>
@@ -110,13 +111,14 @@ const LoginPage: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••"
-                    className="h-12 pl-12 pr-12 bg-white border-0 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-0 focus:ring-0 focus:outline-none"
+                    className="h-12 pl-12 pr-12 bg-transparent border-0 border-b-2 text-white placeholder-white/60 rounded-none focus:bg-transparent focus:border-0 focus:border-b-2 focus:ring-0 focus:outline-none"
+                    style={{ borderColor: 'white' }}
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-white hover:text-white/80 transition-colors"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
