@@ -49,12 +49,12 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#0d8b81' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#1ea59e' }}>
       <div className="w-full max-w-2xl">
-        <Card className="border-0 shadow-2xl overflow-hidden rounded-lg" style={{ backgroundColor: '#0d8b81' }}>
+        <Card className="border-0 shadow-2xl overflow-hidden rounded-lg" style={{ backgroundColor: '#1ea59e' }}>
           <CardContent className="p-0">
             {/* Header Section with Teal Background */}
-            <div className="text-center py-12 px-8" style={{ backgroundColor: '#0d8b81' }}>
+            <div className="text-center py-12 px-8" style={{ backgroundColor: '#1ea59e' }}>
               {/* Logo */}
               <div className="flex justify-center mb-8">
                 <img 
@@ -72,7 +72,7 @@ const LoginPage: React.FC = () => {
             </div>
 
             {/* Login Form */}
-            <div className="px-12 py-12" style={{ backgroundColor: '#0d8b81' }}>
+            <div className="px-12 py-12" style={{ backgroundColor: '#1ea59e' }}>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Error Message */}
                 {error && (
@@ -140,12 +140,13 @@ const LoginPage: React.FC = () => {
                 {/* Login Button */}
                 <Button 
                   type="submit" 
-                  className="w-full h-12 bg-white text-teal-700 hover:bg-gray-100 font-semibold rounded-full transition-all duration-200 shadow-lg hover:shadow-xl mt-4"
+                  className="w-full h-12 font-semibold rounded transition-all duration-200 shadow-lg hover:shadow-xl mt-4"
+                  style={{ backgroundColor: '#1ea59e', color: 'white' }}
                   disabled={isLoading}
                 >
                   {isLoading ? (
                     <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-700"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       <span>Signing in...</span>
                     </div>
                   ) : (
@@ -158,9 +159,9 @@ const LoginPage: React.FC = () => {
               </form>
 
               {/* Development Info */}
-              <div className="mt-8 p-4 bg-gray-100 rounded-lg border border-gray-200">
-                <h4 className="text-gray-800 text-sm font-semibold mb-2">Development Access:</h4>
-                <div className="text-xs text-gray-700 space-y-1">
+              <div className="mt-8 p-4 rounded-lg border border-white/30" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                <h4 className="text-white text-sm font-semibold mb-2">Development Access:</h4>
+                <div className="text-xs text-white/90 space-y-1">
                   <p><strong>Admin:</strong> admin / admin</p>
                   <p><strong>Real Users:</strong> Use CNIC as username</p>
                   <p><strong>Example:</strong> 4130423170445</p>
