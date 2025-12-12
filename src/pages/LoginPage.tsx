@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, LogIn, User, Lock } from "lucide-react";
+import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useSession } from '@/contexts/SessionContext';
 
@@ -35,7 +32,6 @@ const LoginPage: React.FC = () => {
       const result = await login(username.trim(), password);
       
       if (result.success) {
-        // Refresh session to get IMS roles and permissions
         await initializeSession();
         navigate('/');
       } else {
@@ -49,127 +45,133 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#f3f3f3' }}>
-      <div className="w-full max-w-2xl">
-        <Card className="border-0 shadow-2xl overflow-hidden rounded-lg" style={{ backgroundColor: '#1ea59e' }}>
-          <CardContent className="p-0">
-            {/* Header Section with Teal Background */}
-            <div className="text-center py-12 px-8" style={{ backgroundColor: '#1ea59e' }}>
-              {/* Logo */}
-              <div className="flex justify-center mb-8">
-                <img 
-                  src="/ecp-logo-small.png" 
-                  alt="ECP Logo"
-                  className="h-24 object-contain"
-                  style={{ width: '25%' }}
-                />
-              </div>
-              
-              {/* Title */}
-              <h1 className="text-white text-2xl font-bold leading-tight">
-                Welcome To Election Commission of Pakistan Digital Portal
-              </h1>
+    <div 
+      className="w-full min-h-screen flex flex-wrap justify-center items-center p-4"
+      style={{
+        backgroundImage: "url('/fyq04rbamaa9f_j.jpg')",
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+        backgroundSize: 'cover',
+        backgroundAttachment: 'fixed',
+        position: 'relative'
+      }}
+    >
+      {/* Overlay */}
+      <div 
+        className="absolute w-full h-full top-0 left-0 z-0"
+        style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)' }}
+      ></div>
+
+      {/* Login Container */}
+      <div 
+        className="w-full max-w-md rounded-2xl overflow-hidden p-10 relative z-10"
+        style={{
+          background: 'linear-gradient(to bottom, #197B75, #197B75)',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
+        }}
+      >
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <div 
+            className="w-32 h-32 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: '#fff' }}
+          >
+            <img 
+              src="/ecp logo png white.png" 
+              alt="ECP Logo"
+              className="w-28 h-28 object-contain"
+            />
+          </div>
+        </div>
+
+        {/* Title */}
+        <h1 className="text-center text-white text-xl font-bold mb-8 uppercase tracking-wide">
+          Election Commission of Pakistan<br />Digital Portal
+        </h1>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-500/20 border border-red-400/30 text-white p-3 rounded text-sm">
+              {error}
             </div>
+          )}
 
-            {/* Login Form */}
-            <div className="px-12 py-12" style={{ backgroundColor: '#1ea59e' }}>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Error Message */}
-                {error && (
-                  <div className="bg-red-500/20 border border-red-400/30 text-white p-3 rounded-lg text-sm">
-                    {error}
-                  </div>
-                )}
+          {/* Username Field */}
+          <div className="relative">
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              className="w-full h-12 bg-transparent text-white text-base placeholder-white/70 border-0 border-b-2 border-white px-0 pb-2 focus:outline-none focus:placeholder-transparent"
+              required
+            />
+          </div>
 
-                {/* Username Field */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M2.167 4.999C2.167 4.078 3.065 3.33 4.028 3.33h11.944c.963 0 1.861.748 1.861 1.669v10.002c0 .921-.898 1.669-1.861 1.669H4.028c-.963 0-1.861-.748-1.861-1.669V4.999z"/>
-                    </svg>
-                  </div>
-                  <Input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="17301-1569872-7"
-                    className="h-12 pl-12 pr-4 bg-transparent border-0 border-b-2 text-white placeholder-white/60 rounded-none focus:bg-transparent focus:border-0 focus:border-b-2 focus:ring-0 focus:outline-none"
-                    style={{ borderColor: 'white' }}
-                    required
-                  />
+          {/* Password Field */}
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full h-12 bg-transparent text-white text-base placeholder-white/70 border-0 border-b-2 border-white px-0 pb-2 focus:outline-none focus:placeholder-transparent"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-0 bottom-2 text-white hover:text-white/80 transition-colors"
+            >
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </button>
+          </div>
+
+          {/* Remember Me */}
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="checkbox"
+              id="remember"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <label htmlFor="remember" className="text-white text-sm font-medium cursor-pointer">
+              Remember me
+            </label>
+          </div>
+
+          {/* Login Button */}
+          <div className="flex justify-center pt-4">
+            <Button 
+              type="submit" 
+              className="px-12 py-3 font-semibold rounded-full transition-all duration-300"
+              style={{ 
+                backgroundColor: '#20ad6b',
+                color: '#555555'
+              }}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                  <span>Signing in...</span>
                 </div>
+              ) : (
+                <span>Login</span>
+              )}
+            </Button>
+          </div>
+        </form>
 
-                {/* Password Field */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/>
-                    </svg>
-                  </div>
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••"
-                    className="h-12 pl-12 pr-12 bg-transparent border-0 border-b-2 text-white placeholder-white/60 rounded-none focus:bg-transparent focus:border-0 focus:border-b-2 focus:ring-0 focus:outline-none"
-                    style={{ borderColor: 'white' }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-white hover:text-white/80 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-
-                {/* Remember Me */}
-                <div className="flex items-center space-x-3">
-                  <Checkbox
-                    id="remember"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked === true)}
-                    className="border-white/50 data-[state=checked]:bg-white data-[state=checked]:border-white"
-                  />
-                  <label htmlFor="remember" className="text-white text-sm font-medium cursor-pointer">
-                    Remember me
-                  </label>
-                </div>
-
-                {/* Login Button */}
-                <Button 
-                  type="submit" 
-                  className="w-full h-12 font-semibold rounded transition-all duration-200 shadow-lg hover:shadow-xl mt-4"
-                  style={{ backgroundColor: '#1ea59e', color: 'white' }}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Signing in...</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center space-x-2">
-                      <LogIn className="h-4 w-4" />
-                      <span>Login</span>
-                    </div>
-                  )}
-                </Button>
-              </form>
-
-              {/* Development Info */}
-              <div className="mt-8 p-4 rounded-lg border border-white/30" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-                <h4 className="text-white text-sm font-semibold mb-2">Development Access:</h4>
-                <div className="text-xs text-white/90 space-y-1">
-                  <p><strong>Admin:</strong> admin / admin</p>
-                  <p><strong>Real Users:</strong> Use CNIC as username</p>
-                  <p><strong>Example:</strong> 4130423170445</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Development Info */}
+        <div className="mt-8 pt-6 border-t border-white/30 text-center">
+          <p className="text-white/80 text-xs mb-2">Development Access:</p>
+          <p className="text-white text-xs"><strong>Admin:</strong> admin / admin</p>
+          <p className="text-white text-xs"><strong>Example CNIC:</strong> 4130423170445</p>
+        </div>
       </div>
     </div>
   );
