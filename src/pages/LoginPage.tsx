@@ -49,34 +49,30 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, rgba(13, 139, 129, 0.1) 0%, rgba(10, 110, 104, 0.1) 100%), url("data:image/svg+xml,%3Csvg width="1200" height="600" xmlns="http://www.w3.org/2000/svg"%3E%3Cdefs%3E%3Cpattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"%3E%3Cpath d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" stroke-width="0.5"/%3E%3C/pattern%3E%3C/defs%3E%3Crect width="1200" height="600" fill="url(%23grid)" /%3E%3C/svg%3E")' }}>
-      <div className="w-full max-w-sm">
-        <Card className="bg-teal-700 border-0 shadow-2xl overflow-hidden rounded-xl" style={{ backgroundColor: '#0d8b81' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#f5f5f5' }}>
+      <div className="w-full max-w-2xl">
+        <Card className="bg-white border-0 shadow-2xl overflow-hidden rounded-lg">
           <CardContent className="p-0">
             {/* Header Section with Teal Background */}
-            <div className="text-center py-10 px-8">
+            <div className="text-center py-12 px-8" style={{ backgroundColor: '#0d8b81' }}>
               {/* Logo */}
-              <div className="flex justify-center mb-6">
-                <div className="relative w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg">
-                  <img 
-                    src="/ecp-logo-small.png" 
-                    alt="ECP Logo"
-                    className="w-20 h-20 object-contain"
-                  />
-                </div>
+              <div className="flex justify-center mb-8">
+                <img 
+                  src="/ecp-logo-small.png" 
+                  alt="ECP Logo"
+                  className="h-24 object-contain"
+                  style={{ width: '25%' }}
+                />
               </div>
               
               {/* Title */}
-              <h1 className="text-white text-base font-bold mb-1 leading-snug">
-                WELCOME TO ELECTION COMMISSION OF
+              <h1 className="text-white text-2xl font-bold leading-tight">
+                Welcome To Election Commission of Pakistan Digital Portal
               </h1>
-              <h2 className="text-white text-base font-bold leading-snug">
-                PAKISTAN DIGITAL PORTAL
-              </h2>
             </div>
 
             {/* Login Form */}
-            <div className="px-8 py-8">
+            <div className="px-12 py-12">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Error Message */}
                 {error && (
