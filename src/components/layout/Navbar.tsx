@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import UserInfo from "@/components/common/UserInfo";
 import NotificationDropdown from "@/components/ui/NotificationDropdown";
 import UserProfileDropdown from "@/components/ui/UserProfileDropdown";
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   ArrowLeft,
   Bell,
@@ -15,10 +16,21 @@ import {
 
 const Navbar = () => {
   const { toast } = useToast();
+  const { logout } = useAuth();
 
-  const handleBackToDS = () => {
-    // Just redirect back to DS without logging out
-    window.location.href = 'http://ds.ecp.gov.pk';
+  const handleBackToDS = async () => {
+    try {
+      // Logout from IMS before going back to DS
+      await logout();
+      // Small delay to ensure logout is processed
+      setTimeout(() => {
+        window.location.href = 'http://ds.ecp.gov.pk';
+      }, 300);
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Redirect anyway if logout fails
+      window.location.href = 'http://ds.ecp.gov.pk';
+    }
   };
 
   return (

@@ -99,9 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('sso_token');
       localStorage.removeItem('ims_session');
       
-      // Do NOT redirect to DS - just clear IMS session
-      // User stays logged in to DS and can access IMS again if needed
-      console.log('✅ IMS session cleared - user still logged in to DS');
+      console.log('✅ IMS session cleared');
     }
   };
 

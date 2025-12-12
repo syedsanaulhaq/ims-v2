@@ -10,20 +10,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession } from '@/contexts/SessionContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const UserProfileDropdown: React.FC = () => {
   const { user } = useSession();
-  const { logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
-      // Logout from IMS only (clears IMS session)
-      await logout();
-      // Redirect to IMS login page
+      // Just redirect to login page (normal logout)
       navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
