@@ -64,7 +64,7 @@ const LoginPage: React.FC = () => {
 
       {/* Login Container */}
       <div 
-        className="w-full max-w-md rounded-2xl overflow-hidden p-10 relative z-10"
+        className="w-full max-w-2xl rounded-2xl overflow-hidden p-10 relative z-10"
         style={{
           background: 'linear-gradient(to bottom, #197B75, #197B75)',
           boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
@@ -74,7 +74,7 @@ const LoginPage: React.FC = () => {
         <div className="flex justify-center mb-8">
           <div 
             className="w-32 h-32 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: '#20ad6b' }}
+            style={{ backgroundColor: '#197B75' }}
           >
             <img 
               src="/ecp logo png white.png" 
@@ -86,7 +86,7 @@ const LoginPage: React.FC = () => {
 
         {/* Title */}
         <h1 className="text-center text-white text-xl font-bold mb-8 uppercase tracking-wide">
-          Election Commission of Pakistan<br />Digital Portal
+          ECP Inventory Management System
         </h1>
 
         {/* Form */}
