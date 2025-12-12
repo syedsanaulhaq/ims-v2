@@ -321,21 +321,24 @@ async function assignDefaultPermissionsToSSOUser(userId) {
       }
 
       if (roleId) {
-        // Assign role to user
+        // Assign role to user in ims_user_roles table (not user_roles!)
         const assignResult = await pool.request()
           .input('userId', sql.NVarChar(450), userId)
           .input('roleId', sql.UniqueIdentifier, roleId)
           .query(`
             IF NOT EXISTS (
-              SELECT 1 FROM user_roles WHERE user_id = @userId AND role_id = @roleId
+              SELECT 1 FROM ims_user_roles WHERE user_id = @userId AND role_id = @roleId AND is_active = 1
             )
             BEGIN
-              INSERT INTO user_roles (user_id, role_id, assigned_at)
-              VALUES (@userId, @roleId, GETDATE());
+              INSERT INTO ims_user_roles (user_id, role_id, scope_type, is_active, assigned_at)
+              VALUES (@userId, @roleId, 'organization', 1, GETDATE());
               SELECT 1 as assigned;
             END
             ELSE
             BEGIN
+              UPDATE ims_user_roles 
+              SET is_active = 1 
+              WHERE user_id = @userId AND role_id = @roleId;
               SELECT 0 as assigned;
             END
           `);
