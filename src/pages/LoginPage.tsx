@@ -67,9 +67,9 @@ const LoginPage: React.FC = () => {
               <div className="text-center py-12 px-8" style={{ background: 'linear-gradient(135deg, #0d8b81 0%, #0a6e68 100%)' }}>
                 {/* Logo */}
                 <div className="flex justify-center mb-6">
-                  <div className="relative w-24 h-24">
+                  <div className="relative w-20 h-20">
                     <img 
-                      src="/ecp-logo.png" 
+                      src="/ecp-logo-small.png" 
                       alt="ECP Logo"
                       className="w-full h-full object-contain filter drop-shadow-lg"
                     />
@@ -77,11 +77,11 @@ const LoginPage: React.FC = () => {
                 </div>
                 
                 {/* Title */}
-                <h1 className="text-white text-lg font-bold mb-1 leading-tight">
-                  WELCOME TO ELECTION COMMISSION OF
+                <h1 className="text-white text-lg font-bold mb-2 leading-tight">
+                  Welcome to ECP
                 </h1>
                 <h2 className="text-white text-lg font-bold leading-tight">
-                  PAKISTAN INVENTORY MANAGEMENT SYSTEM
+                  INVENTORY MANAGEMENT SYSTEM
                 </h2>
               </div>
 
@@ -97,30 +97,24 @@ const LoginPage: React.FC = () => {
 
                 {/* Username Field */}
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-400" />
-                  </div>
                   <Input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter your CNIC or ID"
-                    className="h-12 pl-12 pr-4 bg-white border border-gray-300 text-gray-900 placeholder-gray-500 rounded-lg focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                    placeholder="17301-1569872-7"
+                    className="h-12 px-4 bg-white border-b-2 border-gray-300 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-b-2 focus:border-teal-500 focus:ring-0 focus:outline-none"
                     required
                   />
                 </div>
 
                 {/* Password Field */}
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
-                  </div>
                   <Input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••"
-                    className="h-12 pl-12 pr-12 bg-white border border-gray-300 text-gray-900 placeholder-gray-500 rounded-lg focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                    className="h-12 px-4 bg-white border-b-2 border-gray-300 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-b-2 focus:border-teal-500 focus:ring-0 focus:outline-none"
                     required
                   />
                   <button
@@ -148,19 +142,16 @@ const LoginPage: React.FC = () => {
                 {/* Login Button */}
                 <Button 
                   type="submit" 
-                  className="w-full h-12 bg-gradient-to-r from-teal-600 to-teal-700 text-white hover:from-teal-700 hover:to-teal-800 font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl mt-2"
+                  className="w-full h-12 bg-white text-teal-700 hover:bg-gray-100 font-bold rounded-full transition-all duration-200 shadow-lg hover:shadow-xl mt-4"
                   disabled={isLoading}
                 >
                   {isLoading ? (
                     <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-700"></div>
                       <span>Signing in...</span>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center space-x-2">
-                      <LogIn className="h-4 w-4" />
-                      <span>Login</span>
-                    </div>
+                    <span>Login</span>
                   )}
                 </Button>
               </form>
