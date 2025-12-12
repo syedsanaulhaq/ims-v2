@@ -298,28 +298,31 @@ async function assignDefaultPermissionsToSSOUser(userId) {
       // Get or create a default "General User" role if it doesn't exist
       const roleResult = await pool.request()
         .query(`
-          SELECT id FROM ims_roles 
+          SELECT TOP 1 id FROM ims_roles 
           WHERE role_name = 'General User' AND is_active = 1
-          LIMIT 1
         `);
 
       let roleId;
       if (roleResult.recordset.length > 0) {
         roleId = roleResult.recordset[0].id;
+        console.log('✅ Found existing General User role:', roleId);
       } else {
         // Create General User role if it doesn't exist
+        console.log('📝 Creating General User role...');
         const createRoleResult = await pool.request()
           .query(`
-            INSERT INTO ims_roles (role_name, display_name, description, is_active, scope_type, created_at)
-            VALUES ('General User', 'General User', 'Default role for general users', 1, 'organization', GETDATE())
-            SELECT SCOPE_IDENTITY() as id
+            DECLARE @newId UNIQUEIDENTIFIER = NEWID();
+            INSERT INTO ims_roles (id, role_name, display_name, description, is_active, scope_type, created_at)
+            VALUES (@newId, 'General User', 'General User', 'Default role for general users', 1, 'organization', GETDATE());
+            SELECT @newId as id;
           `);
         roleId = createRoleResult.recordset[0]?.id;
+        console.log('✅ Created new General User role:', roleId);
       }
 
       if (roleId) {
         // Assign role to user
-        await pool.request()
+        const assignResult = await pool.request()
           .input('userId', sql.NVarChar(450), userId)
           .input('roleId', sql.UniqueIdentifier, roleId)
           .query(`
@@ -328,15 +331,24 @@ async function assignDefaultPermissionsToSSOUser(userId) {
             )
             BEGIN
               INSERT INTO user_roles (user_id, role_id, assigned_at)
-              VALUES (@userId, @roleId, GETDATE())
+              VALUES (@userId, @roleId, GETDATE());
+              SELECT 1 as assigned;
+            END
+            ELSE
+            BEGIN
+              SELECT 0 as assigned;
             END
           `);
 
-        console.log('✅ Default role assigned to SSO user:', userId);
+        const wasAssigned = assignResult.recordset[0]?.assigned === 1;
+        console.log(`✅ SSO user role assignment - User: ${userId}, Role: ${roleId}, Assigned: ${wasAssigned}`);
       }
+    } else {
+      console.log('ℹ️ SSO user already has permissions:', userId);
     }
   } catch (error) {
     console.error('⚠️ Error assigning default permissions:', error.message);
+    console.error('Stack:', error.stack);
     // Continue even if assignment fails
   }
 }
