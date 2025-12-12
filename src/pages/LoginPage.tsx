@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, LogIn, CreditCard, Lock } from "lucide-react";
@@ -16,6 +16,25 @@ const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const { initializeSession } = useSession();
   const navigate = useNavigate();
+
+  // Handle autofill styling
+  useEffect(() => {
+    const handleAutofill = () => {
+      const inputs = document.querySelectorAll('input[type="text"], input[type="password"]') as NodeListOf<HTMLInputElement>;
+      inputs.forEach(input => {
+        const style = window.getComputedStyle(input);
+        // Force recompute styles for autofilled inputs
+        if (input.value) {
+          input.style.backgroundColor = 'transparent !important';
+          input.style.WebkitTextFillColor = '#ffffff';
+        }
+      });
+    };
+
+    // Listen for autofill
+    const timerId = setInterval(handleAutofill, 100);
+    return () => clearInterval(timerId);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
