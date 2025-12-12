@@ -64,7 +64,7 @@ const LoginPage: React.FC = () => {
 
       {/* Login Container */}
       <div 
-        className="w-full max-w-2xl rounded-2xl overflow-hidden p-10 relative z-10"
+        className="w-full max-w-lg rounded-2xl overflow-hidden p-10 relative z-10"
         style={{
           background: 'linear-gradient(to bottom, #197B75, #197B75)',
           boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
