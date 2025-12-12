@@ -95,13 +95,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-      // Clear SSO token
+      // Clear IMS session data
       localStorage.removeItem('sso_token');
+      localStorage.removeItem('ims_session');
       
-      // Redirect to DS login page
-      const dsLoginUrl = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
-      console.log('🔐 Redirecting to Digital System login:', dsLoginUrl);
-      window.location.href = dsLoginUrl;
+      // Do NOT redirect to DS - just clear IMS session
+      // User stays logged in to DS and can access IMS again if needed
+      console.log('✅ IMS session cleared - user still logged in to DS');
     }
   };
 

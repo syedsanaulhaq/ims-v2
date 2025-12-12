@@ -10,20 +10,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession } from '@/contexts/SessionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const UserProfileDropdown: React.FC = () => {
   const { user } = useSession();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
-      // Redirect to DS login page
-      const dsLoginUrl = import.meta.env.VITE_DS_LOGIN_URL || 'http://172.20.150.34/Account/Login';
-      window.location.href = dsLoginUrl;
+      // Logout from IMS only (clears IMS session)
+      await logout();
+      // Redirect to IMS login page
+      navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
+      navigate('/login');
     }
   };
 
@@ -124,6 +128,17 @@ const UserProfileDropdown: React.FC = () => {
               Admin Settings
             </DropdownMenuItem>
           )}
+
+          <DropdownMenuSeparator />
+
+          {/* Logout */}
+          <DropdownMenuItem
+            onClick={handleLogout}
+            className="cursor-pointer text-red-600 hover:text-red-700"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout from IMS
+          </DropdownMenuItem>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
