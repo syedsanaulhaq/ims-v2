@@ -49,72 +49,72 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #0d8b81 0%, #0a6e68 100%)' }} >
-      {/* Background image overlay */}
-      <div 
-        className="absolute inset-0 opacity-10 bg-no-repeat bg-cover bg-center"
-        style={{
-          backgroundImage: 'url("data:image/svg+xml,%3Csvg width="1200" height="600" xmlns="http://www.w3.org/2000/svg"%3E%3Cdefs%3E%3Cpattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"%3E%3Cpath d="M 40 0 L 0 0 0 40" fill="none" stroke="white" stroke-width="0.5"/%3E%3C/pattern%3E%3C/defs%3E%3Crect width="1200" height="600" fill="url(%23grid)" /%3E%3C/svg%3E")'
-        }}
-      />
-
-      {/* Content */}
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <Card className="bg-white border-0 shadow-2xl overflow-hidden rounded-2xl">
-            <CardContent className="p-0">
-              {/* Header Section with Teal Background */}
-              <div className="text-center py-12 px-8" style={{ background: 'linear-gradient(135deg, #0d8b81 0%, #0a6e68 100%)' }}>
-                {/* Logo */}
-                <div className="flex justify-center mb-6">
-                  <div className="relative w-20 h-20">
-                    <img 
-                      src="/ecp-logo-small.png" 
-                      alt="ECP Logo"
-                      className="w-full h-full object-contain filter drop-shadow-lg"
-                    />
-                  </div>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, rgba(13, 139, 129, 0.1) 0%, rgba(10, 110, 104, 0.1) 100%), url("data:image/svg+xml,%3Csvg width="1200" height="600" xmlns="http://www.w3.org/2000/svg"%3E%3Cdefs%3E%3Cpattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"%3E%3Cpath d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" stroke-width="0.5"/%3E%3C/pattern%3E%3C/defs%3E%3Crect width="1200" height="600" fill="url(%23grid)" /%3E%3C/svg%3E")' }}>
+      <div className="w-full max-w-sm">
+        <Card className="bg-teal-700 border-0 shadow-2xl overflow-hidden rounded-xl" style={{ backgroundColor: '#0d8b81' }}>
+          <CardContent className="p-0">
+            {/* Header Section with Teal Background */}
+            <div className="text-center py-10 px-8">
+              {/* Logo */}
+              <div className="flex justify-center mb-6">
+                <div className="relative w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg">
+                  <img 
+                    src="/ecp-logo-small.png" 
+                    alt="ECP Logo"
+                    className="w-20 h-20 object-contain"
+                  />
                 </div>
-                
-                {/* Title */}
-                <h1 className="text-white text-lg font-bold mb-2 leading-tight">
-                  Welcome to ECP
-                </h1>
-                <h2 className="text-white text-lg font-bold leading-tight">
-                  INVENTORY MANAGEMENT SYSTEM
-                </h2>
               </div>
+              
+              {/* Title */}
+              <h1 className="text-white text-base font-bold mb-1 leading-snug">
+                WELCOME TO ELECTION COMMISSION OF
+              </h1>
+              <h2 className="text-white text-base font-bold leading-snug">
+                PAKISTAN DIGITAL PORTAL
+              </h2>
+            </div>
 
-              {/* Login Form */}
-              <div className="px-8 py-8">
-              <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Login Form */}
+            <div className="px-8 py-8">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Error Message */}
                 {error && (
-                  <div className="bg-red-100 border border-red-300 text-red-700 p-3 rounded-lg text-sm">
+                  <div className="bg-red-500/20 border border-red-400/30 text-white p-3 rounded-lg text-sm">
                     {error}
                   </div>
                 )}
 
                 {/* Username Field */}
                 <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M2.167 4.999C2.167 4.078 3.065 3.33 4.028 3.33h11.944c.963 0 1.861.748 1.861 1.669v10.002c0 .921-.898 1.669-1.861 1.669H4.028c-.963 0-1.861-.748-1.861-1.669V4.999z"/>
+                    </svg>
+                  </div>
                   <Input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="17301-1569872-7"
-                    className="h-12 px-4 bg-white border-b-2 border-gray-300 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-b-2 focus:border-teal-500 focus:ring-0 focus:outline-none"
+                    className="h-12 pl-12 pr-4 bg-white border-0 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-0 focus:ring-0 focus:outline-none"
                     required
                   />
                 </div>
 
                 {/* Password Field */}
                 <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/>
+                    </svg>
+                  </div>
                   <Input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••"
-                    className="h-12 px-4 bg-white border-b-2 border-gray-300 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-b-2 focus:border-teal-500 focus:ring-0 focus:outline-none"
+                    className="h-12 pl-12 pr-12 bg-white border-0 text-gray-900 placeholder-gray-500 rounded-none focus:bg-white focus:border-0 focus:ring-0 focus:outline-none"
                     required
                   />
                   <button
@@ -132,9 +132,9 @@ const LoginPage: React.FC = () => {
                     id="remember"
                     checked={rememberMe}
                     onCheckedChange={(checked) => setRememberMe(checked === true)}
-                    className="border-gray-300 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                    className="border-white/50 data-[state=checked]:bg-white data-[state=checked]:border-white"
                   />
-                  <label htmlFor="remember" className="text-gray-700 text-sm font-medium cursor-pointer">
+                  <label htmlFor="remember" className="text-white text-sm font-medium cursor-pointer">
                     Remember me
                   </label>
                 </div>
@@ -142,7 +142,7 @@ const LoginPage: React.FC = () => {
                 {/* Login Button */}
                 <Button 
                   type="submit" 
-                  className="w-full h-12 bg-white text-teal-700 hover:bg-gray-100 font-bold rounded-full transition-all duration-200 shadow-lg hover:shadow-xl mt-4"
+                  className="w-full h-12 bg-white text-teal-700 hover:bg-gray-100 font-semibold rounded-full transition-all duration-200 shadow-lg hover:shadow-xl mt-4"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -151,7 +151,10 @@ const LoginPage: React.FC = () => {
                       <span>Signing in...</span>
                     </div>
                   ) : (
-                    <span>Login</span>
+                    <div className="flex items-center justify-center space-x-2">
+                      <LogIn className="h-4 w-4" />
+                      <span>Login</span>
+                    </div>
                   )}
                 </Button>
               </form>
@@ -165,10 +168,9 @@ const LoginPage: React.FC = () => {
                   <p><strong>Example:</strong> 4130423170445</p>
                 </div>
               </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
