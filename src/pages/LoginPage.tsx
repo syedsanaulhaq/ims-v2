@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, CreditCard, Lock } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useSession } from '@/contexts/SessionContext';
 
@@ -99,7 +99,8 @@ const LoginPage: React.FC = () => {
           )}
 
           {/* Username Field */}
-          <div className="relative border-b-2 border-white">
+          <div className="relative border-b-2 border-white flex items-center gap-3">
+            <CreditCard className="h-5 w-5 text-white flex-shrink-0" />
             <input
               type="text"
               value={username}
@@ -115,7 +116,8 @@ const LoginPage: React.FC = () => {
           </div>
 
           {/* Password Field */}
-          <div className="relative border-b-2 border-white">
+          <div className="relative border-b-2 border-white flex items-center gap-3">
+            <Lock className="h-5 w-5 text-white flex-shrink-0" />
             <input
               type={showPassword ? "text" : "password"}
               value={password}
@@ -131,7 +133,7 @@ const LoginPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-0 bottom-2 text-white hover:text-white/80 transition-colors"
+              className="text-white hover:text-white/80 transition-colors flex-shrink-0"
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
