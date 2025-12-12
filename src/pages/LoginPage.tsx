@@ -49,7 +49,7 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#1ea59e' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#f3f3f3' }}>
       <div className="w-full max-w-2xl">
         <Card className="border-0 shadow-2xl overflow-hidden rounded-lg" style={{ backgroundColor: '#1ea59e' }}>
           <CardContent className="p-0">
