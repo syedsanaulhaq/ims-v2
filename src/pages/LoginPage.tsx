@@ -74,7 +74,7 @@ const LoginPage: React.FC = () => {
         <div className="flex justify-center mb-8">
           <div 
             className="w-32 h-32 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: '#fff' }}
+            style={{ backgroundColor: '#20ad6b' }}
           >
             <img 
               src="/ecp logo png white.png" 
