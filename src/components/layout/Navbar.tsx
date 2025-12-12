@@ -20,16 +20,14 @@ const Navbar = () => {
 
   const handleBackToDS = async () => {
     try {
-      // Logout from IMS before going back to DS
+      // Logout from IMS to clear session
       await logout();
-      // Small delay to ensure logout is processed
-      setTimeout(() => {
-        window.location.href = 'http://ds.ecp.gov.pk';
-      }, 300);
+      // Close the IMS tab - focus will return to DS tab
+      window.close();
     } catch (error) {
       console.error('Error during logout:', error);
-      // Redirect anyway if logout fails
-      window.location.href = 'http://ds.ecp.gov.pk';
+      // Close the tab anyway
+      window.close();
     }
   };
 
