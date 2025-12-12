@@ -505,6 +505,10 @@ app.get('/sso-login', async (req, res) => {
 
     // Create session
     req.session.userId = userId;
+    
+    // Fetch IMS roles and permissions for SSO user
+    const imsData = await getUserImsData(userId);
+    
     req.session.user = {
       Id: userId,
       FullName: userName,
@@ -515,11 +519,16 @@ app.get('/sso-login', async (req, res) => {
       intWingID: wingId,
       intBranchID: branchId,
       intDesignationID: designationId,
-      sso_login: true // Mark this as SSO login
+      sso_login: true, // Mark this as SSO login
+      ims_roles: imsData?.roles || [],
+      ims_permissions: imsData?.permissions || [],
+      is_super_admin: imsData?.is_super_admin || false
     };
 
     console.log('✅ Session created for user:', userName);
     console.log('🔑 Session ID:', req.sessionID);
+    console.log('📋 IMS Roles loaded:', imsData?.roles?.length || 0);
+    console.log('🔐 IMS Permissions loaded:', imsData?.permissions?.length || 0);
 
     // Redirect to IMS application with success
     const imsUrl = 'http://172.20.150.34'; // IMS frontend URL
