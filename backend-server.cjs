@@ -274,7 +274,74 @@ const requireSuperAdmin = (req, res, next) => {
   };
 
   checkSuperAdmin();
-};// Get user's IMS roles and permissions
+};
+
+// Assign default permissions to new SSO users
+async function assignDefaultPermissionsToSSOUser(userId) {
+  if (!pool) return;
+
+  try {
+    // Check if user already has permissions
+    const checkResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT COUNT(*) as count
+        FROM vw_ims_user_permissions
+        WHERE user_id = @userId
+      `);
+
+    const hasPermissions = checkResult.recordset[0]?.count > 0;
+
+    if (!hasPermissions) {
+      console.log('📋 Assigning default permissions to SSO user:', userId);
+
+      // Get or create a default "General User" role if it doesn't exist
+      const roleResult = await pool.request()
+        .query(`
+          SELECT id FROM ims_roles 
+          WHERE role_name = 'General User' AND is_active = 1
+          LIMIT 1
+        `);
+
+      let roleId;
+      if (roleResult.recordset.length > 0) {
+        roleId = roleResult.recordset[0].id;
+      } else {
+        // Create General User role if it doesn't exist
+        const createRoleResult = await pool.request()
+          .query(`
+            INSERT INTO ims_roles (role_name, display_name, description, is_active, scope_type, created_at)
+            VALUES ('General User', 'General User', 'Default role for general users', 1, 'organization', GETDATE())
+            SELECT SCOPE_IDENTITY() as id
+          `);
+        roleId = createRoleResult.recordset[0]?.id;
+      }
+
+      if (roleId) {
+        // Assign role to user
+        await pool.request()
+          .input('userId', sql.NVarChar(450), userId)
+          .input('roleId', sql.UniqueIdentifier, roleId)
+          .query(`
+            IF NOT EXISTS (
+              SELECT 1 FROM user_roles WHERE user_id = @userId AND role_id = @roleId
+            )
+            BEGIN
+              INSERT INTO user_roles (user_id, role_id, assigned_at)
+              VALUES (@userId, @roleId, GETDATE())
+            END
+          `);
+
+        console.log('✅ Default role assigned to SSO user:', userId);
+      }
+    }
+  } catch (error) {
+    console.error('⚠️ Error assigning default permissions:', error.message);
+    // Continue even if assignment fails
+  }
+}
+
+// Get user's IMS roles and permissions
 async function getUserImsData(userId) {
   if (!pool) return null;
 
@@ -505,6 +572,9 @@ app.get('/sso-login', async (req, res) => {
 
     // Create session
     req.session.userId = userId;
+    
+    // Assign default permissions to new SSO users if they don't have any
+    await assignDefaultPermissionsToSSOUser(userId);
     
     // Fetch IMS roles and permissions for SSO user
     const imsData = await getUserImsData(userId);
