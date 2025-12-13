@@ -436,7 +436,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
                     </label>
                   </div>
-                  </div>
                 </div>
               );
               })
