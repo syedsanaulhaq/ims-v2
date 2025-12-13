@@ -212,8 +212,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const submitDecisions = async () => {
-    if (!request || !approverName) {
-      setError('Please enter your name before submitting');
+    if (!request) {
+      setError('Approval request not loaded');
       return;
     }
 
@@ -264,8 +264,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          approver_name: approverName,
-          approver_designation: approverDesignation,
+          approver_name: approverName || 'System',
+          approver_designation: approverDesignation || 'Wing Supervisor',
           approval_comments: approvalComments,
           item_allocations: itemAllocations
         })
@@ -316,57 +316,22 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           <CardTitle className="text-lg">Request Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-xs text-gray-600 font-medium">Request Number</div>
-              <div className="font-semibold">{request.request_number}</div>
+              <div className="font-semibold">{request?.request_number || request?.id || 'N/A'}</div>
             </div>
             <div>
               <div className="text-xs text-gray-600 font-medium">Requester</div>
-              <div className="font-semibold">{request.requester_name}</div>
+              <div className="font-semibold">{request?.submitted_by_name || request?.requester_name || 'N/A'}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-600 font-medium">Department</div>
-              <div className="font-semibold">{request.requester_department || 'N/A'}</div>
+              <div className="text-xs text-gray-600 font-medium">Request Type</div>
+              <div className="font-semibold">{request?.request_type || 'N/A'}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-600 font-medium">Urgency</div>
-              <Badge className="text-xs" variant="outline">{request.urgency_level}</Badge>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-600 font-medium mb-1">Purpose</div>
-            <p className="text-sm text-gray-700">{request.purpose}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Approver Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Your Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="approverName" className="text-xs">Your Name *</Label>
-              <Input
-                id="approverName"
-                value={approverName}
-                onChange={(e) => setApproverName(e.target.value)}
-                placeholder="Enter your name"
-                className="h-9"
-              />
-            </div>
-            <div>
-              <Label htmlFor="approverDesignation" className="text-xs">Designation</Label>
-              <Input
-                id="approverDesignation"
-                value={approverDesignation}
-                onChange={(e) => setApproverDesignation(e.target.value)}
-                placeholder="Your designation"
-                className="h-9"
-              />
+              <div className="text-xs text-gray-600 font-medium">Status</div>
+              <Badge className="text-xs" variant="outline">{request?.current_status || 'N/A'}</Badge>
             </div>
           </div>
         </CardContent>
@@ -401,102 +366,77 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     )}
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {/* Option 1 */}
-                    <label className={`p-3 border rounded cursor-pointer transition ${
+                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'approve_wing'
                         ? 'bg-green-100 border-green-500'
                         : 'bg-white border-gray-200 hover:border-green-400'
                     } ${!inWing ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'approve_wing'}
-                          onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
-                          disabled={!inWing}
-                          className="mt-1"
-                        />
-                        <div>
-                          <div className="font-medium text-green-700">✓ Approve & Provide from Wing</div>
-                          <div className="text-xs text-gray-600">Deduct from wing and allocate immediately</div>
-                        </div>
-                      </div>
+                      <input
+                        type="radio"
+                        name={`decision-${itemId}`}
+                        checked={decision?.decision === 'approve_wing'}
+                        onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
+                        disabled={!inWing}
+                        className="mb-2"
+                      />
+                      <div className="text-sm font-medium text-green-700">✓ Approve</div>
+                      <div className="text-xs text-gray-600 mt-1">From Wing</div>
                     </label>
 
                     {/* Option 2 */}
-                    <label className={`p-3 border rounded cursor-pointer transition ${
+                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'forward_admin'
                         ? 'bg-amber-100 border-amber-500'
                         : 'bg-white border-gray-200 hover:border-amber-400'
                     }`}>
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'forward_admin'}
-                          onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
-                          className="mt-1"
-                        />
-                        <div>
-                          <div className="font-medium text-amber-700">⏭ Forward to Admin</div>
-                          <div className="text-xs text-gray-600">Send to admin warehouse for approval</div>
-                        </div>
-                      </div>
+                      <input
+                        type="radio"
+                        name={`decision-${itemId}`}
+                        checked={decision?.decision === 'forward_admin'}
+                        onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
+                        className="mb-2"
+                      />
+                      <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
+                      <div className="text-xs text-gray-600 mt-1">To Admin</div>
                     </label>
 
                     {/* Option 3 */}
-                    <label className={`p-3 border rounded cursor-pointer transition ${
+                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'forward_supervisor'
                         ? 'bg-blue-100 border-blue-500'
                         : 'bg-white border-gray-200 hover:border-blue-400'
                     }`}>
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'forward_supervisor'}
-                          onChange={() => setItemDecision(itemId, 'forward_supervisor', getItemQuantity(item))}
-                          className="mt-1"
-                        />
-                        <div>
-                          <div className="font-medium text-blue-700">↗ Forward to Supervisor</div>
-                          <div className="text-xs text-gray-600">Send to supervisor level for approval</div>
-                        </div>
-                      </div>
+                      <input
+                        type="radio"
+                        name={`decision-${itemId}`}
+                        checked={decision?.decision === 'forward_supervisor'}
+                        onChange={() => setItemDecision(itemId, 'forward_supervisor', getItemQuantity(item))}
+                        className="mb-2"
+                      />
+                      <div className="text-sm font-medium text-blue-700">↗ Forward</div>
+                      <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
                     </label>
 
                     {/* Option 4 */}
-                    <label className={`p-3 border rounded cursor-pointer transition ${
+                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'reject'
                         ? 'bg-red-100 border-red-500'
                         : 'bg-white border-gray-200 hover:border-red-400'
                     }`}>
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'reject'}
-                          onChange={() => setItemDecision(itemId, 'reject', 0)}
-                          className="mt-1"
-                        />
-                        <div>
-                          <div className="font-medium text-red-700">✗ Reject</div>
-                          <div className="text-xs text-gray-600">Don't allocate this item</div>
-                        </div>
-                      </div>
+                      <input
+                        type="radio"
+                        name={`decision-${itemId}`}
+                        checked={decision?.decision === 'reject'}
+                        onChange={() => setItemDecision(itemId, 'reject', 0)}
+                        className="mb-2"
+                      />
+                      <div className="text-sm font-medium text-red-700">✗ Reject</div>
+                      <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
                     </label>
                   </div>
-
-                  {decision?.decision && (
-                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                      <strong>Decision: </strong>
-                      {decision.decision === 'approve_wing' && '✓ Approve from Wing'}
-                      {decision.decision === 'forward_admin' && '⏭ Forward to Admin'}
-                      {decision.decision === 'forward_supervisor' && '↗ Forward to Supervisor'}
-                      {decision.decision === 'reject' && '✗ Reject'}
-                    </div>
-                  )}
+                  </div>
                 </div>
               );
               })
@@ -508,47 +448,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             )}
           </div>
 
-          {/* Decision Summary */}
-          <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded">
-            <div className="text-sm font-medium text-gray-900 mb-2">Decision Summary:</div>
-            <div className="grid grid-cols-5 gap-2 text-xs">
-              <div className="bg-green-100 p-2 rounded text-center">
-                <div className="font-bold text-green-900">{summary.approveWing}</div>
-                <div className="text-gray-600 text-xs">Wing</div>
-              </div>
-              <div className="bg-amber-100 p-2 rounded text-center">
-                <div className="font-bold text-amber-900">{summary.forwardAdmin}</div>
-                <div className="text-gray-600 text-xs">Admin</div>
-              </div>
-              <div className="bg-blue-100 p-2 rounded text-center">
-                <div className="font-bold text-blue-900">{summary.forwardSupervisor}</div>
-                <div className="text-gray-600 text-xs">Supv</div>
-              </div>
-              <div className="bg-red-100 p-2 rounded text-center">
-                <div className="font-bold text-red-900">{summary.reject}</div>
-                <div className="text-gray-600 text-xs">Reject</div>
-              </div>
-              <div className="bg-gray-100 p-2 rounded text-center">
-                <div className="font-bold text-gray-900">{summary.undecided}</div>
-                <div className="text-gray-600 text-xs">Decide</div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Comments */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Comments (Optional)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={approvalComments}
-            onChange={(e) => setApprovalComments(e.target.value)}
-            placeholder="Add any comments about your decisions..."
-            rows={3}
-          />
         </CardContent>
       </Card>
 
@@ -571,7 +470,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       <div className="flex gap-2">
         <Button
           onClick={submitDecisions}
-          disabled={submitting || !approverName || !hasDecisionForAllItems()}
+          disabled={submitting || !hasDecisionForAllItems()}
           className="flex-1 bg-green-600 hover:bg-green-700"
         >
           {submitting ? <LoadingSpinner /> : <CheckCircle className="w-4 h-4 mr-1" />}
