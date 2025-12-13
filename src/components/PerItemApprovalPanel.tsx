@@ -78,6 +78,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
   const [stockCheckLoading, setStockCheckLoading] = useState(false);
   const [stockAvailable, setStockAvailable] = useState<number>(0);
+  const [wingConfirmItem, setWingConfirmItem] = useState<any>(null);
+  const [wingConfirmLoading, setWingConfirmLoading] = useState(false);
+  const [wingStockAvailable, setWingStockAvailable] = useState<number>(0);
+  const [confirmationStatus, setConfirmationStatus] = useState<'pending' | 'confirmed' | 'rejected' | null>(null);
 
   useEffect(() => {
     loadApprovalRequest();
@@ -333,9 +337,41 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     }
   };
 
-  const confirmWingStock = (itemId: string) => {
-    console.log('✓ Wing stock confirmed for item:', itemId);
-    // Can add visual feedback here
+  const confirmWingStock = async (item: any) => {
+    setWingConfirmItem(item);
+    setWingConfirmLoading(true);
+    setConfirmationStatus('pending');
+    try {
+      // Fetch wing stock from inventory
+      const itemMasterId = item.item_master_id || item.id;
+      const response = await fetch(`http://localhost:3001/api/inventory/stock/${itemMasterId}`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const available = data.available_quantity || data.quantity || 0;
+        setWingStockAvailable(available);
+        console.log('✓ Wing stock:', available);
+      } else {
+        setWingStockAvailable(0);
+      }
+    } catch (err) {
+      console.error('Error fetching wing stock:', err);
+      setWingStockAvailable(0);
+    } finally {
+      setWingConfirmLoading(false);
+    }
+  };
+
+  const handleConfirmWing = () => {
+    setConfirmationStatus('confirmed');
+    console.log('✓ Wing stock confirmed for item:', getItemId(wingConfirmItem));
+  };
+
+  const handleRejectWing = () => {
+    setConfirmationStatus('rejected');
+    console.log('✗ Wing stock rejected for item:', getItemId(wingConfirmItem));
   };
 
   if (!request) {
@@ -417,7 +453,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                         size="sm" 
                         variant="outline" 
                         className="text-xs"
-                        onClick={() => confirmWingStock(itemId)}
+                        onClick={() => confirmWingStock(item)}
                       >
                         ✓ Confirm from Wing Stock
                       </Button>
@@ -588,6 +624,106 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             >
               Close
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Wing Stock Confirmation Modal */}
+      <Dialog open={!!wingConfirmItem} onOpenChange={(open) => !open && setWingConfirmItem(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Wing Stock Availability</DialogTitle>
+          </DialogHeader>
+          
+          {wingConfirmItem && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Item Name</div>
+                  <div className="font-semibold">{getItemName(wingConfirmItem)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Item Code</div>
+                  <div className="font-semibold">{wingConfirmItem.item_code || 'N/A'}</div>
+                </div>
+                
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Requested Qty</div>
+                  <div className="font-semibold">{getItemQuantity(wingConfirmItem)} {wingConfirmItem.unit || 'units'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Wing Stock Available</div>
+                  {wingConfirmLoading ? (
+                    <div className="text-xs"><LoadingSpinner size="sm" className="inline" /> Loading...</div>
+                  ) : (
+                    <div className={`font-bold ${wingStockAvailable >= getItemQuantity(wingConfirmItem) ? 'text-green-600' : 'text-red-600'}`}>
+                      {wingStockAvailable} {wingConfirmItem.unit || 'units'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Wing Stock Status */}
+              <div className="mt-4 p-3 rounded-lg border-2">
+                {confirmationStatus === 'pending' && (
+                  <div className="bg-yellow-50 border-yellow-200">
+                    {wingStockAvailable >= getItemQuantity(wingConfirmItem) ? (
+                      <div className="text-sm text-yellow-700">
+                        <strong>⚠ Pending Confirmation</strong> - {wingStockAvailable} units available in wing (Requested: {getItemQuantity(wingConfirmItem)})
+                      </div>
+                    ) : (
+                      <div className="text-sm text-red-700">
+                        <strong>✗ Insufficient Wing Stock</strong> - Only {wingStockAvailable} units available in wing (Requested: {getItemQuantity(wingConfirmItem)})
+                      </div>
+                    )}
+                  </div>
+                )}
+                {confirmationStatus === 'confirmed' && (
+                  <div className="bg-green-50 border-green-200 text-sm text-green-700">
+                    <strong>✓ Confirmed</strong> - Wing stock availability has been confirmed by supervisor
+                  </div>
+                )}
+                {confirmationStatus === 'rejected' && (
+                  <div className="bg-red-50 border-red-200 text-sm text-red-700">
+                    <strong>✗ Rejected</strong> - Wing stock availability could not be confirmed
+                  </div>
+                )}
+              </div>
+
+              <div className="text-xs text-gray-600">
+                <p><strong>Note:</strong> As wing supervisor, please confirm the stock availability for this item.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-4">
+            {confirmationStatus !== 'confirmed' && confirmationStatus !== 'rejected' && (
+              <>
+                <Button 
+                  onClick={handleConfirmWing}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={wingConfirmLoading}
+                >
+                  ✓ Confirm Stock
+                </Button>
+                <Button 
+                  onClick={handleRejectWing}
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={wingConfirmLoading}
+                >
+                  ✗ Reject Stock
+                </Button>
+              </>
+            )}
+            {(confirmationStatus === 'confirmed' || confirmationStatus === 'rejected') && (
+              <Button 
+                onClick={() => setWingConfirmItem(null)} 
+                className="flex-1"
+              >
+                Close
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
