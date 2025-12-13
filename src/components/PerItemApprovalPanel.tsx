@@ -79,7 +79,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to load approval');
-      const data = await response.json();
+      const responseData = await response.json();
+      
+      // Extract data from wrapper if present
+      let data = responseData.data || responseData;
       
       console.log('🔍 API Response from /api/approvals/{id}:', JSON.stringify(data, null, 2));
       console.log('🔍 Response keys:', Object.keys(data));
@@ -110,7 +113,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             credentials: 'include'
           });
           if (itemsResponse.ok) {
-            const itemsData = await itemsResponse.json();
+            const itemsDataWrapper = await itemsResponse.json();
+            const itemsData = itemsDataWrapper.data || itemsDataWrapper;
+            
             console.log('✅ Fetched from /api/approval-items:', JSON.stringify(itemsData, null, 2));
             console.log('✅ itemsData type:', typeof itemsData, 'Array?:', Array.isArray(itemsData));
             console.log('✅ itemsData keys:', Object.keys(itemsData));
@@ -296,6 +301,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   }
 
   const summary = getDecisionSummary();
+  
+  const getItemDecision = (itemId: string): ItemDecision | undefined => {
+    return itemDecisions.get(itemId);
+  };
+  
   const isInWing = (item: RequestItem) => item.stock_status === 'sufficient';
 
   return (
