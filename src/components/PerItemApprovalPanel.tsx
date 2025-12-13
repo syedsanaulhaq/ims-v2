@@ -6,6 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { CheckCircle, AlertCircle, Package } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import approvalService from '@/services/approvalService';
@@ -68,8 +75,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
   
   // Stock check state
-  const [selectedItemForStock, setSelectedItemForStock] = useState<string | null>(null);
+  const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
   const [stockCheckLoading, setStockCheckLoading] = useState(false);
+  const [stockAvailable, setStockAvailable] = useState<number>(0);
 
   useEffect(() => {
     loadApprovalRequest();
@@ -299,8 +307,30 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     );
   }
 
-  const checkStockAvailability = (itemId: string) => {
-    setSelectedItemForStock(itemId);
+  const checkStockAvailability = async (item: any) => {
+    setSelectedItemForStock(item);
+    setStockCheckLoading(true);
+    try {
+      // Fetch actual stock from inventory
+      const itemMasterId = item.item_master_id || item.id;
+      const response = await fetch(`http://localhost:3001/api/inventory/stock/${itemMasterId}`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const available = data.available_quantity || data.quantity || 0;
+        setStockAvailable(available);
+        console.log('✓ Stock available:', available);
+      } else {
+        setStockAvailable(0);
+      }
+    } catch (err) {
+      console.error('Error fetching stock:', err);
+      setStockAvailable(0);
+    } finally {
+      setStockCheckLoading(false);
+    }
   };
 
   const confirmWingStock = (itemId: string) => {
@@ -379,7 +409,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                         size="sm" 
                         variant="outline" 
                         className="text-xs"
-                        onClick={() => checkStockAvailability(itemId)}
+                        onClick={() => checkStockAvailability(item)}
                       >
                         🔍 Check Stock Availability
                       </Button>
@@ -477,63 +507,90 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         </CardContent>
       </Card>
 
-      {/* Stock Details */}
-      {selectedItemForStock && request?.items && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span>Stock Details</span>
-              <button 
-                onClick={() => setSelectedItemForStock(null)}
-                className="text-gray-500 hover:text-gray-700 text-lg"
-              >
-                ✕
-              </button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const selectedItem = request.items?.find(item => getItemId(item) === selectedItemForStock);
-              if (!selectedItem) return null;
-              
-              return (
-                <div className="space-y-3 text-sm">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Item Name</div>
-                      <div className="font-semibold">{getItemName(selectedItem)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Item Code</div>
-                      <div className="font-semibold">{selectedItem.item_code || 'N/A'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Requested Qty</div>
-                      <div className="font-semibold">{getItemQuantity(selectedItem)} {selectedItem.unit || 'units'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Approved Qty</div>
-                      <div className="font-semibold">{selectedItem.approved_quantity || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Issued Qty</div>
-                      <div className="font-semibold">{selectedItem.issued_quantity || '0'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Status</div>
-                      <div className="font-semibold">{selectedItem.item_status || 'pending'}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-600 font-medium mb-1">Description</div>
-                    <p className="text-gray-700">{selectedItem.item_description || 'No description'}</p>
-                  </div>
+      {/* Stock Details Modal */}
+      <Dialog open={!!selectedItemForStock} onOpenChange={(open) => !open && setSelectedItemForStock(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Stock Availability Details</DialogTitle>
+          </DialogHeader>
+          
+          {selectedItemForStock && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Item Name</div>
+                  <div className="font-semibold">{getItemName(selectedItemForStock)}</div>
                 </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      )}
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Item Code</div>
+                  <div className="font-semibold">{selectedItemForStock.item_code || 'N/A'}</div>
+                </div>
+                
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Requested Qty</div>
+                  <div className="font-semibold">{getItemQuantity(selectedItemForStock)} {selectedItemForStock.unit || 'units'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Stock Available</div>
+                  {stockCheckLoading ? (
+                    <div className="text-xs"><LoadingSpinner size="sm" className="inline" /> Loading...</div>
+                  ) : (
+                    <div className={`font-bold ${stockAvailable >= getItemQuantity(selectedItemForStock) ? 'text-green-600' : 'text-red-600'}`}>
+                      {stockAvailable} {selectedItemForStock.unit || 'units'}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Approved Qty</div>
+                  <div className="font-semibold">{selectedItemForStock.approved_quantity || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Issued Qty</div>
+                  <div className="font-semibold">{selectedItemForStock.issued_quantity || '0'}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Status</div>
+                  <div className="font-semibold">{selectedItemForStock.item_status || 'pending'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Returnable</div>
+                  <div className="font-semibold">{selectedItemForStock.is_returnable ? 'Yes' : 'No'}</div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs text-gray-600 font-medium mb-1">Description</div>
+                <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">{selectedItemForStock.item_description || 'No description'}</p>
+              </div>
+
+              {/* Stock Status Badge */}
+              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                {stockAvailable >= getItemQuantity(selectedItemForStock) ? (
+                  <div className="text-sm text-green-700">
+                    <strong>✓ Stock Available</strong> - {stockAvailable} units in stock (Requested: {getItemQuantity(selectedItemForStock)})
+                  </div>
+                ) : (
+                  <div className="text-sm text-red-700">
+                    <strong>✗ Insufficient Stock</strong> - Only {stockAvailable} units in stock (Requested: {getItemQuantity(selectedItemForStock)})
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-4">
+            <Button 
+              onClick={() => setSelectedItemForStock(null)} 
+              variant="outline"
+              className="flex-1"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Messages */}
       {error && (
