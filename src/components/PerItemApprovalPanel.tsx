@@ -97,7 +97,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       }
       
       // If still no items but we have item_ids, we need to fetch them separately
-      if (!data.items || data.items.length === 0) {
+      if (!data.items || (Array.isArray(data.items) && data.items.length === 0) || !Array.isArray(data.items)) {
         console.warn('⚠️ No items found in response, fetching from approval items endpoint');
         try {
           const itemsResponse = await fetch(`http://localhost:3001/api/approval-items/${approvalId}`, {
@@ -106,11 +106,29 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           if (itemsResponse.ok) {
             const itemsData = await itemsResponse.json();
             console.log('✅ Fetched approval items:', itemsData);
-            data.items = itemsData || [];
+            // Handle if response is an array or object with items property
+            if (Array.isArray(itemsData)) {
+              data.items = itemsData;
+            } else if (itemsData?.items && Array.isArray(itemsData.items)) {
+              data.items = itemsData.items;
+            } else if (itemsData?.approval_items && Array.isArray(itemsData.approval_items)) {
+              data.items = itemsData.approval_items;
+            } else if (itemsData?.request_items && Array.isArray(itemsData.request_items)) {
+              data.items = itemsData.request_items;
+            } else {
+              data.items = [];
+            }
           }
         } catch (err) {
           console.error('Failed to fetch approval items:', err);
+          data.items = [];
         }
+      }
+      
+      // Ensure items is always an array
+      if (!Array.isArray(data.items)) {
+        console.warn('⚠️ items is not an array, converting:', data.items);
+        data.items = [];
       }
       
       console.log('✅ Loaded approval request with items:', data.items?.length || 0);
@@ -151,7 +169,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const hasDecisionForAllItems = (): boolean => {
-    if (!request || !request.items || request.items.length === 0) return false;
+    if (!request || !request.items || !Array.isArray(request.items) || request.items.length === 0) return false;
     return request.items.every(item => getItemDecision(getItemId(item))?.decision !== null);
   };
 
