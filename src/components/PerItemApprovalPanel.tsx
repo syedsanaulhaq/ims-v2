@@ -81,41 +81,58 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       if (!response.ok) throw new Error('Failed to load approval');
       const data = await response.json();
       
-      console.log('🔍 API Response:', data);
+      console.log('🔍 API Response from /api/approvals/{id}:', JSON.stringify(data, null, 2));
+      console.log('🔍 Response keys:', Object.keys(data));
+      console.log('🔍 data.items type:', typeof data.items, 'Array?:', Array.isArray(data.items));
       
       // Ensure items array exists - try multiple possible field names
       if (!data.items) {
         if (data.approval_items) {
+          console.log('ℹ️ Using data.approval_items');
           data.items = data.approval_items;
         } else if (data.request_items) {
+          console.log('ℹ️ Using data.request_items');
           data.items = data.request_items;
         } else if (data.item_list) {
+          console.log('ℹ️ Using data.item_list');
           data.items = data.item_list;
         } else {
+          console.log('ℹ️ No items field found, initializing empty array');
           data.items = [];
         }
       }
       
       // If still no items but we have item_ids, we need to fetch them separately
       if (!data.items || (Array.isArray(data.items) && data.items.length === 0) || !Array.isArray(data.items)) {
-        console.warn('⚠️ No items found in response, fetching from approval items endpoint');
+        console.warn('⚠️ No items found in response or not an array, fetching from approval items endpoint');
         try {
           const itemsResponse = await fetch(`http://localhost:3001/api/approval-items/${approvalId}`, {
             credentials: 'include'
           });
           if (itemsResponse.ok) {
             const itemsData = await itemsResponse.json();
-            console.log('✅ Fetched approval items:', itemsData);
+            console.log('✅ Fetched from /api/approval-items:', JSON.stringify(itemsData, null, 2));
+            console.log('✅ itemsData type:', typeof itemsData, 'Array?:', Array.isArray(itemsData));
+            console.log('✅ itemsData keys:', Object.keys(itemsData));
+            
             // Handle if response is an array or object with items property
             if (Array.isArray(itemsData)) {
+              console.log('✅ Using itemsData as array directly');
               data.items = itemsData;
             } else if (itemsData?.items && Array.isArray(itemsData.items)) {
+              console.log('✅ Using itemsData.items');
               data.items = itemsData.items;
             } else if (itemsData?.approval_items && Array.isArray(itemsData.approval_items)) {
+              console.log('✅ Using itemsData.approval_items');
               data.items = itemsData.approval_items;
             } else if (itemsData?.request_items && Array.isArray(itemsData.request_items)) {
+              console.log('✅ Using itemsData.request_items');
               data.items = itemsData.request_items;
+            } else if (itemsData?.data && Array.isArray(itemsData.data)) {
+              console.log('✅ Using itemsData.data');
+              data.items = itemsData.data;
             } else {
+              console.warn('⚠️ Could not find array in itemsData, setting empty:', itemsData);
               data.items = [];
             }
           }
@@ -127,11 +144,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       
       // Ensure items is always an array
       if (!Array.isArray(data.items)) {
-        console.warn('⚠️ items is not an array, converting:', data.items);
+        console.warn('⚠️ After all processing, items is still not an array:', typeof data.items, data.items);
         data.items = [];
       }
       
-      console.log('✅ Loaded approval request with items:', data.items?.length || 0);
+      console.log('✅ FINAL: Loaded approval request with items:', data.items?.length || 0, 'items:', data.items);
       setRequest(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load approval request');
