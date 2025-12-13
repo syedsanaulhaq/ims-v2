@@ -66,6 +66,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [approverDesignation, setApproverDesignation] = useState('Wing Supervisor');
   const [approvalComments, setApprovalComments] = useState('');
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
+  
+  // Stock check state
+  const [selectedItemForStock, setSelectedItemForStock] = useState<string | null>(null);
+  const [stockCheckLoading, setStockCheckLoading] = useState(false);
 
   useEffect(() => {
     loadApprovalRequest();
@@ -295,6 +299,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     );
   }
 
+  const checkStockAvailability = (itemId: string) => {
+    setSelectedItemForStock(itemId);
+  };
+
+  const confirmWingStock = (itemId: string) => {
+    console.log('✓ Wing stock confirmed for item:', itemId);
+    // Can add visual feedback here
+  };
+
   if (!request) {
     return (
       <Alert className="border-red-200 bg-red-50">
@@ -362,10 +375,20 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     <h4 className="font-semibold text-gray-900">{getItemName(item)}</h4>
                     <p className="text-sm text-gray-600">Requested: {getItemQuantity(item)} units</p>
                     <div className="flex gap-2 mt-2">
-                      <Button size="sm" variant="outline" className="text-xs">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs"
+                        onClick={() => checkStockAvailability(itemId)}
+                      >
                         🔍 Check Stock Availability
                       </Button>
-                      <Button size="sm" variant="outline" className="text-xs">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs"
+                        onClick={() => confirmWingStock(itemId)}
+                      >
                         ✓ Confirm from Wing Stock
                       </Button>
                     </div>
@@ -453,6 +476,64 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
         </CardContent>
       </Card>
+
+      {/* Stock Details */}
+      {selectedItemForStock && request?.items && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>Stock Details</span>
+              <button 
+                onClick={() => setSelectedItemForStock(null)}
+                className="text-gray-500 hover:text-gray-700 text-lg"
+              >
+                ✕
+              </button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const selectedItem = request.items?.find(item => getItemId(item) === selectedItemForStock);
+              if (!selectedItem) return null;
+              
+              return (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-gray-600 font-medium">Item Name</div>
+                      <div className="font-semibold">{getItemName(selectedItem)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 font-medium">Item Code</div>
+                      <div className="font-semibold">{selectedItem.item_code || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 font-medium">Requested Qty</div>
+                      <div className="font-semibold">{getItemQuantity(selectedItem)} {selectedItem.unit || 'units'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 font-medium">Approved Qty</div>
+                      <div className="font-semibold">{selectedItem.approved_quantity || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 font-medium">Issued Qty</div>
+                      <div className="font-semibold">{selectedItem.issued_quantity || '0'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 font-medium">Status</div>
+                      <div className="font-semibold">{selectedItem.item_status || 'pending'}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600 font-medium mb-1">Description</div>
+                    <p className="text-gray-700">{selectedItem.item_description || 'No description'}</p>
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Messages */}
       {error && (
