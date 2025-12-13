@@ -137,7 +137,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
-      { title: "My Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "My Approvals", icon: CheckCircle, path: "/dashboard/approval-management", permission: 'approval.approve' },
     ]
   };
 
@@ -197,7 +197,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Approval Menu",
     icon: CheckCircle,
     items: [
-      { title: "My Pending Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "My Pending Approvals", icon: CheckCircle, path: "/dashboard/approval-management", permission: 'approval.approve' },
       { title: "Request History", icon: FileText, path: "/dashboard/request-history", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]

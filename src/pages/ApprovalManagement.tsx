@@ -179,7 +179,7 @@ const ApprovalManagement: React.FC = () => {
     setSelectedRequest({ ...selectedRequest, items: updatedItems });
   };
 
-  const setItemDecision = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'reject', approvedQty: number, reason?: string) => {
+  const setItemDecision = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject', approvedQty: number, reason?: string) => {
     const newDecisions = new Map(itemDecisions);
     newDecisions.set(itemId, {
       itemId,
@@ -312,12 +312,65 @@ const ApprovalManagement: React.FC = () => {
     await processApproval('approve');
   };
 
+  // Calculate summary stats
+  const approvalStats = selectedRequest ? getDecisionSummary(selectedRequest) : null;
+  const totalPending = pendingRequests.length;
+  const approvedCount = pendingRequests.filter(r => r.request_status === 'Approved').length;
+  const rejectedCount = pendingRequests.filter(r => r.request_status === 'Rejected').length;
+  const forwardedCount = pendingRequests.filter(r => r.request_status === 'Under Review').length;
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Approval Management</h1>
-          <p className="text-gray-600 mt-1">Review and approve stock issuance requests</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Header */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <h1 className="text-3xl font-bold text-gray-900">My Approvals</h1>
+          <p className="text-gray-600 mt-1">Manage requests awaiting your approval</p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Card className="border-l-4 border-l-yellow-500">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-yellow-600">{totalPending}</div>
+                <div className="text-sm text-gray-600 mt-2">Pending Approvals</div>
+                <div className="text-xs text-gray-500">Awaiting your action</div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-green-500">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-600">{approvedCount}</div>
+                <div className="text-sm text-gray-600 mt-2">Approved</div>
+                <div className="text-xs text-gray-500">Requests approved</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-red-500">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-red-600">{rejectedCount}</div>
+                <div className="text-sm text-gray-600 mt-2">Rejected</div>
+                <div className="text-xs text-gray-500">Requests rejected</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-blue-500">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">{forwardedCount}</div>
+                <div className="text-sm text-gray-600 mt-2">Forwarded</div>
+                <div className="text-xs text-gray-500">Forwarded to others</div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {success && (
@@ -334,85 +387,75 @@ const ApprovalManagement: React.FC = () => {
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Pending Requests List */}
-          <div className="lg:col-span-2">
-            <Card>
+          <div className="lg:col-span-1">
+            <Card className="h-full">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <Clock className="w-5 h-5" />
-                  Pending Approvals ({pendingRequests.length})
+                  Pending Requests
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {/* Approver Info */}
-                <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Approver Info - Minimized */}
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="approverName">Your Name *</Label>
+                      <Label htmlFor="approverName" className="text-xs">Your Name *</Label>
                       <Input
                         id="approverName"
                         value={approverName}
                         onChange={(e) => setApproverName(e.target.value)}
-                        placeholder="Enter your name"
+                        placeholder="Name"
+                        className="h-9 text-sm"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="approverDesignation">Designation</Label>
+                      <Label htmlFor="approverDesignation" className="text-xs">Designation</Label>
                       <Input
                         id="approverDesignation"
                         value={approverDesignation}
                         onChange={(e) => setApproverDesignation(e.target.value)}
-                        placeholder="Your designation/title"
+                        placeholder="Designation"
+                        className="h-9 text-sm"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Requests List */}
-                <div className="space-y-4 max-h-96 overflow-y-auto">
+                <div className="space-y-2 max-h-96 overflow-y-auto">
                   {pendingRequests.map(request => (
                     <div 
                       key={request.id} 
-                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedRequest?.id === request.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                      className={`p-3 border rounded cursor-pointer transition-colors text-sm ${
+                        selectedRequest?.id === request.id ? 'border-blue-500 bg-blue-100' : 'border-gray-200 hover:bg-gray-50'
                       }`}
                       onClick={() => setSelectedRequest(request)}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-medium">{request.request_number}</div>
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="font-semibold text-sm">{request.request_number}</div>
+                        <div className="flex items-center gap-1">
                           {getUrgencyBadge(request.urgency_level)}
-                          {getStatusBadge(request.request_status)}
                         </div>
                       </div>
                       
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <div>👤 {request.requester_name} ({request.request_type})</div>
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <div className="truncate">👤 {request.requester_name}</div>
                         <div>📦 {request.total_items} items</div>
-                        <div>📅 Submitted: {formatDateDMY(request.submitted_at)}</div>
-                        <div className="text-xs mt-2 line-clamp-2">💬 {request.purpose}</div>
+                        <div>📅 {formatDateDMY(request.submitted_at)}</div>
                       </div>
 
-                      <div className="mt-3 flex gap-2">
-                        <Button 
-                          size="sm" 
-                          onClick={(e) => { e.stopPropagation(); quickApprove(request); }}
-                          disabled={!approverName || isLoading}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Quick Approve
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          Review
-                        </Button>
-                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}
+                        className="w-full mt-2 h-8 text-xs"
+                        variant="outline"
+                      >
+                        <Eye className="w-3 h-3 mr-1" />
+                        Review
+                      </Button>
                     </div>
                   ))}
                   
@@ -428,10 +471,10 @@ const ApprovalManagement: React.FC = () => {
           </div>
 
           {/* Request Details & Approval */}
-          <div>
-            <Card>
+          <div className="lg:col-span-3">
+            <Card className="h-full">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <FileText className="w-5 h-5" />
                   Request Details
                 </CardTitle>
@@ -457,7 +500,8 @@ const ApprovalManagement: React.FC = () => {
                     </div>
 
                     {/* Items List - Separated by Type */}
-                    <div className="space-y-4">
+                    <div className="max-h-96 overflow-y-auto border rounded p-4 bg-gray-50">
+                      <div className="space-y-4">
                       {/* Inventory Items */}
                       {selectedRequest.inventory_items && selectedRequest.inventory_items.length > 0 && (
                         <div>
@@ -662,6 +706,7 @@ const ApprovalManagement: React.FC = () => {
                           </div>
                         </div>
                       )}
+                    </div>
                     </div>
 
                     {/* Approval Actions */}
