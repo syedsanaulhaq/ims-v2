@@ -71,6 +71,16 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       });
       if (!response.ok) throw new Error('Failed to load approval');
       const data = await response.json();
+      
+      // Ensure items array exists
+      if (!data.items && data.approval_items) {
+        data.items = data.approval_items;
+      }
+      if (!data.items) {
+        data.items = [];
+      }
+      
+      console.log('✅ Loaded approval request:', data);
       setRequest(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load approval request');
@@ -99,12 +109,12 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const hasDecisionForAllItems = (): boolean => {
-    if (!request) return false;
+    if (!request || !request.items || request.items.length === 0) return false;
     return request.items.every(item => getItemDecision(item.id)?.decision !== null);
   };
 
   const getDecisionSummary = () => {
-    if (!request) return { approveWing: 0, forwardAdmin: 0, forwardSupervisor: 0, reject: 0, undecided: 0 };
+    if (!request || !request.items) return { approveWing: 0, forwardAdmin: 0, forwardSupervisor: 0, reject: 0, undecided: 0 };
     const decisions = request.items.map(item => getItemDecision(item.id));
     return {
       approveWing: decisions.filter(d => d?.decision === 'approve_wing').length,
@@ -131,7 +141,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setSuccess('');
 
     try {
-      const itemAllocations = request.items.map(item => {
+      const items = request.items || [];
+      const itemAllocations = items.map(item => {
         const decision = getItemDecision(item.id);
         let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' = 'REJECT';
         let allocatedQty = 0;
@@ -278,17 +289,18 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Package className="w-5 h-5" />
-            Items for Decision ({request.items.length})
+            Items for Decision ({request?.items?.length || 0})
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4 max-h-96 overflow-y-auto">
-            {request.items.map(item => {
-              const decision = getItemDecision(item.id);
-              const inWing = isInWing(item);
+            {request?.items && request.items.length > 0 ? (
+              request.items.map(item => {
+                const decision = getItemDecision(item.id);
+                const inWing = isInWing(item);
 
-              return (
-                <div key={item.id} className="p-4 border rounded-lg bg-gray-50">
+                return (
+                  <div key={item.id} className="p-4 border rounded-lg bg-gray-50">
                   <div className="mb-3">
                     <h4 className="font-semibold text-gray-900">{item.nomenclature}</h4>
                     <p className="text-sm text-gray-600">Requested: {item.requested_quantity} units</p>
@@ -398,7 +410,13 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   )}
                 </div>
               );
-            })}
+              })
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>No items in this request</p>
+              </div>
+            )}
           </div>
 
           {/* Decision Summary */}
