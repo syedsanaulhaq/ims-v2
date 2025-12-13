@@ -355,19 +355,20 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
               request.items.map(item => {
                 const itemId = getItemId(item);
                 const decision = getItemDecision(itemId);
-                const inWing = isInWing(item);
 
                 return (
                   <div key={itemId} className="p-4 border rounded-lg bg-gray-50">
                   <div className="mb-3">
                     <h4 className="font-semibold text-gray-900">{getItemName(item)}</h4>
                     <p className="text-sm text-gray-600">Requested: {getItemQuantity(item)} units</p>
-                    {inWing && (
-                      <Badge className="mt-2 bg-green-100 text-green-800">✓ Available in Wing</Badge>
-                    )}
-                    {!inWing && (
-                      <Badge className="mt-2 bg-red-100 text-red-800">✗ Not in Wing</Badge>
-                    )}
+                    <div className="flex gap-2 mt-2">
+                      <Button size="sm" variant="outline" className="text-xs">
+                        🔍 Check Stock Availability
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-xs">
+                        ✓ Confirm from Wing Stock
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
@@ -376,13 +377,12 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       decision?.decision === 'approve_wing'
                         ? 'bg-green-100 border-green-500'
                         : 'bg-white border-gray-200 hover:border-green-400'
-                    } ${!inWing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    }`}>
                       <input
                         type="radio"
                         name={`decision-${itemId}`}
                         checked={decision?.decision === 'approve_wing'}
                         onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
-                        disabled={!inWing}
                         className="mb-2"
                       />
                       <div className="text-sm font-medium text-green-700">✓ Approve</div>
