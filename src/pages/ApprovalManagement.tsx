@@ -63,6 +63,13 @@ interface RequestItem {
   stock_status?: 'sufficient' | 'insufficient' | 'out_of_stock' | 'unknown';
 }
 
+interface ItemDecision {
+  itemId: string;
+  decision: 'approve_wing' | 'forward_admin' | 'reject' | null;
+  approvedQuantity: number;
+  reason?: string;
+}
+
 const ApprovalManagement: React.FC = () => {
   const [pendingRequests, setPendingRequests] = useState<IssuanceRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<IssuanceRequest | null>(null);
@@ -76,6 +83,9 @@ const ApprovalManagement: React.FC = () => {
   const [approverDesignation, setApproverDesignation] = useState('');
   const [approvalComments, setApprovalComments] = useState('');
   const [bulkAction, setBulkAction] = useState<'approve' | 'reject'>('approve');
+
+  // Per-item decision tracking
+  const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
 
   useEffect(() => {
     fetchPendingRequests();
@@ -169,9 +179,44 @@ const ApprovalManagement: React.FC = () => {
     setSelectedRequest({ ...selectedRequest, items: updatedItems });
   };
 
+  const setItemDecision = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'reject', approvedQty: number, reason?: string) => {
+    const newDecisions = new Map(itemDecisions);
+    newDecisions.set(itemId, {
+      itemId,
+      decision,
+      approvedQuantity: approvedQty,
+      reason
+    });
+    setItemDecisions(newDecisions);
+  };
+
+  const getItemDecision = (itemId: string): ItemDecision | undefined => {
+    return itemDecisions.get(itemId);
+  };
+
+  const hasDecisionForAllItems = (request: IssuanceRequest): boolean => {
+    return request.items.every(item => getItemDecision(item.id)?.decision !== null);
+  };
+
+  const getDecisionSummary = (request: IssuanceRequest) => {
+    const decisions = request.items.map(item => getItemDecision(item.id));
+    return {
+      approveWing: decisions.filter(d => d?.decision === 'approve_wing').length,
+      forwardAdmin: decisions.filter(d => d?.decision === 'forward_admin').length,
+      reject: decisions.filter(d => d?.decision === 'reject').length,
+      undecided: decisions.filter(d => !d || !d.decision).length
+    };
+  };
+
   const processApproval = async (action: 'approve' | 'reject') => {
     if (!selectedRequest || !approverName) {
       setError('Please select a request and provide approver name');
+      return;
+    }
+
+    // Validate all items have decisions
+    if (action === 'approve' && selectedRequest.items.length > 0 && !hasDecisionForAllItems(selectedRequest)) {
+      setError('Please make a decision for each item before submitting');
       return;
     }
 
@@ -179,44 +224,67 @@ const ApprovalManagement: React.FC = () => {
     setError('');
 
     try {
-      // Generate item allocations based on the request items and action
-      const itemAllocations = selectedRequest.items.map(item => ({
-        requested_item_id: item.id,
-        inventory_item_id: item.item_master_id,
-        allocated_quantity: action === 'approve' ? (item.approved_quantity || item.requested_quantity) : 0,
-        decision_type: action === 'approve' 
-          ? (item.item_type === 'custom' ? 'APPROVE_FOR_PROCUREMENT' : 'APPROVE_FROM_STOCK')
-          : 'REJECT' as 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'REJECT',
-        rejection_reason: action === 'reject' ? (approvalComments || 'Request rejected') : undefined,
-        procurement_required_quantity: action === 'approve' && item.item_type === 'custom' 
-          ? (item.approved_quantity || item.requested_quantity) 
-          : undefined
-      }));
+      // Build item allocations based on individual decisions
+      const itemAllocations = selectedRequest.items.map(item => {
+        const decision = getItemDecision(item.id);
+        
+        // Determine decision type based on supervisor's choice
+        let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'REJECT' = 'REJECT';
+        let allocatedQty = 0;
+
+        if (decision?.decision === 'approve_wing') {
+          // Wing supervisor approved from wing inventory
+          decisionType = 'APPROVE_FROM_STOCK';
+          allocatedQty = decision.approvedQuantity || item.requested_quantity;
+        } else if (decision?.decision === 'forward_admin') {
+          // Wing supervisor forwarded to admin
+          // This will be marked as requiring procurement/admin approval
+          decisionType = 'APPROVE_FOR_PROCUREMENT';
+          allocatedQty = decision.approvedQuantity || item.requested_quantity;
+        } else {
+          // Rejected
+          decisionType = 'REJECT';
+          allocatedQty = 0;
+        }
+
+        return {
+          requested_item_id: item.id,
+          inventory_item_id: item.item_master_id,
+          allocated_quantity: allocatedQty,
+          decision_type: decisionType,
+          rejection_reason: decision?.decision === 'reject' 
+            ? (decision.reason || 'Request rejected by wing supervisor') 
+            : undefined,
+          procurement_required_quantity: decision?.decision === 'forward_admin' 
+            ? (decision.approvedQuantity || item.requested_quantity)
+            : undefined
+        };
+      });
 
       const approvalAction: ApprovalAction = {
         request_id: selectedRequest.id,
         approver_name: approverName,
-        approver_designation: approverDesignation || 'Approver',
-        approval_comments: approvalComments || `Request ${action}d by ${approverName}`,
+        approver_designation: approverDesignation || 'Wing Supervisor',
+        approval_comments: approvalComments || `Per-item decisions made by ${approverName}`,
         item_allocations: itemAllocations
       };
 
-      let result;
-      if (action === 'approve') {
-        result = await approvalService.approveRequest(approvalAction);
-      } else {
-        result = await approvalService.rejectRequest(approvalAction);
-      }
+      // Always process as approve when using per-item decisions
+      const result = await approvalService.approveRequest(approvalAction);
 
       if (result.success) {
-        setSuccess(result.message);
+        setSuccess(result.message || 'Per-item approval decisions submitted successfully');
         
         // Reset form and refresh data
         setSelectedRequest(null);
         setApproverName('');
         setApproverDesignation('');
         setApprovalComments('');
-        fetchPendingRequests();
+        setItemDecisions(new Map());
+        
+        setTimeout(() => {
+          fetchPendingRequests();
+        }, 1000);
       } else {
         throw new Error(result.message || 'Failed to process approval');
       }
@@ -390,57 +458,141 @@ const ApprovalManagement: React.FC = () => {
                             <Package className="w-4 h-4" />
                             Inventory Items ({selectedRequest.inventory_items.length}):
                           </strong>
-                          <div className="space-y-2 mt-2 max-h-40 overflow-y-auto">
-                            {selectedRequest.inventory_items.map(item => (
-                              <div key={item.id} className="p-3 border rounded bg-blue-50 border-blue-200">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="font-medium">{item.nomenclature}</div>
-                                  <Badge variant="default" className="text-xs">Inventory</Badge>
+                          <div className="space-y-2 mt-2 max-h-96 overflow-y-auto">
+                            {selectedRequest.inventory_items.map(item => {
+                              const decision = getItemDecision(item.id);
+                              const isInWing = item.stock_status === 'sufficient';
+                              
+                              return (
+                                <div key={item.id} className="p-4 border rounded bg-blue-50 border-blue-200">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                      <div className="font-semibold text-gray-900">{item.nomenclature}</div>
+                                      <div className="text-sm text-gray-600 mt-1">
+                                        Requested: <span className="font-medium">{item.requested_quantity}</span>
+                                      </div>
+                                    </div>
+                                    <Badge variant="default" className="text-xs">Inventory</Badge>
+                                  </div>
+                                  
+                                  {/* Stock Status */}
+                                  <div className="mb-3 p-2 bg-white rounded border">
+                                    <div className="text-sm font-medium text-gray-700 mb-2">Wing Stock Status:</div>
+                                    {getStockStatusBadge(item.stock_status || 'unknown', item.current_stock, item.requested_quantity)}
+                                    {isInWing && (
+                                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 font-medium">
+                                        ✓ Item is available in wing inventory - You can approve from wing
+                                      </div>
+                                    )}
+                                    {!isInWing && (
+                                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800 font-medium">
+                                        ✗ Item NOT available in wing inventory - You must forward to admin
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Decision Options */}
+                                  <div className="space-y-2 mb-3">
+                                    <div className="text-sm font-medium text-gray-700">Your Decision:</div>
+                                    
+                                    {/* Option 1: Approve from Wing */}
+                                    <div className={`p-3 border rounded cursor-pointer transition ${
+                                      decision?.decision === 'approve_wing' 
+                                        ? 'bg-green-100 border-green-500' 
+                                        : 'bg-white border-gray-200 hover:border-green-400'
+                                    } ${!isInWing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                      <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`decision-${item.id}`}
+                                          value="approve_wing"
+                                          checked={decision?.decision === 'approve_wing'}
+                                          onChange={() => setItemDecision(item.id, 'approve_wing', item.requested_quantity)}
+                                          disabled={!isInWing}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <div className="font-medium text-green-700">✓ Approve from Wing Store</div>
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            Deduct {item.requested_quantity} units from wing inventory and allocate to requester
+                                          </div>
+                                        </div>
+                                      </label>
+                                      {decision?.decision === 'approve_wing' && isInWing && (
+                                        <div className="mt-2 ml-6 p-2 bg-green-50 rounded text-xs">
+                                          <strong>Qty to allocate:</strong> {decision.approvedQuantity} units
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Option 2: Forward to Admin */}
+                                    <div className={`p-3 border rounded cursor-pointer transition ${
+                                      decision?.decision === 'forward_admin' 
+                                        ? 'bg-amber-100 border-amber-500' 
+                                        : 'bg-white border-gray-200 hover:border-amber-400'
+                                    }`}>
+                                      <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`decision-${item.id}`}
+                                          value="forward_admin"
+                                          checked={decision?.decision === 'forward_admin'}
+                                          onChange={() => setItemDecision(item.id, 'forward_admin', item.requested_quantity)}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <div className="font-medium text-amber-700">⏭ Forward to Admin</div>
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            Forward {item.requested_quantity} units to admin supervisor for approval from central warehouse
+                                          </div>
+                                        </div>
+                                      </label>
+                                      {decision?.decision === 'forward_admin' && (
+                                        <div className="mt-2 ml-6 p-2 bg-amber-50 rounded text-xs">
+                                          <strong>Qty to forward:</strong> {decision.approvedQuantity} units
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Option 3: Reject */}
+                                    <div className={`p-3 border rounded cursor-pointer transition ${
+                                      decision?.decision === 'reject' 
+                                        ? 'bg-red-100 border-red-500' 
+                                        : 'bg-white border-gray-200 hover:border-red-400'
+                                    }`}>
+                                      <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`decision-${item.id}`}
+                                          value="reject"
+                                          checked={decision?.decision === 'reject'}
+                                          onChange={() => setItemDecision(item.id, 'reject', 0)}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <div className="font-medium text-red-700">✗ Reject Request</div>
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            Reject this item from the request entirely
+                                          </div>
+                                        </div>
+                                      </label>
+                                    </div>
+                                  </div>
+
+                                  {/* Selected Decision Indicator */}
+                                  {decision?.decision && (
+                                    <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                      <strong className="text-blue-900">✓ Decision Set: </strong>
+                                      <span className="text-blue-800">
+                                        {decision.decision === 'approve_wing' && '✓ Approve from Wing'}
+                                        {decision.decision === 'forward_admin' && '⏭ Forward to Admin'}
+                                        {decision.decision === 'reject' && '✗ Reject'}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                                
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                  <div>
-                                    <span className="text-gray-600">Requested:</span> {item.requested_quantity}
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-600">Current Stock:</span> {item.current_stock ?? 'Unknown'}
-                                  </div>
-                                </div>
-                                
-                                <div className="mt-2">
-                                  {getStockStatusBadge(item.stock_status || 'unknown', item.current_stock, item.requested_quantity)}
-                                </div>
-                                
-                                {item.stock_status === 'insufficient' && (
-                                  <div className="mt-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                                    ⚠️ Insufficient stock! You can approve with reduced quantity or reject for restocking.
-                                  </div>
-                                )}
-                                
-                                {item.stock_status === 'out_of_stock' && (
-                                  <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-                                    ❌ Out of stock! Consider rejecting or requesting restocking.
-                                  </div>
-                                )}
-                                
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-xs">Approve Qty</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max={Math.min(item.requested_quantity, item.current_stock || 0)}
-                                      value={item.approved_quantity || item.requested_quantity}
-                                      onChange={(e) => updateItemApproval(item.id, parseInt(e.target.value) || 0, 'pending')}
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="text-xs text-gray-500 pt-4">
-                                    Max available: {Math.min(item.requested_quantity, item.current_stock || 0)}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -476,7 +628,43 @@ const ApprovalManagement: React.FC = () => {
                     </div>
 
                     {/* Approval Actions */}
-                    <div className="space-y-3">
+                    <div className="space-y-3 mt-6 pt-6 border-t">
+                      {/* Decision Summary */}
+                      {selectedRequest.items.length > 0 && (
+                        <div className="p-3 bg-purple-50 border border-purple-200 rounded">
+                          <div className="text-sm font-medium text-gray-900 mb-2">Decision Summary:</div>
+                          <div className="grid grid-cols-4 gap-2 text-xs">
+                            <div className="bg-green-100 p-2 rounded text-center">
+                              <div className="font-bold text-green-900">{getDecisionSummary(selectedRequest).approveWing}</div>
+                              <div className="text-gray-600">Wing Approve</div>
+                            </div>
+                            <div className="bg-amber-100 p-2 rounded text-center">
+                              <div className="font-bold text-amber-900">{getDecisionSummary(selectedRequest).forwardAdmin}</div>
+                              <div className="text-gray-600">Forward Admin</div>
+                            </div>
+                            <div className="bg-red-100 p-2 rounded text-center">
+                              <div className="font-bold text-red-900">{getDecisionSummary(selectedRequest).reject}</div>
+                              <div className="text-gray-600">Reject</div>
+                            </div>
+                            <div className="bg-gray-100 p-2 rounded text-center">
+                              <div className="font-bold text-gray-900">{getDecisionSummary(selectedRequest).undecided}</div>
+                              <div className="text-gray-600">Undecided</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Validation Alert */}
+                      {selectedRequest.items.length > 0 && !hasDecisionForAllItems(selectedRequest) && (
+                        <Alert className="border-orange-200 bg-orange-50">
+                          <AlertCircle className="h-4 w-4 text-orange-600" />
+                          <AlertDescription className="text-orange-800">
+                            ⚠️ You have {getDecisionSummary(selectedRequest).undecided} items without a decision. 
+                            Please make a decision for each item before submitting.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
                       {/* Custom Items Warning */}
                       {selectedRequest.has_custom_items && (
                         <Alert className="border-orange-200 bg-orange-50">
@@ -489,12 +677,12 @@ const ApprovalManagement: React.FC = () => {
                       )}
 
                       <div>
-                        <Label htmlFor="comments">Comments</Label>
+                        <Label htmlFor="comments">Comments (Optional)</Label>
                         <Textarea
                           id="comments"
                           value={approvalComments}
                           onChange={(e) => setApprovalComments(e.target.value)}
-                          placeholder="Add comments about your decision, stock considerations, etc."
+                          placeholder="Add general comments about your decisions, stock considerations, etc."
                           rows={3}
                         />
                       </div>
@@ -502,20 +690,22 @@ const ApprovalManagement: React.FC = () => {
                       <div className="flex gap-2">
                         <Button
                           onClick={() => processApproval('approve')}
-                          disabled={isLoading || !approverName}
+                          disabled={isLoading || !approverName || (selectedRequest.items.length > 0 && !hasDecisionForAllItems(selectedRequest))}
                           className="flex-1 bg-green-600 hover:bg-green-700"
                         >
                           {isLoading ? <LoadingSpinner /> : <CheckCircle className="w-4 h-4 mr-1" />}
-                          {selectedRequest.has_custom_items ? 'Approve & Route Custom Items' : 'Approve'}
+                          Submit Decisions
                         </Button>
                         <Button
-                          onClick={() => processApproval('reject')}
-                          disabled={isLoading || !approverName}
-                          variant="destructive"
+                          onClick={() => {
+                            setSelectedRequest(null);
+                            setItemDecisions(new Map());
+                            setApprovalComments('');
+                          }}
+                          variant="outline"
                           className="flex-1"
                         >
-                          {isLoading ? <LoadingSpinner /> : <XCircle className="w-4 h-4 mr-1" />}
-                          Reject
+                          Clear Selection
                         </Button>
                       </div>
                     </div>
