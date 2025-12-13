@@ -306,7 +306,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
   const summary = getDecisionSummary();
   
-  const isInWing = (item: RequestItem) => item.stock_status === 'sufficient';
+  const isInWing = (item: RequestItem) => {
+    // Check various indicators that item is available in wing
+    // For now, assume items in the approval request are available unless explicitly marked otherwise
+    return !item.issued_quantity || item.issued_quantity === 0;
+  };
 
   return (
     <div className="space-y-6">
