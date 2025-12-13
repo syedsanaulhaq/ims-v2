@@ -79,13 +79,21 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   
   // Debug: Log user permissions
   useEffect(() => {
-    console.log('👤 AppSidebar - User data:', {
+    console.log('👤 AppSidebar - User data received:', {
       user_id: user?.user_id,
       user_name: user?.user_name,
       ims_permissions: user?.ims_permissions?.length || 0,
       ims_roles: user?.ims_roles?.length || 0,
       is_super_admin: user?.is_super_admin,
+      permissionKeys: user?.ims_permissions?.map(p => p.permission_key) || [],
       wing_id: user?.wing_id,
+    });
+    
+    console.log('🔐 Permission Checks in AppSidebar:', {
+      canRequestIssuance: !!user?.ims_permissions?.some(p => p.permission_key === 'issuance.request'),
+      canApprove: !!user?.ims_permissions?.some(p => p.permission_key === 'approval.approve'),
+      isWingSupervisor: !!user?.ims_permissions?.some(p => p.permission_key === 'wing.supervisor'),
+      isSuperAdmin: user?.is_super_admin
     });
   }, [user]);
   

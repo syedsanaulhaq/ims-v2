@@ -361,10 +361,22 @@ async function getUserImsData(userId) {
   if (!pool) return null;
 
   try {
+    console.log(`\n🔍 ==== getUserImsData() DEBUG START for userId: ${userId} ====`);
+
     // Get roles
     const rolesResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query('SELECT * FROM dbo.fn_GetUserRoles(@userId)');
+
+    console.log(`📋 Roles found: ${rolesResult.recordset.length}`);
+    if (rolesResult.recordset.length > 0) {
+      console.log('   Roles:', rolesResult.recordset.map(r => ({
+        role_id: r.role_id,
+        role_name: r.role_name,
+        display_name: r.display_name,
+        scope_type: r.scope_type
+      })));
+    }
 
     // Get permissions
     const permsResult = await pool.request()
@@ -375,6 +387,55 @@ async function getUserImsData(userId) {
         WHERE user_id = @userId
         ORDER BY module_name, action_name
       `);
+
+    console.log(`🔐 Permissions found: ${permsResult.recordset.length}`);
+    if (permsResult.recordset.length > 0) {
+      console.log('   Permissions:', permsResult.recordset.map(p => ({
+        permission_key: p.permission_key,
+        module_name: p.module_name,
+        action_name: p.action_name
+      })));
+    } else {
+      console.log('   ⚠️ NO PERMISSIONS FOUND! Checking database...');
+      
+      // Debug: Check if user has roles in ims_user_roles
+      const roleCheckResult = await pool.request()
+        .input('userId', sql.NVarChar(450), userId)
+        .query(`
+          SELECT ur.user_id, ur.role_id, ur.is_active, r.role_name, r.is_active as role_is_active
+          FROM ims_user_roles ur
+          LEFT JOIN ims_roles r ON ur.role_id = r.id
+          WHERE ur.user_id = @userId
+        `);
+      
+      console.log(`   Checking ims_user_roles: ${roleCheckResult.recordset.length} records`);
+      if (roleCheckResult.recordset.length > 0) {
+        console.log('   ims_user_roles records:', roleCheckResult.recordset);
+      }
+      
+      // Debug: Check if role has permissions
+      if (rolesResult.recordset.length > 0) {
+        const roleId = rolesResult.recordset[0].role_id;
+        const permCheckResult = await pool.request()
+          .input('roleId', sql.UniqueIdentifier, roleId)
+          .query(`
+            SELECT rp.role_id, rp.permission_id, p.permission_key, p.is_active
+            FROM ims_role_permissions rp
+            LEFT JOIN ims_permissions p ON rp.permission_id = p.id
+            WHERE rp.role_id = @roleId
+          `);
+        
+        console.log(`   Checking ims_role_permissions for role ${roleId}: ${permCheckResult.recordset.length} records`);
+        if (permCheckResult.recordset.length > 0) {
+          console.log('   Role permissions:', permCheckResult.recordset.map(p => ({
+            permission_key: p.permission_key,
+            is_active: p.is_active
+          })));
+        } else {
+          console.log('   ⚠️ ROLE HAS NO PERMISSIONS ASSIGNED!');
+        }
+      }
+    }
 
     // Check if super admin
     const superAdminResult = await pool.request()
@@ -594,6 +655,13 @@ app.get('/sso-login', async (req, res) => {
     // Fetch IMS roles and permissions for SSO user
     const imsData = await getUserImsData(userId);
     
+    console.log(`\n✅ SSO LOGIN COMPLETE - Session preparation:`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   User Name: ${userName}`);
+    console.log(`   Roles from IMS: ${imsData?.roles?.length || 0}`);
+    console.log(`   Permissions from IMS: ${imsData?.permissions?.length || 0}`);
+    console.log(`   Is Super Admin: ${imsData?.is_super_admin}`);
+    
     req.session.user = {
       Id: userId,
       FullName: userName,
@@ -610,7 +678,9 @@ app.get('/sso-login', async (req, res) => {
       is_super_admin: imsData?.is_super_admin || false
     };
 
-    console.log('✅ Session created for user:', userName);
+    console.log(`\n📊 Session created for SSO user:`);
+    console.log(`   Storing in session.user.ims_roles: ${req.session.user.ims_roles.length}`);
+    console.log(`   Storing in session.user.ims_permissions: ${req.session.user.ims_permissions.length}`);
     console.log('🔑 Session ID:', req.sessionID);
     console.log('📋 IMS Roles loaded:', imsData?.roles?.length || 0);
     console.log('🔐 IMS Permissions loaded:', imsData?.permissions?.length || 0);
@@ -715,7 +785,7 @@ app.get('/api/session', async (req, res) => {
   try {
     // Check if we have a session user
     if (req.session && req.session.userId) {
-      console.log('📊 /api/session request - Session found:', {
+      console.log('\n📊 /api/session request - Session found:', {
         userId: req.session.userId,
         userName: req.session.user?.FullName || req.session.user?.UserName,
         sessionID: req.sessionID,
@@ -726,10 +796,11 @@ app.get('/api/session', async (req, res) => {
       // User is properly logged in via session - GET IMS DATA!
       const imsData = await getUserImsData(req.session.userId);
       
-      console.log('🔐 IMS Data fetched:', {
+      console.log('🔐 IMS Data fetched from /api/session:', {
         rolesCount: imsData?.roles?.length || 0,
         permsCount: imsData?.permissions?.length || 0,
-        isSuperAdmin: imsData?.is_super_admin
+        isSuperAdmin: imsData?.is_super_admin,
+        permissionKeys: imsData?.permissions?.map(p => p.permission_key) || []
       });
       
       // Get the primary IMS role display name (first role if multiple)
@@ -755,7 +826,8 @@ app.get('/api/session', async (req, res) => {
       console.log('✅ Session response prepared:', {
         userId: sessionUser.user_id,
         rolesCount: sessionUser.ims_roles?.length || 0,
-        permsCount: sessionUser.ims_permissions?.length || 0
+        permsCount: sessionUser.ims_permissions?.length || 0,
+        permissionKeys: sessionUser.ims_permissions?.map(p => p.permission_key) || []
       });
       
       return res.json({
