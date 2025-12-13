@@ -65,7 +65,7 @@ interface RequestItem {
 
 interface ItemDecision {
   itemId: string;
-  decision: 'approve_wing' | 'forward_admin' | 'reject' | null;
+  decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | null;
   approvedQuantity: number;
   reason?: string;
 }
@@ -203,6 +203,7 @@ const ApprovalManagement: React.FC = () => {
     return {
       approveWing: decisions.filter(d => d?.decision === 'approve_wing').length,
       forwardAdmin: decisions.filter(d => d?.decision === 'forward_admin').length,
+      forwardSupervisor: decisions.filter(d => d?.decision === 'forward_supervisor').length,
       reject: decisions.filter(d => d?.decision === 'reject').length,
       undecided: decisions.filter(d => !d || !d.decision).length
     };
@@ -229,7 +230,7 @@ const ApprovalManagement: React.FC = () => {
         const decision = getItemDecision(item.id);
         
         // Determine decision type based on supervisor's choice
-        let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'REJECT' = 'REJECT';
+        let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' = 'REJECT';
         let allocatedQty = 0;
 
         if (decision?.decision === 'approve_wing') {
@@ -238,8 +239,11 @@ const ApprovalManagement: React.FC = () => {
           allocatedQty = decision.approvedQuantity || item.requested_quantity;
         } else if (decision?.decision === 'forward_admin') {
           // Wing supervisor forwarded to admin
-          // This will be marked as requiring procurement/admin approval
           decisionType = 'APPROVE_FOR_PROCUREMENT';
+          allocatedQty = decision.approvedQuantity || item.requested_quantity;
+        } else if (decision?.decision === 'forward_supervisor') {
+          // Wing supervisor forwarded to next supervisor level
+          decisionType = 'FORWARD_TO_SUPERVISOR';
           allocatedQty = decision.approvedQuantity || item.requested_quantity;
         } else {
           // Rejected
@@ -257,6 +261,9 @@ const ApprovalManagement: React.FC = () => {
             : undefined,
           procurement_required_quantity: decision?.decision === 'forward_admin' 
             ? (decision.approvedQuantity || item.requested_quantity)
+            : undefined,
+          forwarding_reason: (decision?.decision === 'forward_admin' || decision?.decision === 'forward_supervisor')
+            ? (decision.reason || 'Forwarded for further approval')
             : undefined
         };
       });
@@ -512,9 +519,9 @@ const ApprovalManagement: React.FC = () => {
                                           className="mt-1"
                                         />
                                         <div className="flex-1">
-                                          <div className="font-medium text-green-700">✓ Approve from Wing Store</div>
+                                          <div className="font-medium text-green-700">✓ Approve & Provide from Wing</div>
                                           <div className="text-xs text-gray-600 mt-1">
-                                            Deduct {item.requested_quantity} units from wing inventory and allocate to requester
+                                            Deduct {item.requested_quantity} units from wing inventory and allocate to requester immediately
                                           </div>
                                         </div>
                                       </label>
@@ -554,7 +561,36 @@ const ApprovalManagement: React.FC = () => {
                                       )}
                                     </div>
 
-                                    {/* Option 3: Reject */}
+                                    {/* Option 3: Forward to Next Supervisor */}
+                                    <div className={`p-3 border rounded cursor-pointer transition ${
+                                      decision?.decision === 'forward_supervisor' 
+                                        ? 'bg-blue-100 border-blue-500' 
+                                        : 'bg-white border-gray-200 hover:border-blue-400'
+                                    }`}>
+                                      <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`decision-${item.id}`}
+                                          value="forward_supervisor"
+                                          checked={decision?.decision === 'forward_supervisor'}
+                                          onChange={() => setItemDecision(item.id, 'forward_supervisor', item.requested_quantity)}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <div className="font-medium text-blue-700">↗ Forward to Next Supervisor</div>
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            Forward {item.requested_quantity} units to next supervisor level for approval
+                                          </div>
+                                        </div>
+                                      </label>
+                                      {decision?.decision === 'forward_supervisor' && (
+                                        <div className="mt-2 ml-6 p-2 bg-blue-50 rounded text-xs">
+                                          <strong>Qty to forward:</strong> {decision.approvedQuantity} units
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Option 4: Reject */}
                                     <div className={`p-3 border rounded cursor-pointer transition ${
                                       decision?.decision === 'reject' 
                                         ? 'bg-red-100 border-red-500' 
@@ -572,7 +608,7 @@ const ApprovalManagement: React.FC = () => {
                                         <div className="flex-1">
                                           <div className="font-medium text-red-700">✗ Reject Request</div>
                                           <div className="text-xs text-gray-600 mt-1">
-                                            Reject this item from the request entirely
+                                            Reject this item - requester will not get it
                                           </div>
                                         </div>
                                       </label>
@@ -584,8 +620,9 @@ const ApprovalManagement: React.FC = () => {
                                     <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
                                       <strong className="text-blue-900">✓ Decision Set: </strong>
                                       <span className="text-blue-800">
-                                        {decision.decision === 'approve_wing' && '✓ Approve from Wing'}
+                                        {decision.decision === 'approve_wing' && '✓ Approve & Provide from Wing'}
                                         {decision.decision === 'forward_admin' && '⏭ Forward to Admin'}
+                                        {decision.decision === 'forward_supervisor' && '↗ Forward to Next Supervisor'}
                                         {decision.decision === 'reject' && '✗ Reject'}
                                       </span>
                                     </div>
@@ -633,14 +670,18 @@ const ApprovalManagement: React.FC = () => {
                       {selectedRequest.items.length > 0 && (
                         <div className="p-3 bg-purple-50 border border-purple-200 rounded">
                           <div className="text-sm font-medium text-gray-900 mb-2">Decision Summary:</div>
-                          <div className="grid grid-cols-4 gap-2 text-xs">
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
                             <div className="bg-green-100 p-2 rounded text-center">
                               <div className="font-bold text-green-900">{getDecisionSummary(selectedRequest).approveWing}</div>
-                              <div className="text-gray-600">Wing Approve</div>
+                              <div className="text-gray-600">Approve Wing</div>
                             </div>
                             <div className="bg-amber-100 p-2 rounded text-center">
                               <div className="font-bold text-amber-900">{getDecisionSummary(selectedRequest).forwardAdmin}</div>
-                              <div className="text-gray-600">Forward Admin</div>
+                              <div className="text-gray-600">Fwd Admin</div>
+                            </div>
+                            <div className="bg-blue-100 p-2 rounded text-center">
+                              <div className="font-bold text-blue-900">{getDecisionSummary(selectedRequest).forwardSupervisor}</div>
+                              <div className="text-gray-600">Fwd Supervisor</div>
                             </div>
                             <div className="bg-red-100 p-2 rounded text-center">
                               <div className="font-bold text-red-900">{getDecisionSummary(selectedRequest).reject}</div>
