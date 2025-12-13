@@ -24,20 +24,29 @@ interface ItemDecision {
 
 interface RequestItem {
   id: string;
-  nomenclature: string;
-  requested_quantity: number;
+  item_id?: string;
+  nomenclature?: string;
+  item_name?: string;
+  custom_item_name?: string;
+  requested_quantity?: number;
+  quantity?: number;
   stock_status?: string;
   current_stock?: number;
+  wing_stock_available?: number;
 }
 
 interface ApprovalRequest {
   id: string;
+  request_id?: string;
   request_number: string;
-  requester_name: string;
-  requester_department: string;
-  purpose: string;
-  urgency_level: string;
-  items: RequestItem[];
+  requester_name?: string;
+  requester_email?: string;
+  requester_department?: string;
+  purpose?: string;
+  urgency_level?: string;
+  items?: RequestItem[];
+  approval_items?: RequestItem[];
+  request_items?: RequestItem[];
   inventory_items?: RequestItem[];
   custom_items?: RequestItem[];
 }
@@ -72,18 +81,43 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       if (!response.ok) throw new Error('Failed to load approval');
       const data = await response.json();
       
-      // Ensure items array exists
-      if (!data.items && data.approval_items) {
-        data.items = data.approval_items;
-      }
+      console.log('🔍 API Response:', data);
+      
+      // Ensure items array exists - try multiple possible field names
       if (!data.items) {
-        data.items = [];
+        if (data.approval_items) {
+          data.items = data.approval_items;
+        } else if (data.request_items) {
+          data.items = data.request_items;
+        } else if (data.item_list) {
+          data.items = data.item_list;
+        } else {
+          data.items = [];
+        }
       }
       
-      console.log('✅ Loaded approval request:', data);
+      // If still no items but we have item_ids, we need to fetch them separately
+      if (!data.items || data.items.length === 0) {
+        console.warn('⚠️ No items found in response, fetching from approval items endpoint');
+        try {
+          const itemsResponse = await fetch(`http://localhost:3001/api/approval-items/${approvalId}`, {
+            credentials: 'include'
+          });
+          if (itemsResponse.ok) {
+            const itemsData = await itemsResponse.json();
+            console.log('✅ Fetched approval items:', itemsData);
+            data.items = itemsData || [];
+          }
+        } catch (err) {
+          console.error('Failed to fetch approval items:', err);
+        }
+      }
+      
+      console.log('✅ Loaded approval request with items:', data.items?.length || 0);
       setRequest(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load approval request');
+      console.error('Error loading approval:', err);
     } finally {
       setLoading(false);
     }
@@ -104,18 +138,26 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setItemDecisions(newDecisions);
   };
 
-  const getItemDecision = (itemId: string): ItemDecision | undefined => {
-    return itemDecisions.get(itemId);
+  const getItemName = (item: RequestItem) => {
+    return item.nomenclature || item.item_name || item.custom_item_name || 'Unknown Item';
+  };
+
+  const getItemQuantity = (item: RequestItem) => {
+    return item.requested_quantity || item.quantity || 0;
+  };
+
+  const getItemId = (item: RequestItem) => {
+    return item.id || item.item_id || '';
   };
 
   const hasDecisionForAllItems = (): boolean => {
     if (!request || !request.items || request.items.length === 0) return false;
-    return request.items.every(item => getItemDecision(item.id)?.decision !== null);
+    return request.items.every(item => getItemDecision(getItemId(item))?.decision !== null);
   };
 
   const getDecisionSummary = () => {
     if (!request || !request.items) return { approveWing: 0, forwardAdmin: 0, forwardSupervisor: 0, reject: 0, undecided: 0 };
-    const decisions = request.items.map(item => getItemDecision(item.id));
+    const decisions = request.items.map(item => getItemDecision(getItemId(item)));
     return {
       approveWing: decisions.filter(d => d?.decision === 'approve_wing').length,
       forwardAdmin: decisions.filter(d => d?.decision === 'forward_admin').length,
@@ -143,26 +185,27 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       const items = request.items || [];
       const itemAllocations = items.map(item => {
-        const decision = getItemDecision(item.id);
+        const itemId = getItemId(item);
+        const decision = getItemDecision(itemId);
         let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' = 'REJECT';
         let allocatedQty = 0;
 
         if (decision?.decision === 'approve_wing') {
           decisionType = 'APPROVE_FROM_STOCK';
-          allocatedQty = decision.approvedQuantity || item.requested_quantity;
+          allocatedQty = decision.approvedQuantity || getItemQuantity(item);
         } else if (decision?.decision === 'forward_admin') {
           decisionType = 'APPROVE_FOR_PROCUREMENT';
-          allocatedQty = decision.approvedQuantity || item.requested_quantity;
+          allocatedQty = decision.approvedQuantity || getItemQuantity(item);
         } else if (decision?.decision === 'forward_supervisor') {
           decisionType = 'FORWARD_TO_SUPERVISOR';
-          allocatedQty = decision.approvedQuantity || item.requested_quantity;
+          allocatedQty = decision.approvedQuantity || getItemQuantity(item);
         } else {
           decisionType = 'REJECT';
           allocatedQty = 0;
         }
 
         return {
-          requested_item_id: item.id,
+          requested_item_id: itemId,
           allocated_quantity: allocatedQty,
           decision_type: decisionType,
           rejection_reason: decision?.decision === 'reject' ? (decision.reason || 'Request rejected by supervisor') : undefined,
@@ -296,14 +339,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {request?.items && request.items.length > 0 ? (
               request.items.map(item => {
-                const decision = getItemDecision(item.id);
+                const itemId = getItemId(item);
+                const decision = getItemDecision(itemId);
                 const inWing = isInWing(item);
 
                 return (
-                  <div key={item.id} className="p-4 border rounded-lg bg-gray-50">
+                  <div key={itemId} className="p-4 border rounded-lg bg-gray-50">
                   <div className="mb-3">
-                    <h4 className="font-semibold text-gray-900">{item.nomenclature}</h4>
-                    <p className="text-sm text-gray-600">Requested: {item.requested_quantity} units</p>
+                    <h4 className="font-semibold text-gray-900">{getItemName(item)}</h4>
+                    <p className="text-sm text-gray-600">Requested: {getItemQuantity(item)} units</p>
                     {inWing && (
                       <Badge className="mt-2 bg-green-100 text-green-800">✓ Available in Wing</Badge>
                     )}
@@ -322,9 +366,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       <div className="flex items-start gap-3">
                         <input
                           type="radio"
-                          name={`decision-${item.id}`}
+                          name={`decision-${itemId}`}
                           checked={decision?.decision === 'approve_wing'}
-                          onChange={() => setItemDecision(item.id, 'approve_wing', item.requested_quantity)}
+                          onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
                           disabled={!inWing}
                           className="mt-1"
                         />
@@ -344,9 +388,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       <div className="flex items-start gap-3">
                         <input
                           type="radio"
-                          name={`decision-${item.id}`}
+                          name={`decision-${itemId}`}
                           checked={decision?.decision === 'forward_admin'}
-                          onChange={() => setItemDecision(item.id, 'forward_admin', item.requested_quantity)}
+                          onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
                           className="mt-1"
                         />
                         <div>
@@ -365,9 +409,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       <div className="flex items-start gap-3">
                         <input
                           type="radio"
-                          name={`decision-${item.id}`}
+                          name={`decision-${itemId}`}
                           checked={decision?.decision === 'forward_supervisor'}
-                          onChange={() => setItemDecision(item.id, 'forward_supervisor', item.requested_quantity)}
+                          onChange={() => setItemDecision(itemId, 'forward_supervisor', getItemQuantity(item))}
                           className="mt-1"
                         />
                         <div>
@@ -386,9 +430,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       <div className="flex items-start gap-3">
                         <input
                           type="radio"
-                          name={`decision-${item.id}`}
+                          name={`decision-${itemId}`}
                           checked={decision?.decision === 'reject'}
-                          onChange={() => setItemDecision(item.id, 'reject', 0)}
+                          onChange={() => setItemDecision(itemId, 'reject', 0)}
                           className="mt-1"
                         />
                         <div>
