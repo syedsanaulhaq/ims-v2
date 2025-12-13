@@ -190,6 +190,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     return item.id || item.item_id || '';
   };
 
+  const getItemDecision = (itemId: string): ItemDecision | undefined => {
+    return itemDecisions.get(itemId);
+  };
+
   const hasDecisionForAllItems = (): boolean => {
     if (!request || !request.items || !Array.isArray(request.items) || request.items.length === 0) return false;
     return request.items.every(item => getItemDecision(getItemId(item))?.decision !== null);
@@ -301,10 +305,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   }
 
   const summary = getDecisionSummary();
-  
-  const getItemDecision = (itemId: string): ItemDecision | undefined => {
-    return itemDecisions.get(itemId);
-  };
   
   const isInWing = (item: RequestItem) => item.stock_status === 'sufficient';
 
