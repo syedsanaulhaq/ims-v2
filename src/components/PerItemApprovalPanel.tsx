@@ -341,30 +341,44 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setWingConfirmItem(item);
     setWingConfirmLoading(true);
     setConfirmationStatus('pending');
+    setError('');
+    
     try {
-      // Fetch wing stock from inventory
+      // Send stock confirmation request to wing stock supervisor
       const itemMasterId = item.item_master_id || item.id;
-      const response = await fetch(`http://localhost:3001/api/inventory/stock/${itemMasterId}`, {
-        credentials: 'include'
+      const response = await fetch(`http://localhost:3001/api/approvals/${approvalId}/request-wing-stock-confirmation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          item_id: itemMasterId,
+          item_name: getItemName(item),
+          requested_quantity: getItemQuantity(item),
+          approval_id: approvalId,
+          request_type: 'wing_stock_confirmation'
+        })
       });
       
       if (response.ok) {
         const data = await response.json();
-        const available = data.available_quantity || data.quantity || 0;
-        setWingStockAvailable(available);
-        console.log('✓ Wing stock:', available);
+        console.log('✓ Wing stock confirmation request sent:', data);
+        setConfirmationStatus('sent');
+        setSuccess('✓ Confirmation request sent to Wing Stock Supervisor');
       } else {
-        setWingStockAvailable(0);
+        setError('Failed to send confirmation request');
+        setConfirmationStatus('error');
       }
     } catch (err) {
-      console.error('Error fetching wing stock:', err);
-      setWingStockAvailable(0);
+      console.error('Error sending wing stock confirmation request:', err);
+      setError('Error sending request to wing stock supervisor');
+      setConfirmationStatus('error');
     } finally {
       setWingConfirmLoading(false);
     }
   };
 
   const handleConfirmWing = () => {
+    // This will be called by the wing stock supervisor from their dashboard
     setConfirmationStatus('confirmed');
     console.log('✓ Wing stock confirmed for item:', getItemId(wingConfirmItem));
   };
@@ -667,15 +681,14 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
               <div className="mt-4 p-3 rounded-lg border-2">
                 {confirmationStatus === 'pending' && (
                   <div className="bg-yellow-50 border-yellow-200">
-                    {wingStockAvailable >= getItemQuantity(wingConfirmItem) ? (
-                      <div className="text-sm text-yellow-700">
-                        <strong>⚠ Pending Confirmation</strong> - {wingStockAvailable} units available in wing (Requested: {getItemQuantity(wingConfirmItem)})
-                      </div>
-                    ) : (
-                      <div className="text-sm text-red-700">
-                        <strong>✗ Insufficient Wing Stock</strong> - Only {wingStockAvailable} units available in wing (Requested: {getItemQuantity(wingConfirmItem)})
-                      </div>
-                    )}
+                    <div className="text-sm text-yellow-700">
+                      <strong>⏳ Request Pending</strong> - Waiting to send confirmation request to Wing Stock Supervisor
+                    </div>
+                  </div>
+                )}
+                {confirmationStatus === 'sent' && (
+                  <div className="bg-blue-50 border-blue-200 text-sm text-blue-700">
+                    <strong>✓ Request Sent</strong> - Confirmation request has been sent to Wing Stock Supervisor. They will verify and respond.
                   </div>
                 )}
                 {confirmationStatus === 'confirmed' && (
@@ -688,35 +701,38 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     <strong>✗ Rejected</strong> - Wing stock availability could not be confirmed
                   </div>
                 )}
+                {confirmationStatus === 'error' && (
+                  <div className="bg-red-50 border-red-200 text-sm text-red-700">
+                    <strong>⚠ Error</strong> - Failed to send confirmation request
+                  </div>
+                )}
               </div>
 
-              <div className="text-xs text-gray-600">
-                <p><strong>Note:</strong> As wing supervisor, please confirm the stock availability for this item.</p>
+              <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                <p><strong>Process:</strong> When you request confirmation, the Wing Stock Supervisor will receive a request to verify the stock availability for this item.</p>
               </div>
             </div>
           )}
 
           <div className="flex gap-2 mt-4">
-            {confirmationStatus !== 'confirmed' && confirmationStatus !== 'rejected' && (
-              <>
-                <Button 
-                  onClick={handleConfirmWing}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  disabled={wingConfirmLoading}
-                >
-                  ✓ Confirm Stock
-                </Button>
-                <Button 
-                  onClick={handleRejectWing}
-                  variant="destructive"
-                  className="flex-1"
-                  disabled={wingConfirmLoading}
-                >
-                  ✗ Reject Stock
-                </Button>
-              </>
+            {confirmationStatus === 'pending' && (
+              <Button 
+                onClick={() => confirmWingStock(wingConfirmItem)}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                disabled={wingConfirmLoading}
+              >
+                {wingConfirmLoading ? 'Sending...' : '📤 Send Request to Supervisor'}
+              </Button>
             )}
-            {(confirmationStatus === 'confirmed' || confirmationStatus === 'rejected') && (
+            {confirmationStatus === 'sent' && (
+              <Button 
+                onClick={() => setWingConfirmItem(null)} 
+                className="flex-1"
+              >
+                Close & Wait for Response
+              </Button>
+            )}
+            {(confirmationStatus === 'confirmed' || confirmationStatus === 'rejected' || confirmationStatus === 'error') && (
               <Button 
                 onClick={() => setWingConfirmItem(null)} 
                 className="flex-1"
