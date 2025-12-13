@@ -9,6 +9,7 @@ import {
   RequestApproval 
 } from '../services/approvalForwardingService';
 import ApprovalForwarding from './ApprovalForwarding';
+import PerItemApprovalPanel from './PerItemApprovalPanel';
 import { CheckCircle, Clock, RefreshCw, Settings, Users } from "lucide-react";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
@@ -47,7 +48,14 @@ export const ApprovalDashboard: React.FC = () => {
       
       console.log('📋 Approvals loaded:', approvalsData.length, 'for status:', activeFilter);
       setPendingApprovals(approvalsData);
-      setDashboardStats(dashboardData);
+      
+      // Map the API response to match our state structure
+      setDashboardStats({
+        pending_count: dashboardData.pending_count || 0,
+        approved_count: dashboardData.approved_count || 0,
+        rejected_count: dashboardData.rejected_count || 0,
+        forwarded_count: (dashboardData as any).forwarded_count || (dashboardData as any).finalized_count || 0
+      });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -277,7 +285,7 @@ export const ApprovalDashboard: React.FC = () => {
                   {/* Expanded Details */}
                   {selectedApproval === approval.id && (
                     <div className="bg-gray-50 border-t border-gray-200 p-4 overflow-x-auto">
-                      <ApprovalForwarding 
+                      <PerItemApprovalPanel
                         approvalId={approval.id}
                         onActionComplete={handleActionComplete}
                       />
