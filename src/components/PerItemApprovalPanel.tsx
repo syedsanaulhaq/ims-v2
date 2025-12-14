@@ -208,7 +208,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const getItemId = (item: RequestItem) => {
-    return item.id || item.item_id || '';
+    const id = item.id || item.item_id || '';
+    console.log('🔍 getItemId for', item.nomenclature, ':', id);
+    return id;
   };
 
   const getItemDecision = (itemId: string): ItemDecision | undefined => {
@@ -351,13 +353,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     
     try {
       // Send stock confirmation request to wing stock supervisor
-      const itemMasterId = item.item_master_id || item.id;
+      // Use item_id, item_master_id, or id whichever is available
+      const itemId = item.item_id || item.item_master_id || item.id;
       const apiUrl = getApiUrl();
       const endpoint = `${apiUrl}/api/approvals/${approvalId}/request-wing-stock-confirmation`;
       
       console.log('🔄 Sending wing stock confirmation request to:', endpoint);
+      console.log('📦 Item ID sources - item_id:', item.item_id, 'item_master_id:', item.item_master_id, 'id:', item.id, 'FINAL:', itemId);
       console.log('Request payload:', {
-        item_id: itemMasterId,
+        item_id: itemId,
         item_name: getItemName(item),
         requested_quantity: getItemQuantity(item),
         approval_id: approvalId,
@@ -369,7 +373,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          item_id: itemMasterId,
+          item_id: itemId,
           item_name: getItemName(item),
           requested_quantity: getItemQuantity(item),
           approval_id: approvalId,
