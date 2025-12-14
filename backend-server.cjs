@@ -462,11 +462,17 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    console.log(`\n📥 LOGIN REQUEST RECEIVED`);
+    console.log(`   Username: ${username}`);
+    console.log(`   Password length: ${password ? password.length : 0} chars`);
+
     if (!username || !password) {
+      console.log(`❌ Missing credentials - username: ${!!username}, password: ${!!password}`);
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
     if (!pool) {
+      console.log(`❌ Database pool unavailable`);
       return res.status(503).json({ error: 'Database connection unavailable' });
     }
 
@@ -482,6 +488,7 @@ app.post('/api/auth/login', async (req, res) => {
       `);
 
     if (result.recordset.length === 0) {
+      console.log(`❌ User not found: ${username}`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -489,31 +496,48 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Check password - multiple fallback strategies
     let isPasswordValid = false;
-    console.log(`🔐 Login attempt for user: ${username} (ID: ${user.Id})`);
-    console.log(`📋 User has Password field: ${!!user.Password}, PasswordHash field: ${!!user.PasswordHash}`);
+    console.log(`\n🔐 Checking password for user: ${username} (ID: ${user.Id})`);
+    console.log(`📋 User Password field exists: ${!!user.Password}, length: ${user.Password ? user.Password.length : 0}`);
+    console.log(`📋 User PasswordHash field exists: ${!!user.PasswordHash}, length: ${user.PasswordHash ? user.PasswordHash.length : 0}`);
+    console.log(`📋 Provided password length: ${password.length}`);
     
     // Strategy 1: Check plain text Password field
-    if (user.Password && user.Password === password) {
-      console.log('✅ Password matched in plain text Password field');
-      isPasswordValid = true;
+    if (user.Password) {
+      console.log(`   🔍 Strategy 1: Checking plain text Password field`);
+      console.log(`      Stored password: "${user.Password}"`);
+      console.log(`      Provided password: "${password}"`);
+      console.log(`      Direct match: ${user.Password === password}`);
+      if (user.Password === password) {
+        console.log('✅ Password matched in plain text Password field');
+        isPasswordValid = true;
+      }
     }
+    
     // Strategy 2: Check ASP.NET Identity hash in PasswordHash field
-    else if (user.PasswordHash) {
+    if (!isPasswordValid && user.PasswordHash) {
+      console.log(`   🔍 Strategy 2: Checking ASP.NET Identity hash in PasswordHash field`);
       try {
-        // Try ASP.NET Identity password verification first
-        isPasswordValid = aspnetIdentity.verify(password, user.PasswordHash);
-        if (isPasswordValid) {
-          console.log('✅ Password matched with ASP.NET Identity hash in PasswordHash field');
+        // Try ASP.NET Identity password verification using validatePassword
+        // PasswordHash format for ASP.NET Identity starts with AQA or has specific length
+        if (user.PasswordHash.startsWith('AQA') || user.PasswordHash.length > 60) {
+          isPasswordValid = aspnetIdentity.validatePassword(password, user.PasswordHash);
+          console.log(`      ASP.NET Identity validatePassword result: ${isPasswordValid}`);
+          if (isPasswordValid) {
+            console.log('✅ Password matched with ASP.NET Identity hash in PasswordHash field');
+          }
         }
       } catch (error) {
         console.error('❌ ASP.NET Identity hash comparison error:', error.message);
         isPasswordValid = false;
       }
     }
+    
     // Strategy 3: Try bcrypt comparison as fallback
     if (!isPasswordValid && user.PasswordHash && user.PasswordHash.startsWith('$2')) {
+      console.log(`   🔍 Strategy 3: Checking bcrypt hash in PasswordHash field`);
       try {
         isPasswordValid = await bcrypt.compare(password, user.PasswordHash);
+        console.log(`      Bcrypt compare result: ${isPasswordValid}`);
         if (isPasswordValid) {
           console.log('✅ Password matched with bcrypt hash in PasswordHash field');
         }
@@ -522,18 +546,21 @@ app.post('/api/auth/login', async (req, res) => {
         isPasswordValid = false;
       }
     }
+    
     // Strategy 4: Check if plain password is in PasswordHash field (stored as plain text)
     if (!isPasswordValid && user.PasswordHash && user.PasswordHash === password) {
+      console.log(`   🔍 Strategy 4: Checking if plain text password in PasswordHash field`);
       console.log('✅ Password matched as plain text in PasswordHash field');
       isPasswordValid = true;
     }
 
     if (!isPasswordValid) {
-      console.log(`❌ Login failed for user: ${username} - Invalid credentials`);
+      console.log(`\n❌ LOGIN FAILED - Invalid credentials for user: ${username}`);
+      console.log(`   All strategies failed`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    console.log(`🎉 Login successful for user: ${username}`);
+    console.log(`\n✅ PASSWORD VALIDATION SUCCESSFUL for user: ${username}`);
 
     // Store user in session
     req.session.userId = user.Id;
