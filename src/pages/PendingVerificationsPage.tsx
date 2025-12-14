@@ -9,6 +9,7 @@ interface InventoryVerificationRequest {
   id: number;
   stock_issuance_id: string;
   item_master_id: string;
+  item_nomenclature: string;
   requested_by_user_id: string;
   requested_by_name: string;
   status: 'pending' | 'verified_available' | 'verified_partial' | 'verified_unavailable' | 'verified' | 'rejected';
@@ -262,7 +263,7 @@ export const PendingVerificationsPage: React.FC = () => {
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h4 className="font-semibold text-gray-900">{request.item_master_id}</h4>
+                        <h4 className="font-semibold text-gray-900">{request.item_nomenclature || request.item_master_id}</h4>
                         <Badge
                           variant={
                             request.status === 'pending'
@@ -272,7 +273,11 @@ export const PendingVerificationsPage: React.FC = () => {
                               : 'destructive'
                           }
                         >
-                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                          {request.status === 'pending' && 'Pending'}
+                          {request.status === 'verified_available' && '✅ Available'}
+                          {request.status === 'verified_partial' && '⚠️ Partial'}
+                          {request.status === 'verified_unavailable' && '❌ Unavailable'}
+                          {!['pending', 'verified_available', 'verified_partial', 'verified_unavailable'].includes(request.status) && request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                         </Badge>
                       </div>
                       <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
