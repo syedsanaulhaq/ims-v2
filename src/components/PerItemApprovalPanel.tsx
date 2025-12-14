@@ -347,6 +347,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       // Send stock confirmation request to wing stock supervisor
       const itemMasterId = item.item_master_id || item.id;
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      
+      console.log('🔄 Sending wing stock confirmation request:', {
+        approvalId,
+        itemMasterId,
+        itemName: getItemName(item),
+        requestedQuantity: getItemQuantity(item),
+        apiUrl
+      });
+
       const response = await fetch(`${apiUrl}/api/approvals/${approvalId}/request-wing-stock-confirmation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -360,19 +369,24 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         })
       });
       
+      console.log('📥 Response status:', response.status, response.statusText);
+      
+      const data = await response.json();
+      console.log('📋 Response data:', data);
+
       if (response.ok) {
-        const data = await response.json();
         console.log('✓ Wing stock confirmation request sent:', data);
         setConfirmationStatus('sent');
         setSuccess('✓ Confirmation request sent to Wing Stock Supervisor');
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        setError(errorData.error || 'Failed to send confirmation request');
+        setError(data.error || data.message || 'Failed to send confirmation request');
         setConfirmationStatus('error');
+        console.error('❌ Request failed:', data);
       }
     } catch (err) {
-      console.error('Error sending wing stock confirmation request:', err);
-      setError('Error sending request to wing stock supervisor: ' + (err instanceof Error ? err.message : String(err)));
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('❌ Error sending wing stock confirmation request:', err);
+      setError('Error: ' + errorMsg);
       setConfirmationStatus('error');
     } finally {
       setWingConfirmLoading(false);

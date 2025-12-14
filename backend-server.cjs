@@ -13013,21 +13013,31 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
     const { approvalId } = req.params;
     const { item_id, item_name, requested_quantity, approval_id, request_type } = req.body;
 
+    console.log('📬 Wing stock confirmation request received:', {
+      approvalId,
+      item_id,
+      item_name,
+      requested_quantity,
+      approval_id,
+      request_type
+    });
+
     if (!approvalId || !item_id) {
+      console.error('❌ Missing required params:', { approvalId, item_id });
       return res.status(400).json({ error: 'approvalId and item_id are required' });
     }
 
-    const request = pool.request();
     const confirmationId = require('uuid').v4();
+    let dbCreated = false;
     
     try {
       // Try to create confirmation record in database
-      const result = await request
+      const result = await pool.request()
         .input('confirmationId', sql.UniqueIdentifier, confirmationId)
         .input('approvalId', sql.NVarChar, approvalId)
         .input('itemId', sql.UniqueIdentifier, item_id)
-        .input('itemName', sql.NVarChar, item_name || 'Unknown Item')
-        .input('requestedQuantity', sql.Int, requested_quantity || 0)
+        .input('itemName', sql.NVarChar, (item_name || 'Unknown Item').substring(0, 500))
+        .input('requestedQuantity', sql.Int, parseInt(requested_quantity) || 0)
         .input('requestType', sql.NVarChar, request_type || 'wing_stock_confirmation')
         .query(`
           INSERT INTO wing_stock_confirmations (
@@ -13052,16 +13062,17 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
             GETDATE(),
             CURRENT_USER
           );
-          SELECT @confirmationId as id;
         `);
 
-      console.log('✓ Wing stock confirmation request created:', confirmationId);
+      console.log('✓ Wing stock confirmation record created:', confirmationId);
+      dbCreated = true;
     } catch (dbError) {
       // If table doesn't exist, continue with in-memory tracking
-      console.log('⚠ wing_stock_confirmations table not found, using in-memory tracking:', dbError.message);
+      console.log('⚠ Database table error (continuing):', dbError.message);
     }
 
     // Try to notify wing stock supervisor
+    let notifCreated = false;
     try {
       await pool.request()
         .input('userId', sql.NVarChar, 'wing-supervisor')
@@ -13072,17 +13083,22 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
           INSERT INTO notifications (user_id, title, message, link, created_at, is_read)
           VALUES (@userId, @title, @message, @link, GETDATE(), 0)
         `);
+      console.log('✓ Notification created');
+      notifCreated = true;
     } catch (notifError) {
-      console.log('⚠ Could not create notification record:', notifError.message);
+      console.log('⚠ Notification error (continuing):', notifError.message);
     }
 
+    console.log('✅ Wing stock confirmation request processed successfully');
     res.json({ 
       success: true, 
       confirmationId: confirmationId,
-      message: 'Confirmation request sent to Wing Stock Supervisor'
+      message: 'Confirmation request sent to Wing Stock Supervisor',
+      dbCreated,
+      notifCreated
     });
   } catch (error) {
-    console.error('Error requesting wing stock confirmation:', error);
+    console.error('❌ Error requesting wing stock confirmation:', error);
     res.status(500).json({ 
       error: 'Failed to send confirmation request', 
       details: error.message 
