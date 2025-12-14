@@ -43,6 +43,16 @@ interface RequestItem {
   stock_status?: string;
   current_stock?: number;
   wing_stock_available?: number;
+  issued_quantity?: number;
+  item_code?: string;
+  item_description?: string;
+  unit?: string;
+  approved_quantity?: number;
+  request_purpose?: string;
+  expected_return_date?: string;
+  is_returnable?: boolean;
+  item_status?: string;
+  item_master_id?: string | null;
 }
 
 interface ApprovalRequest {
@@ -59,6 +69,22 @@ interface ApprovalRequest {
   request_items?: RequestItem[];
   inventory_items?: RequestItem[];
   custom_items?: RequestItem[];
+  submitted_by_name?: string;
+  request_type?: string;
+  current_status?: string;
+  workflow_id?: string;
+  current_approver_id?: string;
+  submitted_by?: string;
+  submitted_date?: string;
+  finalized_by?: string | null;
+  finalized_date?: string | null;
+  rejected_by?: string | null;
+  rejected_date?: string | null;
+  rejection_reason?: string | null;
+  created_date?: string;
+  updated_date?: string;
+  current_approver_name?: string;
+  workflow_name?: string;
 }
 
 export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
@@ -84,7 +110,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [wingConfirmItem, setWingConfirmItem] = useState<any>(null);
   const [wingConfirmLoading, setWingConfirmLoading] = useState(false);
   const [wingStockAvailable, setWingStockAvailable] = useState<number>(0);
-  const [confirmationStatus, setConfirmationStatus] = useState<'pending' | 'confirmed' | 'rejected' | null>(null);
+  const [confirmationStatus, setConfirmationStatus] = useState<'pending' | 'confirmed' | 'rejected' | 'sent' | 'error' | null>(null);
 
   useEffect(() => {
     loadApprovalRequest();
