@@ -11814,8 +11814,8 @@ ${verificationNotes ? `Notes: ${verificationNotes}` : 'No additional notes'}
           .input('Title', sql.NVarChar, notificationTitle)
           .input('Message', sql.NVarChar, notificationMessage)
           .input('Type', sql.NVarChar, 'VERIFICATION_COMPLETE')
-          .input('ActionUrl', sql.NVarChar, `/dashboard/pending-verifications`)
-          .input('ActionText', sql.NVarChar, 'View Verification')
+          .input('ActionUrl', sql.NVarChar, `/dashboard/verification-history`)
+          .input('ActionText', sql.NVarChar, 'View Verification Details')
           .query(`
             INSERT INTO Notifications (Id, UserId, Title, Message, Type, ActionUrl, ActionText, CreatedAt, IsRead)
             VALUES (NEWID(), @UserId, @Title, @Message, @Type, @ActionUrl, @ActionText, GETDATE(), 0)

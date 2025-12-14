@@ -29,6 +29,23 @@ export default function VerificationHistoryPage() {
     fetchVerificationHistory();
   }, [user?.user_id]);
 
+  useEffect(() => {
+    // Auto-expand the most recent verified item
+    if (verifications.length > 0 && verifications[0].status !== 'pending') {
+      const mostRecent = verifications[0];
+      const verifiedAt = mostRecent.verified_at ? new Date(mostRecent.verified_at) : null;
+      const now = new Date();
+      const hoursSinceVerification = verifiedAt 
+        ? (now.getTime() - verifiedAt.getTime()) / (1000 * 60 * 60)
+        : null;
+      
+      // Auto-expand if verified within last 24 hours
+      if (hoursSinceVerification && hoursSinceVerification < 24) {
+        setSelectedId(mostRecent.id);
+      }
+    }
+  }, [verifications]);
+
   const fetchVerificationHistory = async () => {
     try {
       setLoading(true);
@@ -101,15 +118,30 @@ export default function VerificationHistoryPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {verifications.map((verification) => (
-            <Card
-              key={verification.id}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() =>
-                setSelectedId(selectedId === verification.id ? null : verification.id)
-              }
-            >
-              <CardContent className="pt-6">
+          {verifications.map((verification) => {
+            const isRecentlyVerified = verification.verified_at 
+              ? (new Date().getTime() - new Date(verification.verified_at).getTime()) / (1000 * 60 * 60) < 24
+              : false;
+            
+            return (
+              <Card
+                key={verification.id}
+                className={`hover:shadow-lg transition-shadow cursor-pointer ${
+                  isRecentlyVerified && verification.status !== 'pending' 
+                    ? 'border-2 border-blue-500 bg-blue-50/30' 
+                    : ''
+                }`}
+                onClick={() =>
+                  setSelectedId(selectedId === verification.id ? null : verification.id)
+                }
+              >
+                <CardContent className="pt-6">
+                  {isRecentlyVerified && verification.status !== 'pending' && (
+                    <div className="mb-3 flex items-center gap-2 text-blue-600 font-semibold text-sm">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Recently Verified</span>
+                    </div>
+                  )}
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
@@ -214,7 +246,8 @@ export default function VerificationHistoryPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
