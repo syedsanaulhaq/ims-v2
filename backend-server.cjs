@@ -487,25 +487,53 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = result.recordset[0];
 
-    // Check password - first try plain text Password field, then hashed PasswordHash
+    // Check password - multiple fallback strategies
     let isPasswordValid = false;
+    console.log(`🔐 Login attempt for user: ${username} (ID: ${user.Id})`);
+    console.log(`📋 User has Password field: ${!!user.Password}, PasswordHash field: ${!!user.PasswordHash}`);
     
+    // Strategy 1: Check plain text Password field
     if (user.Password && user.Password === password) {
-      // Plain text password match
+      console.log('✅ Password matched in plain text Password field');
       isPasswordValid = true;
-    } else if (user.PasswordHash) {
-      // Try bcrypt comparison for hashed passwords
+    }
+    // Strategy 2: Check ASP.NET Identity hash in PasswordHash field
+    else if (user.PasswordHash) {
       try {
-        isPasswordValid = await bcrypt.compare(password, user.PasswordHash);
+        // Try ASP.NET Identity password verification first
+        isPasswordValid = aspnetIdentity.verify(password, user.PasswordHash);
+        if (isPasswordValid) {
+          console.log('✅ Password matched with ASP.NET Identity hash in PasswordHash field');
+        }
       } catch (error) {
-        console.error('Password hash comparison error:', error);
+        console.error('❌ ASP.NET Identity hash comparison error:', error.message);
         isPasswordValid = false;
       }
     }
+    // Strategy 3: Try bcrypt comparison as fallback
+    if (!isPasswordValid && user.PasswordHash && user.PasswordHash.startsWith('$2')) {
+      try {
+        isPasswordValid = await bcrypt.compare(password, user.PasswordHash);
+        if (isPasswordValid) {
+          console.log('✅ Password matched with bcrypt hash in PasswordHash field');
+        }
+      } catch (error) {
+        console.error('❌ Bcrypt comparison error:', error.message);
+        isPasswordValid = false;
+      }
+    }
+    // Strategy 4: Check if plain password is in PasswordHash field (stored as plain text)
+    if (!isPasswordValid && user.PasswordHash && user.PasswordHash === password) {
+      console.log('✅ Password matched as plain text in PasswordHash field');
+      isPasswordValid = true;
+    }
 
     if (!isPasswordValid) {
+      console.log(`❌ Login failed for user: ${username} - Invalid credentials`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    console.log(`🎉 Login successful for user: ${username}`);
 
     // Store user in session
     req.session.userId = user.Id;
