@@ -11813,7 +11813,7 @@ ${verificationNotes ? `Notes: ${verificationNotes}` : 'No additional notes'}
           .input('UserId', sql.NVarChar, verificationDetails.requested_by_user_id)
           .input('Title', sql.NVarChar, notificationTitle)
           .input('Message', sql.NVarChar, notificationMessage)
-          .input('Type', sql.NVarChar, 'VERIFICATION_COMPLETE')
+          .input('Type', sql.NVarChar, 'info')
           .input('ActionUrl', sql.NVarChar, `/dashboard/verification-history`)
           .input('ActionText', sql.NVarChar, 'View Verification Details')
           .query(`
@@ -12034,9 +12034,9 @@ app.get('/api/my-notifications', async (req, res) => {
     
     // Fetch notifications from database
     const result = await pool.request()
-      .input('userId', sql.NVarChar, userId)
-      .input('unreadOnly', sql.Bit, unreadOnly === 'true')
-      .input('limit', sql.Int, parseInt(limit))
+      .input('UserId', sql.NVarChar, userId)
+      .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
+      .input('Limit', sql.Int, parseInt(limit))
       .execute('GetUserNotifications');
     
     res.json({

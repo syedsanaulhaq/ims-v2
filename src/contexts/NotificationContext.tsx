@@ -126,16 +126,27 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.notifications) {
-          const apiNotifications = data.notifications.map((n: any) => ({
-            id: n.Id,
-            title: n.Title,
-            message: n.Message,
-            type: n.Type as 'info' | 'success' | 'warning' | 'error',
-            isRead: n.IsRead,
-            createdAt: new Date(n.CreatedAt),
-            actionUrl: n.ActionUrl,
-            actionText: n.ActionText
-          }));
+          const apiNotifications = data.notifications.map((n: any) => {
+            // Normalize type to valid values
+            let type: 'info' | 'success' | 'warning' | 'error' = 'info';
+            if (n.Type) {
+              const typeStr = n.Type.toLowerCase();
+              if (['info', 'success', 'warning', 'error'].includes(typeStr)) {
+                type = typeStr as 'info' | 'success' | 'warning' | 'error';
+              }
+            }
+            
+            return {
+              id: n.Id,
+              title: n.Title,
+              message: n.Message,
+              type,
+              isRead: n.IsRead,
+              createdAt: new Date(n.CreatedAt),
+              actionUrl: n.ActionUrl,
+              actionText: n.ActionText
+            };
+          });
           
           setNotifications(apiNotifications);
           console.log('✅ Loaded notifications from API:', apiNotifications.length);
