@@ -17,6 +17,9 @@ import { CheckCircle, AlertCircle, Package } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import approvalService from '@/services/approvalService';
 
+// Get API URL from environment or default to localhost
+const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 interface PerItemApprovalPanelProps {
   approvalId: string;
   onActionComplete?: () => void;
@@ -91,7 +94,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       setLoading(true);
       // Fetch the approval request details
-      const response = await fetch(`http://localhost:3001/api/approvals/${approvalId}`, {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/approvals/${approvalId}`, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to load approval');
@@ -125,7 +129,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       if (!data.items || (Array.isArray(data.items) && data.items.length === 0) || !Array.isArray(data.items)) {
         console.warn('⚠️ No items found in response or not an array, fetching from approval items endpoint');
         try {
-          const itemsResponse = await fetch(`http://localhost:3001/api/approval-items/${approvalId}`, {
+          const apiUrl = getApiUrl();
+          const itemsResponse = await fetch(`${apiUrl}/api/approval-items/${approvalId}`, {
             credentials: 'include'
           });
           if (itemsResponse.ok) {
@@ -275,7 +280,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         };
       });
 
-      const response = await fetch(`http://localhost:3001/api/approvals/${approvalId}/approve`, {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/approvals/${approvalId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -346,17 +352,19 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       // Send stock confirmation request to wing stock supervisor
       const itemMasterId = item.item_master_id || item.id;
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = getApiUrl();
+      const endpoint = `${apiUrl}/api/approvals/${approvalId}/request-wing-stock-confirmation`;
       
-      console.log('🔄 Sending wing stock confirmation request:', {
-        approvalId,
-        itemMasterId,
-        itemName: getItemName(item),
-        requestedQuantity: getItemQuantity(item),
-        apiUrl
+      console.log('🔄 Sending wing stock confirmation request to:', endpoint);
+      console.log('Request payload:', {
+        item_id: itemMasterId,
+        item_name: getItemName(item),
+        requested_quantity: getItemQuantity(item),
+        approval_id: approvalId,
+        request_type: 'wing_stock_confirmation'
       });
 
-      const response = await fetch(`${apiUrl}/api/approvals/${approvalId}/request-wing-stock-confirmation`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -369,19 +377,32 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         })
       });
       
-      console.log('📥 Response status:', response.status, response.statusText);
+      console.log('📥 Response received - Status:', response.status, response.statusText);
       
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        console.error('❌ Failed to parse JSON response:', parseErr);
+        const text = await response.text();
+        console.log('Response text:', text);
+        setError('Server returned invalid response: ' + text.substring(0, 100));
+        setConfirmationStatus('error');
+        setWingConfirmLoading(false);
+        return;
+      }
+      
       console.log('📋 Response data:', data);
 
-      if (response.ok) {
-        console.log('✓ Wing stock confirmation request sent:', data);
+      if (response.ok && data.success) {
+        console.log('✓ Wing stock confirmation request sent successfully:', data);
         setConfirmationStatus('sent');
         setSuccess('✓ Confirmation request sent to Wing Stock Supervisor');
       } else {
-        setError(data.error || data.message || 'Failed to send confirmation request');
+        const errorMsg = data.error || data.message || `Request failed with status ${response.status}`;
+        setError(errorMsg);
         setConfirmationStatus('error');
-        console.error('❌ Request failed:', data);
+        console.error('❌ Request failed:', { status: response.status, data });
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);

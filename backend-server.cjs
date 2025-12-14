@@ -13100,6 +13100,7 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
   } catch (error) {
     console.error('❌ Error requesting wing stock confirmation:', error);
     res.status(500).json({ 
+      success: false,
       error: 'Failed to send confirmation request', 
       details: error.message 
     });
