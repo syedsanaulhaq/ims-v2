@@ -346,7 +346,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       // Send stock confirmation request to wing stock supervisor
       const itemMasterId = item.item_master_id || item.id;
-      const response = await fetch(`http://localhost:3001/api/approvals/${approvalId}/request-wing-stock-confirmation`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/approvals/${approvalId}/request-wing-stock-confirmation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -365,12 +366,13 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         setConfirmationStatus('sent');
         setSuccess('✓ Confirmation request sent to Wing Stock Supervisor');
       } else {
-        setError('Failed to send confirmation request');
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.error || 'Failed to send confirmation request');
         setConfirmationStatus('error');
       }
     } catch (err) {
       console.error('Error sending wing stock confirmation request:', err);
-      setError('Error sending request to wing stock supervisor');
+      setError('Error sending request to wing stock supervisor: ' + (err instanceof Error ? err.message : String(err)));
       setConfirmationStatus('error');
     } finally {
       setWingConfirmLoading(false);

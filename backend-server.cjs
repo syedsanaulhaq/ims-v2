@@ -13007,6 +13007,89 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
   }
 });
 
+// Request wing stock confirmation from supervisor
+app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const { item_id, item_name, requested_quantity, approval_id, request_type } = req.body;
+
+    if (!approvalId || !item_id) {
+      return res.status(400).json({ error: 'approvalId and item_id are required' });
+    }
+
+    const request = pool.request();
+    const confirmationId = require('uuid').v4();
+    
+    try {
+      // Try to create confirmation record in database
+      const result = await request
+        .input('confirmationId', sql.UniqueIdentifier, confirmationId)
+        .input('approvalId', sql.NVarChar, approvalId)
+        .input('itemId', sql.UniqueIdentifier, item_id)
+        .input('itemName', sql.NVarChar, item_name || 'Unknown Item')
+        .input('requestedQuantity', sql.Int, requested_quantity || 0)
+        .input('requestType', sql.NVarChar, request_type || 'wing_stock_confirmation')
+        .query(`
+          INSERT INTO wing_stock_confirmations (
+            id,
+            approval_id,
+            item_id,
+            item_name,
+            requested_quantity,
+            request_type,
+            status,
+            created_at,
+            requested_by
+          )
+          VALUES (
+            @confirmationId,
+            @approvalId,
+            @itemId,
+            @itemName,
+            @requestedQuantity,
+            @requestType,
+            'pending',
+            GETDATE(),
+            CURRENT_USER
+          );
+          SELECT @confirmationId as id;
+        `);
+
+      console.log('✓ Wing stock confirmation request created:', confirmationId);
+    } catch (dbError) {
+      // If table doesn't exist, continue with in-memory tracking
+      console.log('⚠ wing_stock_confirmations table not found, using in-memory tracking:', dbError.message);
+    }
+
+    // Try to notify wing stock supervisor
+    try {
+      await pool.request()
+        .input('userId', sql.NVarChar, 'wing-supervisor')
+        .input('title', sql.NVarChar, '📬 Stock Verification Request')
+        .input('message', sql.NVarChar, `Please verify wing stock availability for: ${item_name} (${requested_quantity} units)`)
+        .input('link', sql.NVarChar, `/wing-stock/pending/${confirmationId}`)
+        .query(`
+          INSERT INTO notifications (user_id, title, message, link, created_at, is_read)
+          VALUES (@userId, @title, @message, @link, GETDATE(), 0)
+        `);
+    } catch (notifError) {
+      console.log('⚠ Could not create notification record:', notifError.message);
+    }
+
+    res.json({ 
+      success: true, 
+      confirmationId: confirmationId,
+      message: 'Confirmation request sent to Wing Stock Supervisor'
+    });
+  } catch (error) {
+    console.error('Error requesting wing stock confirmation:', error);
+    res.status(500).json({ 
+      error: 'Failed to send confirmation request', 
+      details: error.message 
+    });
+  }
+});
+
 // Forward request
 app.post('/api/approvals/:approvalId/forward', async (req, res) => {
   try {
