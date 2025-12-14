@@ -11622,7 +11622,31 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
 
     // Get pending verifications for wings this user supervises
     const placeholders = wingIds.map((_, i) => `@wingId${i}`).join(',');
-    let query = `SELECT * FROM View_Pending_Inventory_Verifications WHERE wing_id IN (${placeholders}) ORDER BY requested_at DESC`;
+    let query = `
+      SELECT 
+        id,
+        stock_issuance_id,
+        item_master_id,
+        item_nomenclature,
+        requested_quantity,
+        requested_by_user_id,
+        requested_by_name,
+        wing_id,
+        wing_name,
+        verification_status as status,
+        physical_count,
+        available_quantity,
+        verification_notes,
+        verified_by_user_id,
+        verified_by_name,
+        verified_at,
+        requested_at,
+        created_at,
+        updated_at
+      FROM inventory_verification_requests 
+      WHERE wing_id IN (${placeholders}) 
+      ORDER BY requested_at DESC
+    `;
     
     let request = pool.request();
     wingIds.forEach((wingId, i) => {
@@ -11717,6 +11741,26 @@ app.post('/api/inventory/update-verification', async (req, res) => {
     try {
       console.log('📦 Updating verification:', { verificationId, verificationStatus });
 
+      // Get verification request details before updating
+      const verificationDetailsResult = await pool.request()
+        .input('verificationId', sql.Int, verificationId)
+        .query(`
+          SELECT 
+            id,
+            stock_issuance_id,
+            item_master_id,
+            item_nomenclature,
+            requested_quantity,
+            requested_by_user_id,
+            requested_by_name,
+            wing_id,
+            wing_name
+          FROM inventory_verification_requests
+          WHERE id = @verificationId
+        `);
+
+      const verificationDetails = verificationDetailsResult.recordset[0];
+
       // Update verification request
       await pool.request()
         .input('verificationId', sql.Int, verificationId)
@@ -11741,6 +11785,45 @@ app.post('/api/inventory/update-verification', async (req, res) => {
 
       console.log('✅ Verification updated successfully');
 
+      // Create notification for the requester with verification details
+      if (verificationDetails && verificationDetails.requested_by_user_id) {
+        const statusDescriptions = {
+          'verified_available': '✅ Available',
+          'verified_partial': '⚠️ Partially Available',
+          'verified_unavailable': '❌ Unavailable'
+        };
+
+        const statusDescription = statusDescriptions[verificationStatus] || verificationStatus;
+        
+        const notificationTitle = `Verification Complete: ${verificationDetails.item_nomenclature}`;
+        const notificationMessage = `
+Verification Details:
+Item: ${verificationDetails.item_nomenclature}
+Requested Quantity: ${verificationDetails.requested_quantity}
+Status: ${statusDescription}
+Physical Count: ${physicalCount || availableQuantity || 0}
+Verified By: ${verifiedByName}
+Wing: ${verificationDetails.wing_name}
+
+${verificationNotes ? `Notes: ${verificationNotes}` : 'No additional notes'}
+        `.trim();
+
+        // Insert notification
+        await pool.request()
+          .input('UserId', sql.NVarChar, verificationDetails.requested_by_user_id)
+          .input('Title', sql.NVarChar, notificationTitle)
+          .input('Message', sql.NVarChar, notificationMessage)
+          .input('Type', sql.NVarChar, 'VERIFICATION_COMPLETE')
+          .input('ActionUrl', sql.NVarChar, `/dashboard/pending-verifications`)
+          .input('ActionText', sql.NVarChar, 'View Verification')
+          .query(`
+            INSERT INTO Notifications (Id, UserId, Title, Message, Type, ActionUrl, ActionText, CreatedAt, IsRead)
+            VALUES (NEWID(), @UserId, @Title, @Message, @Type, @ActionUrl, @ActionText, GETDATE(), 0)
+          `);
+
+        console.log(`✅ Notification created for user: ${verificationDetails.requested_by_user_id}`);
+      }
+
       res.json({
         success: true,
         message: 'Verification updated successfully',
@@ -11756,6 +11839,60 @@ app.post('/api/inventory/update-verification', async (req, res) => {
     console.error('❌ Error updating verification:', error);
     res.status(500).json({ 
       error: 'Failed to update verification', 
+      details: error.message 
+    });
+  }
+});
+
+// Get verification history for a specific user (requester)
+app.get('/api/inventory/verification-history', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ 
+        error: 'User ID is required' 
+      });
+    }
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          id,
+          item_nomenclature,
+          requested_quantity,
+          verification_status as status,
+          physical_count,
+          available_quantity,
+          verification_notes,
+          verified_by_user_id,
+          verified_by_name,
+          wing_id,
+          wing_name,
+          requested_at,
+          verified_at
+        FROM inventory_verification_requests
+        WHERE requested_by_user_id = @userId
+        ORDER BY requested_at DESC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching verification history:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch verification history', 
       details: error.message 
     });
   }

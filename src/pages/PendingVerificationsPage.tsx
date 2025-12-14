@@ -11,7 +11,7 @@ interface InventoryVerificationRequest {
   item_master_id: string;
   requested_by_user_id: string;
   requested_by_name: string;
-  status: 'pending' | 'verified' | 'rejected';
+  status: 'pending' | 'verified_available' | 'verified_partial' | 'verified_unavailable' | 'verified' | 'rejected';
   verified_by_user_id?: string;
   verified_by_name?: string;
   physical_count?: number;
@@ -256,62 +256,110 @@ export const PendingVerificationsPage: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {verificationRequests.map((request) => (
-                <div
-                  key={request.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-semibold text-gray-900">{request.item_master_id}</h4>
-                      <Badge
-                        variant={
-                          request.status === 'pending'
-                            ? 'secondary'
-                            : request.status?.startsWith('verified')
-                            ? 'default'
-                            : 'destructive'
-                        }
-                      >
-                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
-                      <div>
-                        <p className="font-medium">Quantity Requested</p>
-                        <p className="text-lg font-bold text-gray-900">{request.requested_quantity ?? request.available_quantity ?? 0}</p>
+                <div key={request.id}>
+                  <div
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="font-semibold text-gray-900">{request.item_master_id}</h4>
+                        <Badge
+                          variant={
+                            request.status === 'pending'
+                              ? 'secondary'
+                              : request.status?.startsWith('verified')
+                              ? 'default'
+                              : 'destructive'
+                          }
+                        >
+                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                        </Badge>
                       </div>
-                      <div>
-                        <p className="font-medium">Wing</p>
-                        <p className="text-gray-900">{request.wing_name}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium">Created</p>
-                        <p className="text-gray-900">{new Date(request.requested_at).toLocaleDateString()}</p>
-                      </div>
-                      {request.status !== 'pending' && (
+                      <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
                         <div>
-                          <p className="font-medium">Verified By</p>
-                          <p className="text-gray-900">{request.verified_by_name || 'N/A'}</p>
+                          <p className="font-medium">Quantity Requested</p>
+                          <p className="text-lg font-bold text-gray-900">{request.requested_quantity ?? request.available_quantity ?? 0}</p>
                         </div>
-                      )}
+                        <div>
+                          <p className="font-medium">Wing</p>
+                          <p className="text-gray-900">{request.wing_name}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium">Created</p>
+                          <p className="text-gray-900">{new Date(request.requested_at).toLocaleDateString()}</p>
+                        </div>
+                        {request.status !== 'pending' && (
+                          <div>
+                            <p className="font-medium">Verified By</p>
+                            <p className="text-gray-900">{request.verified_by_name || 'N/A'}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {request.status === 'pending' && (
+                      <Button
+                        onClick={() => handleViewDetails(request)}
+                        className="ml-4 whitespace-nowrap"
+                        size="sm"
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        Verify Item
+                      </Button>
+                    )}
+                    {request.status !== 'pending' && (
+                      <div className="ml-4">
+                        <Button
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setShowModal(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View Details
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
-                  {request.status === 'pending' && (
-                    <Button
-                      onClick={() => handleViewDetails(request)}
-                      className="ml-4 whitespace-nowrap"
-                      size="sm"
-                    >
-                      <Edit2 className="w-4 h-4 mr-1" />
-                      Verify Item
-                    </Button>
-                  )}
-                  {request.status === 'verified' && (
-                    <CheckCircle2 className="w-6 h-6 text-green-600 ml-4" />
-                  )}
-                  {request.status === 'rejected' && (
-                    <XCircle className="w-6 h-6 text-red-600 ml-4" />
+                  {/* Show verification details if verified */}
+                  {request.status !== 'pending' && request.verified_by_name && (
+                    <div className="ml-0 p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                      <div className="flex items-start gap-4">
+                        <CheckCircle2 className="w-5 h-5 text-green-600 mt-1 flex-shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <p className="font-semibold text-gray-900">Verification Feedback</p>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <p className="text-gray-600">Status</p>
+                              <p className="font-bold text-teal-600">
+                                {request.status === 'verified_available' && '✅ Available'}
+                                {request.status === 'verified_partial' && '⚠️ Partially Available'}
+                                {request.status === 'verified_unavailable' && '❌ Unavailable'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-gray-600">Physical Count</p>
+                              <p className="font-bold text-gray-900">{request.physical_count || request.available_quantity || 0} units</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-600">Verified By</p>
+                              <p className="font-semibold text-gray-900">{request.verified_by_name}</p>
+                            </div>
+                            {request.verification_notes && (
+                              <div className="col-span-2">
+                                <p className="text-gray-600">Notes</p>
+                                <p className="font-medium text-gray-900 bg-white p-2 rounded border border-blue-100">
+                                  {request.verification_notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}

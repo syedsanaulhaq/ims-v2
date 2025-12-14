@@ -165,6 +165,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Stock Quantities", icon: BarChart3, path: "/dashboard/inventory-stock-quantities", permission: 'inventory.view' },
       { title: "Stock Alerts", icon: AlertTriangle, path: "/dashboard/inventory-alerts", permission: 'inventory.view' },
       { title: "Pending Verifications", icon: Eye, path: "/dashboard/pending-verifications", permission: 'inventory.manage' },
+      { title: "Verification History", icon: Eye, path: "/dashboard/verification-history", permission: 'inventory.view' },
     ]
   };
 
