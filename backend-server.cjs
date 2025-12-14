@@ -11585,6 +11585,12 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
   try {
     const { userId } = req.query;
 
+    if (!userId) {
+      return res.status(400).json({ 
+        error: 'User ID is required' 
+      });
+    }
+
     if (!pool) {
       return res.json({
         success: true,
@@ -11592,12 +11598,40 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
       });
     }
 
-    // Get pending verifications for wings this user manages
-    const result = await pool.request()
+    // Get wings where this user is a Wing Supervisor
+    const userWingsResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
       .query(`
-        SELECT * FROM View_Pending_Inventory_Verifications
-        ORDER BY requested_at DESC
+        SELECT DISTINCT scope_wing_id
+        FROM ims_user_roles ur
+        JOIN ims_roles r ON ur.role_id = r.id
+        WHERE ur.user_id = @userId
+          AND r.role_name = 'WING_SUPERVISOR'
+          AND ur.scope_wing_id IS NOT NULL
       `);
+
+    const wingIds = userWingsResult.recordset.map(w => w.scope_wing_id);
+
+    if (wingIds.length === 0) {
+      // User is not a Wing Supervisor for any wing
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Get pending verifications for wings this user supervises
+    const placeholders = wingIds.map((_, i) => `@wingId${i}`).join(',');
+    let query = `SELECT * FROM View_Pending_Inventory_Verifications WHERE wing_id IN (${placeholders}) ORDER BY requested_at DESC`;
+    
+    let request = pool.request();
+    wingIds.forEach((wingId, i) => {
+      request.input(`wingId${i}`, sql.Int, wingId);
+    });
+
+    const result = await request.query(query);
+
+    console.log(`✅ Fetched ${result.recordset.length} pending verifications for user ${userId} in ${wingIds.length} wing(s)`);
 
     res.json({
       success: true,

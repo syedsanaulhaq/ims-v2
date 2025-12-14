@@ -54,7 +54,14 @@ export const PendingVerificationsPage: React.FC = () => {
   const fetchPendingVerifications = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/inventory/pending-verifications');
+      const userId = sessionStorage.getItem('user_id');
+      
+      if (!userId) {
+        console.error('User ID not found in session');
+        return;
+      }
+      
+      const response = await fetch(`http://localhost:3001/api/inventory/pending-verifications?userId=${encodeURIComponent(userId)}`);
       const data = await response.json();
       
       if (data.success) {
