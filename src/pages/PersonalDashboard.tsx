@@ -121,7 +121,7 @@ const PersonalDashboard = () => {
       <div>
         <h1 className="text-4xl font-bold text-gray-900">Personal Dashboard</h1>
         <p className="text-lg text-gray-600 mt-2">
-          Welcome back, {user?.userName || 'User'}! Here's your inventory activity overview
+          Welcome back, {user?.user_name || 'User'}! Here's your inventory activity overview
         </p>
         <div className="flex items-center gap-2 mt-3">
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">

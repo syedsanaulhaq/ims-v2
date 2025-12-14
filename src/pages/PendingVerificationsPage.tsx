@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 import { AlertCircle, CheckCircle2, XCircle, Clock, Eye, Edit2, Send } from 'lucide-react';
 
 interface InventoryVerificationRequest {
@@ -20,6 +20,7 @@ interface InventoryVerificationRequest {
   wing_name: string;
   requested_at: string;
   verified_at?: string;
+  requested_quantity?: number;
 }
 
 interface VerificationItemDetail {
@@ -85,10 +86,11 @@ export const PendingVerificationsPage: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
+        const requestedQty = request.requested_quantity ?? request.available_quantity ?? 0;
         setItemDetails({
           id: String(request.id),
           nomenclature: request.item_master_id || 'Item',
-          requested_quantity: request.requested_quantity || 0,
+          requested_quantity: requestedQty,
           wing_available: data.data?.available_quantity || data.wing_available || 0,
           admin_available: data.admin_available || 0,
           verification_status: 'pending'
@@ -96,13 +98,14 @@ export const PendingVerificationsPage: React.FC = () => {
         
         // Pre-fill available quantity
         const totalAvailable = (data.data?.available_quantity || data.wing_available || 0) + (data.admin_available || 0);
-        setAvailableQuantity(Math.min(totalAvailable, request.requested_quantity || 0));
+        setAvailableQuantity(Math.min(totalAvailable, requestedQty));
       } else {
         // Use default values if check fails
+        const requestedQty = request.requested_quantity ?? request.available_quantity ?? 0;
         setItemDetails({
           id: String(request.id),
           nomenclature: request.item_master_id || 'Item',
-          requested_quantity: request.requested_quantity || 0,
+          requested_quantity: requestedQty,
           wing_available: 0,
           admin_available: 0,
           verification_status: 'pending'
@@ -111,10 +114,11 @@ export const PendingVerificationsPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching item details:', error);
       // Set minimal defaults on error
+      const requestedQty = request.requested_quantity ?? request.available_quantity ?? 0;
       setItemDetails({
         id: String(request.id),
         nomenclature: request.item_master_id || 'Item',
-        requested_quantity: request.requested_quantity || 0,
+        requested_quantity: requestedQty,
         wing_available: 0,
         admin_available: 0,
         verification_status: 'pending'
@@ -138,7 +142,7 @@ export const PendingVerificationsPage: React.FC = () => {
       };
 
       const verificationPayload = {
-        verificationId: parseInt(selectedRequest.id),
+        verificationId: String(selectedRequest.id),
         verificationStatus: statusMap[verificationResult] || 'verified_available',
         physicalCount: availableQuantity,
         availableQuantity: availableQuantity,
@@ -160,7 +164,7 @@ export const PendingVerificationsPage: React.FC = () => {
         console.log('✅ Verification submitted successfully');
         // Show success state instead of closing immediately
         setVerificationSubmitted(true);
-        setSubmittedVerificationId(parseInt(selectedRequest.id));
+        setSubmittedVerificationId(selectedRequest.id);
         
         // Refresh the list after a delay
         setTimeout(async () => {
@@ -254,10 +258,10 @@ export const PendingVerificationsPage: React.FC = () => {
                       <Badge
                         variant={
                           request.status === 'pending'
-                            ? 'warning'
+                            ? 'secondary'
                             : request.status?.startsWith('verified')
-                            ? 'success'
-                            : 'danger'
+                            ? 'default'
+                            : 'destructive'
                         }
                       >
                         {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
@@ -266,7 +270,7 @@ export const PendingVerificationsPage: React.FC = () => {
                     <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
                       <div>
                         <p className="font-medium">Quantity Requested</p>
-                        <p className="text-lg font-bold text-gray-900">{request.requested_quantity}</p>
+                        <p className="text-lg font-bold text-gray-900">{request.requested_quantity ?? request.available_quantity ?? 0}</p>
                       </div>
                       <div>
                         <p className="font-medium">Wing</p>
