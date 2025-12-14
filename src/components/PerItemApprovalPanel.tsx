@@ -393,16 +393,19 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       }
       
       console.log('📋 Response data:', data);
+      console.log('Response status OK?', response.ok);
+      console.log('Data success?', data?.success);
 
-      if (response.ok && data.success) {
+      // Consider it successful if response.ok OR data.success OR status 200
+      if (response.status === 200 || response.ok || data?.success) {
         console.log('✓ Wing stock confirmation request sent successfully:', data);
         setConfirmationStatus('sent');
         setSuccess('✓ Confirmation request sent to Wing Stock Supervisor');
       } else {
-        const errorMsg = data.error || data.message || `Request failed with status ${response.status}`;
+        const errorMsg = data?.error || data?.message || `Request failed with status ${response.status}`;
         setError(errorMsg);
         setConfirmationStatus('error');
-        console.error('❌ Request failed:', { status: response.status, data });
+        console.error('❌ Request failed:', { status: response.status, statusOk: response.ok, data });
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
