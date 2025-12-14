@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { AlertCircle, CheckCircle2, XCircle, Clock, Eye, Edit2, Send } from 'lucide-react';
+import { useSession } from '@/contexts/SessionContext';
 
 interface InventoryVerificationRequest {
   id: number;
@@ -34,6 +35,7 @@ interface VerificationItemDetail {
 }
 
 export const PendingVerificationsPage: React.FC = () => {
+  const { user } = useSession();
   const [verificationRequests, setVerificationRequests] = useState<InventoryVerificationRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<InventoryVerificationRequest | null>(null);
   const [itemDetails, setItemDetails] = useState<VerificationItemDetail | null>(null);
@@ -49,19 +51,18 @@ export const PendingVerificationsPage: React.FC = () => {
   // Fetch pending verification requests
   useEffect(() => {
     fetchPendingVerifications();
-  }, []);
+  }, [user]);
 
   const fetchPendingVerifications = async () => {
     try {
       setLoading(true);
-      const userId = sessionStorage.getItem('user_id');
       
-      if (!userId) {
-        console.error('User ID not found in session');
+      if (!user?.user_id) {
+        console.error('User ID not found in session context');
         return;
       }
       
-      const response = await fetch(`http://localhost:3001/api/inventory/pending-verifications?userId=${encodeURIComponent(userId)}`);
+      const response = await fetch(`http://localhost:3001/api/inventory/pending-verifications?userId=${encodeURIComponent(user.user_id)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -154,8 +155,8 @@ export const PendingVerificationsPage: React.FC = () => {
         physicalCount: availableQuantity,
         availableQuantity: availableQuantity,
         verificationNotes: verificationNotes,
-        verifiedByUserId: sessionStorage.getItem('user_id') || 'system-user',
-        verifiedByName: sessionStorage.getItem('user_name') || 'System'
+        verifiedByUserId: user?.user_id || 'system-user',
+        verifiedByName: user?.user_name || 'System'
       };
 
       console.log('📦 Submitting verification:', verificationPayload);
