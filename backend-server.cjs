@@ -11822,6 +11822,9 @@ ${verificationNotes ? `Notes: ${verificationNotes}` : 'No additional notes'}
           `);
 
         console.log(`✅ Notification created for user: ${verificationDetails.requested_by_user_id}`);
+        console.log(`   Title: ${notificationTitle}`);
+        console.log(`   Type: info`);
+        console.log(`   ActionUrl: /dashboard/verification-history`);
       }
 
       res.json({
@@ -12026,23 +12029,61 @@ app.get('/api/my-notifications', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
     
+    console.log(`📬 Fetching notifications for user: ${userId}`);
+    
     const { unreadOnly = false, limit = 50 } = req.query;
     
     if (!pool) {
       return res.json({ success: false, error: 'Database not available' });
     }
     
-    // Fetch notifications from database
-    const result = await pool.request()
-      .input('UserId', sql.NVarChar, userId)
-      .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
-      .input('Limit', sql.Int, parseInt(limit))
-      .execute('GetUserNotifications');
-    
-    res.json({
-      success: true,
-      notifications: result.recordset
-    });
+    try {
+      // Try to use stored procedure first
+      const result = await pool.request()
+        .input('UserId', sql.NVarChar, userId)
+        .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
+        .input('Limit', sql.Int, parseInt(limit))
+        .execute('GetUserNotifications');
+      
+      res.json({
+        success: true,
+        notifications: result.recordset
+      });
+      
+      console.log(`✅ Returned ${result.recordset.length} notifications for user ${userId}`);
+    } catch (procError) {
+      // Fallback to direct query if stored procedure doesn't exist
+      console.warn('⚠️ Stored procedure not found, using direct query:', procError.message);
+      
+      const result = await pool.request()
+        .input('UserId', sql.NVarChar, userId)
+        .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
+        .input('Limit', sql.Int, parseInt(limit))
+        .query(`
+          SELECT TOP(@Limit)
+            Id,
+            UserId,
+            Title,
+            Message,
+            Type,
+            ActionUrl,
+            ActionText,
+            IsRead,
+            CreatedAt,
+            ReadAt
+          FROM Notifications
+          WHERE UserId = @UserId 
+            AND (@UnreadOnly = 0 OR IsRead = 0)
+          ORDER BY CreatedAt DESC
+        `);
+      
+      res.json({
+        success: true,
+        notifications: result.recordset
+      });
+      
+      console.log(`✅ Returned ${result.recordset.length} notifications (direct query) for user ${userId}`);
+    }
   } catch (error) {
     console.error('❌ Error fetching my notifications:', error);
     res.status(500).json({ 
