@@ -125,7 +125,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 API Response:', data);
+        
         if (data.success && data.notifications) {
+          console.log('📋 Raw notifications from API:', data.notifications);
+          
           const apiNotifications = data.notifications.map((n: any) => {
             // Normalize type to valid values
             let type: 'info' | 'success' | 'warning' | 'error' = 'info';
@@ -148,10 +152,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
             };
           });
           
-          setNotifications(apiNotifications);
           console.log('✅ Loaded notifications from API:', apiNotifications.length);
+          console.log('📋 Processed notifications:', apiNotifications);
+          setNotifications(apiNotifications);
           return;
+        } else {
+          console.warn('⚠️ API response missing success or notifications:', data);
         }
+      } else {
+        console.error('❌ API response not OK:', response.status, response.statusText);
       }
       
       // Fallback to localStorage if API fails
