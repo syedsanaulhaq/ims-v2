@@ -11583,7 +11583,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
 // Get pending verification requests for inventory supervisor
 app.get('/api/inventory/pending-verifications', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, wingId: wingIdOverride } = req.query;
 
     if (!userId) {
       return res.status(400).json({ 
@@ -11598,19 +11598,25 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
       });
     }
 
-    // Get wings where this user is a Wing Supervisor
-    const userWingsResult = await pool.request()
-      .input('userId', sql.NVarChar, userId)
-      .query(`
-        SELECT DISTINCT scope_wing_id
-        FROM ims_user_roles ur
-        JOIN ims_roles r ON ur.role_id = r.id
-        WHERE ur.user_id = @userId
-          AND r.role_name = 'WING_SUPERVISOR'
-          AND ur.scope_wing_id IS NOT NULL
-      `);
+    // Get wings where this user is a Wing Supervisor, unless wingIdOverride is provided
+    let wingIds = [];
+    if (wingIdOverride) {
+      wingIds = [parseInt(wingIdOverride)];
+      console.log(`🔧 Using wingId override for pending verifications: ${wingIds[0]}`);
+    } else {
+      const userWingsResult = await pool.request()
+        .input('userId', sql.NVarChar, userId)
+        .query(`
+          SELECT DISTINCT scope_wing_id
+          FROM ims_user_roles ur
+          JOIN ims_roles r ON ur.role_id = r.id
+          WHERE ur.user_id = @userId
+            AND r.role_name = 'WING_SUPERVISOR'
+            AND ur.scope_wing_id IS NOT NULL
+        `);
 
-    const wingIds = userWingsResult.recordset.map(w => w.scope_wing_id);
+      wingIds = userWingsResult.recordset.map(w => w.scope_wing_id);
+    }
 
     if (wingIds.length === 0) {
       // User is not a Wing Supervisor for any wing
@@ -11644,7 +11650,8 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
         created_at,
         updated_at
       FROM inventory_verification_requests 
-      WHERE wing_id IN (${placeholders}) 
+      WHERE wing_id IN (${placeholders})
+        AND verification_status = 'pending'
       ORDER BY requested_at DESC
     `;
     
@@ -11656,6 +11663,7 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
     const result = await request.query(query);
 
     console.log(`✅ Fetched ${result.recordset.length} pending verifications for user ${userId} in ${wingIds.length} wing(s)`);
+    console.log(`   Wing IDs: ${wingIds.join(', ')}`);
 
     res.json({
       success: true,
@@ -11784,48 +11792,8 @@ app.post('/api/inventory/update-verification', async (req, res) => {
         `);
 
       console.log('✅ Verification updated successfully');
-
-      // Create notification for the requester with verification details
-      if (verificationDetails && verificationDetails.requested_by_user_id) {
-        const statusDescriptions = {
-          'verified_available': '✅ Available',
-          'verified_partial': '⚠️ Partially Available',
-          'verified_unavailable': '❌ Unavailable'
-        };
-
-        const statusDescription = statusDescriptions[verificationStatus] || verificationStatus;
-        
-        const notificationTitle = `Verification Complete: ${verificationDetails.item_nomenclature}`;
-        const notificationMessage = `
-Verification Details:
-Item: ${verificationDetails.item_nomenclature}
-Requested Quantity: ${verificationDetails.requested_quantity}
-Status: ${statusDescription}
-Physical Count: ${physicalCount || availableQuantity || 0}
-Verified By: ${verifiedByName}
-Wing: ${verificationDetails.wing_name}
-
-${verificationNotes ? `Notes: ${verificationNotes}` : 'No additional notes'}
-        `.trim();
-
-        // Insert notification
-        await pool.request()
-          .input('UserId', sql.NVarChar, verificationDetails.requested_by_user_id)
-          .input('Title', sql.NVarChar, notificationTitle)
-          .input('Message', sql.NVarChar, notificationMessage)
-          .input('Type', sql.NVarChar, 'info')
-          .input('ActionUrl', sql.NVarChar, `/dashboard/verification-history`)
-          .input('ActionText', sql.NVarChar, 'View Verification Details')
-          .query(`
-            INSERT INTO Notifications (Id, UserId, Title, Message, Type, ActionUrl, ActionText, CreatedAt, IsRead)
-            VALUES (NEWID(), @UserId, @Title, @Message, @Type, @ActionUrl, @ActionText, GETDATE(), 0)
-          `);
-
-        console.log(`✅ Notification created for user: ${verificationDetails.requested_by_user_id}`);
-        console.log(`   Title: ${notificationTitle}`);
-        console.log(`   Type: info`);
-        console.log(`   ActionUrl: /dashboard/verification-history`);
-      }
+      console.log('📧 Verification notification will be automatically available via /api/my-notifications');
+      console.log('   (Fetched directly from inventory_verification_requests table)');
 
       res.json({
         success: true,
@@ -11850,7 +11818,7 @@ ${verificationNotes ? `Notes: ${verificationNotes}` : 'No additional notes'}
 // Get verification history for a specific user (requester)
 app.get('/api/inventory/verification-history', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, view } = req.query;
 
     if (!userId) {
       return res.status(400).json({ 
@@ -11865,27 +11833,43 @@ app.get('/api/inventory/verification-history', async (req, res) => {
       });
     }
 
-    const result = await pool.request()
-      .input('userId', sql.NVarChar, userId)
-      .query(`
-        SELECT 
-          id,
-          item_nomenclature,
-          requested_quantity,
-          verification_status as status,
-          physical_count,
-          available_quantity,
-          verification_notes,
-          verified_by_user_id,
-          verified_by_name,
-          wing_id,
-          wing_name,
-          requested_at,
-          verified_at
-        FROM inventory_verification_requests
+    const request = pool.request().input('userId', sql.NVarChar, userId);
+
+    let query = `
+      SELECT 
+        id,
+        item_nomenclature,
+        requested_quantity,
+        verification_status as status,
+        physical_count,
+        available_quantity,
+        verification_notes,
+        requested_by_user_id,
+        requested_by_name,
+        verified_by_user_id,
+        verified_by_name,
+        wing_id,
+        wing_name,
+        requested_at,
+        verified_at
+      FROM inventory_verification_requests
+    `;
+
+    if (view === 'verifier') {
+      query += `
+        WHERE verified_by_user_id = @userId
+          AND verification_status IN ('verified_available','verified_partial','verified_unavailable')
+          AND verified_at IS NOT NULL
+        ORDER BY verified_at DESC
+      `;
+    } else {
+      query += `
         WHERE requested_by_user_id = @userId
         ORDER BY requested_at DESC
-      `);
+      `;
+    }
+
+    const result = await request.query(query);
 
     res.json({
       success: true,
@@ -12037,31 +12021,16 @@ app.get('/api/my-notifications', async (req, res) => {
       return res.json({ success: false, error: 'Database not available' });
     }
     
-    try {
-      // Try to use stored procedure first
-      const result = await pool.request()
-        .input('UserId', sql.NVarChar, userId)
-        .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
-        .input('Limit', sql.Int, parseInt(limit))
-        .execute('GetUserNotifications');
-      
-      res.json({
-        success: true,
-        notifications: result.recordset
-      });
-      
-      console.log(`✅ Returned ${result.recordset.length} notifications for user ${userId}`);
-    } catch (procError) {
-      // Fallback to direct query if stored procedure doesn't exist
-      console.warn('⚠️ Stored procedure not found, using direct query:', procError.message);
-      
-      const result = await pool.request()
-        .input('UserId', sql.NVarChar, userId)
-        .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
-        .input('Limit', sql.Int, parseInt(limit))
-        .query(`
-          SELECT TOP(@Limit)
-            Id,
+    // Query that combines regular notifications with verification requests
+    const result = await pool.request()
+      .input('UserId', sql.NVarChar, userId)
+      .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
+      .input('Limit', sql.Int, parseInt(limit))
+      .query(`
+        SELECT TOP(@Limit) * FROM (
+          -- Regular notifications from Notifications table
+          SELECT 
+            CAST(Id AS NVARCHAR(450)) AS Id,
             UserId,
             Title,
             Message,
@@ -12070,20 +12039,119 @@ app.get('/api/my-notifications', async (req, res) => {
             ActionText,
             IsRead,
             CreatedAt,
-            ReadAt
+            ReadAt,
+            'notification' AS SourceType
           FROM Notifications
           WHERE UserId = @UserId 
             AND (@UnreadOnly = 0 OR IsRead = 0)
-          ORDER BY CreatedAt DESC
-        `);
-      
-      res.json({
-        success: true,
-        notifications: result.recordset
-      });
-      
-      console.log(`✅ Returned ${result.recordset.length} notifications (direct query) for user ${userId}`);
-    }
+          
+          UNION ALL
+
+          -- Supervisor pending requests as notifications (for wing supervisors)
+          SELECT
+            CAST('VER-PEND-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
+            @UserId AS UserId,
+            'Verification Request: ' + ISNULL(ivr.item_nomenclature, CAST(ivr.item_master_id AS NVARCHAR)) AS Title,
+            ('Requested By: ' + ISNULL(ivr.requested_by_name, 'Unknown') + CHAR(13) + CHAR(10) +
+             'Requested Qty: ' + CAST(ivr.requested_quantity AS NVARCHAR) + CHAR(13) + CHAR(10) +
+             'Wing: ' + ISNULL(ivr.wing_name, 'Unknown')) AS Message,
+            'info' AS Type,
+            '/dashboard/pending-verifications' AS ActionUrl,
+            'Open Pending' AS ActionText,
+            0 AS IsRead,
+            ivr.requested_at AS CreatedAt,
+            NULL AS ReadAt,
+            'supervisor-pending' AS SourceType
+          FROM inventory_verification_requests ivr
+          JOIN ims_user_roles ur ON ur.scope_wing_id = ivr.wing_id AND ur.user_id = @UserId
+          JOIN ims_roles r ON r.id = ur.role_id
+          WHERE r.role_name = 'WING_SUPERVISOR'
+            AND ivr.verification_status = 'pending'
+          
+          UNION ALL
+
+          -- Requester pending requests as notifications (for the requester)
+          SELECT
+            CAST('REQ-PEND-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
+            ivr.requested_by_user_id AS UserId,
+            'Verification Requested: ' + ISNULL(ivr.item_nomenclature, CAST(ivr.item_master_id AS NVARCHAR)) AS Title,
+            ('Requested Qty: ' + CAST(ivr.requested_quantity AS NVARCHAR) + CHAR(13) + CHAR(10) +
+             'Wing: ' + ISNULL(ivr.wing_name, 'Unknown')) AS Message,
+            'info' AS Type,
+            '/dashboard/verification-history' AS ActionUrl,
+            'View Request Details' AS ActionText,
+            0 AS IsRead,
+            ivr.requested_at AS CreatedAt,
+            NULL AS ReadAt,
+            'requester-pending' AS SourceType
+          FROM inventory_verification_requests ivr
+          WHERE ivr.requested_by_user_id = @UserId
+            AND ivr.verification_status = 'pending'
+          
+          -- Verification requests as notifications (only show verified ones to requester)
+          SELECT 
+            CAST('VER-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
+            ivr.requested_by_user_id AS UserId,
+            'Verification Complete: ' + ISNULL(ivr.item_nomenclature, CAST(ivr.item_master_id AS NVARCHAR)) AS Title,
+            CASE 
+              WHEN ivr.verification_status = 'verified_available' 
+                THEN '✅ Available - Physical Count: ' + CAST(ISNULL(ivr.physical_count, ivr.available_quantity) AS NVARCHAR) + 
+                     CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
+                     CASE WHEN ivr.verification_notes IS NOT NULL 
+                       THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
+                       ELSE '' 
+                     END
+              WHEN ivr.verification_status = 'verified_partial' 
+                THEN '⚠️ Partially Available - Physical Count: ' + CAST(ISNULL(ivr.physical_count, ivr.available_quantity) AS NVARCHAR) + 
+                     CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
+                     CASE WHEN ivr.verification_notes IS NOT NULL 
+                       THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
+                       ELSE '' 
+                     END
+              WHEN ivr.verification_status = 'verified_unavailable' 
+                THEN '❌ Unavailable - Physical Count: ' + CAST(ISNULL(ivr.physical_count, 0) AS NVARCHAR) + 
+                     CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
+                     CASE WHEN ivr.verification_notes IS NOT NULL 
+                       THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
+                       ELSE '' 
+                     END
+              ELSE ivr.verification_status
+            END AS Message,
+            CASE 
+              WHEN ivr.verification_status = 'verified_available' THEN 'success'
+              WHEN ivr.verification_status = 'verified_partial' THEN 'warning'
+              WHEN ivr.verification_status = 'verified_unavailable' THEN 'error'
+              ELSE 'info'
+            END AS Type,
+            '/dashboard/verification-history' AS ActionUrl,
+            'View Details' AS ActionText,
+            0 AS IsRead,
+            ivr.verified_at AS CreatedAt,
+            NULL AS ReadAt,
+            'verification' AS SourceType
+          FROM inventory_verification_requests ivr
+          WHERE ivr.requested_by_user_id = @UserId 
+            AND ivr.verification_status IN ('verified_available', 'verified_partial', 'verified_unavailable')
+            AND ivr.verified_at IS NOT NULL
+        ) AS CombinedNotifications
+        ORDER BY CreatedAt DESC
+      `);
+    
+    res.json({
+      success: true,
+      notifications: result.recordset
+    });
+    
+    const verificationCount = result.recordset.filter(n => n.SourceType === 'verification').length;
+    const supervisorPendingCount = result.recordset.filter(n => n.SourceType === 'supervisor-pending').length;
+    const requesterPendingCount = result.recordset.filter(n => n.SourceType === 'requester-pending').length;
+    const regularCount = result.recordset.filter(n => n.SourceType === 'notification').length;
+    
+    console.log(`✅ Returned ${result.recordset.length} total notifications for user ${userId}`);
+    console.log(`   - ${regularCount} regular notifications`);
+    console.log(`   - ${verificationCount} verification notifications`);
+    console.log(`   - ${supervisorPendingCount} supervisor pending notifications`);
+    console.log(`   - ${requesterPendingCount} requester pending notifications`);
   } catch (error) {
     console.error('❌ Error fetching my notifications:', error);
     res.status(500).json({ 

@@ -45,6 +45,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const addNotification = (notificationData: Omit<Notification, 'id' | 'isRead' | 'createdAt'>) => {
+    const storageKey = `notifications_${user?.Id || (user as any)?.user_id}`;
     const newNotification: Notification = {
       ...notificationData,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -55,63 +56,71 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     setNotifications(prev => [newNotification, ...prev]);
     
     // Persist to localStorage
-    const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     stored.unshift(newNotification);
-    localStorage.setItem(`notifications_${user?.Id}`, JSON.stringify(stored.slice(0, 50))); // Keep only 50 latest
+    localStorage.setItem(storageKey, JSON.stringify(stored.slice(0, 50))); // Keep only 50 latest
   };
 
   const markAsRead = async (id: string) => {
+    const storageKey = `notifications_${user?.Id || (user as any)?.user_id}`;
     // Update UI immediately
     setNotifications(prev => 
       prev.map(n => n.id === id ? { ...n, isRead: true } : n)
     );
     
     try {
-      // Update backend
-      await fetch(`http://localhost:3001/api/notifications/${id}/read`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      // Only call backend for real DB notifications (GUID IDs)
+      const isGuid = /^[0-9a-fA-F-]{36}$/.test(id);
+      if (isGuid) {
+        await fetch(`http://localhost:3001/api/notifications/${id}/read`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+      }
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
     
     // Update localStorage as backup
-    const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     const updated = stored.map((n: Notification) => n.id === id ? { ...n, isRead: true } : n);
-    localStorage.setItem(`notifications_${user?.Id}`, JSON.stringify(updated));
+    localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
   const markAllAsRead = () => {
+    const storageKey = `notifications_${user?.Id || (user as any)?.user_id}`;
     setNotifications(prev => 
       prev.map(n => ({ ...n, isRead: true }))
     );
     
     // Update localStorage
-    const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     const updated = stored.map((n: Notification) => ({ ...n, isRead: true }));
-    localStorage.setItem(`notifications_${user?.Id}`, JSON.stringify(updated));
+    localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
   const clearNotification = (id: string) => {
+    const storageKey = `notifications_${user?.Id || (user as any)?.user_id}`;
     setNotifications(prev => prev.filter(n => n.id !== id));
     
     // Update localStorage
-    const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     const updated = stored.filter((n: Notification) => n.id !== id);
-    localStorage.setItem(`notifications_${user?.Id}`, JSON.stringify(updated));
+    localStorage.setItem(storageKey, JSON.stringify(updated));
   };
 
   const clearAllNotifications = () => {
+    const storageKey = `notifications_${user?.Id || (user as any)?.user_id}`;
     setNotifications([]);
-    localStorage.removeItem(`notifications_${user?.Id}`);
+    localStorage.removeItem(storageKey);
   };
 
   const loadNotifications = async () => {
-    if (!user?.Id) return;
+    const effectiveUserId = user?.Id || (user as any)?.user_id;
+    if (!effectiveUserId) return;
     
     try {
       // Load from backend API
@@ -145,7 +154,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
               title: n.Title,
               message: n.Message,
               type,
-              isRead: n.IsRead,
+              isRead: Boolean(n.IsRead),
               createdAt: new Date(n.CreatedAt),
               actionUrl: n.ActionUrl,
               actionText: n.ActionText
@@ -165,7 +174,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       // Fallback to localStorage if API fails
       console.warn('⚠️ Failed to load from API, using localStorage fallback');
-      const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
+      const storageKey = `notifications_${effectiveUserId}`;
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
       setNotifications(stored.map((n: any) => ({
         ...n,
         createdAt: new Date(n.createdAt)
@@ -175,7 +185,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       console.error('Failed to load notifications:', error);
       
       // Fallback to localStorage
-      const stored = JSON.parse(localStorage.getItem(`notifications_${user?.Id}`) || '[]');
+      const storageKey = `notifications_${effectiveUserId}`;
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
       setNotifications(stored.map((n: any) => ({
         ...n,
         createdAt: new Date(n.createdAt)
@@ -184,7 +195,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   };
 
   useEffect(() => {
-    if (user?.Id) {
+    const effectiveUserId = user?.Id || (user as any)?.user_id;
+    if (effectiveUserId) {
       loadNotifications();
       
       // Refresh notifications every 30 seconds
@@ -194,13 +206,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       return () => clearInterval(interval);
     }
-  }, [user?.Id]);
+  }, [user?.Id, (user as any)?.user_id]);
 
   // Load real notifications from database only
   useEffect(() => {
-    if (user?.Id) {
+    const effectiveUserId = user?.Id || (user as any)?.user_id;
+    if (effectiveUserId) {
       // No sample notifications - only load real data from database
-      console.log('Loading real notifications for user:', user.Id);
+      console.log('Loading real notifications for user:', effectiveUserId);
     }
   }, [user]);
 
