@@ -20,10 +20,22 @@ export function usePermission(permissionKey: string) {
       }
 
       try {
+        // Map legacy permission keys to their new equivalents (server-side naming)
+        const altKeys: Record<string, string[]> = {
+          // Issuance/request permissions
+          'issuance.request': ['stock_request.create', 'stock_request.view_own'],
+          'issuance.view': ['stock_request.view_own'],
+          // Inventory basic view
+          'inventory.view': ['inventory.view_personal'],
+          // Reports
+          'reports.view': ['reports.view_own'],
+        };
+
+        const effectiveKeys = [permissionKey, ...(altKeys[permissionKey] || [])];
         // Check if user has IMS permissions in session (client-side check)
         if (user?.ims_permissions) {
           const hasClientPermission = user.ims_permissions.some(
-            (p: any) => p.permission_key === permissionKey
+            (p: any) => effectiveKeys.includes(p.permission_key)
           );
           
           // Also check if user is super admin
@@ -45,7 +57,21 @@ export function usePermission(permissionKey: string) {
 
         if (response.ok) {
           const data = await response.json();
-          setHasPermission(data.hasPermission || false);
+          // If direct check fails, try alternative keys one by one
+          let allowed = !!data.hasPermission;
+          if (!allowed && (altKeys[permissionKey]?.length || 0) > 0) {
+            for (const k of altKeys[permissionKey]) {
+              const r = await fetch(
+                `http://localhost:3001/api/ims/check-permission?permission=${encodeURIComponent(k)}`,
+                { method: 'GET', credentials: 'include' }
+              );
+              if (r.ok) {
+                const dj = await r.json();
+                if (dj.hasPermission) { allowed = true; break; }
+              }
+            }
+          }
+          setHasPermission(allowed);
         } else {
           setHasPermission(false);
         }
