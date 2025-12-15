@@ -101,7 +101,8 @@ app.use(express.static(__dirname));
 // SQL Server configuration - Using environment variables from .env.sqlserver
 const sqlConfig = {
   server: process.env.SQL_SERVER_HOST || 'SYED-FAZLI-LAPT',
-  database: process.env.SQL_SERVER_DATABASE || 'InventoryManagementDB_TEST',
+  // Default to the main InventoryManagementDB (not the TEST DB)
+  database: process.env.SQL_SERVER_DATABASE || 'InventoryManagementDB',
   user: process.env.SQL_SERVER_USER || 'inventorymanagementuser',
   password: process.env.SQL_SERVER_PASSWORD || '2016Wfp61@',
   port: parseInt(process.env.SQL_SERVER_PORT) || 1433,
