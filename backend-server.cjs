@@ -296,11 +296,11 @@ async function assignDefaultPermissionsToSSOUser(userId) {
     if (!hasPermissions) {
       console.log('📋 Assigning default permissions to SSO user:', userId);
 
-      // Get or create a default "General User" role if it doesn't exist
+      // Get or create a default "GENERAL_USER" role if it doesn't exist
       const roleResult = await pool.request()
         .query(`
           SELECT TOP 1 id FROM ims_roles 
-          WHERE role_name = 'General User' AND is_active = 1
+          WHERE role_name = 'GENERAL_USER' AND is_active = 1
         `);
 
       let roleId;
@@ -308,13 +308,13 @@ async function assignDefaultPermissionsToSSOUser(userId) {
         roleId = roleResult.recordset[0].id;
         console.log('✅ Found existing General User role:', roleId);
       } else {
-        // Create General User role if it doesn't exist
-        console.log('📝 Creating General User role...');
+        // Create GENERAL_USER role if it doesn't exist
+        console.log('📝 Creating GENERAL_USER role...');
         const createRoleResult = await pool.request()
           .query(`
             DECLARE @newId UNIQUEIDENTIFIER = NEWID();
             INSERT INTO ims_roles (id, role_name, display_name, description, is_active, scope_type, created_at)
-            VALUES (@newId, 'General User', 'General User', 'Default role for general users', 1, 'organization', GETDATE());
+            VALUES (@newId, 'GENERAL_USER', 'General User', 'Default role for general users', 1, 'GLOBAL', GETDATE());
             SELECT @newId as id;
           `);
         roleId = createRoleResult.recordset[0]?.id;
@@ -332,13 +332,13 @@ async function assignDefaultPermissionsToSSOUser(userId) {
             )
             BEGIN
               INSERT INTO ims_user_roles (user_id, role_id, scope_type, is_active, assigned_at)
-              VALUES (@userId, @roleId, 'organization', 1, GETDATE());
+              VALUES (@userId, @roleId, 'GLOBAL', 1, GETDATE());
               SELECT 1 as assigned;
             END
             ELSE
             BEGIN
               UPDATE ims_user_roles 
-              SET is_active = 1 
+              SET is_active = 1, scope_type = 'GLOBAL'
               WHERE user_id = @userId AND role_id = @roleId;
               SELECT 0 as assigned;
             END
