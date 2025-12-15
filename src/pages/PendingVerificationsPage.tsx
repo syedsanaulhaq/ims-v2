@@ -12,9 +12,15 @@ interface InventoryVerificationRequest {
   item_nomenclature: string;
   requested_by_user_id: string;
   requested_by_name: string;
-  status: 'pending' | 'verified_available' | 'verified_partial' | 'verified_unavailable' | 'verified' | 'rejected';
+  status: 'pending' | 'forwarded' | 'approved' | 'rejected' | 'verified_available' | 'verified_partial' | 'verified_unavailable' | 'verified';
   verified_by_user_id?: string;
   verified_by_name?: string;
+  forwarded_to_user_id?: string;
+  forwarded_to_name?: string;
+  forward_notes?: string;
+  forwarded_by_user_id?: string;
+  forwarded_by_name?: string;
+  forwarded_at?: string;
   physical_count?: number;
   available_quantity?: number;
   verification_notes?: string;
@@ -75,6 +81,64 @@ export const PendingVerificationsPage: React.FC = () => {
       console.error('Error fetching pending verifications:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuickAction = async (request: InventoryVerificationRequest, action: 'approve' | 'reject' | 'forward') => {
+    if (!user?.user_id) {
+      alert('User session missing. Please re-login.');
+      return;
+    }
+
+    let verificationNotes = '';
+    let forwardToUserId = '';
+    let forwardToName = '';
+
+    if (action === 'forward') {
+      forwardToUserId = window.prompt('Enter User ID to forward to:', '') || '';
+      forwardToName = window.prompt('Enter name for the forward target (optional):', '') || '';
+      verificationNotes = window.prompt('Add a note for forwarding (optional):', '') || '';
+      if (!forwardToUserId) {
+        alert('Forward target is required.');
+        return;
+      }
+    } else {
+      verificationNotes = window.prompt(`Add a note for ${action} (optional):`, '') || '';
+    }
+
+    const statusMap: Record<string, string> = {
+      approve: 'approved',
+      reject: 'rejected',
+      forward: 'forwarded'
+    };
+
+    const payload = {
+      verificationId: String(request.id),
+      verificationStatus: statusMap[action],
+      action,
+      physicalCount: request.physical_count || 0,
+      availableQuantity: request.available_quantity || 0,
+      verificationNotes: verificationNotes,
+      verifiedByUserId: user.user_id,
+      verifiedByName: user.user_name,
+      forwardToUserId,
+      forwardToName
+    };
+
+    try {
+      const response = await fetch('http://localhost:3001/api/inventory/update-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchPendingVerifications();
+      } else {
+        alert('Action failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Action failed: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -191,7 +255,7 @@ export const PendingVerificationsPage: React.FC = () => {
     }
   };
 
-  const getPendingCount = () => verificationRequests.filter(r => r.status === 'pending').length;
+  const getPendingCount = () => verificationRequests.filter(r => r.status === 'pending' || r.status === 'forwarded').length;
   const getVerifiedCount = () => verificationRequests.filter(r => r.status?.startsWith('verified')).length;
 
   if (loading) {
@@ -280,6 +344,22 @@ export const PendingVerificationsPage: React.FC = () => {
                           {!['pending', 'verified_available', 'verified_partial', 'verified_unavailable'].includes(request.status) && request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                         </Badge>
                       </div>
+                      {request.status === 'forwarded' && request.forwarded_by_name && (
+                        <p className="text-xs text-blue-700 font-semibold mb-2">
+                          Forwarded by {request.forwarded_by_name}{request.forwarded_to_name ? ` to ${request.forwarded_to_name}` : ''}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <Button size="sm" variant="default" onClick={() => handleQuickAction(request, 'approve')}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleQuickAction(request, 'reject')}>
+                          Disapprove
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleQuickAction(request, 'forward')}>
+                          Forward
+                        </Button>
+                      </div>
                       <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
                         <div>
                           <p className="font-medium">Quantity Requested</p>
@@ -302,7 +382,7 @@ export const PendingVerificationsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {request.status === 'pending' && (
+                    {['pending', 'forwarded'].includes(request.status) && (
                       <Button
                         onClick={() => handleViewDetails(request)}
                         className="ml-4 whitespace-nowrap"

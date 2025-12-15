@@ -11627,7 +11627,7 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
       });
     }
 
-    // Get pending verifications for wings this user supervises
+    // Get pending verifications for wings this user supervises, plus forwarded items specifically assigned to this user
     const placeholders = wingIds.map((_, i) => `@wingId${i}`).join(',');
     let query = `
       SELECT 
@@ -11647,12 +11647,22 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
         verified_by_user_id,
         verified_by_name,
         verified_at,
+        forwarded_to_user_id,
+        forwarded_to_name,
+        forwarded_at,
+        forward_notes,
+        forwarded_by_user_id,
+        forwarded_by_name,
         requested_at,
         created_at,
         updated_at
       FROM inventory_verification_requests 
-      WHERE wing_id IN (${placeholders})
-        AND verification_status = 'pending'
+      WHERE (
+        wing_id IN (${placeholders}) AND verification_status = 'pending'
+      )
+      OR (
+        verification_status = 'forwarded' AND forwarded_to_user_id = @userId
+      )
       ORDER BY requested_at DESC
     `;
     
@@ -11660,6 +11670,7 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
     wingIds.forEach((wingId, i) => {
       request.input(`wingId${i}`, sql.Int, wingId);
     });
+    request.input('userId', sql.NVarChar, userId);
 
     const result = await request.query(query);
 
@@ -11727,11 +11738,14 @@ app.post('/api/inventory/update-verification', async (req, res) => {
     const {
       verificationId,
       verificationStatus,
+      action,
       physicalCount,
       availableQuantity,
       verificationNotes,
       verifiedByUserId,
-      verifiedByName
+      verifiedByName,
+      forwardToUserId,
+      forwardToName
     } = req.body;
 
     if (!verificationId || !verificationStatus || !verifiedByUserId) {
@@ -11770,16 +11784,49 @@ app.post('/api/inventory/update-verification', async (req, res) => {
 
       const verificationDetails = verificationDetailsResult.recordset[0];
 
-      // Update verification request
-      await pool.request()
+      // Decide action
+      const actionType = action || 'verify'; // verify | approve | reject | forward
+      let finalStatus = verificationStatus;
+
+      if (actionType === 'approve') {
+        finalStatus = 'approved';
+      } else if (actionType === 'reject') {
+        finalStatus = 'rejected';
+      } else if (actionType === 'forward') {
+        finalStatus = 'forwarded';
+      }
+
+      // Update based on action
+      const requestBuilder = pool.request()
         .input('verificationId', sql.Int, verificationId)
-        .input('verificationStatus', sql.NVarChar, verificationStatus)
+        .input('verificationStatus', sql.NVarChar, finalStatus)
         .input('physicalCount', sql.Int, physicalCount || 0)
         .input('availableQuantity', sql.Int, availableQuantity || 0)
         .input('verificationNotes', sql.NVarChar, verificationNotes || 'No notes')
         .input('verifiedByUserId', sql.NVarChar, verifiedByUserId)
         .input('verifiedByName', sql.NVarChar, verifiedByName)
-        .query(`
+        .input('forwardToUserId', sql.NVarChar, forwardToUserId || null)
+        .input('forwardToName', sql.NVarChar, forwardToName || null);
+
+      if (actionType === 'forward') {
+        await requestBuilder.query(`
+          UPDATE inventory_verification_requests
+          SET verification_status = @verificationStatus,
+              verification_notes = @verificationNotes,
+              forwarded_to_user_id = @forwardToUserId,
+              forwarded_to_name = @forwardToName,
+              forward_notes = @verificationNotes,
+              forwarded_by_user_id = @verifiedByUserId,
+              forwarded_by_name = @verifiedByName,
+              forwarded_at = GETDATE(),
+              verified_by_user_id = NULL,
+              verified_by_name = NULL,
+              verified_at = NULL,
+              updated_at = GETDATE()
+          WHERE id = @verificationId
+        `);
+      } else {
+        await requestBuilder.query(`
           UPDATE inventory_verification_requests
           SET verification_status = @verificationStatus,
               physical_count = @physicalCount,
@@ -11791,6 +11838,7 @@ app.post('/api/inventory/update-verification', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = @verificationId
         `);
+      }
 
       console.log('✅ Verification updated successfully');
       console.log('📧 Verification notification will be automatically available via /api/my-notifications');
