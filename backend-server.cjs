@@ -1301,23 +1301,31 @@ app.get('/api/ims/users', requireAuth, async (req, res) => {
       return res.json([]);
     }
 
-    // Check if user has users.manage permission OR is requesting their own wing
-    let hasPermission = false;
-    if (await hasPermissionCheck(userId, 'users.manage')) {
-      hasPermission = true;
-    } else if (wing_id) {
-      // Check if user belongs to the requested wing
+    // If wing_id is specified, verify user belongs to that wing
+    if (wing_id) {
       const wingCheck = await pool.request()
         .input('userId', sql.NVarChar(450), userId)
         .query(`SELECT intWingID FROM AspNetUsers WHERE Id = @userId`);
       
-      if (wingCheck.recordset.length > 0 && wingCheck.recordset[0].intWingID === parseInt(wing_id)) {
-        hasPermission = true;
+      if (wingCheck.recordset.length > 0) {
+        const userWingId = wingCheck.recordset[0].intWingID;
+        if (userWingId !== parseInt(wing_id)) {
+          // User is requesting a different wing - check if they have users.manage permission
+          const permCheck = await pool.request()
+            .input('userId', sql.NVarChar(450), userId)
+            .query(`
+              SELECT 1 FROM ims_user_roles ur
+              INNER JOIN ims_roles r ON ur.role_id = r.id
+              INNER JOIN ims_role_permissions rp ON r.id = rp.role_id
+              INNER JOIN ims_permissions p ON rp.permission_id = p.id
+              WHERE ur.user_id = @userId AND p.permission_key = 'users.manage' AND ur.is_active = 1
+            `);
+          
+          if (permCheck.recordset.length === 0) {
+            return res.status(403).json({ error: 'Forbidden' });
+          }
+        }
       }
-    }
-
-    if (!hasPermission) {
-      return res.status(403).json({ error: 'Forbidden' });
     }
 
     let query = `
