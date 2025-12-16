@@ -12263,6 +12263,915 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
 // END NOTIFICATION SYSTEM
 // ============================================================================
 
+// ============================================================================
+// PROCUREMENT WORKFLOW ENDPOINTS
+// Wings request stock from Admin, Admin approves and delivers
+// ============================================================================
+
+// ============================================================================
+// Wing User Endpoints - Create and View Procurement Requests
+// ============================================================================
+
+// Create new procurement request
+app.post('/api/procurement/requests', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { wing_id, wing_name, items, priority, justification } = req.body;
+
+    if (!wing_id || !items || items.length === 0) {
+      return res.status(400).json({ error: 'Wing ID and items are required' });
+    }
+
+    console.log(`📝 Creating procurement request for wing ${wing_id} by user ${userId}`);
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Get user details
+      const userResult = await transaction.request()
+        .input('userId', sql.NVarChar, userId)
+        .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
+      
+      const userName = userResult.recordset[0]?.FullName || 'Unknown User';
+
+      // Create procurement request
+      const requestId = uuidv4();
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, requestId)
+        .input('wing_id', sql.Int, wing_id)
+        .input('wing_name', sql.NVarChar, wing_name)
+        .input('requested_by_user_id', sql.NVarChar, userId)
+        .input('requested_by_name', sql.NVarChar, userName)
+        .input('status', sql.NVarChar, 'pending')
+        .input('priority', sql.NVarChar, priority || 'normal')
+        .input('justification', sql.NVarChar, justification)
+        .query(`
+          INSERT INTO procurement_requests 
+          (id, wing_id, wing_name, requested_by_user_id, requested_by_name, status, priority, justification)
+          VALUES (@id, @wing_id, @wing_name, @requested_by_user_id, @requested_by_name, @status, @priority, @justification)
+        `);
+
+      // Insert request items
+      for (const item of items) {
+        const itemId = uuidv4();
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, itemId)
+          .input('procurement_request_id', sql.UniqueIdentifier, requestId)
+          .input('item_master_id', sql.Int, item.item_master_id)
+          .input('item_nomenclature', sql.NVarChar, item.item_nomenclature)
+          .input('item_code', sql.NVarChar, item.item_code)
+          .input('category_name', sql.NVarChar, item.category_name)
+          .input('subcategory_name', sql.NVarChar, item.subcategory_name)
+          .input('requested_quantity', sql.Decimal(18, 2), item.requested_quantity)
+          .input('unit_of_measurement', sql.NVarChar, item.unit_of_measurement)
+          .input('estimated_unit_price', sql.Decimal(18, 2), item.estimated_unit_price || null)
+          .input('notes', sql.NVarChar, item.notes || null)
+          .query(`
+            INSERT INTO procurement_request_items 
+            (id, procurement_request_id, item_master_id, item_nomenclature, item_code, 
+             category_name, subcategory_name, requested_quantity, unit_of_measurement, 
+             estimated_unit_price, notes)
+            VALUES (@id, @procurement_request_id, @item_master_id, @item_nomenclature, @item_code,
+                    @category_name, @subcategory_name, @requested_quantity, @unit_of_measurement,
+                    @estimated_unit_price, @notes)
+          `);
+      }
+
+      await transaction.commit();
+
+      // Get the created request with generated number
+      const result = await pool.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .query(`
+          SELECT pr.*, 
+                 (SELECT COUNT(*) FROM procurement_request_items WHERE procurement_request_id = pr.id) as item_count
+          FROM procurement_requests pr
+          WHERE pr.id = @requestId
+        `);
+
+      console.log(`✅ Procurement request created: ${result.recordset[0].request_number}`);
+      res.json({ success: true, request: result.recordset[0] });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error creating procurement request:', error);
+    res.status(500).json({ error: 'Failed to create procurement request', details: error.message });
+  }
+});
+
+// Get user's procurement requests
+app.get('/api/procurement/requests/my-requests', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { status } = req.query;
+
+    let statusFilter = '';
+    if (status && status !== 'all') {
+      statusFilter = 'AND pr.status = @status';
+    }
+
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .input('status', sql.NVarChar, status)
+      .query(`
+        SELECT 
+          pr.*,
+          (SELECT COUNT(*) FROM procurement_request_items WHERE procurement_request_id = pr.id) as item_count,
+          (SELECT SUM(requested_quantity) FROM procurement_request_items WHERE procurement_request_id = pr.id) as total_items
+        FROM procurement_requests pr
+        WHERE pr.requested_by_user_id = @userId
+        ${statusFilter}
+        ORDER BY pr.requested_at DESC
+      `);
+
+    res.json({ success: true, requests: result.recordset });
+
+  } catch (error) {
+    console.error('❌ Error fetching user procurement requests:', error);
+    res.status(500).json({ error: 'Failed to fetch requests', details: error.message });
+  }
+});
+
+// Get single procurement request details
+app.get('/api/procurement/requests/:id', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+
+    // Get request details
+    const requestResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query('SELECT * FROM procurement_requests WHERE id = @id');
+
+    if (requestResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Get request items
+    const itemsResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT pri.*,
+               im.vItemNomenclature as item_full_name,
+               im.vItemCode as item_full_code
+        FROM procurement_request_items pri
+        LEFT JOIN ItemMaster im ON pri.item_master_id = im.id
+        WHERE pri.procurement_request_id = @requestId
+        ORDER BY pri.created_at
+      `);
+
+    // Get deliveries if any
+    const deliveriesResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, id)
+      .query('SELECT * FROM procurement_deliveries WHERE procurement_request_id = @requestId ORDER BY created_at DESC');
+
+    res.json({
+      success: true,
+      request: requestResult.recordset[0],
+      items: itemsResult.recordset,
+      deliveries: deliveriesResult.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching procurement request details:', error);
+    res.status(500).json({ error: 'Failed to fetch request details', details: error.message });
+  }
+});
+
+// Cancel procurement request (only if pending)
+app.put('/api/procurement/requests/:id/cancel', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+
+    // Verify request belongs to user and is pending
+    const checkResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('userId', sql.NVarChar, userId)
+      .query('SELECT status FROM procurement_requests WHERE id = @id AND requested_by_user_id = @userId');
+
+    if (checkResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found or access denied' });
+    }
+
+    if (checkResult.recordset[0].status !== 'pending') {
+      return res.status(400).json({ error: 'Can only cancel pending requests' });
+    }
+
+    // Update status to cancelled
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`UPDATE procurement_requests SET status = 'cancelled', updated_at = GETDATE() WHERE id = @id`);
+
+    console.log(`✅ Procurement request ${id} cancelled by user ${userId}`);
+    res.json({ success: true, message: 'Request cancelled successfully' });
+
+  } catch (error) {
+    console.error('❌ Error cancelling procurement request:', error);
+    res.status(500).json({ error: 'Failed to cancel request', details: error.message });
+  }
+});
+
+// ============================================================================
+// Admin Endpoints - Review and Approve Procurement Requests
+// ============================================================================
+
+// Get all pending procurement requests (Admin)
+app.get('/api/procurement/requests/pending', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // TODO: Add permission check for procurement.approve
+
+    const result = await pool.request()
+      .query(`
+        SELECT 
+          pr.*,
+          (SELECT COUNT(*) FROM procurement_request_items WHERE procurement_request_id = pr.id) as item_count,
+          (SELECT SUM(requested_quantity) FROM procurement_request_items WHERE procurement_request_id = pr.id) as total_items
+        FROM procurement_requests pr
+        WHERE pr.status = 'pending'
+        ORDER BY 
+          CASE pr.priority 
+            WHEN 'urgent' THEN 1 
+            WHEN 'high' THEN 2 
+            WHEN 'normal' THEN 3 
+            WHEN 'low' THEN 4 
+          END,
+          pr.requested_at
+      `);
+
+    res.json({ success: true, requests: result.recordset });
+
+  } catch (error) {
+    console.error('❌ Error fetching pending procurement requests:', error);
+    res.status(500).json({ error: 'Failed to fetch pending requests', details: error.message });
+  }
+});
+
+// Get all procurement requests with filters (Admin)
+app.get('/api/procurement/requests', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { status, wing_id, priority, from_date, to_date } = req.query;
+
+    let filters = [];
+    const request = pool.request();
+
+    if (status && status !== 'all') {
+      filters.push('pr.status = @status');
+      request.input('status', sql.NVarChar, status);
+    }
+
+    if (wing_id) {
+      filters.push('pr.wing_id = @wing_id');
+      request.input('wing_id', sql.Int, parseInt(wing_id));
+    }
+
+    if (priority && priority !== 'all') {
+      filters.push('pr.priority = @priority');
+      request.input('priority', sql.NVarChar, priority);
+    }
+
+    if (from_date) {
+      filters.push('pr.requested_at >= @from_date');
+      request.input('from_date', sql.DateTime2, from_date);
+    }
+
+    if (to_date) {
+      filters.push('pr.requested_at <= @to_date');
+      request.input('to_date', sql.DateTime2, to_date);
+    }
+
+    const whereClause = filters.length > 0 ? 'WHERE ' + filters.join(' AND ') : '';
+
+    const result = await request.query(`
+      SELECT 
+        pr.*,
+        (SELECT COUNT(*) FROM procurement_request_items WHERE procurement_request_id = pr.id) as item_count,
+        (SELECT SUM(requested_quantity) FROM procurement_request_items WHERE procurement_request_id = pr.id) as total_items
+      FROM procurement_requests pr
+      ${whereClause}
+      ORDER BY pr.requested_at DESC
+    `);
+
+    res.json({ success: true, requests: result.recordset });
+
+  } catch (error) {
+    console.error('❌ Error fetching procurement requests:', error);
+    res.status(500).json({ error: 'Failed to fetch requests', details: error.message });
+  }
+});
+
+// Approve procurement request (Admin)
+app.put('/api/procurement/requests/:id/approve', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+    const { approved_items, review_notes } = req.body;
+
+    // Get user details
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
+    
+    const userName = userResult.recordset[0]?.FullName || 'Unknown Admin';
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update approved quantities for each item
+      let allFullyApproved = true;
+      for (const item of approved_items) {
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, item.id)
+          .input('approved_quantity', sql.Decimal(18, 2), item.approved_quantity)
+          .query(`
+            UPDATE procurement_request_items 
+            SET approved_quantity = @approved_quantity, updated_at = GETDATE()
+            WHERE id = @id
+          `);
+
+        if (item.approved_quantity < item.requested_quantity) {
+          allFullyApproved = false;
+        }
+      }
+
+      // Update request status
+      const newStatus = allFullyApproved ? 'approved' : 'partially_approved';
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('status', sql.NVarChar, newStatus)
+        .input('reviewed_by_user_id', sql.NVarChar, userId)
+        .input('reviewed_by_name', sql.NVarChar, userName)
+        .input('review_notes', sql.NVarChar, review_notes || null)
+        .query(`
+          UPDATE procurement_requests 
+          SET status = @status,
+              reviewed_by_user_id = @reviewed_by_user_id,
+              reviewed_by_name = @reviewed_by_name,
+              reviewed_at = GETDATE(),
+              review_notes = @review_notes,
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      await transaction.commit();
+
+      console.log(`✅ Procurement request ${id} ${newStatus} by admin ${userId}`);
+      res.json({ success: true, status: newStatus, message: 'Request approved successfully' });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error approving procurement request:', error);
+    res.status(500).json({ error: 'Failed to approve request', details: error.message });
+  }
+});
+
+// Reject procurement request (Admin)
+app.put('/api/procurement/requests/:id/reject', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+    const { review_notes } = req.body;
+
+    if (!review_notes) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+
+    // Get user details
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
+    
+    const userName = userResult.recordset[0]?.FullName || 'Unknown Admin';
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('reviewed_by_user_id', sql.NVarChar, userId)
+      .input('reviewed_by_name', sql.NVarChar, userName)
+      .input('review_notes', sql.NVarChar, review_notes)
+      .query(`
+        UPDATE procurement_requests 
+        SET status = 'rejected',
+            reviewed_by_user_id = @reviewed_by_user_id,
+            reviewed_by_name = @reviewed_by_name,
+            reviewed_at = GETDATE(),
+            review_notes = @review_notes,
+            updated_at = GETDATE()
+        WHERE id = @id
+      `);
+
+    console.log(`✅ Procurement request ${id} rejected by admin ${userId}`);
+    res.json({ success: true, message: 'Request rejected successfully' });
+
+  } catch (error) {
+    console.error('❌ Error rejecting procurement request:', error);
+    res.status(500).json({ error: 'Failed to reject request', details: error.message });
+  }
+});
+
+// ============================================================================
+// Delivery Management Endpoints (Admin)
+// ============================================================================
+
+// Create delivery from approved request
+app.post('/api/procurement/deliveries', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { 
+      procurement_request_id, 
+      delivery_items, 
+      notes,
+      vehicle_number,
+      driver_name,
+      driver_contact
+    } = req.body;
+
+    if (!procurement_request_id || !delivery_items || delivery_items.length === 0) {
+      return res.status(400).json({ error: 'Request ID and delivery items are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Get request details
+      const requestResult = await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, procurement_request_id)
+        .query('SELECT * FROM procurement_requests WHERE id = @requestId');
+
+      if (requestResult.recordset.length === 0) {
+        throw new Error('Procurement request not found');
+      }
+
+      const request = requestResult.recordset[0];
+
+      // Get user details
+      const userResult = await transaction.request()
+        .input('userId', sql.NVarChar, userId)
+        .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
+      
+      const userName = userResult.recordset[0]?.FullName || 'Unknown User';
+
+      // Create delivery
+      const deliveryId = uuidv4();
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, deliveryId)
+        .input('procurement_request_id', sql.UniqueIdentifier, procurement_request_id)
+        .input('wing_id', sql.Int, request.wing_id)
+        .input('wing_name', sql.NVarChar, request.wing_name)
+        .input('status', sql.NVarChar, 'prepared')
+        .input('delivered_by_user_id', sql.NVarChar, userId)
+        .input('delivered_by_name', sql.NVarChar, userName)
+        .input('vehicle_number', sql.NVarChar, vehicle_number || null)
+        .input('driver_name', sql.NVarChar, driver_name || null)
+        .input('driver_contact', sql.NVarChar, driver_contact || null)
+        .input('notes', sql.NVarChar, notes || null)
+        .query(`
+          INSERT INTO procurement_deliveries 
+          (id, procurement_request_id, wing_id, wing_name, status, 
+           delivered_by_user_id, delivered_by_name, vehicle_number, 
+           driver_name, driver_contact, notes)
+          VALUES (@id, @procurement_request_id, @wing_id, @wing_name, @status,
+                  @delivered_by_user_id, @delivered_by_name, @vehicle_number,
+                  @driver_name, @driver_contact, @notes)
+        `);
+
+      // Insert delivery items
+      for (const item of delivery_items) {
+        const deliveryItemId = uuidv4();
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, deliveryItemId)
+          .input('procurement_delivery_id', sql.UniqueIdentifier, deliveryId)
+          .input('procurement_request_item_id', sql.UniqueIdentifier, item.procurement_request_item_id)
+          .input('item_master_id', sql.Int, item.item_master_id)
+          .input('item_nomenclature', sql.NVarChar, item.item_nomenclature)
+          .input('delivered_quantity', sql.Decimal(18, 2), item.delivered_quantity)
+          .input('unit_of_measurement', sql.NVarChar, item.unit_of_measurement)
+          .input('batch_number', sql.NVarChar, item.batch_number || null)
+          .input('expiry_date', sql.Date, item.expiry_date || null)
+          .input('notes', sql.NVarChar, item.notes || null)
+          .query(`
+            INSERT INTO procurement_delivery_items 
+            (id, procurement_delivery_id, procurement_request_item_id, item_master_id, 
+             item_nomenclature, delivered_quantity, unit_of_measurement, batch_number, 
+             expiry_date, notes)
+            VALUES (@id, @procurement_delivery_id, @procurement_request_item_id, @item_master_id,
+                    @item_nomenclature, @delivered_quantity, @unit_of_measurement, @batch_number,
+                    @expiry_date, @notes)
+          `);
+
+        // Update delivered quantity in request item
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, item.procurement_request_item_id)
+          .input('quantity', sql.Decimal(18, 2), item.delivered_quantity)
+          .query(`
+            UPDATE procurement_request_items 
+            SET delivered_quantity = ISNULL(delivered_quantity, 0) + @quantity,
+                updated_at = GETDATE()
+            WHERE id = @id
+          `);
+      }
+
+      // Update request status to allocated
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, procurement_request_id)
+        .query(`
+          UPDATE procurement_requests 
+          SET status = 'allocated', 
+              allocated_at = GETDATE(),
+              updated_at = GETDATE()
+          WHERE id = @requestId
+        `);
+
+      await transaction.commit();
+
+      // Get created delivery
+      const deliveryResult = await pool.request()
+        .input('deliveryId', sql.UniqueIdentifier, deliveryId)
+        .query('SELECT * FROM procurement_deliveries WHERE id = @deliveryId');
+
+      console.log(`✅ Delivery created: ${deliveryResult.recordset[0].delivery_number}`);
+      res.json({ success: true, delivery: deliveryResult.recordset[0] });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error creating delivery:', error);
+    res.status(500).json({ error: 'Failed to create delivery', details: error.message });
+  }
+});
+
+// Mark delivery as in-transit
+app.put('/api/procurement/deliveries/:id/dispatch', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE procurement_deliveries 
+        SET status = 'in_transit',
+            delivery_date = GETDATE(),
+            updated_at = GETDATE()
+        WHERE id = @id
+      `);
+
+    // Update request status
+    await pool.request()
+      .input('deliveryId', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE procurement_requests
+        SET status = 'in_transit', updated_at = GETDATE()
+        WHERE id = (SELECT procurement_request_id FROM procurement_deliveries WHERE id = @deliveryId)
+      `);
+
+    console.log(`✅ Delivery ${id} dispatched`);
+    res.json({ success: true, message: 'Delivery dispatched successfully' });
+
+  } catch (error) {
+    console.error('❌ Error dispatching delivery:', error);
+    res.status(500).json({ error: 'Failed to dispatch delivery', details: error.message });
+  }
+});
+
+// ============================================================================
+// Wing Supervisor Endpoints - Receive Deliveries
+// ============================================================================
+
+// Confirm delivery receipt
+app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+    const { received_items, notes } = req.body;
+
+    if (!received_items || received_items.length === 0) {
+      return res.status(400).json({ error: 'Received items are required' });
+    }
+
+    // Get user details
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
+    
+    const userName = userResult.recordset[0]?.FullName || 'Unknown User';
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update delivery items with received quantities
+      for (const item of received_items) {
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, item.id)
+          .input('received_quantity', sql.Decimal(18, 2), item.received_quantity)
+          .input('condition_on_receipt', sql.NVarChar, item.condition_on_receipt || 'good')
+          .input('discrepancy_notes', sql.NVarChar, item.discrepancy_notes || null)
+          .query(`
+            UPDATE procurement_delivery_items 
+            SET received_quantity = @received_quantity,
+                condition_on_receipt = @condition_on_receipt,
+                discrepancy_notes = @discrepancy_notes,
+                updated_at = GETDATE()
+            WHERE id = @id
+          `);
+
+        // Add to wing inventory stock
+        const itemDetailsResult = await transaction.request()
+          .input('itemId', sql.UniqueIdentifier, item.id)
+          .query(`
+            SELECT pdi.*, pd.wing_id 
+            FROM procurement_delivery_items pdi
+            JOIN procurement_deliveries pd ON pdi.procurement_delivery_id = pd.id
+            WHERE pdi.id = @itemId
+          `);
+
+        const itemDetails = itemDetailsResult.recordset[0];
+
+        // Check if item already exists in wing inventory
+        const existingStockResult = await transaction.request()
+          .input('itemMasterId', sql.Int, itemDetails.item_master_id)
+          .input('wingId', sql.Int, itemDetails.wing_id)
+          .query(`
+            SELECT id, quantity_on_hand 
+            FROM inventory_stock 
+            WHERE item_master_id = @itemMasterId AND wing_id = @wingId
+          `);
+
+        if (existingStockResult.recordset.length > 0) {
+          // Update existing stock
+          await transaction.request()
+            .input('id', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
+            .input('quantity', sql.Decimal(18, 2), item.received_quantity)
+            .input('userId', sql.NVarChar, userId)
+            .query(`
+              UPDATE inventory_stock 
+              SET quantity_on_hand = quantity_on_hand + @quantity,
+                  last_updated = GETDATE(),
+                  updated_by_user_id = @userId
+              WHERE id = @id
+            `);
+        } else {
+          // Create new stock entry
+          await transaction.request()
+            .input('id', sql.UniqueIdentifier, uuidv4())
+            .input('itemMasterId', sql.Int, itemDetails.item_master_id)
+            .input('wingId', sql.Int, itemDetails.wing_id)
+            .input('quantity', sql.Decimal(18, 2), item.received_quantity)
+            .input('userId', sql.NVarChar, userId)
+            .query(`
+              INSERT INTO inventory_stock 
+              (id, item_master_id, wing_id, quantity_on_hand, last_updated, updated_by_user_id)
+              VALUES (@id, @itemMasterId, @wingId, @quantity, GETDATE(), @userId)
+            `);
+        }
+      }
+
+      // Update delivery status
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('received_by_user_id', sql.NVarChar, userId)
+        .input('received_by_name', sql.NVarChar, userName)
+        .input('notes', sql.NVarChar, notes || null)
+        .query(`
+          UPDATE procurement_deliveries 
+          SET status = 'delivered',
+              received_by_user_id = @received_by_user_id,
+              received_by_name = @received_by_name,
+              received_at = GETDATE(),
+              notes = ISNULL(notes, '') + CHAR(13) + CHAR(10) + 'Receipt: ' + ISNULL(@notes, ''),
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      // Update request status to delivered
+      await transaction.request()
+        .input('deliveryId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE procurement_requests
+          SET status = 'delivered',
+              delivered_at = GETDATE(),
+              updated_at = GETDATE()
+          WHERE id = (SELECT procurement_request_id FROM procurement_deliveries WHERE id = @deliveryId)
+        `);
+
+      await transaction.commit();
+
+      console.log(`✅ Delivery ${id} received and stock updated for wing`);
+      res.json({ success: true, message: 'Delivery received successfully and inventory updated' });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error receiving delivery:', error);
+    res.status(500).json({ error: 'Failed to receive delivery', details: error.message });
+  }
+});
+
+// Get wing's deliveries
+app.get('/api/procurement/deliveries/wing/:wingId', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { wingId } = req.params;
+    const { status } = req.query;
+
+    let statusFilter = '';
+    if (status && status !== 'all') {
+      statusFilter = 'AND pd.status = @status';
+    }
+
+    const result = await pool.request()
+      .input('wingId', sql.Int, parseInt(wingId))
+      .input('status', sql.NVarChar, status)
+      .query(`
+        SELECT 
+          pd.*,
+          pr.request_number,
+          pr.priority,
+          (SELECT COUNT(*) FROM procurement_delivery_items WHERE procurement_delivery_id = pd.id) as item_count
+        FROM procurement_deliveries pd
+        JOIN procurement_requests pr ON pd.procurement_request_id = pr.id
+        WHERE pd.wing_id = @wingId
+        ${statusFilter}
+        ORDER BY pd.created_at DESC
+      `);
+
+    res.json({ success: true, deliveries: result.recordset });
+
+  } catch (error) {
+    console.error('❌ Error fetching wing deliveries:', error);
+    res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
+  }
+});
+
+// Get all deliveries (Admin)
+app.get('/api/procurement/deliveries', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { status, wing_id } = req.query;
+
+    let filters = [];
+    const request = pool.request();
+
+    if (status && status !== 'all') {
+      filters.push('pd.status = @status');
+      request.input('status', sql.NVarChar, status);
+    }
+
+    if (wing_id) {
+      filters.push('pd.wing_id = @wing_id');
+      request.input('wing_id', sql.Int, parseInt(wing_id));
+    }
+
+    const whereClause = filters.length > 0 ? 'WHERE ' + filters.join(' AND ') : '';
+
+    const result = await request.query(`
+      SELECT 
+        pd.*,
+        pr.request_number,
+        pr.priority,
+        pr.requested_by_name,
+        (SELECT COUNT(*) FROM procurement_delivery_items WHERE procurement_delivery_id = pd.id) as item_count
+      FROM procurement_deliveries pd
+      JOIN procurement_requests pr ON pd.procurement_request_id = pr.id
+      ${whereClause}
+      ORDER BY pd.created_at DESC
+    `);
+
+    res.json({ success: true, deliveries: result.recordset });
+
+  } catch (error) {
+    console.error('❌ Error fetching deliveries:', error);
+    res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
+  }
+});
+
+// Get delivery details
+app.get('/api/procurement/deliveries/:id', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+
+    // Get delivery details
+    const deliveryResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT pd.*, pr.request_number, pr.priority, pr.requested_by_name
+        FROM procurement_deliveries pd
+        JOIN procurement_requests pr ON pd.procurement_request_id = pr.id
+        WHERE pd.id = @id
+      `);
+
+    if (deliveryResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Delivery not found' });
+    }
+
+    // Get delivery items
+    const itemsResult = await pool.request()
+      .input('deliveryId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT pdi.*,
+               pri.requested_quantity,
+               pri.approved_quantity,
+               im.vItemNomenclature as item_full_name,
+               im.vItemCode as item_full_code
+        FROM procurement_delivery_items pdi
+        JOIN procurement_request_items pri ON pdi.procurement_request_item_id = pri.id
+        LEFT JOIN ItemMaster im ON pdi.item_master_id = im.id
+        WHERE pdi.procurement_delivery_id = @deliveryId
+        ORDER BY pdi.created_at
+      `);
+
+    res.json({
+      success: true,
+      delivery: deliveryResult.recordset[0],
+      items: itemsResult.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching delivery details:', error);
+    res.status(500).json({ error: 'Failed to fetch delivery details', details: error.message });
+  }
+});
+
+// ============================================================================
+// END PROCUREMENT WORKFLOW ENDPOINTS
+// ============================================================================
+
 // Graceful shutdown
 // =============================================================================
 // NEW STOCK ACQUISITION DASHBOARD ENDPOINTS
