@@ -12137,6 +12137,8 @@ app.get('/api/my-notifications', async (req, res) => {
           WHERE ivr.requested_by_user_id = @UserId
             AND ivr.verification_status = 'pending'
           
+          UNION ALL
+
           -- Verification requests as notifications (only show verified ones to requester)
           SELECT 
             CAST('VER-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
