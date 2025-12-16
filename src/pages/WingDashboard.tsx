@@ -179,7 +179,7 @@ const WingDashboard = () => {
             </Badge>
           </div>
         </div>
-        <Button onClick={() => navigate('/stock-issuance')} className="bg-teal-600 hover:bg-teal-700 text-white">
+        <Button onClick={() => navigate('/procurement/new-request')} className="bg-teal-600 hover:bg-teal-700 text-white">
           <Send className="h-4 w-4 mr-2" />
           Create Request
         </Button>
