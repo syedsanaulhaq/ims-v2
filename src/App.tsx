@@ -80,6 +80,9 @@ import StockOperations from "./pages/StockOperations";
 import { PendingVerificationsPage } from "./pages/PendingVerificationsPage";
 import VerificationHistoryPage from "./pages/VerificationHistoryPage";
 import ProcurementDetails from "./pages/ProcurementDetails";
+import NewProcurementRequest from "./pages/NewProcurementRequest";
+import MyProcurementRequests from "./pages/MyProcurementRequests";
+import AdminProcurementReview from "./pages/AdminProcurementReview";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
 import DigitalSystemLanding from "./pages/DigitalSystemLanding";
@@ -205,6 +208,24 @@ function App() {
                   <Route path="request-history" element={<RequestHistoryPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
+                </Route>
+
+                {/* Procurement Workflow - Protected */}
+                <Route path="/procurement" element={
+                  <ProtectedRoute>
+                    <Layout><Outlet /></Layout>
+                  </ProtectedRoute>
+                }>
+                  <Route path="new-request" element={<NewProcurementRequest />} />
+                  <Route path="my-requests" element={<MyProcurementRequests />} />
+                  <Route path="admin-review" element={<AdminProcurementReview />} />
+                </Route>
+                
+                <Route path="/dashboard" element={
+                  <ProtectedRoute>
+                    <Layout><Outlet /></Layout>
+                  </ProtectedRoute>
+                }>
                   <Route path="categories" element={<Categories />} />
                   <Route path="sub-categories" element={<SubCategories />} />
                   <Route path="vendors" element={<VendorManagementEnhanced />} />

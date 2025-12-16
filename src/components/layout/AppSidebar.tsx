@@ -137,6 +137,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
+      { title: "Request Stock", icon: ShoppingCart, path: "/procurement/new-request", permission: 'procurement.request' },
+      { title: "Stock Requests", icon: ClipboardList, path: "/procurement/my-requests", permission: 'procurement.view_own' },
       { title: "My Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
     ]
   };
@@ -177,6 +179,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
       { title: "Spot Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
       { title: "Stock Acquisition", icon: Warehouse, path: "/dashboard/stock-acquisition-dashboard", permission: 'procurement.view' },
+      { title: "Review Requests", icon: CheckCircle, path: "/procurement/admin-review", permission: 'procurement.approve' },
       { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
     ]
   };
