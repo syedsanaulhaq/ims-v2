@@ -1292,12 +1292,32 @@ app.get('/api/ims/permissions', requireAuth, async (req, res) => {
 });
 
 // Get users with their IMS roles
-app.get('/api/ims/users', requireAuth, requirePermission('users.manage'), async (req, res) => {
+app.get('/api/ims/users', requireAuth, async (req, res) => {
   try {
     const { search, wing_id, role_name } = req.query;
+    const userId = req.session.userId;
 
     if (!pool) {
       return res.json([]);
+    }
+
+    // Check if user has users.manage permission OR is requesting their own wing
+    let hasPermission = false;
+    if (await hasPermissionCheck(userId, 'users.manage')) {
+      hasPermission = true;
+    } else if (wing_id) {
+      // Check if user belongs to the requested wing
+      const wingCheck = await pool.request()
+        .input('userId', sql.NVarChar(450), userId)
+        .query(`SELECT intWingID FROM AspNetUsers WHERE Id = @userId`);
+      
+      if (wingCheck.recordset.length > 0 && wingCheck.recordset[0].intWingID === parseInt(wing_id)) {
+        hasPermission = true;
+      }
+    }
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     let query = `
