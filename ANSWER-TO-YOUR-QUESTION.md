@@ -1,4 +1,16 @@
-# 🎯 ANSWER TO YOUR QUESTION
+git fetch --all
+git checkout stable-nov11-production
+git pull
+npm run build   # or your usual build/start sequence
+npm run start   # restart backendgit fetch --all
+git checkout stable-nov11-production
+git pull
+npm run build   # or your usual build/start sequence
+npm run start   # restart backendgit fetch --all
+git checkout stable-nov11-production
+git pull
+npm run build   # or your usual build/start sequence
+npm run start   # restart backend# 🎯 ANSWER TO YOUR QUESTION
 
 ## Your Original Question
 > "Not getting the idea how the single item is forwarded or do anything not getting the idea can u explain"

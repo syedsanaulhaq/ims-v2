@@ -98,6 +98,45 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Serve HTML files from root directory (for session setter page)
 app.use(express.static(__dirname));
 
+// GET /items-master - Return all active items from ItemMaster (for procurement request page)
+app.get('/items-master', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const query = `
+      SELECT 
+        id,
+        item_code,
+        nomenclature,
+        unit,
+        specifications,
+        sub_category_id,
+        status,
+        created_at
+      FROM item_masters
+      WHERE status = 'Active'
+      ORDER BY nomenclature
+    `;
+
+    const result = await pool.request().query(query);
+    const items = result.recordset;
+
+    res.json({
+      success: true,
+      items: items,
+      count: items.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching items for /items-master:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch items',
+      details: error.message 
+    });
+  }
+});
+
 // SQL Server configuration - Using environment variables from .env.sqlserver
 const sqlConfig = {
   server: process.env.SQL_SERVER_HOST || 'SYED-FAZLI-LAPT',

@@ -99,8 +99,40 @@ const RequestDetailsPage: React.FC = () => {
               approval_history: [] // TODO: Add approval history when available
             };
             
-            // Load approval history
-            await loadApprovalHistory(foundRequest.id, mappedRequest);
+            // Try to load detailed request info (including approval history) from the newer endpoint
+            try {
+              const detailsResp = await fetch(`http://localhost:3001/api/request-details/${foundRequest.id}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
+
+              if (detailsResp.ok) {
+                const detailsData = await detailsResp.json();
+                if (detailsData?.success && detailsData.request) {
+                  // Map approval history if present
+                  if (Array.isArray(detailsData.request.approval_history)) {
+                    mappedRequest.approval_history = detailsData.request.approval_history.map((h: any, i: number) => ({
+                      id: (h.id || i + 1).toString(),
+                      action: (h.action || h.action_type || '').toLowerCase() || 'submitted',
+                      action_date: h.action_date || h.ActionDate || new Date().toISOString(),
+                      approver_name: h.approver_name || h.UserName || h.FullName || 'Unknown',
+                      comments: h.comments || h.Comments || 'No comments',
+                      level: h.level || h.Level || i
+                    }));
+                  }
+                } else {
+                  // Fall back to the older history endpoint if details endpoint doesn't return history
+                  await loadApprovalHistory(foundRequest.id, mappedRequest);
+                }
+              } else {
+                // Fall back on error
+                await loadApprovalHistory(foundRequest.id, mappedRequest);
+              }
+            } catch (err) {
+              console.warn('Failed to fetch /api/request-details, falling back to approvals history', err);
+              await loadApprovalHistory(foundRequest.id, mappedRequest);
+            }
             
             setRequest(mappedRequest);
           } else {

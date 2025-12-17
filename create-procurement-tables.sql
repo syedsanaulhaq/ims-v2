@@ -9,6 +9,9 @@
 USE InventoryManagementDB;
 GO
 
+SET QUOTED_IDENTIFIER ON;
+GO
+
 -- Check if tables already exist
 IF OBJECT_ID('procurement_delivery_items', 'U') IS NOT NULL
     DROP TABLE procurement_delivery_items;
@@ -56,7 +59,7 @@ CREATE TABLE procurement_requests (
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     
-    CONSTRAINT FK_procurement_requests_wing FOREIGN KEY (wing_id) REFERENCES Wings(id)
+    CONSTRAINT FK_procurement_requests_wing FOREIGN KEY (wing_id) REFERENCES WingsInformation(Id)
 );
 
 CREATE INDEX IX_procurement_requests_wing ON procurement_requests(wing_id);
@@ -73,7 +76,7 @@ CREATE TABLE procurement_request_items (
     procurement_request_id UNIQUEIDENTIFIER NOT NULL,
     
     -- Item information
-    item_master_id INT NOT NULL,
+    item_master_id UNIQUEIDENTIFIER NOT NULL,
     item_nomenclature NVARCHAR(500),
     item_code NVARCHAR(100),
     category_name NVARCHAR(200),
@@ -100,7 +103,7 @@ CREATE TABLE procurement_request_items (
     CONSTRAINT FK_procurement_items_request FOREIGN KEY (procurement_request_id) 
         REFERENCES procurement_requests(id) ON DELETE CASCADE,
     CONSTRAINT FK_procurement_items_itemmaster FOREIGN KEY (item_master_id) 
-        REFERENCES ItemMaster(id)
+        REFERENCES item_masters(id)
 );
 
 CREATE INDEX IX_procurement_items_request ON procurement_request_items(procurement_request_id);
@@ -115,7 +118,7 @@ CREATE TABLE procurement_deliveries (
     procurement_request_id UNIQUEIDENTIFIER NOT NULL,
     delivery_number NVARCHAR(50) UNIQUE NOT NULL,
     
-    wing_id INT NOT NULL,
+    wing_id UNIQUEIDENTIFIER NOT NULL,
     wing_name NVARCHAR(200),
     
     -- Delivery status
@@ -163,7 +166,7 @@ CREATE TABLE procurement_delivery_items (
     procurement_request_item_id UNIQUEIDENTIFIER NOT NULL,
     
     -- Item reference
-    item_master_id INT NOT NULL,
+    item_master_id UNIQUEIDENTIFIER NOT NULL,
     item_nomenclature NVARCHAR(500),
     
     -- Quantities
@@ -193,7 +196,7 @@ CREATE TABLE procurement_delivery_items (
     CONSTRAINT FK_procurement_delivery_items_request_item FOREIGN KEY (procurement_request_item_id) 
         REFERENCES procurement_request_items(id),
     CONSTRAINT FK_procurement_delivery_items_itemmaster FOREIGN KEY (item_master_id) 
-        REFERENCES ItemMaster(id)
+        REFERENCES item_masters(id)
 );
 
 CREATE INDEX IX_procurement_delivery_items_delivery ON procurement_delivery_items(procurement_delivery_id);
@@ -313,11 +316,11 @@ GO
 -- ============================================================================
 PRINT 'Assigning procurement permissions to roles...';
 
-DECLARE @generalUserId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'GENERAL_USER' AND scope_level = 'GLOBAL');
-DECLARE @wingUserLId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'WING_USER' AND scope_level = 'WING');
-DECLARE @wingSupervisorId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'WING_SUPERVISOR' AND scope_level = 'WING');
-DECLARE @adminId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'ADMIN' AND scope_level = 'GLOBAL');
-DECLARE @superAdminId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'SUPER_ADMIN' AND scope_level = 'GLOBAL');
+DECLARE @generalUserId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'GENERAL_USER');
+DECLARE @wingUserLId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'WING_USER');
+DECLARE @wingSupervisorId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'WING_SUPERVISOR');
+DECLARE @adminId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'ADMIN');
+DECLARE @superAdminId UNIQUEIDENTIFIER = (SELECT id FROM ims_roles WHERE role_name = 'SUPER_ADMIN');
 
 -- GENERAL_USER and WING_USER can request and view own
 IF @generalUserId IS NOT NULL
