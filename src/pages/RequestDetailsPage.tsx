@@ -151,7 +151,38 @@ const RequestDetailsPage: React.FC = () => {
 
   const loadApprovalHistory = async (requestId: string, request: RequestDetails) => {
     try {
-      // Try to load real approval history from database
+      // If the requestId looks like a GUID (used by stock_issuance_requests), use the request-details endpoint
+      const looksLikeGuid = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/.test(requestId);
+
+      if (looksLikeGuid) {
+        try {
+          const resp = await fetch(`http://localhost:3001/api/request-details/${requestId}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          if (resp.ok) {
+            const d = await resp.json();
+            if (d?.success && d.request && Array.isArray(d.request.approval_history)) {
+              request.approval_history = d.request.approval_history.map((item: any, i: number) => ({
+                id: (item.id || i + 1).toString(),
+                action: (item.action || item.ActionType || item.action_type || '').toLowerCase() || 'submitted',
+                action_date: item.action_date || item.ActionDate || new Date().toISOString(),
+                approver_name: item.approver_name || item.UserName || item.FullName || 'Unknown',
+                comments: item.comments || item.Comments || 'No comments',
+                level: item.level || item.Level || i
+              }));
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to fetch approval history via /api/request-details:', err);
+          // fallthrough to try legacy endpoint as a last resort
+        }
+      }
+
+      // Try to load real approval history from legacy database endpoint (expects numeric issuance id)
       try {
         const response = await fetch(`http://localhost:3001/api/approvals/history/${requestId}`, {
           method: 'GET',
@@ -167,11 +198,11 @@ const RequestDetailsPage: React.FC = () => {
             // Map real approval history data
             const approvalHistory: ApprovalHistoryItem[] = historyData.map((item: any, index: number) => ({
               id: (index + 1).toString(),
-              action: item.ActionType?.toLowerCase() || 'submitted',
-              action_date: item.ActionDate,
-              approver_name: item.UserName || 'Unknown',
-              comments: item.Comments || 'No comments',
-              level: item.Level || index
+              action: (item.ActionType || item.action_type || item.action || '').toLowerCase() || 'submitted',
+              action_date: item.ActionDate || item.action_date,
+              approver_name: item.UserName || item.UserName || item.FullName || 'Unknown',
+              comments: item.Comments || item.comments || 'No comments',
+              level: item.Level || item.level || index
             }));
             
             request.approval_history = approvalHistory;
@@ -179,7 +210,7 @@ const RequestDetailsPage: React.FC = () => {
           }
         }
       } catch (error) {
-        console.log('Could not load approval history from API, using minimal data');
+        console.log('Could not load approval history from legacy API, using minimal data', error);
       }
 
       // If no real data available, just show the basic submission info
