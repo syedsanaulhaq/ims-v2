@@ -11037,10 +11037,11 @@ app.get('/api/approvals/pending/:userId', async (req, res) => {
   }
 });
 
-// Get approval history for an issuance
+// Get approval history for an issuance (supports numeric issuanceId for legacy StockIssuances and GUID request IDs for request-based history)
 app.get('/api/approvals/history/:issuanceId', async (req, res) => {
   try {
     const { issuanceId } = req.params;
+    console.log('Fetching approval history for:', issuanceId);
     
     if (!pool) {
       // Return mock data when SQL Server is not connected
@@ -11064,28 +11065,63 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
       return res.json(mockHistory);
     }
 
-    const result = await pool.request()
-      .input('issuanceId', sql.Int, issuanceId)
-      .query(`
-        SELECT 
-          ah.ActionType,
-          ah.ActionDate,
-          ah.Comments,
-          ah.Level,
-          ah.IsFinalApproval,
-          u.FullName as UserName,
-          u.Email as UserEmail,
-          ft.FullName as ForwardedToName,
-          ft.Email as ForwardedToEmail,
-          ah.ForwardReason
-        FROM IssuanceApprovalHistory ah
-        INNER JOIN AspNetUsers u ON ah.UserId = u.Id
-        LEFT JOIN AspNetUsers ft ON ah.ForwardedToUserId = ft.Id
-        WHERE ah.IssuanceId = @issuanceId
-        ORDER BY ah.ActionDate ASC
-      `);
-    
-    res.json(result.recordset);
+    // Detect if issuanceId looks numeric (legacy StockIssuances with INT id)
+    const numericId = /^\d+$/.test(issuanceId);
+
+    if (numericId) {
+      // Legacy path: IssuanceApprovalHistory expects an INT issuanceId
+      const result = await pool.request()
+        .input('issuanceId', sql.Int, parseInt(issuanceId, 10))
+        .query(`
+          SELECT 
+            ah.ActionType,
+            ah.ActionDate,
+            ah.Comments,
+            ah.Level,
+            ah.IsFinalApproval,
+            u.FullName as UserName,
+            u.Email as UserEmail,
+            ft.FullName as ForwardedToName,
+            ft.Email as ForwardedToEmail,
+            ah.ForwardReason
+          FROM IssuanceApprovalHistory ah
+          INNER JOIN AspNetUsers u ON ah.UserId = u.Id
+          LEFT JOIN AspNetUsers ft ON ah.ForwardedToUserId = ft.Id
+          WHERE ah.IssuanceId = @issuanceId
+          ORDER BY ah.ActionDate ASC
+        `);
+      return res.json(result.recordset);
+    }
+
+    // If not numeric, treat as a GUID request id and query the request-based approval history
+    try {
+      const reqHistory = await pool.request()
+        .input('requestId', sql.NVarChar(450), issuanceId)
+        .query(`
+          SELECT 
+            ah.action_type as ActionType,
+            ah.action_date as ActionDate,
+            ah.comments as Comments,
+            ah.level as Level,
+            ah.is_final_approval as IsFinalApproval,
+            u.FullName as UserName,
+            u.Email as UserEmail,
+            ft.FullName as ForwardedToName,
+            ft.Email as ForwardedToEmail,
+            ah.forward_reason as ForwardReason,
+            ah.forwarded_to as ForwardedToUserId
+          FROM approval_history ah
+          LEFT JOIN AspNetUsers u ON ah.action_by = u.Id
+          LEFT JOIN AspNetUsers ft ON ah.forwarded_to = ft.Id
+          WHERE ah.request_id = @requestId
+          ORDER BY ah.action_date ASC
+        `);
+
+      return res.json(reqHistory.recordset || []);
+    } catch (err) {
+      console.error('❌ Error fetching guid-based approval history:', err);
+      return res.status(500).json({ error: 'Failed to fetch approval history for request id', details: err.message });
+    }
     
   } catch (error) {
     console.error('❌ Error fetching approval history:', error);
