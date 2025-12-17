@@ -23,6 +23,9 @@ interface ApprovalHistoryItem {
   approver_name: string;
   comments: string;
   level: number;
+  forwarded_to_name?: string | null;
+  forwarded_from_name?: string | null;
+  is_current_step?: boolean;
 }
 
 interface RequestDetails {
@@ -114,11 +117,15 @@ const RequestDetailsPage: React.FC = () => {
                   if (Array.isArray(detailsData.request.approval_history)) {
                     mappedRequest.approval_history = detailsData.request.approval_history.map((h: any, i: number) => ({
                       id: (h.id || i + 1).toString(),
-                      action: (h.action || h.action_type || '').toLowerCase() || 'submitted',
-                      action_date: h.action_date || h.ActionDate || new Date().toISOString(),
-                      approver_name: h.approver_name || h.UserName || h.FullName || 'Unknown',
-                      comments: h.comments || h.Comments || 'No comments',
-                      level: h.level || h.Level || i
+                      action: (h.action || h.action_type || h.ActionType || '').toLowerCase() || 'submitted',
+                      action_date: h.action_date || h.ActionDate || h.ActionDateTime || new Date().toISOString(),
+                      // Prefer the explicit action-by name, then fallback to common fields
+                      approver_name: h.ActionByName || h.approver_name || h.UserName || h.FullName || h.ForwardedFromName || 'Unknown',
+                      comments: h.comments || h.Comments || h.ForwardReason || 'No comments',
+                      level: h.level || h.Level || h.StepNumber || i,
+                      forwarded_to_name: h.ForwardedToName || h.forwarded_to_name || h.ForwardedToUserId || null,
+                      forwarded_from_name: h.ForwardedFromName || h.forwarded_from_name || h.ForwardedFromUserId || null,
+                      is_current_step: h.is_current_step || h.IsCurrentStep || false
                     }));
                   }
                 } else {
@@ -200,9 +207,10 @@ const RequestDetailsPage: React.FC = () => {
               id: (index + 1).toString(),
               action: (item.ActionType || item.action_type || item.action || '').toLowerCase() || 'submitted',
               action_date: item.ActionDate || item.action_date,
-              approver_name: item.UserName || item.UserName || item.FullName || 'Unknown',
+              approver_name: item.UserName || item.FullName || (item.ForwardedFromName || item.ForwardedToName) || 'Unknown',
               comments: item.Comments || item.comments || 'No comments',
-              level: item.Level || item.level || index
+              level: item.Level || item.level || index,
+              forwarded_to_name: item.ForwardedToName || item.forwarded_to || null
             }));
             
             request.approval_history = approvalHistory;
@@ -484,9 +492,16 @@ const RequestDetailsPage: React.FC = () => {
                             <span className={`ml-2 capitalize ${
                               history.action === 'pending' ? 'text-yellow-600' : 'text-gray-600'
                             }`}>
-                              {history.action === 'submitted' ? 'Submitted Request' :
-                               history.action === 'pending' ? (index === 1 ? 'Next: Pending Approval' : 'Future: Pending Approval') :
-                               history.action.replace('_', ' ') + 'ed'}
+                              {(() => {
+                                const act = history.action;
+                                if (act === 'submitted') return 'Submitted Request';
+                                if (act === 'pending') return (index === 1 ? 'Next: Pending Approval' : 'Future: Pending Approval');
+                                if (act === 'approved') return 'Approved';
+                                if (act === 'rejected') return 'Rejected';
+                                if (act === 'forwarded') return history.forwarded_to_name ? `Forwarded to ${history.forwarded_to_name}` : 'Forwarded';
+                                // fallback: capitalize words
+                                return act.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                              })()}
                             </span>
                             {history.action === 'pending' && index === 1 && (
                               <span className="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
@@ -508,8 +523,12 @@ const RequestDetailsPage: React.FC = () => {
                             <div className="text-sm text-gray-600 mt-1 bg-gray-50 rounded p-2">
                               {history.comments}
                             </div>
-                          )}
-                        </div>
+                          )}                          {/* If forwarded, show target */}
+                          {history.forwarded_to_name && (
+                            <div className="text-sm text-gray-600 mt-1">
+                              Forwarded to: <span className="font-medium">{history.forwarded_to_name}</span>
+                            </div>
+                          )}                        </div>
                       </div>
                     </div>
                   ))
