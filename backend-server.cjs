@@ -11070,27 +11070,32 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
 
     if (numericId) {
       // Legacy path: IssuanceApprovalHistory expects an INT issuanceId
-      const result = await pool.request()
-        .input('issuanceId', sql.Int, parseInt(issuanceId, 10))
-        .query(`
-          SELECT 
-            ah.ActionType,
-            ah.ActionDate,
-            ah.Comments,
-            ah.Level,
-            ah.IsFinalApproval,
-            u.FullName as UserName,
-            u.Email as UserEmail,
-            ft.FullName as ForwardedToName,
-            ft.Email as ForwardedToEmail,
-            ah.ForwardReason
-          FROM IssuanceApprovalHistory ah
-          INNER JOIN AspNetUsers u ON ah.UserId = u.Id
-          LEFT JOIN AspNetUsers ft ON ah.ForwardedToUserId = ft.Id
-          WHERE ah.IssuanceId = @issuanceId
-          ORDER BY ah.ActionDate ASC
-        `);
-      return res.json(result.recordset);
+      try {
+        const result = await pool.request()
+          .input('issuanceId', sql.Int, parseInt(issuanceId, 10))
+          .query(`
+            SELECT 
+              ah.ActionType,
+              ah.ActionDate,
+              ah.Comments,
+              ah.Level,
+              ah.IsFinalApproval,
+              u.FullName as UserName,
+              u.Email as UserEmail,
+              ft.FullName as ForwardedToName,
+              ft.Email as ForwardedToEmail,
+              ah.ForwardReason
+            FROM IssuanceApprovalHistory ah
+            INNER JOIN AspNetUsers u ON ah.UserId = u.Id
+            LEFT JOIN AspNetUsers ft ON ah.ForwardedToUserId = ft.Id
+            WHERE ah.IssuanceId = @issuanceId
+            ORDER BY ah.ActionDate ASC
+          `);
+        return res.json(result.recordset);
+      } catch (numErr) {
+        console.warn('Numeric issuanceId query failed, falling back to request-based history. Error:', numErr && numErr.message ? numErr.message : numErr);
+        // fallthrough to GUID/request-based path below
+      }
     }
 
     // If not numeric, treat as a GUID request id and query the request-based approval history
