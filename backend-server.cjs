@@ -11100,6 +11100,7 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
 
     // If not numeric, treat as a GUID request id and query the request-based approval history
     try {
+      // approval_history links to request_approvals via request_approval_id; join to filter by request_id
       const reqHistory = await pool.request()
         .input('requestId', sql.NVarChar(450), issuanceId)
         .query(`
@@ -11107,21 +11108,23 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
             ah.action_type as ActionType,
             ah.action_date as ActionDate,
             ah.comments as Comments,
-            ah.level as Level,
-            ah.is_final_approval as IsFinalApproval,
-            u.FullName as UserName,
-            u.Email as UserEmail,
-            ft.FullName as ForwardedToName,
-            ft.Email as ForwardedToEmail,
-            ah.forward_reason as ForwardReason,
-            ah.forwarded_to as ForwardedToUserId
+            ah.step_number as StepNumber,
+            ah.is_current_step as IsCurrentStep,
+            ah.forwarded_from as ForwardedFromUserId,
+            ah.forwarded_to as ForwardedToUserId,
+            u.FullName as ActionByName,
+            fu.FullName as ForwardedFromName,
+            tu.FullName as ForwardedToName
           FROM approval_history ah
+          LEFT JOIN request_approvals ra ON ah.request_approval_id = ra.id
           LEFT JOIN AspNetUsers u ON ah.action_by = u.Id
-          LEFT JOIN AspNetUsers ft ON ah.forwarded_to = ft.Id
-          WHERE ah.request_id = @requestId
+          LEFT JOIN AspNetUsers fu ON ah.forwarded_from = fu.Id
+          LEFT JOIN AspNetUsers tu ON ah.forwarded_to = tu.Id
+          WHERE ra.request_id = @requestId
           ORDER BY ah.action_date ASC
         `);
 
+      console.log(`Found ${reqHistory.recordset.length} approval history entries for request ${issuanceId}`);
       return res.json(reqHistory.recordset || []);
     } catch (err) {
       console.error('❌ Error fetching guid-based approval history:', err);
