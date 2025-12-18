@@ -73,6 +73,7 @@ import WingRequestsPage from "./pages/WingRequestsPage";
 import RequestDetailsPage from "./pages/RequestDetailsPage";
 import StockOperationRequestDetails from "./pages/StockOperationRequestDetails";
 import RequestHistoryPage from "./pages/RequestHistoryPage";
+import WingRequestHistoryPage from "./pages/WingRequestHistoryPage";
 import InventoryAlertsPage from "./pages/InventoryAlertsPage";
 import InventoryDetails from "./pages/InventoryDetails";
 import ItemDetailsPage from "./pages/ItemDetailsPage";
@@ -206,6 +207,7 @@ function App() {
                   <Route path="stock-operation-request-details/:requestId" element={<StockOperationRequestDetails />} />
                   <Route path="approval-forwarding/:id" element={<ApprovalForwardingWrapper />} />
                   <Route path="request-history" element={<RequestHistoryPage />} />
+                  <Route path="wing-request-history" element={<WingRequestHistoryPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
                 </Route>

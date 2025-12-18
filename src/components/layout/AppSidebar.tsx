@@ -203,6 +203,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "My Pending Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
       { title: "Request History", icon: FileText, path: "/dashboard/request-history", permission: 'approval.approve' },
+      { title: "Wing Request History", icon: Building2, path: "/dashboard/wing-request-history", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };

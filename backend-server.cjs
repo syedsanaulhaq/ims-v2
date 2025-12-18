@@ -15801,6 +15801,172 @@ app.get('/api/my-approval-history', async (req, res) => {
 });
 
 // =============================================================================
+// WING REQUEST HISTORY API ENDPOINT
+// =============================================================================
+
+app.get('/api/wing-request-history', async (req, res) => {
+  try {
+    console.log('🔍 API CALLED: /api/wing-request-history');
+    console.log('Fetching wing request history...');
+    console.log('Session:', req.session);
+    
+    // Check authentication and get user info
+    let userId = req.session.userId;
+    console.log('Session userId:', userId);
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User not authenticated' });
+    }
+
+    // Get user's wing ID
+    const userWingQuery = `
+      SELECT intWingID as wing_id 
+      FROM AspNetUsers 
+      WHERE Id = @userId
+    `;
+    
+    const userWingResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(userWingQuery);
+    
+    if (!userWingResult.recordset[0]?.wing_id) {
+      return res.status(400).json({ success: false, error: 'User wing information not found' });
+    }
+    
+    const userWingId = userWingResult.recordset[0].wing_id;
+    console.log('User wing ID:', userWingId);
+
+    // Get all requests from users in the same wing
+    const wingRequestsQuery = `
+      SELECT 
+        ra.id,
+        ra.request_id,
+        ra.request_type,
+        ra.submitted_date,
+        ra.current_status,
+        ra.submitted_by,
+        ra.current_approver_id,
+        u_requester.FullName as requester_name,
+        u_current_approver.FullName as current_approver_name,
+        sir.justification as title,
+        sir.purpose as description,
+        sir.expected_return_date as requested_date,
+        COALESCE(item_counts.item_count, 0) as total_items,
+        w.Name as requester_wing_name
+      FROM request_approvals ra
+      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
+      LEFT JOIN AspNetUsers u_current_approver ON u_current_approver.Id = ra.current_approver_id
+      LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+      LEFT JOIN Wings w ON u_requester.intWingID = w.Id
+      LEFT JOIN (
+        SELECT request_id, COUNT(*) as item_count
+        FROM stock_issuance_items 
+        GROUP BY request_id
+      ) item_counts ON item_counts.request_id = ra.request_id
+      WHERE u_requester.intWingID = @wingId
+      ORDER BY ra.submitted_date DESC`;
+
+    console.log('📊 WING REQUESTS QUERY:', wingRequestsQuery);
+    
+    const requestsResult = await pool.request()
+      .input('wingId', sql.Int, userWingId)
+      .query(wingRequestsQuery);
+
+    console.log('✅ Query executed successfully. Records:', requestsResult.recordset.length);
+    
+    const requests = [];
+
+    for (const request of requestsResult.recordset) {
+      // Load items for each request
+      let items = [];
+      try {
+        console.log('Loading items for request:', request.request_id);
+        const stockItemsQuery = `
+          SELECT 
+            si_items.item_master_id as item_id,
+            CASE 
+              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+              ELSE COALESCE(im.nomenclature, 'Unknown Item')
+            END as item_name,
+            si_items.requested_quantity,
+            si_items.approved_quantity,
+            COALESCE(im.unit, 'units') as unit,
+            si_items.item_type
+          FROM stock_issuance_items si_items
+          LEFT JOIN item_masters im ON im.id = si_items.item_master_id
+          WHERE si_items.request_id = @requestId
+          ORDER BY 
+            CASE 
+              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+              ELSE im.nomenclature
+            END;
+        `;
+        
+        const stockItemsResult = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, request.request_id)
+          .query(stockItemsQuery);
+        
+        console.log('Items found for', request.request_id, ':', stockItemsResult.recordset.length);
+          
+        items = stockItemsResult.recordset || [];
+      } catch (itemError) {
+        console.log('ERROR loading items for request', request.request_id, ':', itemError.message);
+        console.log('Items error details:', itemError);
+        items = [];
+      }
+
+      const processedRequest = {
+        id: request.id,
+        request_id: request.request_id,
+        request_type: request.request_type || 'stock_issuance',
+        title: request.title || 'Stock Issuance Request',
+        description: request.description || 'Request for inventory items',
+        requested_date: request.requested_date || request.submitted_date,
+        submitted_date: request.submitted_date,
+        requester_name: request.requester_name || 'Unknown User',
+        requester_office: null,
+        requester_wing: request.requester_wing_name || 'Unknown Wing',
+        my_action: 'viewing', // Since this is wing history, not personal approval history
+        my_action_date: null,
+        my_comments: null,
+        forwarded_to: null,
+        current_status: request.current_status || 'pending',
+        final_status: request.current_status || 'pending',
+        items: items,
+        total_items: request.total_items || 0,
+        priority: 'Medium'
+      };
+      requests.push(processedRequest);
+    }
+
+    console.log(`✅ Found ${requests.length} wing request history entries for wing ${userWingId}`);
+    console.log('📋 Wing Requests:', requests.map(r => ({ id: r.id, title: r.title, requester: r.requester_name })));
+
+    res.json({
+      success: true,
+      requests: requests,
+      total: requests.length,
+      wing_name: userWingResult.recordset[0]?.wing_name || 'Your Wing',
+      debug_request_ids: requests.map(r => ({ 
+        approval_id: r.id, 
+        request_id: r.request_id,
+        view_details_url: `/dashboard/request-details/${r.request_id}`,
+        item_count: r.total_items
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching wing request history:', error);
+    console.error('❌ Stack trace:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch wing request history: ' + error.message,
+      details: error.stack
+    });
+  }
+});
+
+// =============================================================================
 // ISSUANCE WORKFLOW API ENDPOINTS (NEW)
 // =============================================================================
 
