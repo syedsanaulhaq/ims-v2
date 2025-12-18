@@ -141,6 +141,20 @@ const RequestDetailsPage: React.FC = () => {
               await loadApprovalHistory(foundRequest.id, mappedRequest);
             }
             
+            // Normalize approval history entries to avoid empty/garbled labels
+            mappedRequest.approval_history = (mappedRequest.approval_history || []).map((ah: any) => {
+              const action = (ah.action || ah.action_type || ah.ActionType || '')?.toString().trim().toLowerCase();
+              const approver = (ah.approver_name || ah.ActionByName || ah.UserName || ah.FullName || ah.ForwardedFromName || '')?.toString().trim();
+              const forwardedName = (ah.forwarded_to_name || ah.ForwardedToName || ah.ForwardedToUserId || ah.forwarded_to || '')?.toString().trim();
+              return {
+                ...ah,
+                action: action || 'submitted',
+                approver_name: approver || 'Unknown',
+                forwarded_to_name: forwardedName || null,
+                action_date: ah.action_date || ah.ActionDate || ah.ActionDateTime || new Date().toISOString()
+              } as ApprovalHistoryItem;
+            });
+
             setRequest(mappedRequest);
           } else {
             console.error('Request not found with ID:', id);

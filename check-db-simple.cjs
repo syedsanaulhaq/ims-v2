@@ -49,6 +49,72 @@ async function checkSetup() {
       console.log(`❌ Error querying verification table: ${e.message}`);
     }
 
+    // 2.5 Check approval history for specific request
+    console.log('\n=== APPROVAL HISTORY FOR REQUEST 3F3D696D-3FDD-413D-BBE4-B7C46690F125 ===');
+    try {
+      // First check if table exists and its structure
+      const tableCheck = await pool.request().query(`
+        SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'approval_history'
+      `);
+      if (tableCheck.recordset.length === 0) {
+        console.log('❌ approval_history table does not exist');
+      } else {
+        console.log('✅ approval_history table exists');
+        
+        // Check total records
+        const countResult = await pool.request().query(`SELECT COUNT(*) as total FROM approval_history`);
+        console.log(`Total approval history records: ${countResult.recordset[0].total}`);
+        
+        // Show some sample records
+        if (countResult.recordset[0].total > 0) {
+          const sampleResult = await pool.request().query(`
+            SELECT TOP 3 ah.request_approval_id, ah.action_type, ah.action_date, ah.comments
+            FROM approval_history ah
+            ORDER BY ah.action_date DESC
+          `);
+          console.log('Sample approval history records:');
+          sampleResult.recordset.forEach((h, i) => {
+            console.log(`  ${i + 1}. Request: ${h.request_approval_id}, Action: ${h.action_type}, Date: ${h.action_date}, Comments: ${h.comments || 'N/A'}`);
+          });
+        }
+        
+        // Check if request exists in stock_issuance_requests
+        const stockRequestCheck = await pool.request().query(`
+          SELECT * FROM stock_issuance_requests WHERE id = '3F3D696D-3FDD-413D-BBE4-B7C46690F125'
+        `);
+        console.log(`Request exists in stock_issuance_requests with that ID: ${stockRequestCheck.recordset.length > 0}`);
+        if (stockRequestCheck.recordset.length > 0) {
+          console.log(`Stock issuance request details:`, stockRequestCheck.recordset[0]);
+        }
+        
+        // Now query for specific request
+        const historyQuery = `
+          SELECT 
+            ah.id,
+            ah.request_approval_id,
+            ah.action_type as action,
+            ah.action_date,
+            ah.comments,
+            ah.step_number as level,
+            ah.action_by,
+            u.FullName as approver_name
+          FROM approval_history ah
+          LEFT JOIN AspNetUsers u ON u.Id = ah.action_by
+          WHERE ah.request_approval_id IN (
+            SELECT id FROM request_approvals WHERE request_id = '3F3D696D-3FDD-413D-BBE4-B7C46690F125'
+          )
+          ORDER BY ah.action_date DESC;
+        `;
+        const historyResult = await pool.request().query(historyQuery);
+        console.log(`\nFound ${historyResult.recordset.length} approval history entries for this request:`);
+        historyResult.recordset.forEach((h, i) => {
+          console.log(`  ${i + 1}. ID: ${h.id}, Action: ${h.action}, Date: ${h.action_date}, Action By: ${h.action_by}, Approver: ${h.approver_name || 'NULL'}, Level: ${h.level}, Comments: ${h.comments || 'N/A'}`);
+        });
+      }
+    } catch (e) {
+      console.log(`❌ Error querying approval history: ${e.message}`);
+    }
+
     // 3. Check user and their roles
     console.log('\n=== USER 3730207514595 ROLES ===');
     const userCheck = await pool.request().query(`

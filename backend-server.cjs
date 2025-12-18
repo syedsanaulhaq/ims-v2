@@ -15414,23 +15414,69 @@ app.get('/api/my-requests', async (req, res) => {
 app.get('/api/request-details/:requestId', async (req, res) => {
   try {
     console.log('Fetching request details...');
-    
+
     // Check authentication
     if (!req.session.userId) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Not authenticated' 
+      return res.status(401).json({
+        success: false,
+        error: 'Not authenticated'
       });
     }
 
     const { requestId } = req.params;
     let userId = req.session.userId;
-    
-    // Use correct user ID for testing
-    userId = '869dd81b-a782-494d-b8c2-695369b5ebb6'; // Syed Sana ul Haq Fazli
 
     console.log('Loading details for request:', requestId, 'by user:', userId);
-    console.log('🚀🚀🚀 USING UPDATED REQUEST-DETAILS ENDPOINT WITH stock_issuance_requests 🚀🚀🚀');
+
+    // Check if user has permission to view request details
+    // Allow if user is super admin, has general permissions, or is involved in the request
+    let hasAccess = false;
+    try {
+      if (pool) {
+        const superAdminResult = await pool.request()
+          .input('userId', sql.NVarChar(450), userId)
+          .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
+
+        hasAccess = superAdminResult.recordset[0]?.isSuperAdmin === true ||
+                   superAdminResult.recordset[0]?.isSuperAdmin === 1;
+
+        if (!hasAccess) {
+          // Check for general request viewing permissions
+          const permResult = await pool.request()
+            .input('userId', sql.NVarChar(450), userId)
+            .query(`
+              SELECT COUNT(*) as permCount FROM vw_ims_user_permissions
+              WHERE user_id = @userId AND permission_key IN (
+                'requests.view', 'approvals.view', 'stock_issuance.view'
+              )
+            `);
+          hasAccess = permResult.recordset[0]?.permCount > 0;
+        }
+
+        if (!hasAccess) {
+          // Check if user is directly involved in this specific request
+          const involvementResult = await pool.request()
+            .input('userId', sql.NVarChar(450), userId)
+            .input('requestId', sql.NVarChar, requestId)
+            .query(`
+              SELECT COUNT(*) as involvementCount FROM request_approvals
+              WHERE request_id = @requestId
+              AND (submitted_by = @userId OR current_approver_id = @userId)
+            `);
+          hasAccess = involvementResult.recordset[0]?.involvementCount > 0;
+        }
+      }
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      hasAccess = false;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied. You do not have permission to view this request.'
+      });
+    }
 
     // Get request details - verify it belongs to the current user
     const requestQuery = `
@@ -15460,13 +15506,11 @@ app.get('/api/request-details/:requestId', async (req, res) => {
       LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
       LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
       LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
-      WHERE ra.request_id = @requestId 
-        AND (ra.submitted_by = @userId OR ra.current_approver_id = @userId)
+      WHERE ra.request_id = @requestId
     `;
 
     const requestResult = await pool.request()
       .input('requestId', sql.NVarChar, requestId)
-      .input('userId', sql.NVarChar, userId)
       .query(requestQuery);
 
     if (requestResult.recordset.length === 0) {
@@ -15509,24 +15553,30 @@ app.get('/api/request-details/:requestId', async (req, res) => {
     const historyQuery = `
       SELECT 
         ah.id,
-        ah.action,
+        ah.action_type as action,
         ah.action_date,
         ah.comments,
-        ah.approver_level as level,
+        ah.step_number as level,
         u.FullName as approver_name
       FROM approval_history ah
-      LEFT JOIN AspNetUsers u ON u.Id = ah.user_id
-      WHERE ah.request_id = @requestId
+      LEFT JOIN AspNetUsers u ON u.Id = ah.action_by
+      WHERE ah.request_approval_id IN (
+        SELECT id FROM request_approvals WHERE request_id = @requestId
+      )
       ORDER BY ah.action_date DESC;
     `;
+
 
     let approvalHistory = [];
     try {
       const historyResult = await pool.request()
         .input('requestId', sql.NVarChar, requestId)
         .query(historyQuery);
-      
-      approvalHistory = historyResult.recordset || [];
+      approvalHistory = (historyResult.recordset || []).map(h => ({
+        ...h,
+        approver_name: h.approver_name && h.approver_name.trim() ? h.approver_name : 'System',
+        forwarded_to_name: h.forwarded_to_name && h.forwarded_to_name.trim ? h.forwarded_to_name : (h.ForwardedToName || h.ForwardedToUserId || null)
+      }));
     } catch (historyError) {
       console.log('Could not load approval history:', historyError.message);
       approvalHistory = [];
