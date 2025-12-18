@@ -28,6 +28,8 @@ interface WingRequest {
   requester_name: string;
   requester_office?: string;
   requester_wing?: string;
+  current_approver_name?: string;
+  current_approver_designation?: string;
   my_action: string;
   my_action_date?: string;
   my_comments?: string;
@@ -186,20 +188,22 @@ const WingRequestHistoryPage: React.FC = () => {
 
       // 4. Add current step (if not completed)
       if (request.current_status !== 'finalized' && request.current_status !== 'rejected') {
-        // Determine who the current approver should be based on the workflow
-        let currentApprover = 'Pending Approval';
-        let currentDesignation = 'Next Approver';
+        // Use actual current approver information from the request data
+        let currentApprover = request.current_approver_name || 'Pending Approval';
+        let currentDesignation = request.current_approver_designation || 'Next Approver';
 
-        // Basic workflow logic - this can be enhanced based on your actual workflow
-        if (actualHistory.length === 0) {
-          currentApprover = 'HR Supervisor';
-          currentDesignation = 'Human Resources';
-        } else if (actualHistory.length === 1) {
-          currentApprover = 'Inventory Manager';
-          currentDesignation = 'Inventory Management';
-        } else {
-          currentApprover = 'Department Head';
-          currentDesignation = 'Final Approval';
+        // Fallback to generic titles if no specific approver info is available
+        if (!request.current_approver_name) {
+          if (actualHistory.length === 0) {
+            currentApprover = 'HR Supervisor';
+            currentDesignation = 'Human Resources';
+          } else if (actualHistory.length === 1) {
+            currentApprover = 'Inventory Manager';
+            currentDesignation = 'Inventory Management';
+          } else {
+            currentApprover = 'Department Head';
+            currentDesignation = 'Final Approval';
+          }
         }
 
         completeTimeline.push({

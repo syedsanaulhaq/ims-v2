@@ -15848,6 +15848,7 @@ app.get('/api/wing-request-history', async (req, res) => {
         ra.current_approver_id,
         u_requester.FullName as requester_name,
         u_current_approver.FullName as current_approver_name,
+        d_approver.strDesignation as current_approver_designation,
         sir.justification as title,
         sir.purpose as description,
         sir.expected_return_date as requested_date,
@@ -15856,20 +15857,23 @@ app.get('/api/wing-request-history', async (req, res) => {
       FROM request_approvals ra
       LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
       LEFT JOIN AspNetUsers u_current_approver ON u_current_approver.Id = ra.current_approver_id
+      LEFT JOIN tblUserDesignations d_approver ON u_current_approver.intDesignationID = d_approver.intDesignationID
       LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
-      LEFT JOIN Wings w ON u_requester.intWingID = w.Id
+      LEFT JOIN WingsInformation w ON u_requester.intWingID = w.Id
       LEFT JOIN (
         SELECT request_id, COUNT(*) as item_count
         FROM stock_issuance_items 
         GROUP BY request_id
       ) item_counts ON item_counts.request_id = ra.request_id
-      WHERE u_requester.intWingID = @wingId
+      WHERE u_requester.intWingID IS NOT NULL 
+      AND u_requester.intWingID = @wingId
       ORDER BY ra.submitted_date DESC`;
 
     console.log('📊 WING REQUESTS QUERY:', wingRequestsQuery);
+    console.log('🔢 Wing ID parameter:', userWingId, 'Type:', typeof userWingId);
     
     const requestsResult = await pool.request()
-      .input('wingId', sql.Int, userWingId)
+      .input('wingId', sql.Int, parseInt(userWingId))
       .query(wingRequestsQuery);
 
     console.log('✅ Query executed successfully. Records:', requestsResult.recordset.length);
@@ -15926,6 +15930,8 @@ app.get('/api/wing-request-history', async (req, res) => {
         requester_name: request.requester_name || 'Unknown User',
         requester_office: null,
         requester_wing: request.requester_wing_name || 'Unknown Wing',
+        current_approver_name: request.current_approver_name,
+        current_approver_designation: request.current_approver_designation,
         my_action: 'viewing', // Since this is wing history, not personal approval history
         my_action_date: null,
         my_comments: null,

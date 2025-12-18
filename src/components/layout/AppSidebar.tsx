@@ -149,7 +149,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Building2,
     items: [
       { title: "Wing Dashboard", icon: BarChart3, path: "/dashboard/wing-dashboard", permission: 'wing.supervisor' },
-      { title: "Wing Requests", icon: ClipboardList, path: "/dashboard/wing-requests", permission: 'wing.supervisor' },
+      { title: "Wing Request History", icon: History, path: "/dashboard/wing-request-history", permission: 'wing.supervisor' },
       { title: "Wing Inventory", icon: Warehouse, path: "/dashboard/wing-inventory", permission: 'wing.supervisor' },
       { title: "Wing Members", icon: Users, path: "/dashboard/wing-members", permission: 'wing.supervisor' },
     ]

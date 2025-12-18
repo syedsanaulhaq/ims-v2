@@ -187,7 +187,7 @@ const WingDashboard = () => {
 
       {/* Quick Stats - 4 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/wing-requests')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/wing-request-history')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-orange-700">
               <ClipboardList className="h-5 w-5" />
@@ -581,7 +581,7 @@ const WingDashboard = () => {
               <CardTitle className="text-xl">Recent Wing Requests</CardTitle>
               <CardDescription>Latest stock requests from wing members</CardDescription>
             </div>
-            <Button variant="outline" onClick={() => navigate('/dashboard/wing-requests')}>
+            <Button variant="outline" onClick={() => navigate('/dashboard/wing-request-history')}>
               View All
             </Button>
           </div>
