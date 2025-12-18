@@ -211,31 +211,6 @@ const WingRequestHistoryPage: React.FC = () => {
           comments: 'Awaiting approval action',
           step_status: 'current'
         });
-
-        // 5. Add future steps
-        if (actualHistory.length === 0) {
-          completeTimeline.push({
-            id: 'future_step_1',
-            action_type: 'pending',
-            action_date: null,
-            action_by_name: 'Inventory Manager',
-            action_by_designation: 'Inventory Management',
-            comments: 'Future approval step',
-            step_status: 'future'
-          });
-        }
-
-        if (actualHistory.length <= 1) {
-          completeTimeline.push({
-            id: 'final_step',
-            action_type: 'pending',
-            action_date: null,
-            action_by_name: 'Department Head',
-            action_by_designation: 'Final Approval',
-            comments: 'Final approval step',
-            step_status: 'future'
-          });
-        }
       }
 
       console.log('📋 Complete timeline created:', completeTimeline);
