@@ -27,7 +27,7 @@ interface PerItemApprovalPanelProps {
 
 interface ItemDecision {
   itemId: string;
-  decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | null;
+  decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null;
   approvedQuantity: number;
   reason?: string;
 }
@@ -212,7 +212,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
   const setItemDecision = (
     itemId: string,
-    decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject',
+    decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return',
     approvedQty: number
   ) => {
     const newDecisions = new Map(itemDecisions);
@@ -292,6 +292,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         } else if (decision?.decision === 'forward_supervisor') {
           decisionType = 'FORWARD_TO_SUPERVISOR';
           allocatedQty = decision.approvedQuantity || getItemQuantity(item);
+        } else if (decision?.decision === 'return') {
+          decisionType = 'REJECT'; // Return is treated as rejection but allows requester to edit
+          allocatedQty = 0;
         } else {
           decisionType = 'REJECT';
           allocatedQty = 0;
@@ -301,7 +304,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           requested_item_id: itemId,
           allocated_quantity: allocatedQty,
           decision_type: decisionType,
-          rejection_reason: decision?.decision === 'reject' ? (decision.reason || 'Request rejected by supervisor') : undefined,
+          rejection_reason: decision?.decision === 'reject' 
+            ? (decision.reason || 'Request rejected by supervisor') 
+            : decision?.decision === 'return'
+            ? (decision.reason || 'Request returned to requester for editing')
+            : undefined,
           forwarding_reason: (decision?.decision === 'forward_admin' || decision?.decision === 'forward_supervisor')
             ? (decision.reason || 'Forwarded for further approval')
             : undefined
@@ -513,6 +520,21 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Description Box */}
+          <div className="mb-6">
+            <Label htmlFor="approval-description" className="text-sm font-medium text-gray-700 mb-2 block">
+              Description/Comments (Optional)
+            </Label>
+            <Textarea
+              id="approval-description"
+              placeholder="Add any comments or reasons for your decisions..."
+              value={approvalComments}
+              onChange={(e) => setApprovalComments(e.target.value)}
+              className="min-h-20 resize-none"
+              rows={3}
+            />
+          </div>
+
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {request?.items && request.items.length > 0 ? (
               request.items.map(item => {
@@ -544,7 +566,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-2">
                     {/* Option 1 */}
                     <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'approve_wing'
@@ -611,6 +633,23 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       />
                       <div className="text-sm font-medium text-red-700">✗ Reject</div>
                       <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
+                    </label>
+
+                    {/* Option 5 - Return */}
+                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                      decision?.decision === 'return'
+                        ? 'bg-orange-100 border-orange-500'
+                        : 'bg-white border-gray-200 hover:border-orange-400'
+                    }`}>
+                      <input
+                        type="radio"
+                        name={`decision-${itemId}`}
+                        checked={decision?.decision === 'return'}
+                        onChange={() => setItemDecision(itemId, 'return', 0)}
+                        className="mb-2"
+                      />
+                      <div className="text-sm font-medium text-orange-700">↩ Return</div>
+                      <div className="text-xs text-gray-600 mt-1">To Requester</div>
                     </label>
                   </div>
                 </div>

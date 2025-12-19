@@ -14947,11 +14947,16 @@ app.get('/api/workflows/:workflowId/approvers', async (req, res) => {
 app.post('/api/approvals/:approvalId/approve', async (req, res) => {
   try {
     const { approvalId } = req.params;
-    const { comments } = req.body;
-    
+    const {
+      approver_name,
+      approver_designation,
+      approval_comments,
+      item_allocations
+    } = req.body;
+
     // Get userId using the same logic as other endpoints
     let userId = req.query.userId || req.body.userId;
-    
+
     if (!userId) {
       // Try to get the current logged-in user from AspNetUsers
       try {
@@ -14966,58 +14971,129 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
         console.log('⚠️ Approve: Could not auto-detect user, using fallback');
       }
     }
-    
+
     // Final fallback
     if (!userId) {
       userId = 'DEV-USER-001';
     }
-    
-    console.log('✅ Approve: Processing approval by user:', userId);
-    
+
+    console.log('✅ Approve: Processing per-item approval by user:', userId);
+    console.log('📋 Item allocations:', item_allocations);
+
     const request = pool.request();
-    
-    // Update approval record
-    await request
-      .input('approvalId', sql.NVarChar, approvalId)
-      .query(`
-        UPDATE request_approvals 
-        SET current_status = 'approved', updated_date = GETDATE()
-        WHERE id = @approvalId
-      `);
-    
-    // Get next step number
-    const stepResult = await request
-      .query(`
-        SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
-        FROM approval_history 
-        WHERE request_approval_id = @approvalId
-      `);
-    
-    const nextStep = stepResult.recordset[0].next_step;
-    
-    // Update current step
-    await request
-      .query(`
-        UPDATE approval_history 
-        SET is_current_step = 0 
-        WHERE request_approval_id = @approvalId
-      `);
-    
-    // Add history entry
-    await request
-      .input('action_by', sql.NVarChar, userId)
-      .input('comments', sql.NVarChar, comments)
-      .input('step_number', sql.Int, nextStep)
-      .query(`
-        INSERT INTO approval_history 
-        (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
-        VALUES (@approvalId, 'approved', @action_by, @comments, @step_number, 1)
-      `);
-    
-    res.json({ success: true, message: 'Request approved successfully' });
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Check if this is a return action (all items returned)
+      const hasReturnActions = item_allocations?.some(allocation =>
+        allocation.decision_type === 'REJECT' &&
+        allocation.rejection_reason?.toLowerCase().includes('returned to requester')
+      );
+
+      // Determine overall approval status
+      let overallStatus = 'approved';
+      if (hasReturnActions) {
+        overallStatus = 'returned'; // Custom status for returned requests
+      } else if (item_allocations?.every(allocation => allocation.decision_type === 'REJECT')) {
+        overallStatus = 'rejected';
+      }
+
+      // Update approval record
+      await transaction.request()
+        .input('approvalId', sql.NVarChar, approvalId)
+        .input('status', sql.NVarChar, overallStatus)
+        .input('approver_name', sql.NVarChar, approver_name || 'System')
+        .input('approver_designation', sql.NVarChar, approver_designation || 'Approver')
+        .input('approval_comments', sql.NVarChar, approval_comments || '')
+        .query(`
+          UPDATE request_approvals
+          SET current_status = @status,
+              updated_date = GETDATE(),
+              approver_name = @approver_name,
+              approver_designation = @approver_designation,
+              approval_comments = @approval_comments
+          WHERE id = @approvalId
+        `);
+
+      // Process item allocations if provided
+      if (item_allocations && Array.isArray(item_allocations)) {
+        for (const allocation of item_allocations) {
+          const {
+            requested_item_id,
+            allocated_quantity,
+            decision_type,
+            rejection_reason,
+            forwarding_reason
+          } = allocation;
+
+          // Update item-level decision
+          await transaction.request()
+            .input('itemId', sql.NVarChar, requested_item_id)
+            .input('allocated_quantity', sql.Int, allocated_quantity || 0)
+            .input('decision_type', sql.NVarChar, decision_type)
+            .input('rejection_reason', sql.NVarChar, rejection_reason || '')
+            .input('forwarding_reason', sql.NVarChar, forwarding_reason || '')
+            .query(`
+              UPDATE approval_items
+              SET allocated_quantity = @allocated_quantity,
+                  decision_type = @decision_type,
+                  rejection_reason = @rejection_reason,
+                  forwarding_reason = @forwarding_reason,
+                  updated_at = GETDATE()
+              WHERE id = @itemId
+            `);
+        }
+      }
+
+      // If this is a return action, we might need to update the original request status
+      // to allow editing. This depends on your business logic.
+
+      // Get next step number
+      const stepResult = await transaction.request()
+        .query(`
+          SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
+          FROM approval_history
+          WHERE request_approval_id = @approvalId
+        `);
+
+      const nextStep = stepResult.recordset[0].next_step;
+
+      // Update current step
+      await transaction.request()
+        .query(`
+          UPDATE approval_history
+          SET is_current_step = 0
+          WHERE request_approval_id = @approvalId
+        `);
+
+      // Add history entry
+      await transaction.request()
+        .input('action_by', sql.NVarChar, userId)
+        .input('comments', sql.NVarChar, approval_comments || 'Per-item approval completed')
+        .input('step_number', sql.Int, nextStep)
+        .input('action_type', sql.NVarChar, hasReturnActions ? 'returned' : overallStatus)
+        .query(`
+          INSERT INTO approval_history
+          (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+          VALUES (@approvalId, @action_type, @action_by, @comments, @step_number, 1)
+        `);
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: hasReturnActions
+          ? 'Request returned to requester for editing'
+          : 'Per-item approval decisions processed successfully'
+      });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   } catch (error) {
-    console.error('Error approving request:', error);
-    res.status(500).json({ error: 'Failed to approve request', details: error.message });
+    console.error('Error processing per-item approval:', error);
+    res.status(500).json({ error: 'Failed to process approval', details: error.message });
   }
 });
 
