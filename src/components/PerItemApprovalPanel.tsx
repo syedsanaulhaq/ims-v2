@@ -216,11 +216,12 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     approvedQty: number
   ) => {
     const newDecisions = new Map(itemDecisions);
+    const existingDecision = newDecisions.get(itemId);
     newDecisions.set(itemId, {
       itemId,
       decision,
       approvedQuantity: approvedQty,
-      reason: ''
+      reason: existingDecision?.reason || ''
     });
     setItemDecisions(newDecisions);
   };
@@ -520,21 +521,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Description Box */}
-          <div className="mb-6">
-            <Label htmlFor="approval-description" className="text-sm font-medium text-gray-700 mb-2 block">
-              Description/Comments (Optional)
-            </Label>
-            <Textarea
-              id="approval-description"
-              placeholder="Add any comments or reasons for your decisions..."
-              value={approvalComments}
-              onChange={(e) => setApprovalComments(e.target.value)}
-              className="min-h-20 resize-none"
-              rows={3}
-            />
-          </div>
-
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {request?.items && request.items.length > 0 ? (
               request.items.map(item => {
@@ -651,6 +637,34 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       <div className="text-sm font-medium text-orange-700">↩ Return</div>
                       <div className="text-xs text-gray-600 mt-1">To Requester</div>
                     </label>
+                  </div>
+
+                  {/* Item-specific Description Box */}
+                  <div className="mt-3">
+                    <Label htmlFor={`item-description-${itemId}`} className="text-sm font-medium text-gray-700 mb-1 block">
+                      Comments for this item (Optional)
+                    </Label>
+                    <Textarea
+                      id={`item-description-${itemId}`}
+                      placeholder="Add comments or reasons for this item's decision..."
+                      value={decision?.reason || ''}
+                      onChange={(e) => {
+                        const newDecisions = new Map(itemDecisions);
+                        const currentDecision = newDecisions.get(itemId) || {
+                          itemId,
+                          decision: null,
+                          approvedQuantity: 0,
+                          reason: ''
+                        };
+                        newDecisions.set(itemId, {
+                          ...currentDecision,
+                          reason: e.target.value
+                        });
+                        setItemDecisions(newDecisions);
+                      }}
+                      className="min-h-16 resize-none text-sm"
+                      rows={2}
+                    />
                   </div>
                 </div>
               );
