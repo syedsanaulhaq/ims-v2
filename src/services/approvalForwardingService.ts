@@ -282,7 +282,34 @@ class ApprovalForwardingService {
       throw error;
     }
   }
-  
+
+  async getWingApprovalsByStatus(wingId: number, status?: string): Promise<RequestApproval[]> {
+    try {
+      const params = new URLSearchParams();
+      params.append('wingId', wingId.toString());
+
+      if (status) {
+        params.append('status', status);
+        console.log('🔍 Filtering wing approvals by status:', status);
+      }
+
+      const queryString = params.toString();
+      const url = `${API_BASE_URL}/approvals/wing-approvals${queryString ? `?${queryString}` : ''}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch wing approvals');
+      }
+
+      return data.data || [];
+    } catch (error) {
+      console.error('Error fetching wing approvals by status:', error);
+      throw error;
+    }
+  }
+
   async getApprovalDetails(approvalId: string): Promise<RequestApproval> {
     try {
       const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}`);
@@ -486,7 +513,32 @@ class ApprovalForwardingService {
       throw error;
     }
   }
-  
+
+  async getWingApprovalDashboard(wingId: number): Promise<{
+    pending_count: number;
+    approved_count: number;
+    rejected_count: number;
+    forwarded_count: number;
+    my_pending: RequestApproval[];
+    recent_actions: ApprovalHistory[];
+  }> {
+    try {
+      const url = `${API_BASE_URL}/approvals/wing-dashboard?wingId=${encodeURIComponent(wingId.toString())}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch wing approval dashboard');
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching wing approval dashboard:', error);
+      throw error;
+    }
+  }
+
   async getRequestStatus(requestId: string, requestType: string): Promise<RequestApproval | null> {
     try {
       const response = await fetch(`${API_BASE_URL}/approvals/status?request_id=${requestId}&request_type=${requestType}`);

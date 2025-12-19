@@ -29,7 +29,8 @@ import {
   LogOut,
   User,
   AlertTriangle,
-  ShoppingCart
+  ShoppingCart,
+  History
 } from "lucide-react";
 import { usePermission } from '@/hooks/usePermission';
 import { useSession } from '@/contexts/SessionContext';
@@ -104,6 +105,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: canManageInventory } = usePermission('inventory.manage');
   const { hasPermission: canViewProcurement } = usePermission('procurement.view');
   const { hasPermission: canManageProcurement } = usePermission('procurement.manage');
+  const { hasPermission: canRequestProcurement } = usePermission('procurement.request');
   const { hasPermission: canRequestIssuance } = usePermission('issuance.request');
   const { hasPermission: canProcessIssuance } = usePermission('issuance.process');
   const { hasPermission: canApprove } = usePermission('approval.approve');
@@ -137,7 +139,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
-      { title: "Request Stock", icon: ShoppingCart, path: "/procurement/new-request", permission: 'procurement.request' },
       { title: "Stock Requests", icon: ClipboardList, path: "/procurement/my-requests", permission: 'procurement.view_own' },
       { title: "My Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
     ]
@@ -150,6 +151,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "Wing Dashboard", icon: BarChart3, path: "/dashboard/wing-dashboard", permission: 'wing.supervisor' },
       { title: "Wing Request History", icon: History, path: "/dashboard/wing-request-history", permission: 'wing.supervisor' },
+      { title: "Request Items", icon: ShoppingCart, path: "/procurement/new-request", permission: undefined },
       { title: "Wing Inventory", icon: Warehouse, path: "/dashboard/wing-inventory", permission: 'wing.supervisor' },
       { title: "Wing Members", icon: Users, path: "/dashboard/wing-members", permission: 'wing.supervisor' },
     ]
@@ -230,6 +232,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       case 'inventory.manage': return canManageInventory;
       case 'procurement.view': return canViewProcurement;
       case 'procurement.manage': return canManageProcurement;
+      case 'procurement.request': return canRequestProcurement;
       case 'issuance.request': return canRequestIssuance;
       case 'issuance.process': return canProcessIssuance;
       case 'issuance.view': return canRequestIssuance || canProcessIssuance;

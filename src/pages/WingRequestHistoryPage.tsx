@@ -277,10 +277,16 @@ const WingRequestHistoryPage: React.FC = () => {
             <p className="text-gray-600">Track all requests from {wingName}</p>
           </div>
         </div>
-        <Button onClick={loadWingRequestHistory} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/procurement/new-request')} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Package className="h-4 w-4 mr-2" />
+            Create Request
+          </Button>
+          <Button onClick={loadWingRequestHistory} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

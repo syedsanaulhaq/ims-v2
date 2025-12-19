@@ -13,10 +13,8 @@ import {
   AlertTriangle,
   XCircle,
   Search,
-  Download,
   TrendingUp,
   Clock,
-  DollarSign,
   Users,
   Building2
 } from 'lucide-react';
@@ -49,7 +47,6 @@ interface WingIssuedItem {
 
 interface WingSummary {
   total_items: number;
-  total_value: number;
   unique_users: number;
   returnable_items: number;
   not_returned: number;
@@ -60,7 +57,6 @@ interface UserBreakdown {
   user_id: string;
   user_name: string;
   items_count: number;
-  total_value: number;
   overdue_count: number;
 }
 
@@ -179,34 +175,6 @@ export default function WingInventory() {
     }
   };
 
-  const exportToCSV = () => {
-    const headers = ['Request Number', 'Item Name', 'Category', 'Issued To', 'Quantity', 'Unit Price', 'Total Value', 'Issued Date', 'Status', 'Return Status'];
-    const rows = filteredItems.map(item => [
-      item.request_number,
-      item.nomenclature,
-      item.category_name,
-      item.issued_to_name,
-      item.issued_quantity,
-      item.unit_price,
-      item.total_value,
-      formatDateDMY(item.issued_at),
-      item.status,
-      item.current_return_status
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wing-inventory-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -232,10 +200,12 @@ export default function WingInventory() {
             <p className="text-gray-500">Track all items issued to your wing/department</p>
           </div>
         </div>
-        <Button onClick={exportToCSV} className="bg-teal-600 hover:bg-teal-700">
-          <Download className="h-4 w-4 mr-2" />
-          Export Data
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/procurement/new-request')} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Package className="h-4 w-4 mr-2" />
+            Create Request
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -247,7 +217,7 @@ export default function WingInventory() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Total Items</CardTitle>
@@ -256,19 +226,6 @@ export default function WingInventory() {
             <CardContent>
               <div className="text-2xl font-bold">{summary.total_items}</div>
               <p className="text-xs text-gray-500 mt-1">Issued to wing</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                Rs. {summary.total_value.toLocaleString()}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">Wing assets</p>
             </CardContent>
           </Card>
 
@@ -341,14 +298,10 @@ export default function WingInventory() {
                       <Badge className="bg-red-500">{user.overdue_count} Overdue</Badge>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="grid grid-cols-1 gap-2 text-sm">
                     <div>
                       <p className="text-gray-500">Items</p>
                       <p className="font-semibold">{user.items_count}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Total Value</p>
-                      <p className="font-semibold">Rs. {user.total_value.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -469,7 +422,7 @@ export default function WingInventory() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <p className="text-gray-500">Quantity</p>
                       <p className="font-semibold">{item.issued_quantity}</p>
@@ -477,10 +430,6 @@ export default function WingInventory() {
                     <div>
                       <p className="text-gray-500">Unit Price</p>
                       <p className="font-semibold">Rs. {item.unit_price.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Total Value</p>
-                      <p className="font-semibold">Rs. {item.total_value.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-gray-500">Issued Date</p>

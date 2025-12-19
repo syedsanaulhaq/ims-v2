@@ -53,7 +53,7 @@ const UserProfileDropdown: React.FC = () => {
         <Button variant="ghost" className="flex items-center space-x-3 hover:bg-gray-50">
           <div className="text-right hidden md:block">
             <p className="text-sm font-medium text-gray-900">{user.user_name}</p>
-            <p className="text-xs text-gray-500">{user.role} (IMS)</p>
+            <p className="text-xs text-gray-500">{user.designation || user.role} (IMS)</p>
           </div>
           <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center ring-2 ring-white shadow-md">
             <span className="text-white font-medium text-sm">

@@ -168,7 +168,7 @@ const NewProcurementRequest: React.FC = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">New Procurement Request</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Wings Stock Request</h1>
           <p className="text-gray-600 mt-1">Request procurement of items for your wing/department</p>
         </div>
 
@@ -190,7 +190,7 @@ const NewProcurementRequest: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  Procurement Request Details
+                  Wing Request Details
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -423,7 +423,7 @@ const NewProcurementRequest: React.FC = () => {
               </CardContent>
             </Card>
             <Button disabled={selectedItems.length === 0 || submitting} className="w-full">
-              Submit Procurement Request
+              Submit Wing Request
             </Button>
           </div>
         </div>

@@ -6,6 +6,7 @@ interface User {
   user_name: string;
   email: string;
   role: string;
+  designation?: string;
   office_id: number;
   wing_id: number;
   created_at: string;

@@ -533,11 +533,13 @@ const UserRoleAssignment: React.FC = () => {
                   required
                 >
                   <option key="choose-role" value="">Choose a role...</option>
-                  {roles.map((role) => (
-                    <option key={role.role_id} value={role.role_id}>
-                      {role.display_name} {role.is_system_role && '(System Role)'}
-                    </option>
-                  ))}
+                  {roles
+                    .filter(role => !selectedUser.roles.some(userRole => userRole.role_name === role.role_name))
+                    .map((role) => (
+                      <option key={role.role_id} value={role.role_id}>
+                        {role.display_name} {role.is_system_role && '(System Role)'}
+                      </option>
+                    ))}
                 </select>
               </div>
 

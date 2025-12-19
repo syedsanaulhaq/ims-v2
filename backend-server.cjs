@@ -903,11 +903,28 @@ app.get('/api/session', async (req, res) => {
         ? (imsData.roles[0].display_name || imsData.roles[0].role_name || 'User')
         : 'User';
       
+      // Get designation name if available
+      let designation = null;
+      if (req.session.user?.intDesignationID) {
+        try {
+          const designationResult = await pool.request()
+            .input('userId', sql.NVarChar(450), req.session.userId)
+            .query('SELECT strDesignation FROM vw_User_with_designation WHERE Id = @userId');
+          
+          if (designationResult.recordset && designationResult.recordset.length > 0) {
+            designation = designationResult.recordset[0].strDesignation;
+          }
+        } catch (error) {
+          console.error('Error fetching designation:', error);
+        }
+      }
+      
       const sessionUser = {
         user_id: req.session.userId,
         user_name: req.session.user?.FullName || req.session.user?.UserName || 'Unknown User',
         email: req.session.user?.Email || '',
         role: primaryRole,
+        designation: designation,
         office_id: req.session.user?.intOfficeID || 583,
         wing_id: req.session.user?.intWingID || 19,
         branch_id: req.session.user?.intBranchID || null,
@@ -14055,6 +14072,81 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
   }
 });
 
+// Get approvals for all users in a specific wing
+app.get('/api/approvals/wing-approvals', async (req, res) => {
+  try {
+    // Get wingId and status from query parameters
+    const wingId = req.query.wingId;
+    const status = req.query.status || 'pending'; // default to pending
+
+    if (!wingId) {
+      return res.status(400).json({ error: 'wingId is required' });
+    }
+
+    console.log('🔍 Backend: Fetching', status, 'approvals for wing:', wingId);
+
+    // Build query to get approvals where current approver is in the specified wing
+    let query = `
+      SELECT DISTINCT
+        ra.id,
+        ra.request_id,
+        ra.request_type,
+        ra.current_status,
+        ra.submitted_date,
+        ra.current_approver_id,
+        submitter.FullName as submitted_by_name,
+        wf.workflow_name,
+        approver.FullName as current_approver_name,
+        d.designation_name as current_approver_designation
+      FROM request_approvals ra
+      LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+      LEFT JOIN AspNetUsers approver ON ra.current_approver_id = approver.Id
+      LEFT JOIN tblUserDesignations d ON approver.intDesignationID = d.intDesignationID
+      LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
+      LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
+      WHERE approver.intWingID = @wingId
+    `;
+
+    // Add WHERE clause based on status
+    if (status === 'pending') {
+      // Pending: Only show requests where current approver is in the wing and status is pending
+      query += ` AND ra.current_status = 'pending'`;
+    } else if (status === 'forwarded') {
+      // Forwarded: Show requests where someone in the wing has forwarded them
+      query += ` AND EXISTS (
+        SELECT 1 FROM approval_history ah3
+        INNER JOIN AspNetUsers u3 ON ah3.action_by = u3.Id
+        WHERE ah3.request_approval_id = ra.id
+        AND u3.intWingID = @wingId
+        AND ah3.action_type = 'forwarded'
+      )`;
+    } else {
+      // Approved/Rejected: Show requests where someone in the wing is related (submitted OR acted)
+      query += ` AND ra.current_status = @status AND ra.id IN (
+        SELECT DISTINCT ra2.id
+        FROM request_approvals ra2
+        LEFT JOIN approval_history ah2 ON ah2.request_approval_id = ra2.id
+        LEFT JOIN AspNetUsers u_submitter ON ra2.submitted_by = u_submitter.Id
+        LEFT JOIN AspNetUsers u_actor ON ah2.action_by = u_actor.Id
+        WHERE u_submitter.intWingID = @wingId OR u_actor.intWingID = @wingId
+      )`;
+    }
+
+    query += ` ORDER BY ra.submitted_date DESC`;
+
+    const result = await pool.request()
+      .input('wingId', sql.Int, wingId)
+      .input('status', sql.NVarChar, status)
+      .query(query);
+
+    console.log('📋 Backend: Found', result.recordset.length, status, 'approvals for wing:', wingId);
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('❌ Backend: Error fetching wing approvals:', error);
+    res.status(500).json({ error: 'Failed to fetch wing approvals', details: error.message });
+  }
+});
+
 // Get stock issuance items for approval
 app.get('/api/approval-items/:approvalId', async (req, res) => {
   try {
@@ -14263,6 +14355,100 @@ app.get('/api/approvals/dashboard', async (req, res) => {
   } catch (error) {
     console.error('❌ Dashboard: Error fetching approval dashboard:', error);
     res.status(500).json({ error: 'Failed to fetch approval dashboard', details: error.message });
+  }
+});
+
+// Get wing approval dashboard data
+app.get('/api/approvals/wing-dashboard', async (req, res) => {
+  try {
+    // Get wingId from query parameter
+    const wingId = req.query.wingId;
+
+    if (!wingId) {
+      return res.status(400).json({ error: 'wingId is required' });
+    }
+
+    console.log('📊 Wing Dashboard: Fetching dashboard data for wing:', wingId);
+    const request = pool.request();
+
+    // Get counts with wing-specific logic:
+    // - pending: Count where current approver is in the wing
+    // - approved/rejected: Count where someone in the wing submitted OR acted
+    // - forwarded: Count where someone in the wing has action_type='forwarded'
+    const countsResult = await request
+      .input('wingId', sql.Int, wingId)
+      .query(`
+        SELECT
+          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+           INNER JOIN AspNetUsers approver ON ra.current_approver_id = approver.Id
+           WHERE ra.current_status = 'pending' AND approver.intWingID = @wingId) as pending_count,
+          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+           LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
+           LEFT JOIN AspNetUsers u_submitter ON ra.submitted_by = u_submitter.Id
+           LEFT JOIN AspNetUsers u_actor ON ah.action_by = u_actor.Id
+           WHERE ra.current_status = 'approved'
+           AND (u_submitter.intWingID = @wingId OR u_actor.intWingID = @wingId)) as approved_count,
+          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+           LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
+           LEFT JOIN AspNetUsers u_submitter ON ra.submitted_by = u_submitter.Id
+           LEFT JOIN AspNetUsers u_actor ON ah.action_by = u_actor.Id
+           WHERE ra.current_status = 'rejected'
+           AND (u_submitter.intWingID = @wingId OR u_actor.intWingID = @wingId)) as rejected_count,
+          (SELECT COUNT(DISTINCT ah.request_approval_id)
+           FROM approval_history ah
+           INNER JOIN AspNetUsers u_forwarder ON ah.action_by = u_forwarder.Id
+           WHERE u_forwarder.intWingID = @wingId
+           AND ah.action_type = 'forwarded') as forwarded_count
+      `);
+
+    // Get pending approvals for the wing
+    const pendingResult = await request
+      .query(`
+        SELECT TOP 5
+          ra.id,
+          ra.request_id,
+          ra.request_type,
+          ra.submitted_date,
+          submitter.FullName as submitted_by_name,
+          approver.FullName as current_approver_name,
+          d.designation_name as current_approver_designation
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN AspNetUsers approver ON ra.current_approver_id = approver.Id
+        LEFT JOIN tblUserDesignations d ON approver.intDesignationID = d.intDesignationID
+        WHERE ra.current_status = 'pending'
+        AND approver.intWingID = @wingId
+        ORDER BY ra.submitted_date DESC
+      `);
+
+    // Get recent actions for the wing
+    const actionsResult = await request
+      .query(`
+        SELECT TOP 10
+          ah.action_type,
+          ah.action_date,
+          ah.comments,
+          action_user.FullName as action_by_name,
+          ra.request_type,
+          ra.request_id
+        FROM approval_history ah
+        JOIN request_approvals ra ON ah.request_approval_id = ra.id
+        LEFT JOIN AspNetUsers action_user ON ah.action_by = action_user.Id
+        WHERE action_user.intWingID = @wingId
+        ORDER BY ah.action_date DESC
+      `);
+
+    const dashboard = {
+      ...countsResult.recordset[0],
+      my_pending: pendingResult.recordset,
+      recent_actions: actionsResult.recordset
+    };
+
+    console.log('📊 Wing Dashboard: Returning dashboard data:', dashboard);
+    res.json({ success: true, data: dashboard });
+  } catch (error) {
+    console.error('❌ Wing Dashboard: Error fetching wing approval dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch wing approval dashboard', details: error.message });
   }
 });
 

@@ -212,7 +212,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/wing-inventory')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/wing-inventory')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-blue-700">
               <Package className="h-5 w-5" />
@@ -232,7 +232,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/approval-management')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/wing-approval-dashboard')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <CheckCircle className="h-5 w-5" />
