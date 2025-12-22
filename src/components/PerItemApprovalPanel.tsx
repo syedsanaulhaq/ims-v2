@@ -91,6 +91,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   approvalId,
   onActionComplete
 }) => {
+  // Debug: Confirm latest code is running
+  console.log('🚀 PerItemApprovalPanel: Latest code loaded - Return button should be visible!');
+  console.log('📋 Approval ID:', approvalId);
+  console.log('✅ Component should render 5-button grid: ✓Approve, ⏭Forward, ↗Forward, ✗Reject, ↩Return');
+
   const [request, setRequest] = useState<ApprovalRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -553,7 +558,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   </div>
 
                   <div className="grid grid-cols-5 gap-2 min-w-fit border border-gray-200 p-2 rounded">
-                    {/* Debug: Grid should have 5 columns */}
+                    {/* Debug: Grid should have 5 columns - Return button is the 5th */}
+                    {console.log('🎯 Rendering 5-button grid with Return button')}
                     {/* Option 1 */}
                     <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'approve_wing'
@@ -623,6 +629,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 5 - Return */}
+                    {console.log('🔥 Return button should be visible now!')}
                     <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'return'
                         ? 'bg-orange-100 border-orange-500'
