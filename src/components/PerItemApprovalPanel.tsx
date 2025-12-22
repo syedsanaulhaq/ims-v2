@@ -552,9 +552,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-5 gap-2 min-w-fit">
+                  <div className="grid grid-cols-5 gap-2 min-w-fit border border-gray-200 p-2 rounded">
+                    {/* Debug: Grid should have 5 columns */}
                     {/* Option 1 */}
-                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'approve_wing'
                         ? 'bg-green-100 border-green-500'
                         : 'bg-white border-gray-200 hover:border-green-400'
@@ -571,7 +572,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 2 */}
-                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'forward_admin'
                         ? 'bg-amber-100 border-amber-500'
                         : 'bg-white border-gray-200 hover:border-amber-400'
@@ -588,7 +589,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 3 */}
-                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'forward_supervisor'
                         ? 'bg-blue-100 border-blue-500'
                         : 'bg-white border-gray-200 hover:border-blue-400'
@@ -605,7 +606,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 4 */}
-                    <label className={`p-3 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
                       decision?.decision === 'reject'
                         ? 'bg-red-100 border-red-500'
                         : 'bg-white border-gray-200 hover:border-red-400'
@@ -634,7 +635,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                         onChange={() => setItemDecision(itemId, 'return', 0)}
                         className="mb-2"
                       />
-                      <div className="text-xs font-medium text-orange-700">↩ Return</div>
+                      <div className="text-sm font-medium text-orange-700">↩ Return</div>
                       <div className="text-xs text-gray-600 mt-1 leading-tight">To Requester</div>
                     </label>
                   </div>
