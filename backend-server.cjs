@@ -12202,9 +12202,8 @@ app.get('/api/my-notifications', async (req, res) => {
     const result = await pool.request()
       .input('UserId', sql.NVarChar, userId)
       .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
-      .input('Limit', sql.Int, parseInt(limit))
       .query(`
-        SELECT TOP(@Limit) * FROM (
+        SELECT TOP 50 * FROM (
           -- Regular notifications from Notifications table
           SELECT 
             CAST(Id AS NVARCHAR(450)) AS Id,
@@ -12276,21 +12275,21 @@ app.get('/api/my-notifications', async (req, res) => {
               WHEN ivr.verification_status = 'verified_available' 
                 THEN '✅ Available - Physical Count: ' + CAST(ISNULL(ivr.physical_count, ivr.available_quantity) AS NVARCHAR) + 
                      CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
-                     CASE WHEN ivr.verification_notes IS NOT NULL 
+                     CASE WHEN ivr.verification_notes IS NOT NULL AND ivr.verification_notes != '' 
                        THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
                        ELSE '' 
                      END
               WHEN ivr.verification_status = 'verified_partial' 
                 THEN '⚠️ Partially Available - Physical Count: ' + CAST(ISNULL(ivr.physical_count, ivr.available_quantity) AS NVARCHAR) + 
                      CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
-                     CASE WHEN ivr.verification_notes IS NOT NULL 
+                     CASE WHEN ivr.verification_notes IS NOT NULL AND ivr.verification_notes != '' 
                        THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
                        ELSE '' 
                      END
               WHEN ivr.verification_status = 'verified_unavailable' 
                 THEN '❌ Unavailable - Physical Count: ' + CAST(ISNULL(ivr.physical_count, 0) AS NVARCHAR) + 
                      CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
-                     CASE WHEN ivr.verification_notes IS NOT NULL 
+                     CASE WHEN ivr.verification_notes IS NOT NULL AND ivr.verification_notes != '' 
                        THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
                        ELSE '' 
                      END
