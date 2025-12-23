@@ -117,6 +117,20 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [wingStockAvailable, setWingStockAvailable] = useState<number>(0);
   const [confirmationStatus, setConfirmationStatus] = useState<'pending' | 'confirmed' | 'rejected' | 'sent' | 'error' | null>(null);
 
+  // Helper function to check if request has any returned items
+  const hasReturnedItems = () => {
+    if (!request?.items) return false;
+    return request.items.some(item => 
+      item.decision_type === 'REJECT' && 
+      item.rejection_reason?.toLowerCase().includes('returned to requester')
+    );
+  };
+
+  // Helper function to check if controls should be disabled
+  const shouldDisableControls = () => {
+    return request?.current_status !== 'pending' || hasReturnedItems();
+  };
+
   useEffect(() => {
     loadApprovalRequest();
   }, [approvalId]);
@@ -207,6 +221,48 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       
       console.log('✅ FINAL: Loaded approval request with items:', data.items?.length || 0, 'items:', data.items);
       setRequest(data);
+      
+      // Initialize item decisions from database values for highlighting
+      if (data.items && Array.isArray(data.items)) {
+        const initialDecisions = new Map<string, ItemDecision>();
+        data.items.forEach((item: any) => {
+          if (item.decision_type) {
+            let decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null = null;
+            let approvedQty = 0;
+            
+            switch (item.decision_type) {
+              case 'APPROVE_FROM_STOCK':
+                decision = 'approve_wing';
+                approvedQty = item.allocated_quantity || item.requested_quantity || 0;
+                break;
+              case 'FORWARD_TO_ADMIN':
+                decision = 'forward_admin';
+                break;
+              case 'FORWARD_TO_SUPERVISOR':
+                decision = 'forward_supervisor';
+                break;
+              case 'REJECT':
+                if (item.rejection_reason?.toLowerCase().includes('returned to requester')) {
+                  decision = 'return';
+                } else {
+                  decision = 'reject';
+                }
+                break;
+            }
+            
+            if (decision) {
+              initialDecisions.set(item.id, {
+                itemId: item.id,
+                decision,
+                approvedQuantity: approvedQty,
+                reason: item.rejection_reason || item.forwarding_reason || ''
+              });
+            }
+          }
+        });
+        setItemDecisions(initialDecisions);
+        console.log('✅ Initialized item decisions from database:', Array.from(initialDecisions.entries()));
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load approval request');
       console.error('Error loading approval:', err);
@@ -496,6 +552,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           <CardTitle className="text-lg">Request Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {hasReturnedItems() && (
+            <Alert className="border-orange-200 bg-orange-50">
+              <AlertCircle className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-orange-800">
+                This request contains items that have been returned to the requester for revision. 
+                All approval controls are disabled until the returned items are resubmitted.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-xs text-gray-600 font-medium">Request Number</div>
@@ -532,10 +597,43 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 const itemId = getItemId(item);
                 const decision = getItemDecision(itemId);
 
+                const isReturnedItem = item.decision_type === 'REJECT' && 
+                  item.rejection_reason?.toLowerCase().includes('returned to requester');
+
                 return (
-                  <div key={itemId} className="p-4 border rounded-lg bg-gray-50">
+                  <div key={itemId} className={`p-4 border rounded-lg ${
+                    isReturnedItem 
+                      ? 'bg-orange-50 border-orange-300 shadow-sm' 
+                      : 'bg-gray-50'
+                  }`}>
+                    {isReturnedItem && (
+                      <div className="mb-2">
+                        <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300 text-xs">
+                          ↩ Returned to Requester
+                        </Badge>
+                      </div>
+                    )}
                   <div className="mb-3">
-                    <h4 className="font-semibold text-gray-900">{getItemName(item)}</h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-gray-900">{getItemName(item)}</h4>
+                      {decision?.decision && (
+                        <Badge variant="outline" className={`text-xs ${
+                          decision.decision === 'approve_wing' ? 'bg-green-100 text-green-800 border-green-300' :
+                          decision.decision === 'forward_admin' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                          decision.decision === 'forward_supervisor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                          decision.decision === 'reject' ? 'bg-red-100 text-red-800 border-red-300' :
+                          decision.decision === 'return' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                          'bg-gray-100 text-gray-800 border-gray-300'
+                        }`}>
+                          {decision.decision === 'approve_wing' ? '✓ Approved' :
+                           decision.decision === 'forward_admin' ? '⏭ Forwarded to Admin' :
+                           decision.decision === 'forward_supervisor' ? '⏭ Forwarded to Supervisor' :
+                           decision.decision === 'reject' ? '✗ Rejected' :
+                           decision.decision === 'return' ? '↩ Returned' :
+                           'Unknown'}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600">Requested: {getItemQuantity(item)} units</p>
                     <div className="flex gap-2 mt-2">
                       <Button 
@@ -561,16 +659,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     {/* Debug: Grid should have 5 columns - Return button is the 5th */}
                     {console.log('🎯 Rendering 5-button grid with Return button')}
                     {/* Option 1 */}
-                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                       decision?.decision === 'approve_wing'
                         ? 'bg-green-100 border-green-500'
                         : 'bg-white border-gray-200 hover:border-green-400'
-                    }`}>
+                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="radio"
                         name={`decision-${itemId}`}
                         checked={decision?.decision === 'approve_wing'}
                         onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
+                        disabled={shouldDisableControls()}
                         className="mb-2"
                       />
                       <div className="text-sm font-medium text-green-700">✓ Approve</div>
@@ -578,16 +677,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 2 */}
-                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                       decision?.decision === 'forward_admin'
                         ? 'bg-amber-100 border-amber-500'
                         : 'bg-white border-gray-200 hover:border-amber-400'
-                    }`}>
+                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="radio"
                         name={`decision-${itemId}`}
                         checked={decision?.decision === 'forward_admin'}
                         onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
+                        disabled={shouldDisableControls()}
                         className="mb-2"
                       />
                       <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
@@ -595,16 +695,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 3 */}
-                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                       decision?.decision === 'forward_supervisor'
                         ? 'bg-blue-100 border-blue-500'
                         : 'bg-white border-gray-200 hover:border-blue-400'
-                    }`}>
+                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="radio"
                         name={`decision-${itemId}`}
                         checked={decision?.decision === 'forward_supervisor'}
                         onChange={() => setItemDecision(itemId, 'forward_supervisor', getItemQuantity(item))}
+                        disabled={shouldDisableControls()}
                         className="mb-2"
                       />
                       <div className="text-sm font-medium text-blue-700">↗ Forward</div>
@@ -612,16 +713,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 4 */}
-                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                       decision?.decision === 'reject'
                         ? 'bg-red-100 border-red-500'
                         : 'bg-white border-gray-200 hover:border-red-400'
-                    }`}>
+                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="radio"
                         name={`decision-${itemId}`}
                         checked={decision?.decision === 'reject'}
                         onChange={() => setItemDecision(itemId, 'reject', 0)}
+                        disabled={shouldDisableControls()}
                         className="mb-2"
                       />
                       <div className="text-sm font-medium text-red-700">✗ Reject</div>
@@ -630,16 +732,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
                     {/* Option 5 - Return */}
                     {console.log('🔥 Return button should be visible now!')}
-                    <label className={`p-2 border rounded cursor-pointer transition flex flex-col items-center text-center ${
+                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                       decision?.decision === 'return'
                         ? 'bg-orange-100 border-orange-500'
                         : 'bg-white border-gray-200 hover:border-orange-400'
-                    }`}>
+                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="radio"
                         name={`decision-${itemId}`}
                         checked={decision?.decision === 'return'}
                         onChange={() => setItemDecision(itemId, 'return', 0)}
+                        disabled={shouldDisableControls()}
                         className="mb-2"
                       />
                       <div className="text-sm font-medium text-orange-700">↩ Return</div>
@@ -670,6 +773,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                         });
                         setItemDecisions(newDecisions);
                       }}
+                      disabled={shouldDisableControls()}
                       className="min-h-16 resize-none text-sm"
                       rows={2}
                     />
@@ -894,7 +998,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       <div className="flex gap-2">
         <Button
           onClick={submitDecisions}
-          disabled={submitting || !hasDecisionForAllItems()}
+          disabled={submitting || !hasDecisionForAllItems() || shouldDisableControls()}
           className="flex-1 bg-green-600 hover:bg-green-700"
         >
           {submitting ? <LoadingSpinner /> : <CheckCircle className="w-4 h-4 mr-1" />}

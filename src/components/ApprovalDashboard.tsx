@@ -17,16 +17,18 @@ export const ApprovalDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth(); // Get current user from auth context
   const [pendingApprovals, setPendingApprovals] = useState<RequestApproval[]>([]);
+  const [returnedApprovals, setReturnedApprovals] = useState<RequestApproval[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     pending_count: 0,
     approved_count: 0,
     rejected_count: 0,
-    forwarded_count: 0
+    forwarded_count: 0,
+    returned_count: 0
   });
   const [loading, setLoading] = useState(true);
   const [selectedApproval, setSelectedApproval] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [activeFilter, setActiveFilter] = useState<'pending' | 'approved' | 'rejected' | 'forwarded'>('pending');
+  const [activeFilter, setActiveFilter] = useState<'pending' | 'approved' | 'rejected' | 'forwarded' | 'returned'>('pending');
 
   useEffect(() => {
     console.log('🔍 ApprovalDashboard: Current user from auth context:', user);
@@ -49,12 +51,16 @@ export const ApprovalDashboard: React.FC = () => {
       console.log('📋 Approvals loaded:', approvalsData.length, 'for status:', activeFilter);
       setPendingApprovals(approvalsData);
       
+      // Set returned approvals from dashboard data
+      setReturnedApprovals((dashboardData as any).my_returned || []);
+      
       // Map the API response to match our state structure
       setDashboardStats({
         pending_count: dashboardData.pending_count || 0,
         approved_count: dashboardData.approved_count || 0,
         rejected_count: dashboardData.rejected_count || 0,
-        forwarded_count: (dashboardData as any).forwarded_count || (dashboardData as any).finalized_count || 0
+        forwarded_count: (dashboardData as any).forwarded_count || (dashboardData as any).finalized_count || 0,
+        returned_count: (dashboardData as any).returned_count || 0
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -119,7 +125,7 @@ export const ApprovalDashboard: React.FC = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <button
           onClick={() => setActiveFilter('pending')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
@@ -192,6 +198,25 @@ export const ApprovalDashboard: React.FC = () => {
             <CardContent>
               <div className="text-3xl font-bold text-blue-600">{dashboardStats.forwarded_count}</div>
               <p className="text-xs text-gray-600 mt-2">Forwarded to others</p>
+            </CardContent>
+          </Card>
+        </button>
+
+        <button
+          onClick={() => setActiveFilter('returned')}
+          className={`transition-all duration-300 rounded-lg border-l-4 ${
+            activeFilter === 'returned' 
+              ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-l-orange-500 shadow-lg' 
+              : 'bg-gradient-to-br from-orange-50 to-orange-100 border-l-orange-500 hover:shadow-xl'
+          }`}
+        >
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-orange-700 font-semibold">Returned</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-orange-600">{dashboardStats.returned_count}</div>
+              <p className="text-xs text-gray-600 mt-2">Returned to requester</p>
             </CardContent>
           </Card>
         </button>
@@ -297,6 +322,79 @@ export const ApprovalDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Returned Requests Table */}
+      {returnedApprovals.length > 0 && (
+        <Card className="border border-orange-200">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-orange-700">
+                Returned Requests
+                <Badge className="ml-2 bg-orange-100 text-orange-800">{returnedApprovals.length}</Badge>
+              </CardTitle>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => setRefreshTrigger(prev => prev + 1)}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {returnedApprovals.map((approval) => (
+                <div key={approval.id} className="border border-orange-200 rounded-lg overflow-hidden bg-orange-50">
+                  <div 
+                    className="p-4 cursor-pointer hover:bg-orange-100 transition-colors"
+                    onClick={() => handleApprovalClick(approval.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300">
+                            Returned
+                          </Badge>
+                          <span className="font-medium text-gray-900">
+                            {approval.request_number || approval.id}
+                          </span>
+                          <span className="text-sm text-gray-600">
+                            {approval.request_type?.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          Submitted by: <span className="font-medium">{approval.submitted_by_name || approval.requester_name}</span>
+                          {approval.submitted_date && (
+                            <span className="ml-4">
+                              on {new Date(approval.submitted_date).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+                          Awaiting Resubmission
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Expanded Details */}
+                  {selectedApproval === approval.id && (
+                    <div className="bg-orange-50 border-t border-orange-200 p-4 overflow-x-auto">
+                      <PerItemApprovalPanel
+                        approvalId={approval.id}
+                        onActionComplete={handleActionComplete}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <Card className="border border-gray-200">
