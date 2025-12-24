@@ -2713,6 +2713,256 @@ app.get('/api/stock-issuance/issued-items', async (req, res) => {
   }
 });
 
+// Get single stock issuance request by ID
+app.get('/api/stock-issuance/requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { returned_approval_id } = req.query;
+    console.log('📋 [UPDATED] Fetching stock issuance request:', id);
+    console.log('📋 [UPDATED] Query params:', JSON.stringify(req.query));
+    console.log('📋 [UPDATED] returned_approval_id:', returned_approval_id, 'type:', typeof returned_approval_id, 'length:', returned_approval_id?.length);
+
+    const request = pool.request().input('id', sql.NVarChar, id);
+
+    const result = await request.query(`
+      SELECT 
+        sir.*,
+        u.FullName as requester_name,
+        CAST(sir.requester_office_id AS NVARCHAR(50)) as office_name,
+        w.Name as wing_name
+      FROM stock_issuance_requests sir
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
+      WHERE sir.id = @id
+    `);
+
+    console.log('📋 [UPDATED] Query executed successfully, found', result.recordset.length, 'records');
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    const requestData = result.recordset[0];
+
+    // Get items for this request
+    let itemsQuery;
+    if (returned_approval_id) {
+      // For returned requests, only show items that were actually returned
+      itemsQuery = `
+        SELECT 
+          sii.*,
+          im.nomenclature as inventory_item_name,
+          im.description as inventory_description,
+          ai.rejection_reason as item_return_reason
+        FROM approval_items ai
+        INNER JOIN stock_issuance_items sii ON ai.item_master_id = sii.item_master_id 
+          AND sii.request_id = @request_id
+        LEFT JOIN item_masters im ON sii.item_master_id = im.id
+        WHERE ai.request_approval_id = @returned_approval_id
+          AND ai.decision_type = 'REJECT'
+          AND LOWER(ai.rejection_reason) LIKE '%returned to requester%'
+        ORDER BY sii.created_at
+      `;
+    } else {
+      // For regular requests, show all items
+      itemsQuery = `
+        SELECT 
+          sii.*,
+          im.nomenclature as inventory_item_name,
+          im.description as inventory_description,
+          NULL as item_return_reason
+        FROM stock_issuance_items sii
+        LEFT JOIN item_masters im ON sii.item_master_id = im.id
+        WHERE sii.request_id = @request_id
+        ORDER BY sii.created_at
+      `;
+    }
+
+    const itemsResult = await pool.request()
+      .input('request_id', sql.NVarChar, id)
+      .input('returned_approval_id', sql.NVarChar, returned_approval_id || '')
+      .query(itemsQuery);
+
+    const requestWithItems = {
+      ...requestData,
+      items: itemsResult.recordset
+    };
+
+    res.json({ success: true, data: requestWithItems });
+
+  } catch (error) {
+    console.error('❌ Error fetching stock issuance request:', error);
+    res.status(500).json({ error: 'Failed to fetch request', details: error.message });
+  }
+});
+
+// Update stock issuance request (for returned requests that need editing)
+app.put('/api/stock-issuance/requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { purpose, urgency_level, justification, expected_return_date, is_returnable, items } = req.body;
+
+    console.log('📝 Updating stock issuance request:', id);
+
+    // Update the main request
+    const updateRequest = pool.request()
+      .input('id', sql.NVarChar, id)
+      .input('purpose', sql.NVarChar, purpose)
+      .input('urgency_level', sql.NVarChar, urgency_level)
+      .input('justification', sql.NVarChar, justification)
+      .input('expected_return_date', sql.DateTime, expected_return_date)
+      .input('is_returnable', sql.Bit, is_returnable);
+
+    await updateRequest.query(`
+      UPDATE stock_issuance_requests 
+      SET purpose = @purpose,
+          urgency_level = @urgency_level,
+          justification = @justification,
+          expected_return_date = @expected_return_date,
+          is_returnable = @is_returnable,
+          updated_at = GETDATE()
+      WHERE id = @id
+    `);
+
+    // Delete existing items and re-insert updated ones
+    if (items && items.length > 0) {
+      // First delete existing items
+      await pool.request()
+        .input('request_id', sql.NVarChar, id)
+        .query('DELETE FROM stock_issuance_items WHERE request_id = @request_id');
+
+      // Then insert updated items
+      for (const item of items) {
+        const insertItem = pool.request()
+          .input('request_id', sql.NVarChar, id)
+          .input('item_master_id', sql.NVarChar, item.item_master_id)
+          .input('nomenclature', sql.NVarChar, item.nomenclature)
+          .input('requested_quantity', sql.Decimal(10, 2), item.requested_quantity)
+          .input('unit_price', sql.Decimal(10, 2), item.unit_price || 0)
+          .input('item_type', sql.NVarChar, item.item_type || 'inventory')
+          .input('custom_item_name', sql.NVarChar, item.custom_item_name);
+
+        await insertItem.query(`
+          INSERT INTO stock_issuance_items
+          (id, request_id, item_master_id, nomenclature, requested_quantity, unit_price, item_type, custom_item_name, created_at, updated_at)
+          VALUES (NEWID(), @request_id, @item_master_id, @nomenclature, @requested_quantity, @unit_price, @item_type, @custom_item_name, GETDATE(), GETDATE())
+        `);
+      }
+    }
+
+    // Check if this is a resubmission from returned status
+    const currentStatusResult = await pool.request()
+      .input('request_id', sql.NVarChar, id)
+      .query('SELECT current_status FROM request_approvals WHERE request_id = @request_id');
+
+    const isResubmission = currentStatusResult.recordset[0]?.current_status === 'returned';
+
+    if (isResubmission) {
+      // Reset approval status to pending for resubmission
+      await pool.request()
+        .input('id', sql.NVarChar, id)
+        .query(`
+          UPDATE stock_issuance_requests 
+          SET request_status = 'Submitted', 
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      // Get the wing supervisor for this request
+      const wingResult = await pool.request()
+        .input('request_id', sql.NVarChar, id)
+        .query('SELECT requester_wing_id FROM stock_issuance_requests WHERE id = @request_id');
+
+      const wingId = wingResult.recordset[0]?.requester_wing_id;
+      let supervisorId = null;
+
+      if (wingId) {
+        // First, check if the current logged-in user is a supervisor for this wing
+        const currentUserId = req.session?.userId;
+        if (currentUserId) {
+          const isCurrentUserSupervisorResult = await pool.request()
+            .input('user_id', sql.NVarChar, currentUserId)
+            .input('wing_id', sql.Int, wingId)
+            .query('SELECT COUNT(*) as count FROM vw_wing_supervisors WHERE user_id = @user_id AND wing_id = @wing_id');
+
+          if (isCurrentUserSupervisorResult.recordset[0].count > 0) {
+            supervisorId = currentUserId;
+            console.log('📝 Resubmission: Assigning to current logged-in user (supervisor):', currentUserId);
+          }
+        }
+
+        // If current user is not a supervisor, try to assign to the supervisor who originally returned this request
+        if (!supervisorId) {
+          const returnHistoryResult = await pool.request()
+            .input('request_id', sql.NVarChar, id)
+            .query(`
+              SELECT TOP 1 ah.action_by 
+              FROM approval_history ah 
+              INNER JOIN request_approvals ra ON ah.request_approval_id = ra.id 
+              WHERE ra.request_id = @request_id AND ah.action_type = 'returned' 
+              ORDER BY ah.action_date DESC
+            `);
+
+          const originalApproverId = returnHistoryResult.recordset[0]?.action_by;
+
+          // Check if the original approver is still a supervisor for this wing
+          if (originalApproverId) {
+            const isStillSupervisorResult = await pool.request()
+              .input('user_id', sql.NVarChar, originalApproverId)
+              .input('wing_id', sql.Int, wingId)
+              .query('SELECT COUNT(*) as count FROM vw_wing_supervisors WHERE user_id = @user_id AND wing_id = @wing_id');
+
+            if (isStillSupervisorResult.recordset[0].count > 0) {
+              supervisorId = originalApproverId;
+            }
+          }
+        }
+
+        // If no suitable supervisor found, assign to first available supervisor
+        if (!supervisorId) {
+          const supervisorResult = await pool.request()
+            .input('wing_id', sql.Int, wingId)
+            .query('SELECT TOP 1 user_id FROM vw_wing_supervisors WHERE wing_id = @wing_id ORDER BY supervisor_name');
+
+          supervisorId = supervisorResult.recordset[0]?.user_id;
+        }
+      }
+
+      // Update the corresponding request_approvals record to pending status with supervisor assigned
+      await pool.request()
+        .input('request_id', sql.NVarChar, id)
+        .input('supervisor_id', sql.NVarChar, supervisorId)
+        .query(`
+          UPDATE request_approvals 
+          SET current_status = 'pending', 
+              current_approver_id = @supervisor_id,
+              updated_date = GETDATE()
+          WHERE request_id = @request_id
+        `);
+
+      // Mark approval_items as resubmitted (change all decision_types for this request)
+      await pool.request()
+        .input('request_id', sql.NVarChar, id)
+        .query(`
+          UPDATE approval_items 
+          SET decision_type = 'RESUBMITTED',
+              rejection_reason = 'Request resubmitted after revision',
+              updated_at = GETDATE()
+          WHERE request_approval_id IN (
+            SELECT id FROM request_approvals WHERE request_id = @request_id
+          )
+        `);
+    }
+
+    console.log('✅ Request updated and resubmitted for approval');
+    res.json({ success: true, message: 'Request updated and resubmitted for approval' });
+
+  } catch (error) {
+    console.error('❌ Error updating stock issuance request:', error);
+    res.status(500).json({ error: 'Failed to update request', details: error.message });
+  }
+});
+
 // =============================================================================
 // STOCK ISSUANCE APPROVAL ENDPOINTS
 // =============================================================================
@@ -2731,6 +2981,44 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
       approval_comments,
       item_approvals
     } = req.body;
+
+    // Get the actual logged-in user from session - this should always be authenticated
+    const userId = req.session?.userId;
+
+    if (!userId) {
+      console.log('⚠️ Stock Issuance Approve: No authenticated user in session');
+      return res.status(401).json({
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to perform approval actions.'
+      });
+    }
+
+    // Get the user's actual name and designation from database
+    let actualApproverName = approver_name;
+    let actualApproverDesignation = approver_designation;
+
+    if (userId) {
+      try {
+        const userInfoResult = await pool.request()
+          .input('userId', sql.NVarChar, userId)
+          .query(`
+            SELECT FullName, 
+                   COALESCE(tblUserDesignations.designation_name, 'Supervisor') as designation_name
+            FROM AspNetUsers 
+            LEFT JOIN tblUserDesignations ON AspNetUsers.intDesignationID = tblUserDesignations.intDesignationID
+            WHERE Id = @userId
+          `);
+        
+        if (userInfoResult.recordset.length > 0) {
+          actualApproverName = userInfoResult.recordset[0].FullName;
+          actualApproverDesignation = userInfoResult.recordset[0].designation_name;
+          console.log('✅ Approve: Using actual user info:', actualApproverName, actualApproverDesignation);
+        }
+      } catch (error) {
+        console.log('⚠️ Approve: Could not get user info, using request body values');
+      }
+    }
+
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -2738,8 +3026,8 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
       // Update request status to approved
       await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
-        .input('approver_name', sql.NVarChar, approver_name)
-        .input('approver_designation', sql.NVarChar, approver_designation)
+        .input('approver_name', sql.NVarChar, actualApproverName)
+        .input('approver_designation', sql.NVarChar, actualApproverDesignation)
         .input('approval_comments', sql.NVarChar, approval_comments)
         .query(`
           UPDATE stock_issuance_requests 
@@ -11020,20 +11308,21 @@ app.get('/api/view-stock-transactions-clean', async (req, res) => {
 app.get('/api/approvals/pending/:userId', async (req, res) => {
   try {
     let { userId } = req.params;
-    
-    // Auto-detect user if needed (for Simple Test User)
-    if (!userId || userId === 'undefined' || userId === 'null') {
-      try {
-        const userResult = await pool.request().query(`
-          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-        `);
-        if (userResult.recordset.length > 0) {
-          userId = userResult.recordset[0].Id;
-          console.log('📋 Pending Approvals: Auto-detected user:', userId);
-        }
-      } catch (error) {
-        console.log('⚠️ Pending Approvals: Could not auto-detect user');
-      }
+
+    // Require session authentication - userId parameter should match session user
+    const sessionUserId = req.session?.userId;
+    if (!sessionUserId) {
+      console.log('⚠️ Pending Approvals: No authenticated user in session');
+      return res.status(401).json({
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to view approvals.'
+      });
+    }
+
+    // Use session user if parameter doesn't match or is not provided
+    if (!userId || userId === 'undefined' || userId === 'null' || userId !== sessionUserId) {
+      userId = sessionUserId;
+      console.log('📋 Pending Approvals: Using session user:', userId);
     }
     
     console.log('📋 Pending Approvals: Fetching for user:', userId);
@@ -12203,8 +12492,12 @@ app.get('/api/notifications/:userId', async (req, res) => {
 app.put('/api/notifications/:notificationId/read', async (req, res) => {
   try {
     const { notificationId } = req.params;
-    const userId = req.session?.userId || 'DEV-USER-001';
-    
+    const userId = req.session?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     if (!pool) {
       return res.json({ success: false, error: 'Database not available' });
     }
@@ -13899,8 +14192,16 @@ app.get('/api/aspnet-users/filtered', async (req, res) => {
 app.post('/api/approvals/submit', async (req, res) => {
   try {
     const { request_id, request_type, workflow_id } = req.body;
-    const userId = req.session?.userId || 'DEV-USER-001'; // Use same fallback as session service
-    
+    const userId = req.session?.userId;
+
+    if (!userId) {
+      console.log('⚠️ Submit: No authenticated user in session');
+      return res.status(401).json({
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to submit requests.'
+      });
+    }
+
     console.log('🔄 Backend: Submitting approval request:', { request_id, request_type, workflow_id, userId });
     
     const request = pool.request();
@@ -13998,35 +14299,17 @@ app.post('/api/approvals/submit', async (req, res) => {
 // Get my pending approvals
 app.get('/api/approvals/my-pending', async (req, res) => {
   try {
-    // Get userId from query parameter or try to get current session user
-    let userId = req.query.userId;
-    
+    // Get userId from session - must be authenticated
+    const userId = req.session?.userId;
+
     if (!userId) {
-      // Try to get from session first
-      if (req.session && req.session.userId) {
-        userId = req.session.userId;
-        console.log('🔍 Backend: Using session user:', userId);
-      } else {
-        // For development, try to get the Simple Test User as fallback
-        try {
-          const userResult = await pool.request().query(`
-            SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-          `);
-          if (userResult.recordset.length > 0) {
-            userId = userResult.recordset[0].Id;
-            console.log('🔍 Backend: Auto-detected Simple Test User as fallback:', userId);
-          }
-        } catch (error) {
-          console.log('⚠️ Backend: Could not auto-detect user, using fallback');
-        }
-      }
+      console.log('⚠️ My Pending: No authenticated user in session');
+      return res.status(401).json({
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to view your approvals.'
+      });
     }
-    
-    // Final fallback
-    if (!userId) {
-      userId = 'DEV-USER-001';
-    }
-    
+
     console.log('🔍 Backend: Fetching pending approvals for user:', userId);
     
     const request = pool.request();
@@ -14055,100 +14338,6 @@ app.get('/api/approvals/my-pending', async (req, res) => {
   } catch (error) {
     console.error('❌ Backend: Error fetching pending approvals:', error);
     res.status(500).json({ error: 'Failed to fetch pending approvals', details: error.message });
-  }
-});
-
-// Get all my approvals filtered by status
-app.get('/api/approvals/my-approvals', async (req, res) => {
-  try {
-    // Get userId and status from query parameters
-    let userId = req.query.userId;
-    const status = req.query.status || 'pending'; // default to pending
-    
-    if (!userId) {
-      // Try to get from session first
-      if (req.session && req.session.userId) {
-        userId = req.session.userId;
-        console.log('🔍 Backend: Using session user:', userId);
-      } else {
-        // For development, try to get the Simple Test User as fallback
-        try {
-          const userResult = await pool.request().query(`
-            SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-          `);
-          if (userResult.recordset.length > 0) {
-            userId = userResult.recordset[0].Id;
-            console.log('🔍 Backend: Auto-detected Simple Test User as fallback:', userId);
-          }
-        } catch (error) {
-          console.log('⚠️ Backend: Could not auto-detect user, using fallback');
-        }
-      }
-    }
-    
-    // Final fallback
-    if (!userId) {
-      userId = 'DEV-USER-001';
-    }
-    
-    console.log('🔍 Backend: Fetching', status, 'approvals for user:', userId);
-    
-    const request = pool.request();
-    
-    // Build query based on status type:
-    // - pending: Show only requests where user is the CURRENT approver
-    // - approved/rejected: Show requests where user submitted OR acted on them
-    // - forwarded: Show requests where user has forwarded (action_type='forwarded')
-    let query = `
-      SELECT DISTINCT
-        ra.id,
-        ra.request_id,
-        ra.request_type,
-        ra.current_status,
-        ra.submitted_date,
-        ra.current_approver_id,
-        submitter.FullName as submitted_by_name,
-        wf.workflow_name
-      FROM request_approvals ra
-      LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
-      LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
-      LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
-    `;
-    
-    // Add WHERE clause based on status
-    if (status === 'pending') {
-      // Pending: Only show requests where user is the CURRENT approver
-      query += ` WHERE ra.current_status = 'pending' AND ra.current_approver_id = @userId`;
-    } else if (status === 'forwarded') {
-      // Forwarded: Show requests where user has forwarded them
-      query += ` WHERE EXISTS (
-        SELECT 1 FROM approval_history ah3 
-        WHERE ah3.request_approval_id = ra.id 
-        AND ah3.action_by = @userId 
-        AND ah3.action_type = 'forwarded'
-      )`;
-    } else {
-      // Approved/Rejected: Show requests where user is related (submitted OR acted)
-      query += ` WHERE ra.current_status = @status AND ra.id IN (
-        SELECT DISTINCT ra2.id
-        FROM request_approvals ra2
-        LEFT JOIN approval_history ah2 ON ah2.request_approval_id = ra2.id
-        WHERE ra2.submitted_by = @userId OR ah2.action_by = @userId
-      )`;
-    }
-    
-    query += ` ORDER BY ra.submitted_date DESC`;
-    
-    const result = await request
-      .input('userId', sql.NVarChar, userId)
-      .input('status', sql.NVarChar, status)
-      .query(query);
-    
-    console.log('📋 Backend: Found', result.recordset.length, status, 'approvals for user:', userId);
-    res.json({ success: true, data: result.recordset });
-  } catch (error) {
-    console.error('❌ Backend: Error fetching approvals by status:', error);
-    res.status(500).json({ error: 'Failed to fetch approvals', details: error.message });
   }
 });
 
@@ -14343,23 +14532,8 @@ app.get('/api/approvals/dashboard', async (req, res) => {
         userId = req.session.userId;
         console.log('📊 Dashboard: Using session user:', userId);
       } else {
-        // For development, try to get the Simple Test User as fallback
-        try {
-          const userResult = await pool.request().query(`
-            SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-          `);
-          if (userResult.recordset.length > 0) {
-            userId = userResult.recordset[0].Id;
-            console.log('📊 Dashboard: Auto-detected Simple Test User as fallback:', userId);
-          }
-        } catch (error) {
-          console.log('⚠️ Dashboard: Could not auto-detect user, using fallback');
-        }
-      }
-      
-      // Final fallback
-      if (!userId) {
-        userId = 'DEV-USER-001';
+        console.log('⚠️ Dashboard: No user session found and no userId provided');
+        return res.status(401).json({ error: 'User not authenticated. Please log in first.' });
       }
     }
     
@@ -14460,6 +14634,61 @@ app.get('/api/approvals/dashboard', async (req, res) => {
   }
 });
 
+// Get returned requests for the current user (requester view)
+app.get('/api/approvals/my-returned-requests', async (req, res) => {
+  console.log('📋 Returned Requests: Endpoint called');
+  console.log('📋 Returned Requests: req.session:', req.session ? 'exists' : 'null');
+  console.log('📋 Returned Requests: req.session.userId:', req.session?.userId || 'not set');
+  console.log('📋 Returned Requests: req.query.userId:', req.query.userId || 'not provided');
+  
+  try {
+    // Get userId - same logic as notifications endpoint
+    const userId = req.session?.userId;
+    if (!userId) {
+      console.log('📋 Returned Requests: No user session found');
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+    
+    console.log('📋 Returned Requests: Fetching returned requests for user:', userId);
+    const request = pool.request();
+    
+    // Get approval requests that have been returned to this user
+    const result = await request
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT DISTINCT
+          ra.id,
+          ra.request_id,
+          ra.request_type,
+          ra.current_status,
+          ra.submitted_date,
+          ra.approver_name as current_approver_name,
+          ra.approver_designation,
+          ra.approval_comments,
+          ra.submitted_by,
+          submitter.FullName as submitted_by_name,
+          wf.workflow_name,
+          ai.updated_at as returned_date,
+          ai.rejection_reason as return_reason
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
+        INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+        WHERE ra.submitted_by = @userId
+        AND ai.decision_type = 'REJECT'
+        AND LOWER(ai.rejection_reason) LIKE '%returned to requester%'
+        AND ra.current_status != 'pending'
+        ORDER BY ra.submitted_date DESC
+      `);
+    
+    console.log('📋 Returned Requests: Found', result.recordset.length, 'returned requests for user:', userId);
+    res.json({ success: true, data: result.recordset });
+  } catch (error) {
+    console.error('❌ Returned Requests: Error fetching returned requests:', error);
+    res.status(500).json({ error: 'Failed to fetch returned requests', details: error.message });
+  }
+});
+
 // Get wing approval dashboard data
 app.get('/api/approvals/wing-dashboard', async (req, res) => {
   try {
@@ -14557,9 +14786,17 @@ app.get('/api/approvals/wing-dashboard', async (req, res) => {
 // Get stock issuance items for an approval request (DUPLICATE REMOVED - using the enhanced version above)
 
 // Get approval details
-app.get('/api/approvals/:approvalId', async (req, res) => {
+app.get('/api/approvals/:approvalId', async (req, res, next) => {
   try {
     const { approvalId } = req.params;
+
+    // Only treat this route as an approval detail lookup when the param is a GUID.
+    // This prevents collisions with static endpoints like `/api/approvals/my-approvals`.
+    const guidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!guidRegex.test(approvalId)) {
+      console.log('🔀 /api/approvals/:approvalId - skipping non-GUID param:', approvalId);
+      return next();
+    }
     const request = pool.request();
     
     // Get approval details
@@ -14627,7 +14864,6 @@ app.get('/api/approvals/:approvalId/history', async (req, res) => {
           COALESCE(action_user.FullName, 
             CASE 
               WHEN ah.action_by = 'demo-user' THEN 'Demo User (System)'
-              WHEN ah.action_by = 'DEV-USER-001' THEN 'Development User'
               ELSE ah.action_by 
             END
           ) as action_by_name,
@@ -14831,30 +15067,18 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const { forwarded_to, comments, forwarding_type } = req.body;
-    
-    // Get userId using the same logic as other endpoints
-    let userId = req.query.userId || req.body.userId;
-    
+
+    // Get userId from session - must be authenticated
+    const userId = req.session?.userId;
+
     if (!userId) {
-      // Try to get the current logged-in user from AspNetUsers
-      try {
-        const userResult = await pool.request().query(`
-          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-        `);
-        if (userResult.recordset.length > 0) {
-          userId = userResult.recordset[0].Id;
-          console.log('🔄 Forward: Auto-detected logged-in user:', userId);
-        }
-      } catch (error) {
-        console.log('⚠️ Forward: Could not auto-detect user, using fallback');
-      }
+      console.log('⚠️ Forward: No authenticated user in session');
+      return res.status(401).json({
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to forward requests.'
+      });
     }
-    
-    // Final fallback
-    if (!userId) {
-      userId = 'DEV-USER-001';
-    }
-    
+
     const forwardingTypeLabel = forwarding_type === 'action' ? 'Action (Admin)' : 'Approval (Supervisor)';
     console.log('🔄 Forward: Processing forward request by user:', userId, '| Type:', forwardingTypeLabel);
     
@@ -15081,27 +15305,50 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
       item_allocations
     } = req.body;
 
-    // Get userId using the same logic as other endpoints
-    let userId = req.query.userId || req.body.userId;
+    // Get userId from session - this should always be the authenticated user
+    const userId = req.session?.userId;
 
     if (!userId) {
-      // Try to get the current logged-in user from AspNetUsers
-      try {
-        const userResult = await pool.request().query(`
-          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-        `);
-        if (userResult.recordset.length > 0) {
-          userId = userResult.recordset[0].Id;
-          console.log('✅ Approve: Auto-detected logged-in user:', userId);
-        }
-      } catch (error) {
-        console.log('⚠️ Approve: Could not auto-detect user, using fallback');
-      }
+      console.log('⚠️ Approve: No authenticated user in session');
+      return res.status(401).json({
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to perform approval actions.'
+      });
     }
 
-    // Final fallback
-    if (!userId) {
-      userId = 'DEV-USER-001';
+    // Log which method was used to get userId
+    if (req.session?.userId) {
+      console.log('✅ Approve: Using userId from session:', userId);
+    } else if (req.query.userId) {
+      console.log('⚠️ Approve: Using userId from query parameter:', userId);
+    } else if (req.body.userId) {
+      console.log('⚠️ Approve: Using userId from request body:', userId);
+    }
+
+    // Get the user's actual name and designation from database for the approval record
+    let actualApproverName = approver_name || 'System';
+    let actualApproverDesignation = approver_designation || 'Approver';
+
+    if (userId) {
+      try {
+        const userInfoResult = await pool.request()
+          .input('userId', sql.NVarChar, userId)
+          .query(`
+            SELECT FullName, 
+                   COALESCE(tblUserDesignations.designation_name, 'Supervisor') as designation_name
+            FROM AspNetUsers 
+            LEFT JOIN tblUserDesignations ON AspNetUsers.intDesignationID = tblUserDesignations.intDesignationID
+            WHERE Id = @userId
+          `);
+        
+        if (userInfoResult.recordset.length > 0) {
+          actualApproverName = userInfoResult.recordset[0].FullName;
+          actualApproverDesignation = userInfoResult.recordset[0].designation_name;
+          console.log('✅ Approve: Using actual user info for approval record:', actualApproverName, actualApproverDesignation);
+        }
+      } catch (error) {
+        console.log('⚠️ Approve: Could not get user info, using request body values');
+      }
     }
 
     console.log('✅ Approve: Processing per-item approval by user:', userId);
@@ -15119,19 +15366,31 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
       );
 
       // Determine overall approval status
-      let overallStatus = 'approved';
+      // Request can ONLY be marked as 'approved' when ALL items have final decisions
+      // Final decisions: APPROVE_FROM_STOCK, APPROVE_FOR_PROCUREMENT, or REJECT
+      // If ANY item is forwarded (FORWARD_TO_SUPERVISOR) or returned, request stays 'pending'
+      let overallStatus = 'pending'; // Default to pending
+
       if (hasReturnActions) {
-        overallStatus = 'pending'; // Keep as pending when items are returned - request stays in pending list
+        overallStatus = 'pending'; // Items returned to requester - allow editing
       } else if (item_allocations?.every(allocation => allocation.decision_type === 'REJECT')) {
-        overallStatus = 'rejected';
+        overallStatus = 'rejected'; // All items rejected
+      } else if (item_allocations?.every(allocation =>
+        allocation.decision_type === 'APPROVE_FROM_STOCK' ||
+        allocation.decision_type === 'APPROVE_FOR_PROCUREMENT' ||
+        allocation.decision_type === 'REJECT'
+      )) {
+        // ALL items have final decisions (approved or rejected) - no forwarding/pending items
+        overallStatus = 'approved';
       }
+      // If any items are FORWARD_TO_SUPERVISOR or other non-final statuses, stays pending
 
       // Update approval record
       await transaction.request()
         .input('approvalId', sql.NVarChar, approvalId)
         .input('status', sql.NVarChar, overallStatus)
-        .input('approver_name', sql.NVarChar, approver_name || 'System')
-        .input('approver_designation', sql.NVarChar, approver_designation || 'Approver')
+        .input('approver_name', sql.NVarChar, actualApproverName)
+        .input('approver_designation', sql.NVarChar, actualApproverDesignation)
         .input('approval_comments', sql.NVarChar, approval_comments || '')
         .query(`
           UPDATE request_approvals
@@ -15211,6 +15470,40 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
 
       await transaction.commit();
 
+      // Create notification for requester if items were returned
+      if (hasReturnActions) {
+        try {
+          // Get the requester's user ID from the approval record
+          const requesterResult = await pool.request()
+            .input('approvalId', sql.NVarChar, approvalId)
+            .query(`
+              SELECT ra.submitted_by, u.FullName as requester_name
+              FROM request_approvals ra
+              LEFT JOIN AspNetUsers u ON ra.submitted_by = u.Id
+              WHERE ra.id = @approvalId
+            `);
+          
+          if (requesterResult.recordset.length > 0) {
+            const requesterId = requesterResult.recordset[0].submitted_by;
+            const requesterName = requesterResult.recordset[0].requester_name;
+            
+            await createNotification(
+              requesterId,
+              'Request Returned for Revision',
+              `Your request has been returned for revision. Please check the approval details and resubmit.`,
+              'warning',
+              `/approvals/${approvalId}`,
+              'View Request'
+            );
+            
+            console.log(`📧 Notification sent to requester ${requesterName} (${requesterId}) for returned request ${approvalId}`);
+          }
+        } catch (notificationError) {
+          console.error('Failed to create notification for requester:', notificationError);
+          // Don't fail the request if notification fails
+        }
+      }
+
       res.json({
         success: true,
         message: hasReturnActions
@@ -15233,27 +15526,15 @@ app.post('/api/approvals/:approvalId/reject', async (req, res) => {
     const { approvalId } = req.params;
     const { comments } = req.body;
     
-    // Get userId using the same logic as other endpoints
-    let userId = req.query.userId || req.body.userId;
-    
+    // Get userId from session - this should always be the authenticated user
+    const userId = req.session?.userId;
+
     if (!userId) {
-      // Try to get the current logged-in user from AspNetUsers
-      try {
-        const userResult = await pool.request().query(`
-          SELECT Id FROM AspNetUsers WHERE CNIC = '1111111111111'
-        `);
-        if (userResult.recordset.length > 0) {
-          userId = userResult.recordset[0].Id;
-          console.log('❌ Reject: Auto-detected logged-in user:', userId);
-        }
-      } catch (error) {
-        console.log('⚠️ Reject: Could not auto-detect user, using fallback');
-      }
-    }
-    
-    // Final fallback
-    if (!userId) {
-      userId = 'DEV-USER-001';
+      console.log('⚠️ Reject: No authenticated user in session');
+      return res.status(401).json({
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to perform approval actions.'
+      });
     }
     
     console.log('❌ Reject: Processing rejection by user:', userId);
@@ -16644,6 +16925,215 @@ app.get('/api/issuance/status/:stock_issuance_request_id', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch issuance status', 
       details: error.message 
+    });
+  }
+});
+
+// =============================================================================
+// APPROVAL WORKFLOW API ENDPOINTS
+// =============================================================================
+
+// Get pending approvals for the current user
+app.get('/api/approvals/my-approvals', async (req, res) => {
+  try {
+    console.log('🔍 API CALLED: /api/approvals/my-approvals');
+    console.log('Query params:', req.query);
+    console.log('Fetching my pending approvals...');
+
+    // Allow userId from query params or session
+    let userId = req.query.userId || req.session?.userId;
+
+    console.log('UserId from query:', req.query.userId);
+    console.log('UserId from session:', req.session?.userId);
+    console.log('Final userId:', userId);
+
+    // TEMPORARY: Allow testing without session authentication when userId is provided
+    const hasSession = !!req.session?.userId;
+    const hasQueryUserId = !!req.query.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to view your approvals.'
+      });
+    }
+
+    // Allow access if user has session OR if testing with query userId
+    if (!hasSession && !hasQueryUserId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please log in first.',
+        details: 'No user session found. You must be logged in to view your approvals.'
+      });
+    }
+
+    const status = req.query.status || 'pending';
+
+    console.log('User ID:', userId, 'Status filter:', status);
+
+    // Get pending approvals for this user
+    const approvalsQuery = `
+      SELECT
+        ra.id,
+        ra.request_id,
+        ra.request_type,
+        ra.submitted_date,
+        ra.current_status,
+        ra.submitted_by,
+        ra.current_approver_id,
+        u_requester.FullName as requester_name,
+        u_current_approver.FullName as current_approver_name,
+        sir.justification as title,
+        sir.purpose as description,
+        sir.expected_return_date as requested_date,
+        COALESCE(item_counts.item_count, 0) as total_items
+      FROM request_approvals ra
+      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
+      LEFT JOIN AspNetUsers u_current_approver ON u_current_approver.Id = ra.current_approver_id
+      LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+      LEFT JOIN (
+        SELECT request_id, COUNT(*) as item_count
+        FROM stock_issuance_items
+        GROUP BY request_id
+      ) item_counts ON item_counts.request_id = ra.request_id
+      WHERE ra.current_approver_id = @userId
+      AND ra.current_status = @status
+      ORDER BY ra.submitted_date DESC`;
+
+    const approvalsResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .input('status', sql.NVarChar, status)
+      .query(approvalsQuery);
+
+    console.log('✅ Found', approvalsResult.recordset.length, 'pending approvals for user', userId);
+
+    const approvals = [];
+
+    for (const approval of approvalsResult.recordset) {
+      // Load items for each approval
+      let items = [];
+      try {
+        const stockItemsQuery = `
+          SELECT
+            si_items.item_master_id as item_id,
+            CASE
+              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+              ELSE COALESCE(im.nomenclature, 'Unknown Item')
+            END as item_name,
+            si_items.requested_quantity,
+            si_items.approved_quantity,
+            COALESCE(im.unit, 'units') as unit,
+            si_items.item_type
+          FROM stock_issuance_items si_items
+          LEFT JOIN item_masters im ON im.id = si_items.item_master_id
+          WHERE si_items.request_id = @requestId
+          ORDER BY
+            CASE
+              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
+              ELSE im.nomenclature
+            END;
+        `;
+
+        const stockItemsResult = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, approval.request_id)
+          .query(stockItemsQuery);
+
+        items = stockItemsResult.recordset || [];
+      } catch (itemError) {
+        console.log('Could not load items for approval', approval.id, ':', itemError.message);
+        items = [];
+      }
+
+      const processedApproval = {
+        id: approval.id,
+        request_id: approval.request_id,
+        request_type: approval.request_type || 'stock_issuance',
+        title: approval.title || 'Stock Issuance Request',
+        description: approval.description || 'Request for inventory items',
+        requested_date: approval.requested_date || approval.submitted_date,
+        submitted_date: approval.submitted_date,
+        requester_name: approval.requester_name || 'Unknown User',
+        current_approver_name: approval.current_approver_name,
+        current_status: approval.current_status || 'pending',
+        items: items,
+        total_items: approval.total_items || 0,
+        priority: 'Medium'
+      };
+
+      approvals.push(processedApproval);
+    }
+
+    res.json({
+      success: true,
+      data: approvals,
+      total: approvals.length,
+      message: `Found ${approvals.length} ${status} approvals`
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching my approvals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch approvals: ' + error.message
+    });
+  }
+});
+
+// Get approval dashboard stats for the current user
+app.get('/api/approvals/dashboard', async (req, res) => {
+  try {
+    console.log('🔍 API CALLED: /api/approvals/dashboard');
+    console.log('Fetching approval dashboard stats...');
+
+    // Check authentication
+    if (!req.session.userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Not authenticated'
+      });
+    }
+
+    let userId = req.query.userId || req.session.userId;
+    console.log('User ID:', userId);
+
+    // Get dashboard statistics
+    const statsQuery = `
+      SELECT
+        COUNT(CASE WHEN ra.current_status = 'pending' AND ra.current_approver_id = @userId THEN 1 END) as pending_approvals,
+        COUNT(CASE WHEN ra.current_status = 'approved' AND ra.current_approver_id = @userId THEN 1 END) as approved_today,
+        COUNT(CASE WHEN ra.current_status = 'rejected' AND ra.current_approver_id = @userId THEN 1 END) as rejected_today,
+        COUNT(CASE WHEN ra.submitted_by = @userId THEN 1 END) as my_requests
+      FROM request_approvals ra
+      WHERE (ra.current_approver_id = @userId OR ra.submitted_by = @userId)
+      AND ra.submitted_date >= CAST(GETDATE() AS DATE)`;
+
+    const statsResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(statsQuery);
+
+    const stats = statsResult.recordset[0] || {
+      pending_approvals: 0,
+      approved_today: 0,
+      rejected_today: 0,
+      my_requests: 0
+    };
+
+    res.json({
+      success: true,
+      data: {
+        pendingApprovals: stats.pending_approvals || 0,
+        approvedToday: stats.approved_today || 0,
+        rejectedToday: stats.rejected_today || 0,
+        myRequests: stats.my_requests || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching approval dashboard:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch dashboard data: ' + error.message
     });
   }
 });

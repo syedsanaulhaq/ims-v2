@@ -10,12 +10,12 @@ import {
 } from '../services/approvalForwardingService';
 import ApprovalForwarding from './ApprovalForwarding';
 import PerItemApprovalPanel from './PerItemApprovalPanel';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { CheckCircle, Clock, RefreshCw, Settings, Users } from "lucide-react";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
 
-export const ApprovalDashboard: React.FC = () => {
+const ApprovalDashboard: React.FC = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const { user } = useAuth(); // Get current user from auth context
   const [pendingApprovals, setPendingApprovals] = useState<RequestApproval[]>([]);
   const [returnedApprovals, setReturnedApprovals] = useState<RequestApproval[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
@@ -38,22 +38,23 @@ export const ApprovalDashboard: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
+
       // Pass the current user's ID to get their approvals
-      const userId = user?.Id;
+      // Prefer `user.user_id` (normalized session shape) but fall back to legacy `Id`
+      const userId = (user as any)?.user_id || (user as any)?.Id;
       console.log('🔍 Loading dashboard for user:', user?.FullName, '(', userId, ') with filter:', activeFilter);
-      
+
       const [approvalsData, dashboardData] = await Promise.all([
         approvalForwardingService.getMyApprovalsByStatus(userId, activeFilter),
         approvalForwardingService.getApprovalDashboard(userId)
       ]);
-      
+
       console.log('📋 Approvals loaded:', approvalsData.length, 'for status:', activeFilter);
       setPendingApprovals(approvalsData);
-      
+
       // Set returned approvals from dashboard data
       setReturnedApprovals((dashboardData as any).my_returned || []);
-      
+
       // Map the API response to match our state structure
       setDashboardStats({
         pending_count: dashboardData.pending_count || 0,
@@ -248,75 +249,74 @@ export const ApprovalDashboard: React.FC = () => {
               <p className="text-sm">All caught up!</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {pendingApprovals.map((approval) => (
-                <div key={approval.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div 
-                    className="p-4 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer flex items-start justify-between"
-                    onClick={() => handleApprovalClick(approval.id)}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <Badge className="text-xs">{approval.request_type.replace('_', ' ').toUpperCase()}</Badge>
-                        <Badge 
+                <Card key={approval.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Request ID: {approval.request_id}
+                          </h3>
+                          <Badge className="text-xs">
+                            {approval.request_type.replace('_', ' ').toUpperCase()}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              approval.current_status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                              approval.current_status === 'approved' ? 'bg-green-100 text-green-800 border-green-300' :
+                              approval.current_status === 'rejected' ? 'bg-red-100 text-red-800 border-red-300' :
+                              'bg-blue-100 text-blue-800 border-blue-300'
+                            }`}
+                          >
+                            {approval.current_status.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <div>Submitted by: <span className="font-medium text-gray-900">{approval.submitted_by_name}</span></div>
+                          <div>
+                            Submitted: {(() => {
+                              const date = new Date(approval.submitted_date);
+                              return date.toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              });
+                            })()}
+                          </div>
+                          {approval.current_approver_name && (
+                            <div>Current Approver: <span className="font-medium text-gray-900">{approval.current_approver_name}</span></div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 ml-4">
+                        <Button
                           variant="outline"
-                          className={`text-xs ${
-                            approval.current_status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                            approval.current_status === 'approved' ? 'bg-green-100 text-green-800 border-green-300' :
-                            approval.current_status === 'rejected' ? 'bg-red-100 text-red-800 border-red-300' :
-                            'bg-blue-100 text-blue-800 border-blue-300'
-                          }`}
+                          size="sm"
+                          onClick={() => handleApprovalClick(approval.id)}
                         >
-                          {approval.current_status.toUpperCase()}
-                        </Badge>
-                      </div>
-                      
-                      <div className="text-sm font-semibold text-gray-900 mb-1">
-                        Request ID: {approval.request_id}
-                      </div>
-                      
-                      <div className="text-sm text-gray-600">
-                        <span>Submitted by: <span className="font-medium text-gray-900">{approval.submitted_by_name}</span></span>
-                        <span className="mx-2">•</span>
-                        <span>
-                          {(() => {
-                            const date = new Date(approval.submitted_date);
-                            return date.toLocaleString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true
-                            });
-                          })()}
-                        </span>
+                          {selectedApproval === approval.id ? 'Hide Details' : 'View Details'}
+                        </Button>
                       </div>
                     </div>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleApprovalClick(approval.id);
-                      }}
-                      className="ml-4 flex-shrink-0"
-                    >
-                      {selectedApproval === approval.id ? 'Hide' : 'View Details'}
-                    </Button>
-                  </div>
-                  
-                  {/* Expanded Details */}
-                  {selectedApproval === approval.id && (
-                    <div className="bg-gray-50 border-t border-gray-200 p-4 overflow-x-auto">
-                      <PerItemApprovalPanel
-                        approvalId={approval.id}
-                        onActionComplete={handleActionComplete}
-                      />
-                    </div>
-                  )}
-                </div>
+
+                    {/* Expanded Details */}
+                    {selectedApproval === approval.id && (
+                      <div className="mt-4 bg-gray-50 border-t border-gray-200 p-4 rounded-lg">
+                        <PerItemApprovalPanel
+                          approvalId={approval.id}
+                          requestType={approval.request_type}
+                          onActionComplete={handleActionComplete}
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}

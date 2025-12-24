@@ -40,6 +40,7 @@ import InventoryDashboard from "./pages/InventoryDashboard";
 import InventorySettings from "./pages/InventorySettings";
 import StockIssuance from "./pages/StockIssuance";
 import StockIssuancePersonal from "./pages/StockIssuancePersonal";
+import ReturnedRequestEditPage from "./pages/ReturnedRequestEditPage";
 import StockIssuanceWing from "./pages/StockIssuanceWing";
 import StockReturn from "./pages/StockReturn";
 import ApprovalManagement from "./pages/ApprovalManagement";
@@ -283,6 +284,8 @@ function App() {
                   <Route path="dashboard" element={<StockIssuanceDashboard />} />
                   <Route path="processing" element={<StockIssuanceProcessing />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
+                  <Route path="edit/:id" element={<StockIssuancePersonal />} />
+                  <Route path="returned-requests/edit/:id" element={<ReturnedRequestEditPage />} />
                 </Route>
 
                 {/* Approval Workflows - Protected */}

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, Filter } from 'lucide-react';
 import { format } from 'date-fns';
-import { sessionService } from '@/services/sessionService';
+import { useSession } from '@/contexts/SessionContext';
 import { useNavigate } from 'react-router-dom';
 
 interface RequestItem {
@@ -33,19 +33,37 @@ interface SubmittedRequest {
   wing_name?: string;
 }
 
+interface ReturnedRequest {
+  id: string;
+  request_id: string;
+  request_type: string;
+  current_status: string;
+  submitted_date: string;
+  current_approver_name?: string;
+  approver_designation?: string;
+  approval_comments?: string;
+  submitted_by_name: string;
+  workflow_name?: string;
+  returned_date: string;
+  return_reason?: string;
+}
+
 const RequestTrackingPage: React.FC = () => {
   const [requests, setRequests] = useState<SubmittedRequest[]>([]);
+  const [returnedRequests, setReturnedRequests] = useState<ReturnedRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const navigate = useNavigate();
-
-  const currentUser = sessionService.getCurrentUser();
+  const { user: currentUser } = useSession();
 
   useEffect(() => {
-    loadMyRequests();
-  }, []);
+    if (currentUser?.user_id) {
+      loadMyRequests();
+      loadReturnedRequests();
+    }
+  }, [currentUser]);
 
   const loadMyRequests = async () => {
     try {
@@ -129,6 +147,37 @@ const RequestTrackingPage: React.FC = () => {
       console.error('Error loading requests:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadReturnedRequests = async () => {
+    try {
+      if (!currentUser?.user_id) {
+        console.error('No current user found for returned requests');
+        return;
+      }
+
+      const response = await fetch('http://localhost:3001/api/approvals/my-returned-requests', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          console.log('Returned requests loaded:', data.data.length);
+          setReturnedRequests(data.data);
+        } else {
+          console.error('Failed to load returned requests:', data.error);
+        }
+      } else {
+        console.error('Failed to fetch returned requests');
+      }
+    } catch (error) {
+      console.error('Error loading returned requests:', error);
     }
   };
 
@@ -292,6 +341,65 @@ const RequestTrackingPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Returned Requests Section */}
+      {returnedRequests.length > 0 && (
+        <Card className="border-orange-200">
+          <CardHeader>
+            <CardTitle className="text-orange-700 flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Requests Returned for Revision
+              <Badge className="bg-orange-100 text-orange-800">{returnedRequests.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {returnedRequests.map((request) => (
+                <Card key={request.id} className="border-orange-200 bg-orange-50">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300">
+                            Returned
+                          </Badge>
+                          <span className="font-medium text-gray-900">
+                            {request.request_type} Request
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Returned by: <span className="font-medium">{request.current_approver_name}</span>
+                          {request.approver_designation && (
+                            <span className="text-gray-500"> ({request.approver_designation})</span>
+                          )}
+                        </p>
+                        {request.return_reason && (
+                          <p className="text-sm text-orange-800 bg-orange-100 p-2 rounded border-l-4 border-orange-400 mb-2">
+                            <strong>Return Reason:</strong> {request.return_reason}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          Returned on: {new Date(request.returned_date).toLocaleDateString()} at {new Date(request.returned_date).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Button 
+                          size="sm" 
+                          className="bg-orange-600 hover:bg-orange-700"
+                          onClick={() => navigate(`/stock-issuance/returned-requests/edit/${request.id}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View & Edit
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Requests List */}
       <div className="space-y-4">

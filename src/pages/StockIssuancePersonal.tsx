@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,14 +56,14 @@ interface IssuanceItem {
 
 const StockIssuancePersonal: React.FC = () => {
   const { user } = useSession();
-  const navigate = useNavigate();
-  
+  const navigate = useNavigate();  const { id } = useParams<{ id: string }>();  
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [issuanceItems, setIssuanceItems] = useState<IssuanceItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Custom items state
   const [customItemName, setCustomItemName] = useState('');
@@ -85,8 +85,15 @@ const StockIssuancePersonal: React.FC = () => {
   const selectedUserId = user?.user_id || '';
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    // Check if we're in edit mode
+    if (id) {
+      setIsEditMode(true);
+      console.log('✏️ Edit mode detected for request ID:', id);
+      loadExistingRequest(id);
+    } else {
+      fetchInitialData();
+    }
+  }, [id]);
 
   const fetchInitialData = async () => {
     try {
@@ -132,6 +139,59 @@ const StockIssuancePersonal: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Error loading stock issuance form data:', error);
       setError('Failed to load data: ' + error.message);
+    }
+  };
+
+  const loadExistingRequest = async (requestId: string) => {
+    try {
+      console.log('📝 Loading existing request for editing:', requestId);
+      setIsLoading(true);
+      
+      // Fetch the existing request data
+      const response = await fetch(`http://localhost:3001/api/stock-issuance/requests/${requestId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          const request = data.data;
+          console.log('📝 Existing request loaded:', request);
+          
+          // Populate form with existing data
+          setPurpose(request.purpose || '');
+          setUrgencyLevel(request.urgency_level || 'Normal');
+          
+          // Load the items from the request
+          if (request.items && request.items.length > 0) {
+            const loadedItems = request.items.map((item: any) => ({
+              id: item.id || `item-${Date.now()}-${Math.random()}`,
+              inventory_id: item.item_master_id,
+              item_name: item.nomenclature || item.item_name,
+              requested_quantity: item.requested_quantity,
+              unit: item.unit || 'Each',
+              item_type: item.custom_item_name ? 'custom' : 'inventory',
+              custom_item_name: item.custom_item_name || ''
+            }));
+            setIssuanceItems(loadedItems);
+          }
+          
+          setSuccess('Request loaded for editing');
+        } else {
+          setError('Failed to load request data');
+        }
+      } else {
+        setError('Failed to fetch request data');
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading existing request:', error);
+      setError('Failed to load request: ' + error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -233,25 +293,70 @@ const StockIssuancePersonal: React.FC = () => {
     setSuccess('');
 
     try {
-      const requestNumber = stockIssuanceService.generateRequestNumber();
-      
-      // Create issuance request using SQL Server API
-      const requestData = {
-        request_number: requestNumber,
-        request_type: requestType,
-        requester_office_id: parseInt(selectedOfficeId),
-        requester_wing_id: parseInt(selectedWingId),
-        requester_branch_id: selectedBranchId && selectedBranchId !== 'ALL_BRANCHES' ? selectedBranchId : undefined,
-        requester_user_id: requestType === 'Individual' ? selectedUserId : undefined,
-        purpose,
-        urgency_level: urgencyLevel,
-        justification: justification || undefined,
-        expected_return_date: expectedReturnDate || undefined,
-        is_returnable: isReturnable,
-        request_status: 'Submitted'
-      };
+      if (isEditMode && id) {
+        // Update existing request
+        console.log('📝 Updating existing request:', id);
+        
+        const updateData = {
+          purpose,
+          urgency_level: urgencyLevel,
+          justification: justification || undefined,
+          expected_return_date: expectedReturnDate || undefined,
+          is_returnable: isReturnable,
+          items: issuanceItems.map(item => ({
+            item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
+            nomenclature: item.nomenclature,
+            requested_quantity: item.requested_quantity,
+            unit: item.unit,
+            custom_item_name: item.item_type === 'custom' ? item.custom_item_name : undefined
+          }))
+        };
 
-      const requestResult = await stockIssuanceService.submitRequest(requestData);
+        const response = await fetch(`http://localhost:3001/api/stock-issuance/requests/${id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updateData)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setSuccess('Request updated and resubmitted for approval successfully!');
+            
+            // Navigate back to my requests
+            setTimeout(() => {
+              navigate('/dashboard/my-requests');
+            }, 2000);
+          } else {
+            setError('Failed to update request: ' + (result.error || 'Unknown error'));
+          }
+        } else {
+          setError('Failed to update request');
+        }
+      } else {
+        // Create new request (existing logic)
+        const requestNumber = stockIssuanceService.generateRequestNumber();
+        
+        // Create issuance request using SQL Server API
+        const requestData = {
+          request_number: requestNumber,
+          request_type: requestType,
+          requester_office_id: parseInt(selectedOfficeId),
+          requester_wing_id: parseInt(selectedWingId),
+          requester_branch_id: selectedBranchId && selectedBranchId !== 'ALL_BRANCHES' ? selectedBranchId : undefined,
+          requester_user_id: requestType === 'Individual' ? selectedUserId : undefined,
+          purpose,
+          urgency_level: urgencyLevel,
+          justification: justification || undefined,
+          expected_return_date: expectedReturnDate || undefined,
+          is_returnable: isReturnable,
+          request_status: 'Submitted'
+        };
+
+        const requestResult = await stockIssuanceService.submitRequest(requestData);
 
       // Add issuance items
       const requestItems = issuanceItems.map(item => {
@@ -292,17 +397,18 @@ const StockIssuancePersonal: React.FC = () => {
         // Don't fail the entire submission if approval fails
       }
 
-      const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${user?.user_name}!`;
-      
-      setSuccess(successMessage);
-      
-      // Reset form
-      resetForm();
+        const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${user?.user_name}!`;
+        
+        setSuccess(successMessage);
+        
+        // Reset form
+        resetForm();
 
-      // Navigate to my requests page to see the submitted request
-      setTimeout(() => {
-        navigate('/dashboard/my-requests');
-      }, 3000);
+        // Navigate to my requests page to see the submitted request
+        setTimeout(() => {
+          navigate('/dashboard/my-requests');
+        }, 3000);
+      }
 
     } catch (error: any) {
       setError('Failed to submit request to SQL Server: ' + error.message);
@@ -658,7 +764,7 @@ const StockIssuancePersonal: React.FC = () => {
                     ) : (
                       <>
                         <Send className="w-4 h-4 mr-2" />
-                        Submit Issuance Request
+                        {isEditMode ? 'Update & Resubmit Request' : 'Submit Issuance Request'}
                       </>
                     )}
                   </Button>
