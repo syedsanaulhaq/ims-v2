@@ -2748,6 +2748,7 @@ app.get('/api/stock-issuance/requests/:id', async (req, res) => {
     let itemsQuery;
     if (returned_approval_id) {
       // For returned requests, only show items that were actually returned
+      // Accept either legacy REJECT with 'returned to requester' reason or new RETURN decision_type
       itemsQuery = `
         SELECT 
           sii.*,
@@ -2759,8 +2760,10 @@ app.get('/api/stock-issuance/requests/:id', async (req, res) => {
           AND sii.request_id = @request_id
         LEFT JOIN item_masters im ON sii.item_master_id = im.id
         WHERE ai.request_approval_id = @returned_approval_id
-          AND ai.decision_type = 'REJECT'
-          AND LOWER(ai.rejection_reason) LIKE '%returned to requester%'
+          AND (
+            (ai.decision_type = 'REJECT' AND LOWER(ai.rejection_reason) LIKE '%returned to requester%')
+            OR ai.decision_type = 'RETURN'
+          )
         ORDER BY sii.created_at
       `;
     } else {
@@ -14675,8 +14678,10 @@ app.get('/api/approvals/my-returned-requests', async (req, res) => {
         LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
         INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
         WHERE ra.submitted_by = @userId
-        AND ai.decision_type = 'REJECT'
-        AND LOWER(ai.rejection_reason) LIKE '%returned to requester%'
+        AND (
+          (ai.decision_type = 'REJECT' AND LOWER(ai.rejection_reason) LIKE '%returned to requester%')
+          OR ai.decision_type = 'RETURN'
+        )
         AND ra.current_status != 'pending'
         ORDER BY ra.submitted_date DESC
       `);
@@ -15359,10 +15364,10 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
     await transaction.begin();
 
     try {
-      // Check if this is a return action (all items returned)
+      // Check if this is a return action (an item marked as RETURN or a REJECT with returned reason)
       const hasReturnActions = item_allocations?.some(allocation =>
-        allocation.decision_type === 'REJECT' &&
-        allocation.rejection_reason?.toLowerCase().includes('returned to requester')
+        allocation.decision_type === 'RETURN' ||
+        (allocation.decision_type === 'REJECT' && allocation.rejection_reason?.toLowerCase().includes('returned to requester'))
       );
 
       // Determine overall approval status

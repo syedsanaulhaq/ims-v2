@@ -121,8 +121,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const hasReturnedItems = () => {
     if (!request?.items) return false;
     return request.items.some(item => 
-      item.decision_type === 'REJECT' && 
-      item.rejection_reason?.toLowerCase().includes('returned to requester')
+      item.decision_type === 'RETURN' ||
+      (item.decision_type === 'REJECT' && item.rejection_reason?.toLowerCase().includes('returned to requester'))
     );
   };
 
@@ -241,13 +241,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
               case 'FORWARD_TO_SUPERVISOR':
                 decision = 'forward_supervisor';
                 break;
-              case 'REJECT':
-                if (item.rejection_reason?.toLowerCase().includes('returned to requester')) {
+                case 'REJECT':
+                  if (item.rejection_reason?.toLowerCase().includes('returned to requester')) {
+                    decision = 'return';
+                  } else {
+                    decision = 'reject';
+                  }
+                  break;
+                case 'RETURN':
+                  // New explicit return decision type (DB + backend will use this)
                   decision = 'return';
-                } else {
-                  decision = 'reject';
-                }
-                break;
+                  break;
             }
             
             if (decision) {
@@ -342,7 +346,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       const itemAllocations = items.map(item => {
         const itemId = getItemId(item);
         const decision = getItemDecision(itemId);
-        let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' = 'REJECT';
+      let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' | 'RETURN' = 'REJECT';
         let allocatedQty = 0;
 
         if (decision?.decision === 'approve_wing') {
@@ -355,7 +359,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           decisionType = 'FORWARD_TO_SUPERVISOR';
           allocatedQty = decision.approvedQuantity || getItemQuantity(item);
         } else if (decision?.decision === 'return') {
-          decisionType = 'REJECT'; // Return is treated as rejection but allows requester to edit
+          decisionType = 'RETURN'; // Use explicit RETURN decision type
           allocatedQty = 0;
         } else {
           decisionType = 'REJECT';
@@ -597,8 +601,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 const itemId = getItemId(item);
                 const decision = getItemDecision(itemId);
 
-                const isReturnedItem = item.decision_type === 'REJECT' && 
-                  item.rejection_reason?.toLowerCase().includes('returned to requester');
+                const isReturnedItem = item.decision_type === 'RETURN' || (
+                  item.decision_type === 'REJECT' && 
+                  item.rejection_reason?.toLowerCase().includes('returned to requester')
+                );
 
                 return (
                   <div key={itemId} className={`p-4 border rounded-lg ${
