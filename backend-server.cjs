@@ -2375,42 +2375,7 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
         const approvalId = approvalResult.recordset[0].id;
         console.log('✅ Approval record created with ID:', approvalId, 'for stock issuance request:', requestId);
 
-        // Populate approval_items table with items from the request
-        try {
-          const itemsResult = await pool.request()
-            .input('requestId', sql.UniqueIdentifier, requestId)
-            .query(`
-              SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity, unit
-              FROM stock_issuance_items
-              WHERE request_id = @requestId
-            `);
-
-          if (itemsResult.recordset.length > 0) {
-            for (const item of itemsResult.recordset) {
-              await pool.request()
-                .input('approvalId', sql.UniqueIdentifier, approvalId)
-                .input('itemId', sql.UniqueIdentifier, item.id)
-                .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
-                .input('nomenclature', sql.NVarChar, item.nomenclature)
-                .input('customItemName', sql.NVarChar, item.custom_item_name)
-                .input('requestedQuantity', sql.Int, item.requested_quantity)
-                .input('unit', sql.NVarChar, item.unit)
-                .query(`
-                  INSERT INTO approval_items (
-                    request_approval_id, id, item_master_id, nomenclature,
-                    custom_item_name, requested_quantity, unit
-                  )
-                  VALUES (
-                    @approvalId, @itemId, @itemMasterId, @nomenclature,
-                    @customItemName, @requestedQuantity, @unit
-                  )
-                `);
-            }
-            console.log('✅ Populated approval_items table with', itemsResult.recordset.length, 'items');
-          }
-        } catch (itemsError) {
-          console.error('❌ Failed to populate approval_items:', itemsError);
-        }
+        // Note: approval_items will be populated when items are submitted via /api/stock-issuance/items
         
         // Create notification for the assigned approver
         try {
@@ -2473,6 +2438,62 @@ app.post('/api/stock-issuance/items', async (req, res) => {
     });
 
     await Promise.all(itemInserts);
+
+    // Populate approval_items table for existing approval records
+    try {
+      // Check if there's an existing approval record for this request
+      const approvalCheck = await pool.request()
+        .input('requestId', sql.UniqueIdentifier, request_id)
+        .query(`
+          SELECT id FROM request_approvals 
+          WHERE request_id = @requestId AND request_type = 'stock_issuance'
+        `);
+
+      if (approvalCheck.recordset.length > 0) {
+        const approvalId = approvalCheck.recordset[0].id;
+        console.log('📋 Found existing approval record:', approvalId, 'for request:', request_id);
+
+        // Get the newly inserted items
+        const itemsResult = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, request_id)
+          .query(`
+            SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity, unit_price
+            FROM stock_issuance_items
+            WHERE request_id = @requestId
+          `);
+
+        if (itemsResult.recordset.length > 0) {
+          // Insert into approval_items
+          const approvalItemInserts = itemsResult.recordset.map(item => {
+            return pool.request()
+              .input('approvalId', sql.UniqueIdentifier, approvalId)
+              .input('itemId', sql.UniqueIdentifier, item.id)
+              .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
+              .input('nomenclature', sql.NVarChar, item.nomenclature)
+              .input('customItemName', sql.NVarChar, item.custom_item_name)
+              .input('requestedQuantity', sql.Int, item.requested_quantity)
+              .input('unitPrice', sql.Decimal(10,2), item.unit_price)
+              .query(`
+                INSERT INTO approval_items (
+                  request_approval_id, id, item_master_id, nomenclature,
+                  custom_item_name, requested_quantity, unit_price
+                )
+                VALUES (
+                  @approvalId, @itemId, @itemMasterId, @nomenclature,
+                  @customItemName, @requestedQuantity, @unitPrice
+                )
+              `);
+          });
+
+          await Promise.all(approvalItemInserts);
+          console.log('✅ Populated approval_items table with', itemsResult.recordset.length, 'items for approval ID:', approvalId);
+        }
+      }
+    } catch (approvalError) {
+      console.error('❌ Failed to populate approval_items:', approvalError);
+      // Don't fail the entire request, just log the error
+    }
+
     res.json({ 
       success: true, 
       items_count: items.length,

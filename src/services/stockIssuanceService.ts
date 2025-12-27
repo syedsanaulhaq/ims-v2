@@ -59,6 +59,9 @@ class StockIssuanceService {
 
       const result = await response.json();
       console.log(`✅ Stock issuance request submitted: ${result.data?.request_number || 'Unknown'}`);
+      console.log('🔍 Full API response:', result);
+      console.log('🔍 Response data:', result.data);
+      console.log('🔍 Response data id:', result.data?.id);
       return result.data || result;
     } catch (error) {
       console.error('❌ Error submitting stock issuance request:', error);

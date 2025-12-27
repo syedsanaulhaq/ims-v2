@@ -286,7 +286,15 @@ const StockIssuancePersonal: React.FC = () => {
   };
 
   const submitIssuanceRequest = async () => {
-    if (!validateForm()) return;
+    console.log('🚀 Starting submitIssuanceRequest...');
+    console.log('📋 Current issuanceItems:', issuanceItems);
+    console.log('📋 Current issuanceItems length:', issuanceItems.length);
+
+    if (!validateForm()) {
+      console.log('❌ Form validation failed');
+      return;
+    }
+    console.log('✅ Form validation passed');
 
     setIsLoading(true);
     setError('');
@@ -338,7 +346,9 @@ const StockIssuancePersonal: React.FC = () => {
         }
       } else {
         // Create new request (existing logic)
+        console.log('📝 Creating new request...');
         const requestNumber = stockIssuanceService.generateRequestNumber();
+        console.log('🔢 Generated request number:', requestNumber);
         
         // Create issuance request using SQL Server API
         const requestData = {
@@ -355,10 +365,15 @@ const StockIssuancePersonal: React.FC = () => {
           is_returnable: isReturnable,
           request_status: 'Submitted'
         };
+        console.log('📋 Request data:', requestData);
 
         const requestResult = await stockIssuanceService.submitRequest(requestData);
+        console.log('✅ Request submitted successfully:', requestResult);
+        console.log('🔍 Request result id:', requestResult.id);
+        console.log('🔍 Request result type:', typeof requestResult.id);
 
       // Add issuance items
+      console.log('📦 Processing issuance items...');
       const requestItems = issuanceItems.map(item => {
         const itemData = {
           item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
@@ -371,8 +386,11 @@ const StockIssuancePersonal: React.FC = () => {
         console.log('📦 Submitting item:', itemData);
         return itemData;
       });
+      console.log('📦 All request items:', requestItems);
 
+      console.log('📦 Calling submitItems with requestId:', requestResult.id, 'and items:', requestItems);
       await stockIssuanceService.submitItems(requestResult.id, requestItems);
+      console.log('✅ Items submitted successfully');
 
       // Submit for approval workflow
       try {
@@ -398,6 +416,7 @@ const StockIssuancePersonal: React.FC = () => {
       }
 
         const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${user?.user_name}!`;
+        console.log('🎉 Success message:', successMessage);
         
         setSuccess(successMessage);
         
