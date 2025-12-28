@@ -15392,11 +15392,12 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
       // Determine overall approval status
       // Request can ONLY be marked as 'approved' when ALL items have final decisions
       // Final decisions: APPROVE_FROM_STOCK, APPROVE_FOR_PROCUREMENT, or REJECT
-      // If ANY item is forwarded (FORWARD_TO_SUPERVISOR) or returned, request stays 'pending'
+      // If ANY item is returned, entire approval is marked 'returned'
+      // If ANY item is forwarded (FORWARD_TO_SUPERVISOR), request stays 'pending'
       let overallStatus = 'pending'; // Default to pending
 
       if (hasReturnActions) {
-        overallStatus = 'pending'; // Items returned to requester - allow editing
+        overallStatus = 'returned'; // Items returned to requester - mark as 'returned' status
       } else if (item_allocations?.every(allocation => allocation.decision_type === 'REJECT')) {
         overallStatus = 'rejected'; // All items rejected
       } else if (item_allocations?.every(allocation =>
