@@ -736,7 +736,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 5 - Return */}
-                    {console.log('🔥 Return button should be visible now!')}
                     <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                       decision?.decision === 'return'
                         ? 'bg-orange-100 border-orange-500'

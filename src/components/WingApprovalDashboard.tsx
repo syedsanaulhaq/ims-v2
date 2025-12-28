@@ -100,13 +100,13 @@ export const WingApprovalDashboard: React.FC = () => {
         ? await approvalForwardingService.approveRequest(approvalId, actionPayload)
         : await approvalForwardingService.rejectRequest(approvalId, actionPayload);
 
-      if (result.success) {
+      if (result && result.id) {
         console.log(`✅ Approval ${action}d successfully`);
         setRefreshTrigger(prev => prev + 1); // Trigger reload
         setSelectedApproval(null);
       } else {
-        console.error(`❌ Failed to ${action} approval:`, result.error);
-        alert(`Failed to ${action} approval: ${result.error}`);
+        console.error(`❌ Failed to ${action} approval`);
+        alert(`Failed to ${action} approval`);
       }
     } catch (error) {
       console.error(`❌ Error ${action}ing approval:`, error);
