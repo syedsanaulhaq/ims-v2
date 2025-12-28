@@ -92,8 +92,8 @@ export const WingApprovalDashboard: React.FC = () => {
 
       // Use the appropriate service method
       const result = (action === 'approve') 
-        ? await approvalForwardingService.approveApproval(approvalId, comments)
-        : await approvalForwardingService.rejectApproval(approvalId, comments);
+        ? await approvalForwardingService.forwardApproval(approvalId, undefined, comments)
+        : await approvalForwardingService.forwardApproval(approvalId, undefined, comments);
 
       if (result.success) {
         console.log(`✅ Approval ${action}d successfully`);
@@ -290,7 +290,7 @@ export const WingApprovalDashboard: React.FC = () => {
                       <p className="text-sm text-gray-600">
                         <strong>Submitted:</strong> {new Date(approval.submitted_date).toLocaleDateString()}
                       </p>
-                      {approval.description && (
+                      {(approval as any).description && (
                         <p className="text-sm text-gray-600">
                           <strong>Description:</strong> {(approval as any).description || (approval as any).title}
                         </p>
@@ -341,10 +341,6 @@ export const WingApprovalDashboard: React.FC = () => {
         {selectedApproval && (
           <ApprovalForwarding
             approvalId={selectedApproval}
-            onSuccess={() => {
-              setSelectedApproval(null);
-              setRefreshTrigger(prev => prev + 1);
-            }}
           />
         )}
       </div>
