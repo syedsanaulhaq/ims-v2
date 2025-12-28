@@ -16998,6 +16998,26 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
     console.log('User ID:', userId, 'Status filter:', status);
 
     // Get pending approvals for this user
+    let whereClause = '';
+    if (status === 'returned') {
+      // For returned approvals, include those with current_status='returned' or submitted_by user
+      whereClause = `
+        WHERE (
+          (ra.current_status = 'returned' AND (ra.current_approver_id = @userId OR ra.submitted_by = @userId))
+          OR (ra.current_status = 'pending' AND ah.action_type = 'returned' AND ra.current_approver_id = @userId)
+        )`;
+    } else if (status === 'approved' || status === 'rejected' || status === 'forwarded') {
+      // For approved/rejected/forwarded, show if user is current approver OR submitted by user
+      whereClause = `
+        WHERE ra.current_status = @status
+        AND (ra.current_approver_id = @userId OR ra.submitted_by = @userId)`;
+    } else {
+      // For pending, only show if user is current approver
+      whereClause = `
+        WHERE ra.current_status = @status
+        AND ra.current_approver_id = @userId`;
+    }
+
     const approvalsQuery = `
       SELECT
         ra.id,
@@ -17017,19 +17037,24 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
       LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
       LEFT JOIN AspNetUsers u_current_approver ON u_current_approver.Id = ra.current_approver_id
       LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+      LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
       LEFT JOIN (
         SELECT request_id, COUNT(*) as item_count
         FROM stock_issuance_items
         GROUP BY request_id
       ) item_counts ON item_counts.request_id = ra.request_id
-      WHERE ra.current_approver_id = @userId
-      AND ra.current_status = @status
+      ${whereClause}
       ORDER BY ra.submitted_date DESC`;
 
-    const approvalsResult = await pool.request()
-      .input('userId', sql.NVarChar(450), userId)
-      .input('status', sql.NVarChar, status)
-      .query(approvalsQuery);
+    const request = pool.request()
+      .input('userId', sql.NVarChar(450), userId);
+    
+    // Only add status input if it's not 'returned' (returned has special logic)
+    if (status !== 'returned') {
+      request.input('status', sql.NVarChar, status);
+    }
+    
+    const approvalsResult = await request.query(approvalsQuery);
 
     console.log('✅ Found', approvalsResult.recordset.length, 'pending approvals for user', userId);
 
