@@ -310,7 +310,6 @@ const ApprovalDashboard: React.FC = () => {
                       <div className="mt-4 bg-gray-50 border-t border-gray-200 p-4 rounded-lg">
                         <PerItemApprovalPanel
                           approvalId={approval.id}
-                          requestType={approval.request_type}
                           onActionComplete={handleActionComplete}
                         />
                       </div>
@@ -357,14 +356,14 @@ const ApprovalDashboard: React.FC = () => {
                             Returned
                           </Badge>
                           <span className="font-medium text-gray-900">
-                            {approval.request_number || approval.id}
+                            {approval.id}
                           </span>
                           <span className="text-sm text-gray-600">
                             {approval.request_type?.replace('_', ' ').toUpperCase()}
                           </span>
                         </div>
                         <div className="text-sm text-gray-600">
-                          Submitted by: <span className="font-medium">{approval.submitted_by_name || approval.requester_name}</span>
+                          Submitted by: <span className="font-medium">{approval.submitted_by_name || 'Unknown'}</span>
                           {approval.submitted_date && (
                             <span className="ml-4">
                               on {new Date(approval.submitted_date).toLocaleDateString()}
