@@ -91,9 +91,14 @@ export const WingApprovalDashboard: React.FC = () => {
       console.log(`🔄 Processing ${action} for approval:`, approvalId);
 
       // Use the appropriate service method
+      const actionPayload: any = {
+        action_type: action,
+        comments: comments || ''
+      };
+      
       const result = (action === 'approve') 
-        ? await approvalForwardingService.forwardApproval(approvalId, undefined, comments)
-        : await approvalForwardingService.forwardApproval(approvalId, undefined, comments);
+        ? await approvalForwardingService.approveRequest(approvalId, actionPayload)
+        : await approvalForwardingService.rejectRequest(approvalId, actionPayload);
 
       if (result.success) {
         console.log(`✅ Approval ${action}d successfully`);

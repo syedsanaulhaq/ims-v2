@@ -682,16 +682,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     </label>
 
                     {/* Option 2 */}
-                    {decision && (
                     <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                      decision.decision === 'forward_admin'
+                      decision?.decision === 'forward_admin'
                         ? 'bg-amber-100 border-amber-500'
                         : 'bg-white border-gray-200 hover:border-amber-400'
                     } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                       <input
                         type="radio"
                         name={`decision-${itemId}`}
-                        checked={decision.decision === 'forward_admin'}
+                        checked={decision?.decision === 'forward_admin'}
                         onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
                         disabled={shouldDisableControls()}
                         className="mb-2"
@@ -699,7 +698,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
                       <div className="text-xs text-gray-600 mt-1">To Admin</div>
                     </label>
-                    )}
 
                     {/* Option 3 */}
                     <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
