@@ -122,6 +122,33 @@ export function StockIssuanceRequestForm({
         return;
       }
 
+      console.log('✅ Request created:', result.id);
+
+      // NOW submit the items separately
+      try {
+        console.log('📤 Submitting items...');
+        const itemsResult = await stockIssuanceService.submitItems(
+          result.id.toString(),
+          data.items.map(item => ({
+            nomenclature: item.nomenclature || '',
+            requested_quantity: item.requested_quantity || 1,
+            unit_price: item.unit_price || 0,
+            item_type: 'inventory' as const,
+            item_master_id: undefined,
+            custom_item_name: undefined
+          }))
+        );
+        console.log('✅ Items submitted:', itemsResult);
+      } catch (itemsError) {
+        console.error('Error submitting items:', itemsError);
+        toast({
+          title: 'Error',
+          description: 'Request created but failed to add items. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       // Auto-submit for approval using Stock Issuance workflow
       try {
         console.log('📤 Submitting for approval...', result);

@@ -28,6 +28,25 @@ interface ApprovalHistoryItem {
   is_current_step?: boolean;
 }
 
+interface ItemTracking {
+  id: string;
+  nomenclature: string;
+  decision_type?: string;
+  history: {
+    action: string;
+    timestamp: string;
+    actor_name?: string;
+    comments?: string;
+  }[];
+}
+
+interface ApprovalItem {
+  id: string;
+  nomenclature: string;
+  decision_type?: string;
+  requested_quantity?: number;
+}
+
 interface RequestDetails {
   id: string;
   request_type: string;
@@ -41,6 +60,7 @@ interface RequestDetails {
   wing_name?: string;
   requester_name: string;
   items: RequestItem[];
+  approval_items: ApprovalItem[];
   approval_history: ApprovalHistoryItem[];
 }
 
@@ -49,6 +69,8 @@ const RequestDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const [request, setRequest] = useState<RequestDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedItemTracking, setSelectedItemTracking] = useState<ItemTracking | null>(null);
+  const [itemTrackingLoading, setItemTrackingLoading] = useState(false);
 
   useEffect(() => {
     if (requestId) {
@@ -99,6 +121,7 @@ const RequestDetailsPage: React.FC = () => {
                 unit: 'units',
                 specifications: ''
               })) || [],
+              approval_items: [],
               approval_history: [] // TODO: Add approval history when available
             };
             
@@ -139,6 +162,22 @@ const RequestDetailsPage: React.FC = () => {
             } catch (err) {
               console.warn('Failed to fetch /api/request-details, falling back to approvals history', err);
               await loadApprovalHistory(foundRequest.id, mappedRequest);
+            }
+
+            // Fetch approval items for item-level status tracking
+            try {
+              const approvalItemsResp = await fetch(
+                `http://localhost:3001/api/approvals/request/${foundRequest.id}/items`,
+                { credentials: 'include' }
+              );
+              if (approvalItemsResp.ok) {
+                const approvalItemsData = await approvalItemsResp.json();
+                if (approvalItemsData.success && approvalItemsData.data) {
+                  mappedRequest.approval_items = approvalItemsData.data;
+                }
+              }
+            } catch (err) {
+              console.log('Could not fetch approval items for request:', foundRequest.id);
             }
             
             // Normalize approval history entries to avoid empty/garbled labels
@@ -301,6 +340,53 @@ const RequestDetailsPage: React.FC = () => {
     );
   };
 
+  const getItemStatusBadge = (decisionType: string | null | undefined) => {
+    const itemStatusColors: Record<string, string> = {
+      'PENDING': 'bg-yellow-100 text-yellow-800',
+      'APPROVE_FROM_STOCK': 'bg-green-100 text-green-800',
+      'APPROVE_FOR_PROCUREMENT': 'bg-green-100 text-green-800',
+      'REJECT': 'bg-red-100 text-red-800',
+      'RETURN': 'bg-orange-100 text-orange-800',
+      'FORWARD_TO_SUPERVISOR': 'bg-blue-100 text-blue-800',
+      'FORWARD_TO_ADMIN': 'bg-blue-100 text-blue-800',
+      'null': 'bg-yellow-100 text-yellow-800',
+      '': 'bg-yellow-100 text-yellow-800'
+    };
+
+    const key = decisionType || 'null';
+    const color = itemStatusColors[key] || 'bg-gray-100 text-gray-800';
+    
+    const displayText = !decisionType ? 'Pending' : 
+      decisionType === 'PENDING' ? 'Pending' :
+      decisionType.includes('APPROVE') ? 'Approved' :
+      decisionType === 'REJECT' ? 'Rejected' :
+      decisionType === 'RETURN' ? 'Returned' :
+      decisionType.includes('FORWARD') ? 'Forwarded' :
+      decisionType;
+
+    return <Badge className={`${color} cursor-pointer hover:opacity-80 transition-opacity`}>{displayText}</Badge>;
+  };
+
+  const handleItemStatusClick = async (item: ApprovalItem) => {
+    setItemTrackingLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/approvals/item/${item.id}/tracking`,
+        { credentials: 'include' }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSelectedItemTracking(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching item tracking:', error);
+    } finally {
+      setItemTrackingLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -422,28 +508,40 @@ const RequestDetailsPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {request.items.map((item, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-medium text-gray-900">{item.item_name}</h4>
-                      <div className="text-sm text-gray-600">
-                        Requested: {item.requested_quantity} {item.unit}
+                {request.items.map((item, index) => {
+                  // Find corresponding approval item for this request item
+                  const approvalItem = request.approval_items.find(ai => ai.nomenclature === item.item_name);
+                  
+                  return (
+                    <div key={index} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-medium text-gray-900">{item.item_name}</h4>
+                        <div className="flex items-center gap-2">
+                          {approvalItem && (
+                            <div onClick={() => handleItemStatusClick(approvalItem)} className="cursor-pointer">
+                              {getItemStatusBadge(approvalItem.decision_type)}
+                            </div>
+                          )}
+                          <div className="text-sm text-gray-600">
+                            Requested: {item.requested_quantity} {item.unit}
+                          </div>
+                        </div>
                       </div>
+                      
+                      {item.approved_quantity !== undefined && (
+                        <div className="text-sm text-green-600 mb-2">
+                          Approved: {item.approved_quantity} {item.unit}
+                        </div>
+                      )}
+                      
+                      {item.specifications && (
+                        <div className="text-sm text-gray-600">
+                          <span className="font-medium">Specifications:</span> {item.specifications}
+                        </div>
+                      )}
                     </div>
-                    
-                    {item.approved_quantity !== undefined && (
-                      <div className="text-sm text-green-600 mb-2">
-                        Approved: {item.approved_quantity} {item.unit}
-                      </div>
-                    )}
-                    
-                    {item.specifications && (
-                      <div className="text-sm text-gray-600">
-                        <span className="font-medium">Specifications:</span> {item.specifications}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -558,6 +656,72 @@ const RequestDetailsPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Item Tracking Modal */}
+      {selectedItemTracking && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>{selectedItemTracking.nomenclature}</CardTitle>
+                <p className="text-sm text-gray-600 mt-1">Status Tracking History</p>
+              </div>
+              <button
+                onClick={() => setSelectedItemTracking(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {itemTrackingLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-600">Current Status:</p>
+                    <div className="mt-2">
+                      {getItemStatusBadge(selectedItemTracking.decision_type)}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-3">History:</p>
+                    <div className="space-y-3">
+                      {selectedItemTracking.history && selectedItemTracking.history.length > 0 ? (
+                        selectedItemTracking.history.map((entry, idx) => (
+                          <div key={idx} className="border-l-2 border-blue-300 pl-4 py-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-medium text-sm capitalize">
+                                {entry.action.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(entry.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            {entry.actor_name && (
+                              <p className="text-xs text-gray-600">By: {entry.actor_name}</p>
+                            )}
+                            {entry.comments && (
+                              <p className="text-xs text-gray-700 mt-1 bg-gray-50 p-2 rounded">
+                                {entry.comments}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500">No history available</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

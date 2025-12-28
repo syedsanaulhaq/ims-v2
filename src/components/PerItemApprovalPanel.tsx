@@ -320,10 +320,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // Filter based on which card the user clicked (activeFilter)
     // not based on the approval's overall status
     
-    // If user clicked pending, show items with no decision yet
+    // If user clicked pending, show items with PENDING decision type
     if (activeFilter === 'pending') {
       return request.items.filter((item: any) => 
-        !item.decision_type || item.decision_type === ''
+        !item.decision_type || item.decision_type === '' || item.decision_type === 'PENDING'
       );
     }
     

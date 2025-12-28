@@ -2416,16 +2416,19 @@ app.post('/api/stock-issuance/items', async (req, res) => {
     }
 
     const { request_id, items } = req.body;
+    console.log('📝 Submitting items for request:', request_id);
+    console.log('📝 Number of items:', items.length);
+    
     // Insert multiple items
     const itemInserts = items.map(item => {
       return pool.request()
         .input('request_id', sql.UniqueIdentifier, request_id)
-        .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+        .input('item_master_id', item.item_master_id ? sql.UniqueIdentifier : sql.UniqueIdentifier, item.item_master_id || null)
         .input('nomenclature', sql.NVarChar, item.nomenclature)
         .input('requested_quantity', sql.Int, item.requested_quantity)
         .input('unit_price', sql.Decimal(10,2), item.unit_price || 0)
         .input('item_type', sql.NVarChar, item.item_type)
-        .input('custom_item_name', sql.NVarChar, item.custom_item_name)
+        .input('custom_item_name', sql.NVarChar, item.custom_item_name || null)
         .query(`
           INSERT INTO stock_issuance_items (
             id, request_id, item_master_id, nomenclature, requested_quantity,
@@ -2437,10 +2440,14 @@ app.post('/api/stock-issuance/items', async (req, res) => {
         `);
     });
 
+    console.log('📝 Inserting', itemInserts.length, 'items into stock_issuance_items');
     await Promise.all(itemInserts);
+    console.log('✅ Items inserted successfully');
 
     // Populate approval_items table for existing approval records
     try {
+      console.log('📝 Looking for approval record for request:', request_id);
+      
       // Check if there's an existing approval record for this request
       const approvalCheck = await pool.request()
         .input('requestId', sql.UniqueIdentifier, request_id)
@@ -2448,6 +2455,8 @@ app.post('/api/stock-issuance/items', async (req, res) => {
           SELECT id FROM request_approvals 
           WHERE request_id = @requestId AND request_type = 'stock_issuance'
         `);
+
+      console.log('📝 Approval records found:', approvalCheck.recordset.length);
 
       if (approvalCheck.recordset.length > 0) {
         const approvalId = approvalCheck.recordset[0].id;
@@ -2462,25 +2471,27 @@ app.post('/api/stock-issuance/items', async (req, res) => {
             WHERE request_id = @requestId
           `);
 
+        console.log('📝 Items found in stock_issuance_items:', itemsResult.recordset.length);
+
         if (itemsResult.recordset.length > 0) {
-          // Insert into approval_items
+          // Insert into approval_items with decision_type = 'PENDING'
           const approvalItemInserts = itemsResult.recordset.map(item => {
+            console.log('   → Adding to approval_items:', item.nomenclature);
             return pool.request()
               .input('approvalId', sql.UniqueIdentifier, approvalId)
               .input('itemId', sql.UniqueIdentifier, item.id)
-              .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
+              .input('itemMasterId', item.item_master_id ? sql.UniqueIdentifier : sql.UniqueIdentifier, item.item_master_id || null)
               .input('nomenclature', sql.NVarChar, item.nomenclature)
-              .input('customItemName', sql.NVarChar, item.custom_item_name)
+              .input('customItemName', sql.NVarChar, item.custom_item_name || null)
               .input('requestedQuantity', sql.Int, item.requested_quantity)
-              .input('unitPrice', sql.Decimal(10,2), item.unit_price)
               .query(`
                 INSERT INTO approval_items (
                   request_approval_id, id, item_master_id, nomenclature,
-                  custom_item_name, requested_quantity, unit_price
+                  custom_item_name, requested_quantity, decision_type
                 )
                 VALUES (
                   @approvalId, @itemId, @itemMasterId, @nomenclature,
-                  @customItemName, @requestedQuantity, @unitPrice
+                  @customItemName, @requestedQuantity, 'PENDING'
                 )
               `);
           });
@@ -2488,9 +2499,11 @@ app.post('/api/stock-issuance/items', async (req, res) => {
           await Promise.all(approvalItemInserts);
           console.log('✅ Populated approval_items table with', itemsResult.recordset.length, 'items for approval ID:', approvalId);
         }
+      } else {
+        console.log('⚠️  No approval record found - items will not be added to approval_items');
       }
     } catch (approvalError) {
-      console.error('❌ Failed to populate approval_items:', approvalError);
+      console.error('❌ Failed to populate approval_items:', approvalError.message);
       // Don't fail the entire request, just log the error
     }
 
@@ -14280,18 +14293,19 @@ app.post('/api/approvals/submit', async (req, res) => {
           for (const item of itemsResult.recordset) {
             await pool.request()
               .input('approvalId', sql.UniqueIdentifier, approvalId)
+              .input('itemId', sql.UniqueIdentifier, item.id)
               .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
               .input('nomenclature', sql.NVarChar, item.nomenclature)
               .input('customItemName', sql.NVarChar, item.custom_item_name)
               .input('requestedQuantity', sql.Int, item.requested_quantity)
               .query(`
                 INSERT INTO approval_items (
-                  request_approval_id, item_master_id, nomenclature,
-                  custom_item_name, requested_quantity
+                  request_approval_id, id, item_master_id, nomenclature,
+                  custom_item_name, requested_quantity, decision_type
                 )
                 VALUES (
-                  @approvalId, @itemMasterId, @nomenclature,
-                  @customItemName, @requestedQuantity
+                  @approvalId, @itemId, @itemMasterId, @nomenclature,
+                  @customItemName, @requestedQuantity, 'PENDING'
                 )
               `);
           }
@@ -14542,120 +14556,6 @@ app.get('/api/test-items/:approvalId', async (req, res) => {
   }
 });
 
-// Get approval dashboard data - MUST come before /:approvalId route
-app.get('/api/approvals/dashboard', async (req, res) => {
-  try {
-    // Get userId from query parameter or try to get current session user
-    let userId = req.query.userId;
-    
-    if (!userId) {
-      // Try to get from session first
-      if (req.session && req.session.userId) {
-        userId = req.session.userId;
-        console.log('📊 Dashboard: Using session user:', userId);
-      } else {
-        console.log('⚠️ Dashboard: No user session found and no userId provided');
-        return res.status(401).json({ error: 'User not authenticated. Please log in first.' });
-      }
-    }
-    
-    console.log('📊 Dashboard: Fetching dashboard data for user:', userId);
-    const request = pool.request();
-    
-    // Get counts with specific logic per status:
-    // - pending: Count where user is current approver
-    // - approved/rejected: Count where user submitted OR acted
-    // - forwarded: Count where user has action_type='forwarded'
-    const countsResult = await request
-      .input('userId', sql.NVarChar, userId)
-      .query(`
-        SELECT 
-          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra 
-           WHERE ra.current_status = 'pending' AND ra.current_approver_id = @userId) as pending_count,
-          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra 
-           LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
-           WHERE ra.current_status = 'approved' 
-           AND (ra.submitted_by = @userId OR ah.action_by = @userId)) as approved_count,
-          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra 
-           LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
-           WHERE ra.current_status = 'rejected' 
-           AND (ra.submitted_by = @userId OR ah.action_by = @userId)) as rejected_count,
-          (SELECT COUNT(DISTINCT ah.request_approval_id) 
-           FROM approval_history ah 
-           WHERE ah.action_by = @userId 
-           AND ah.action_type = 'forwarded') as forwarded_count,
-          (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra 
-           LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
-           WHERE (ra.current_status = 'returned' OR (ra.current_status = 'pending' AND ah.action_type = 'returned'))
-           AND (ra.submitted_by = @userId OR ah.action_by = @userId OR ra.current_approver_id = @userId)) as returned_count
-      `);
-    
-    // Get pending approvals
-    const pendingResult = await request
-      .query(`
-        SELECT TOP 5
-          ra.id,
-          ra.request_id,
-          ra.request_type,
-          ra.submitted_date,
-          submitter.FullName as submitted_by_name
-        FROM request_approvals ra
-        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
-        WHERE ra.current_approver_id = @userId 
-        AND ra.current_status = 'pending'
-        ORDER BY ra.submitted_date DESC
-      `);
-    
-    // Get returned approvals (status = 'returned' OR pending with returned action)
-    const returnedResult = await request
-      .query(`
-        SELECT TOP 5
-          ra.id,
-          ra.request_id,
-          ra.request_type,
-          ra.submitted_date,
-          submitter.FullName as submitted_by_name
-        FROM request_approvals ra
-        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
-        LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
-        WHERE (ra.current_status = 'returned' OR (ra.current_status = 'pending' AND ah.action_type = 'returned'))
-        AND ra.current_approver_id = @userId
-        ORDER BY ra.submitted_date DESC
-      `);
-    
-    // Get recent actions
-    const actionsResult = await request
-      .query(`
-        SELECT TOP 10
-          ah.action_type,
-          ah.action_date,
-          ah.comments,
-          action_user.FullName as action_by_name,
-          ra.request_type,
-          ra.request_id
-        FROM approval_history ah
-        JOIN request_approvals ra ON ah.request_approval_id = ra.id
-        LEFT JOIN AspNetUsers action_user ON ah.action_by = action_user.Id
-        JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
-        WHERE wa.user_id = @userId
-        ORDER BY ah.action_date DESC
-      `);
-    
-    const dashboard = {
-      ...countsResult.recordset[0],
-      my_pending: pendingResult.recordset,
-      my_returned: returnedResult.recordset,
-      recent_actions: actionsResult.recordset
-    };
-    
-    console.log('📊 Dashboard: Returning dashboard data:', dashboard);
-    res.json({ success: true, data: dashboard });
-  } catch (error) {
-    console.error('❌ Dashboard: Error fetching approval dashboard:', error);
-    res.status(500).json({ error: 'Failed to fetch approval dashboard', details: error.message });
-  }
-});
-
 // Get returned requests for the current user (requester view)
 app.get('/api/approvals/my-returned-requests', async (req, res) => {
   console.log('📋 Returned Requests: Endpoint called');
@@ -14825,7 +14725,7 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
     
     // Get approval details
     const approvalResult = await request
-      .input('approvalId', sql.NVarChar, approvalId)
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
       .query(`
         SELECT 
           ra.*,
@@ -14845,8 +14745,10 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
     
     const approval = approvalResult.recordset[0];
     
-    // Get approval items
-    const itemsResult = await request
+    // Get approval items - use a new request object
+    const itemRequest = pool.request();
+    const itemsResult = await itemRequest
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
       .query(`
         SELECT 
           ai.*,
@@ -14854,7 +14756,7 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
           im.description as item_description
         FROM approval_items ai
         LEFT JOIN item_masters im ON ai.item_master_id = im.id
-        WHERE ai.request_approval_id = '${approvalId}'
+        WHERE ai.request_approval_id = @approvalId
         ORDER BY ai.created_at
       `);
     
@@ -16958,6 +16860,98 @@ app.get('/api/issuance/status/:stock_issuance_request_id', async (req, res) => {
 // APPROVAL WORKFLOW API ENDPOINTS
 // =============================================================================
 
+// Get approval items for a specific request
+app.get('/api/approvals/request/:requestId/items', async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    
+    const result = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .query(`
+        SELECT 
+          ai.id,
+          ai.nomenclature,
+          ai.decision_type,
+          ai.requested_quantity
+        FROM approval_items ai
+        INNER JOIN request_approvals ra ON ra.id = ai.request_approval_id
+        WHERE ra.request_id = @requestId
+        ORDER BY ai.nomenclature
+      `);
+    
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+  } catch (error) {
+    console.error('Error fetching approval items:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch approval items'
+    });
+  }
+});
+
+// Get item tracking history
+app.get('/api/approvals/item/:itemId/tracking', async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    
+    // Get current item status
+    const itemResult = await pool.request()
+      .input('itemId', sql.UniqueIdentifier, itemId)
+      .query(`
+        SELECT 
+          ai.id,
+          ai.nomenclature,
+          ai.decision_type,
+          ai.request_approval_id
+        FROM approval_items ai
+        WHERE ai.id = @itemId
+      `);
+    
+    if (itemResult.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Item not found'
+      });
+    }
+    
+    const item = itemResult.recordset[0];
+    
+    // Get history from approval_history table for this request_approval
+    const historyResult = await pool.request()
+      .input('requestApprovalId', sql.UniqueIdentifier, item.request_approval_id)
+      .query(`
+        SELECT 
+          ah.action_type as action,
+          ah.action_date as timestamp,
+          au.FullName as actor_name,
+          ah.comments
+        FROM approval_history ah
+        LEFT JOIN AspNetUsers au ON au.Id = ah.action_by
+        WHERE ah.request_approval_id = @requestApprovalId
+        ORDER BY ah.action_date DESC
+      `);
+    
+    res.json({
+      success: true,
+      data: {
+        id: item.id,
+        nomenclature: item.nomenclature,
+        decision_type: item.decision_type,
+        history: historyResult.recordset || []
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching item tracking:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch item tracking: ' + error.message
+    });
+  }
+});
+
 // Get pending approvals for the current user
 app.get('/api/approvals/my-approvals', async (req, res) => {
   try {
@@ -17029,7 +17023,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         AND ra.request_id IN (
           SELECT DISTINCT ra2.request_id FROM request_approvals ra2
           INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
-          WHERE (ai.decision_type IS NULL OR ai.decision_type = '')
+          WHERE ai.decision_type = 'PENDING'
         )
         ORDER BY ra.submitted_date DESC`;
     } else if (status === 'approved') {
@@ -17241,15 +17235,17 @@ app.get('/api/approvals/dashboard', async (req, res) => {
     console.log('🔍 API CALLED: /api/approvals/dashboard');
     console.log('Fetching approval dashboard stats...');
 
-    // Check authentication
-    if (!req.session.userId) {
+    // Get userId from query parameter or session
+    let userId = req.query.userId || req.session?.userId;
+    
+    if (!userId) {
+      console.log('❌ No user ID provided');
       return res.status(401).json({
         success: false,
         error: 'Not authenticated'
       });
     }
-
-    let userId = req.query.userId || req.session.userId;
+    
     console.log('User ID:', userId);
 
     // Get dashboard statistics - count by items with specific decision types
@@ -17258,38 +17254,43 @@ app.get('/api/approvals/dashboard', async (req, res) => {
         (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
          INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
          WHERE ra.current_approver_id = @userId
-         AND (ai.decision_type IS NULL OR ai.decision_type = '')) as pending_approvals,
+         AND ai.decision_type = 'PENDING') as pending_count,
         (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
          INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
          WHERE ra.current_approver_id = @userId
-         AND ai.decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')) as approved_today,
+         AND ai.decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')) as approved_count,
         (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
          INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
          WHERE ra.current_approver_id = @userId
-         AND ai.decision_type = 'REJECT') as rejected_today,
+         AND ai.decision_type = 'REJECT') as rejected_count,
         (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
-         WHERE ra.submitted_by = @userId
-         AND ra.submitted_date >= CAST(GETDATE() AS DATE)) as my_requests`;
+         INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+         WHERE ra.current_approver_id = @userId
+         AND ai.decision_type IN ('FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN')) as forwarded_count,
+        (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+         INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+         WHERE ra.current_approver_id = @userId
+         AND ai.decision_type = 'RETURN') as returned_count`;
 
     const statsResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(statsQuery);
 
     const stats = statsResult.recordset[0] || {
-      pending_approvals: 0,
-      approved_today: 0,
-      rejected_today: 0,
-      my_requests: 0
+      pending_count: 0,
+      approved_count: 0,
+      rejected_count: 0,
+      forwarded_count: 0,
+      returned_count: 0
     };
 
     res.json({
       success: true,
-      data: {
-        pendingApprovals: stats.pending_approvals || 0,
-        approvedToday: stats.approved_today || 0,
-        rejectedToday: stats.rejected_today || 0,
-        myRequests: stats.my_requests || 0
-      }
+      pending_count: stats.pending_count || 0,
+      approved_count: stats.approved_count || 0,
+      rejected_count: stats.rejected_count || 0,
+      forwarded_count: stats.forwarded_count || 0,
+      returned_count: stats.returned_count || 0
     });
 
   } catch (error) {

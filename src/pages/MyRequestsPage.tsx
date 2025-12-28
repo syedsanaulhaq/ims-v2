@@ -31,6 +31,11 @@ interface SubmittedRequest {
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   office_name?: string;
   wing_name?: string;
+  approval_items?: {
+    id: string;
+    nomenclature: string;
+    decision_type?: string | null;
+  }[];
 }
 
 interface ReturnedRequest {
@@ -48,6 +53,18 @@ interface ReturnedRequest {
   return_reason?: string;
 }
 
+interface ItemTracking {
+  id: string;
+  nomenclature: string;
+  decision_type?: string;
+  history: {
+    action: string;
+    timestamp: string;
+    actor_name?: string;
+    comments?: string;
+  }[];
+}
+
 const RequestTrackingPage: React.FC = () => {
   const [requests, setRequests] = useState<SubmittedRequest[]>([]);
   const [returnedRequests, setReturnedRequests] = useState<ReturnedRequest[]>([]);
@@ -55,6 +72,8 @@ const RequestTrackingPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [selectedItemTracking, setSelectedItemTracking] = useState<ItemTracking | null>(null);
+  const [itemTrackingLoading, setItemTrackingLoading] = useState(false);
   const navigate = useNavigate();
   const { user: currentUser } = useSession();
 
@@ -113,28 +132,50 @@ const RequestTrackingPage: React.FC = () => {
           
           console.log('User requests:', userRequests.length);
           
-          // Map the stock issuance data to our request format
-          const mappedRequests = userRequests.map((request: any) => ({
-            id: request.id,
-            request_type: request.request_type || 'Individual',
-            title: request.purpose || 'Stock Issuance Request',
-            description: request.justification || request.purpose || 'Request for inventory items',
-            requested_date: request.created_at,
-            submitted_date: request.submitted_at,
-            current_status: request.request_status?.toLowerCase() || 'pending',
-            current_approver_name: 'N/A',
-            items: request.items?.map((item: any) => ({
-              id: item.id,
-              item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
-              requested_quantity: item.requested_quantity || 1,
-              approved_quantity: item.approved_quantity,
-              unit: 'units'
-            })) || [],
-            total_items: request.items?.length || 0,
-            priority: request.urgency_level || 'Medium',
-            office_name: request.office?.name,
-            wing_name: request.wing?.name
-          }));
+          // Fetch approval items for each request
+          const mappedRequests = await Promise.all(
+            userRequests.map(async (request: any) => {
+              let approvalItems = [];
+              try {
+                // Fetch approval items for this request
+                const approvalResponse = await fetch(
+                  `http://localhost:3001/api/approvals/request/${request.id}/items`,
+                  { credentials: 'include' }
+                );
+                if (approvalResponse.ok) {
+                  const approvalData = await approvalResponse.json();
+                  if (approvalData.success && approvalData.data) {
+                    approvalItems = approvalData.data;
+                  }
+                }
+              } catch (err) {
+                console.log('Could not fetch approval items for request:', request.id);
+              }
+              
+              return {
+                id: request.id,
+                request_type: request.request_type || 'Individual',
+                title: request.purpose || 'Stock Issuance Request',
+                description: request.justification || request.purpose || 'Request for inventory items',
+                requested_date: request.created_at,
+                submitted_date: request.submitted_at,
+                current_status: request.request_status?.toLowerCase() || 'pending',
+                current_approver_name: 'N/A',
+                items: request.items?.map((item: any) => ({
+                  id: item.id,
+                  item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
+                  requested_quantity: item.requested_quantity || 1,
+                  approved_quantity: item.approved_quantity,
+                  unit: 'units'
+                })) || [],
+                approval_items: approvalItems,
+                total_items: request.items?.length || 0,
+                priority: request.urgency_level || 'Medium',
+                office_name: request.office?.name,
+                wing_name: request.wing?.name
+              };
+            })
+          );
           
           setRequests(mappedRequests);
         } else {
@@ -215,6 +256,53 @@ const RequestTrackingPage: React.FC = () => {
         {priority}
       </Badge>
     );
+  };
+
+  const getItemStatusBadge = (decisionType: string | null | undefined) => {
+    const itemStatusColors: Record<string, string> = {
+      'PENDING': 'bg-yellow-100 text-yellow-800',
+      'APPROVE_FROM_STOCK': 'bg-green-100 text-green-800',
+      'APPROVE_FOR_PROCUREMENT': 'bg-green-100 text-green-800',
+      'REJECT': 'bg-red-100 text-red-800',
+      'RETURN': 'bg-orange-100 text-orange-800',
+      'FORWARD_TO_SUPERVISOR': 'bg-blue-100 text-blue-800',
+      'FORWARD_TO_ADMIN': 'bg-blue-100 text-blue-800',
+      'null': 'bg-yellow-100 text-yellow-800',
+      '': 'bg-yellow-100 text-yellow-800'
+    };
+
+    const key = decisionType || 'null';
+    const color = itemStatusColors[key] || 'bg-gray-100 text-gray-800';
+    
+    const displayText = !decisionType ? 'Pending' : 
+      decisionType === 'PENDING' ? 'Pending' :
+      decisionType.includes('APPROVE') ? 'Approved' :
+      decisionType === 'REJECT' ? 'Rejected' :
+      decisionType === 'RETURN' ? 'Returned' :
+      decisionType.includes('FORWARD') ? 'Forwarded' :
+      decisionType;
+
+    return <Badge className={`${color} cursor-pointer hover:opacity-80 transition-opacity`}>{displayText}</Badge>;
+  };
+
+  const handleItemStatusClick = async (item: any) => {
+    setItemTrackingLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/approvals/item/${item.id}/tracking`,
+        { credentials: 'include' }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSelectedItemTracking(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching item tracking:', error);
+    } finally {
+      setItemTrackingLoading(false);
+    }
   };
 
   const handleViewDetails = (request: SubmittedRequest) => {
@@ -463,27 +551,45 @@ const RequestTrackingPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Items Summary */}
+                {/* Items Summary with Status */}
                 <div>
-                  <p className="font-medium text-gray-600 mb-2">Items Requested:</p>
+                  <p className="font-medium text-gray-600 mb-2">Items with Status:</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {request.items.slice(0, 4).map((item, index) => (
-                      <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">{item.item_name}</span>
-                          <span className="text-gray-600">
-                            {item.requested_quantity} {item.unit}
-                          </span>
-                        </div>
-                        {item.approved_quantity !== undefined && (
-                          <div className="text-xs text-green-600 mt-1">
-                            Approved: {item.approved_quantity} {item.unit}
+                    {request.approval_items ? (
+                      request.approval_items.map((item) => (
+                        <div key={item.id} className="bg-gray-50 rounded p-3 text-sm border border-gray-200">
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <span className="font-medium">{item.nomenclature}</span>
+                            <div onClick={() => handleItemStatusClick(item)} className="cursor-pointer">
+                              {getItemStatusBadge(item.decision_type)}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      ))
+                    ) : (
+                      request.items.slice(0, 4).map((item, index) => (
+                        <div key={index} className="bg-gray-50 rounded p-2 text-sm">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">{item.item_name}</span>
+                            <span className="text-gray-600">
+                              {item.requested_quantity} {item.unit}
+                            </span>
+                          </div>
+                          {item.approved_quantity !== undefined && (
+                            <div className="text-xs text-green-600 mt-1">
+                              Approved: {item.approved_quantity} {item.unit}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
-                  {request.items.length > 4 && (
+                  {request.approval_items && request.approval_items.length > 4 && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      +{request.approval_items.length - 4} more items
+                    </p>
+                  )}
+                  {!request.approval_items && request.items.length > 4 && (
                     <p className="text-sm text-gray-500 mt-2">
                       +{request.items.length - 4} more items
                     </p>
@@ -535,6 +641,72 @@ const RequestTrackingPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Item Tracking Modal */}
+      {selectedItemTracking && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>{selectedItemTracking.nomenclature}</CardTitle>
+                <p className="text-sm text-gray-600 mt-1">Status Tracking History</p>
+              </div>
+              <button
+                onClick={() => setSelectedItemTracking(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {itemTrackingLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-600">Current Status:</p>
+                    <div className="mt-2">
+                      {getItemStatusBadge(selectedItemTracking.decision_type)}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-3">History:</p>
+                    <div className="space-y-3">
+                      {selectedItemTracking.history && selectedItemTracking.history.length > 0 ? (
+                        selectedItemTracking.history.map((entry, idx) => (
+                          <div key={idx} className="border-l-2 border-blue-300 pl-4 py-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-medium text-sm capitalize">
+                                {entry.action.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(entry.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            {entry.actor_name && (
+                              <p className="text-xs text-gray-600">By: {entry.actor_name}</p>
+                            )}
+                            {entry.comments && (
+                              <p className="text-xs text-gray-700 mt-1 bg-gray-50 p-2 rounded">
+                                {entry.comments}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500">No history available</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
