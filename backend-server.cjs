@@ -17027,8 +17027,9 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         ) item_counts ON item_counts.request_id = ra.request_id
         WHERE ra.current_approver_id = @userId
         AND ra.request_id IN (
-          SELECT DISTINCT request_id FROM stock_issuance_items
-          WHERE decision_type IS NULL OR decision_type = ''
+          SELECT DISTINCT ra2.request_id FROM request_approvals ra2
+          INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
+          WHERE (ai.decision_type IS NULL OR ai.decision_type = '')
         )
         ORDER BY ra.submitted_date DESC`;
     } else if (status === 'approved') {
@@ -17058,8 +17059,9 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         ) item_counts ON item_counts.request_id = ra.request_id
         WHERE ra.current_approver_id = @userId
         AND ra.request_id IN (
-          SELECT DISTINCT request_id FROM stock_issuance_items
-          WHERE decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')
+          SELECT DISTINCT ra2.request_id FROM request_approvals ra2
+          INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
+          WHERE ai.decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')
         )
         ORDER BY ra.submitted_date DESC`;
     } else if (status === 'rejected') {
@@ -17089,8 +17091,9 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         ) item_counts ON item_counts.request_id = ra.request_id
         WHERE ra.current_approver_id = @userId
         AND ra.request_id IN (
-          SELECT DISTINCT request_id FROM stock_issuance_items
-          WHERE decision_type = 'REJECT'
+          SELECT DISTINCT ra2.request_id FROM request_approvals ra2
+          INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
+          WHERE ai.decision_type = 'REJECT'
         )
         ORDER BY ra.submitted_date DESC`;
     } else if (status === 'returned') {
@@ -17120,8 +17123,9 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         ) item_counts ON item_counts.request_id = ra.request_id
         WHERE ra.current_approver_id = @userId
         AND ra.request_id IN (
-          SELECT DISTINCT request_id FROM stock_issuance_items
-          WHERE decision_type = 'RETURN'
+          SELECT DISTINCT ra2.request_id FROM request_approvals ra2
+          INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
+          WHERE ai.decision_type = 'RETURN'
         )
         ORDER BY ra.submitted_date DESC`;
     } else if (status === 'forwarded') {
@@ -17151,8 +17155,9 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         ) item_counts ON item_counts.request_id = ra.request_id
         WHERE ra.current_approver_id = @userId
         AND ra.request_id IN (
-          SELECT DISTINCT request_id FROM stock_issuance_items
-          WHERE decision_type IN ('FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN')
+          SELECT DISTINCT ra2.request_id FROM request_approvals ra2
+          INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
+          WHERE ai.decision_type IN ('FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN')
         )
         ORDER BY ra.submitted_date DESC`;
     }
@@ -17166,35 +17171,29 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
     const approvals = [];
 
     for (const approval of approvalsResult.recordset) {
-      // Load items for each approval
+      // Load items for each approval from approval_items table
       let items = [];
       try {
-        const stockItemsQuery = `
+        const approvalItemsQuery = `
           SELECT
-            si_items.item_master_id as item_id,
-            CASE
-              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
-              ELSE COALESCE(im.nomenclature, 'Unknown Item')
-            END as item_name,
-            si_items.requested_quantity,
-            si_items.approved_quantity,
-            COALESCE(im.unit, 'units') as unit,
-            si_items.item_type
-          FROM stock_issuance_items si_items
-          LEFT JOIN item_masters im ON im.id = si_items.item_master_id
-          WHERE si_items.request_id = @requestId
-          ORDER BY
-            CASE
-              WHEN si_items.item_type = 'custom' THEN si_items.custom_item_name
-              ELSE im.nomenclature
-            END;
+            ai.id as item_id,
+            ai.nomenclature as item_name,
+            ai.custom_item_name,
+            ai.requested_quantity,
+            ai.allocated_quantity as approved_quantity,
+            COALESCE(ai.unit, 'units') as unit,
+            ai.decision_type,
+            ai.rejection_reason
+          FROM approval_items ai
+          WHERE ai.request_approval_id = @approvalId
+          ORDER BY ai.nomenclature;
         `;
 
-        const stockItemsResult = await pool.request()
-          .input('requestId', sql.UniqueIdentifier, approval.request_id)
-          .query(stockItemsQuery);
+        const approvalItemsResult = await pool.request()
+          .input('approvalId', sql.UniqueIdentifier, approval.id)
+          .query(approvalItemsQuery);
 
-        items = stockItemsResult.recordset || [];
+        items = approvalItemsResult.recordset || [];
       } catch (itemError) {
         console.log('Could not load items for approval', approval.id, ':', itemError.message);
         items = [];
