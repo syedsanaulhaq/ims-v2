@@ -120,7 +120,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   // Helper function to check if request has any returned items
   const hasReturnedItems = () => {
     if (!request?.items) return false;
-    return request.items.some(item => 
+    return request.items.some((item: any) => 
       item.decision_type === 'RETURN' ||
       (item.decision_type === 'REJECT' && item.rejection_reason?.toLowerCase().includes('returned to requester'))
     );
@@ -597,7 +597,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         <CardContent>
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {request?.items && request.items.length > 0 ? (
-              request.items.map(item => {
+              request.items.map((item: any) => {
                 const itemId = getItemId(item);
                 const decision = getItemDecision(itemId);
 
@@ -662,8 +662,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   </div>
 
                   <div className="grid grid-cols-5 gap-2 min-w-fit border border-gray-200 p-2 rounded">
-                    {/* Debug: Grid should have 5 columns - Return button is the 5th */}
-                    {console.log('🎯 Rendering 5-button grid with Return button')}
+                    {/* Grid should have 5 columns - Return button is the 5th */}
                     {/* Option 1 */}
                     <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                       decision?.decision === 'approve_wing'

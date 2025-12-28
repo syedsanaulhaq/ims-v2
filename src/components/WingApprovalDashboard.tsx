@@ -90,7 +90,10 @@ export const WingApprovalDashboard: React.FC = () => {
     try {
       console.log(`🔄 Processing ${action} for approval:`, approvalId);
 
-      const result = await approvalForwardingService.processApproval(approvalId, action, comments);
+      // Use the appropriate service method
+      const result = (action === 'approve') 
+        ? await approvalForwardingService.approveApproval(approvalId, comments)
+        : await approvalForwardingService.rejectApproval(approvalId, comments);
 
       if (result.success) {
         console.log(`✅ Approval ${action}d successfully`);
@@ -266,15 +269,15 @@ export const WingApprovalDashboard: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-lg">
-                        {approval.request_title || 'Approval Request'}
+                        {(approval as any).title || (approval as any).request_title || 'Approval Request'}
                       </CardTitle>
                       <p className="text-sm text-gray-600 mt-1">
-                        Requested by: {approval.requester_name} • Wing: {wingName}
+                        Requested by: {(approval as any).requester_name || 'Unknown'} • Wing: {wingName}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {getStatusBadge(approval.status)}
-                      {getPriorityBadge(approval.priority || 'Medium')}
+                      {getStatusBadge((approval as any).status || approval.current_status)}
+                      {getPriorityBadge((approval as any).priority || 'Medium')}
                     </div>
                   </div>
                 </CardHeader>
@@ -289,7 +292,7 @@ export const WingApprovalDashboard: React.FC = () => {
                       </p>
                       {approval.description && (
                         <p className="text-sm text-gray-600">
-                          <strong>Description:</strong> {approval.description}
+                          <strong>Description:</strong> {(approval as any).description || (approval as any).title}
                         </p>
                       )}
                     </div>
@@ -338,7 +341,6 @@ export const WingApprovalDashboard: React.FC = () => {
         {selectedApproval && (
           <ApprovalForwarding
             approvalId={selectedApproval}
-            onClose={() => setSelectedApproval(null)}
             onSuccess={() => {
               setSelectedApproval(null);
               setRefreshTrigger(prev => prev + 1);
