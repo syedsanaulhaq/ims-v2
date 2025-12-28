@@ -309,6 +309,52 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     return itemDecisions.get(itemId);
   };
 
+  // Helper function to filter items by current approval status
+  const getFilteredItems = () => {
+    if (!request?.items || !Array.isArray(request.items)) return [];
+    
+    // If approval is pending, show all items
+    if (request.current_status === 'pending') {
+      return request.items;
+    }
+    
+    // If approval is approved, show only approved items
+    if (request.current_status === 'approved') {
+      return request.items.filter((item: any) => 
+        item.decision_type === 'APPROVE_FROM_STOCK' || 
+        item.decision_type === 'APPROVE_FOR_PROCUREMENT'
+      );
+    }
+    
+    // If approval is rejected, show only rejected items
+    if (request.current_status === 'rejected') {
+      return request.items.filter((item: any) => 
+        item.decision_type === 'REJECT' && 
+        !item.rejection_reason?.toLowerCase().includes('returned to requester')
+      );
+    }
+    
+    // If approval is returned, show only returned items
+    if (request.current_status === 'returned') {
+      return request.items.filter((item: any) => 
+        item.decision_type === 'RETURN' || 
+        (item.decision_type === 'REJECT' && 
+         item.rejection_reason?.toLowerCase().includes('returned to requester'))
+      );
+    }
+    
+    // If approval is forwarded, show only forwarded items
+    if (request.current_status === 'forwarded') {
+      return request.items.filter((item: any) => 
+        item.decision_type === 'FORWARD_TO_SUPERVISOR' || 
+        item.decision_type === 'FORWARD_TO_ADMIN'
+      );
+    }
+    
+    // Default: show all items
+    return request.items;
+  };
+
   const hasDecisionForAllItems = (): boolean => {
     if (!request || !request.items || !Array.isArray(request.items) || request.items.length === 0) return false;
     return request.items.every(item => getItemDecision(getItemId(item))?.decision !== null);
@@ -591,13 +637,14 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Package className="w-5 h-5" />
-            Items for Decision ({request?.items?.length || 0})
+            {request?.current_status === 'pending' ? 'Items for Decision' : `Items (${request?.current_status?.toUpperCase()})`}
+            ({getFilteredItems().length || 0})
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4 max-h-96 overflow-y-auto">
-            {request?.items && request.items.length > 0 ? (
-              request.items.map((item: any) => {
+            {getFilteredItems().length > 0 ? (
+              getFilteredItems().map((item: any) => {
                 const itemId = getItemId(item);
                 const decision = getItemDecision(itemId);
 
