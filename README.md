@@ -1,237 +1,205 @@
-# 📦 Inventory Management System (IMS) v1.0
+# Inventory Management System (IMS) v1
 
-A comprehensive, full-stack inventory management system built with modern web technologies and real-time data integration.
+A comprehensive inventory management platform built with React, TypeScript, Node.js, and SQL Server for managing stock, procurement, tenders, and approvals.
 
-## 🌟 Key Features
+## 📋 Quick Overview
 
-### 📊 **Real-time Dashboard & Analytics**
-- **Live System Metrics** with real-time data from SQL Server
-- **Interactive Charts** showing inventory trends, stock status, and performance
-- **Advanced Visualizations** using Recharts library
-- **Performance Indicators** across all system modules
-- **Monthly Activity Trends** with historical data analysis
+- **Frontend:** React + TypeScript + Vite
+- **Backend:** Node.js + Express + CommonJS
+- **Database:** SQL Server (InventoryManagementDB)
+- **Repository:** [GitHub - syedsanaulhaq/ims-v2](https://github.com/syedsanaulhaq/ims-v2)
 
-### 📦 **Complete Inventory Management**
-- **Real-time Stock Tracking** with current quantities and availability
-- **Stock Status Monitoring** (Normal, Low Stock, Out of Stock, Overstock)
-- **Movement History** with complete audit trails and authorization tracking
-- **Inventory Valuation** with category-wise breakdown and real pricing
-- **Automated Low Stock Alerts** with customizable thresholds
+## 🎯 Core Workflows
 
-### 🔄 **Advanced Workflow Integration**
-- **Stock Issuance Requests** with multi-level approval workflows
-- **Automatic Inventory Updates** on delivery finalization
-- **Stock Return Management** with approval processes and inventory restoration
-- **Movement Logging** for all inventory transactions with full audit trails
-- **Transaction Safety** using SQL Server transactions for data integrity
+### 1. Stock Acquisition (Procurement → Tender → Award → Delivery)
+Request items → Create tender → Evaluate bids → Award to vendor → Receive stock
 
-### 🏢 **Procurement & Tender Management**
-- **Comprehensive Tender Management** with full lifecycle tracking
-- **Delivery Management** with real-time status tracking
-- **Vendor Management** and performance analytics
-- **Multi-level Approval Workflows** with proper authorization chains
+### 2. Stock Issuance (Request → Approval → Issue → Deduction)
+Request items → Approve by supervisor → Issue to requester → Deduct from inventory
 
-### 👥 **User & Organization Management**
-- **Role-based Access Control** with proper user management
-- **Office and Wing Management** for organizational structure
-- **Department Management** with hierarchical organization
-- **User Activity Tracking** and session management
+### 3. Stock Verification
+Physical count → Verification request → Approval → Reconciliation with system
 
-## 🚀 Production Deployment
+### 4. Reorder Management
+Monitor low stock → Auto-trigger reorder → Process through procurement workflow
+
+## 📁 Project Structure
+
+```
+.
+├── src/
+│   ├── components/          # React components (ApprovalDashboard, etc.)
+│   ├── pages/              # Page components
+│   ├── services/           # API services (ApprovalForwardingService, etc.)
+│   ├── types/              # TypeScript type definitions
+│   └── App.tsx
+├── backend-server.cjs      # Express API server with all endpoints
+├── tsconfig.app.json       # TypeScript configuration
+├── package.json            # Dependencies
+└── docs/                   # Documentation (this folder)
+```
+
+## 🗄️ Database
+
+**Database Name:** `InventoryManagementDB` (SQL Server)
+
+### Key Tables
+
+| Table | Purpose |
+|-------|---------|
+| `item_masters` | Master item registry (15 items) |
+| `current_inventory_stock` | Current stock levels |
+| `stock_issuance_requests` | Issuance request tracking |
+| `procurement_requests` | Procurement request tracking |
+| `tenders` | Tender management |
+| `tender_items` | Items in tenders |
+| `approvals` | Individual item approvals |
+| `approval_workflows` | Approval workflow tracking |
+| `AspNetUsers` | User authentication (499 users) |
+| `categories` | Item categories (7 total) |
+| `vendors` | Vendor registry (7 total) |
+
+For complete schema details, see [DATABASE-SCHEMA.md](docs/DATABASE-SCHEMA.md)
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
-- SQL Server 2019+
-- Windows Server or compatible hosting environment
+- Node.js 16+
+- SQL Server with InventoryManagementDB
+- Git
 
-### Quick Start
+### Installation
 
-1. **Clone and Install**
-   ```bash
-   git clone <repository-url>
-   cd inventory-management-system-ims
-   npm install
-   ```
-
-2. **Database Setup**
-   ```sql
-   CREATE DATABASE InventoryManagementDB_PROD;
-   -- Run schema scripts from database/ folder
-   ```
-
-3. **Environment Configuration**
-   ```bash
-   cp .env.example .env.production
-   # Configure your production database settings
-   ```
-
-4. **Build and Start**
-   ```bash
-   npm run build
-   npm run start:production
-   ```
-
-## 🏗️ Architecture
-
-### Frontend
-- **React 18** with TypeScript
-- **Vite** for build optimization
-- **Tailwind CSS** for styling
-- **Shadcn/UI** component library
-
-### Backend
-- **Node.js** Express server
-- **SQL Server** database
-- RESTful API architecture
-- Production-optimized middleware
-
-### Key Features
-- ✅ **Stock Acquisition Management**
-- ✅ **Real-time Inventory Tracking** 
-- ✅ **Multi-tender Support**
-- ✅ **Dashboard Analytics**
-- ✅ **Role-based Access Control**
-- ✅ **Audit Trail System**
-
-## 📊 System Components
-
-### Core Modules
-- **Dashboard** - Executive overview and KPIs
-- **Stock Acquisition** - Purchase order and tender management
-- **Transaction Manager** - Stock movement tracking
-- **Inventory Control** - Real-time stock monitoring
-- **Reporting** - Analytics and compliance reports
-
-### Database Schema
-- **item_masters** - Product catalog
-- **stock_transactions_clean** - Transaction records
-- **tenders** - Procurement processes
-- **current_inventory_stock** - Real-time inventory
-- **users** - Authentication and authorization
-
-## 🔧 Configuration
-
-### Environment Variables
-```env
-NODE_ENV=production
-DB_HOST=your-sql-server
-DB_PORT=1433
-DB_NAME=InventoryManagementDB_PROD
-DB_USER=your-username
-DB_PASSWORD=your-password
-PORT=3001
-```
-
-### Production Settings
-- Compression enabled
-- CORS configured for production domains
-- Database connection pooling
-- Error logging to files
-- Performance monitoring
-
-## 🚀 Deployment
-
-### Option 1: Windows Server
 ```bash
-# Install as Windows Service
-npm install -g pm2
-pm2 start ecosystem.config.js --env production
-pm2 startup
+# Clone the repository
+git clone https://github.com/syedsanaulhaq/ims-v2.git
+cd ims-v1
+
+# Install dependencies
+npm install
+
+# Configure environment
+# Update backend-server.cjs database connection settings
+
+# Start backend server
+node backend-server.cjs
+
+# In another terminal, start frontend
+npm run dev
 ```
 
-### Option 2: Docker
+### Database Connection
+
+Update database connection in `backend-server.cjs`:
+```javascript
+const config = {
+  user: 'your_user',
+  password: 'your_password',
+  server: 'your_server',
+  database: 'InventoryManagementDB'
+};
+```
+
+## 🔑 Key APIs
+
+### Approvals
+- `GET /api/approvals/my-approvals` - Get pending approvals
+- `POST /api/approvals/approve` - Approve items
+- `POST /api/approvals/reject` - Reject items
+- `POST /api/approvals/forward` - Forward to next approver
+
+### Stock Issuance
+- `GET /api/stock-issuance/requests` - List requests
+- `POST /api/stock-issuance/create` - Create request
+- `POST /api/stock-issuance/approve` - Approve issuance
+
+### Inventory
+- `GET /api/inventory-stock` - Get current stock
+- `POST /api/inventory-stock/update` - Update stock levels
+
+### Procurement
+- `POST /api/procurement/create` - Create procurement request
+- `GET /api/procurement/list` - List procurement requests
+
+## 👥 User Roles
+
+- **Admin:** Full system access
+- **Requester:** Submit requests
+- **Supervisor:** Approve requests from team
+- **Wing Manager:** Approve across wing
+- **Vendor:** Submit bids for tenders
+
+## 📊 System Features
+
+✅ Multi-level approval workflow  
+✅ Per-item approval decisions  
+✅ Tender management with bidding  
+✅ Stock tracking and reconciliation  
+✅ User authentication (AspNetUsers)  
+✅ Comprehensive audit trail  
+✅ Request history tracking  
+
+## ⚙️ Current Status
+
+- **Database:** Clean, 15 items with 100 units each
+- **Code Quality:** 0 TypeScript errors
+- **All APIs:** Fully functional
+- **Testing:** Ready for end-to-end testing
+
+## 📖 Documentation
+
+- [Development Standards & Guidelines](docs/DEVELOPMENT-STANDARDS.md)
+- [API Reference](docs/API-REFERENCE.md)
+- [Database Schema](docs/DATABASE-SCHEMA.md)
+- [System Architecture](docs/ARCHITECTURE.md)
+- [Workflow Documentation](docs/WORKFLOWS.md)
+- [Testing Guide](docs/TESTING.md)
+
+## 🔧 Development
+
+All code follows standards defined in [DEVELOPMENT-STANDARDS.md](docs/DEVELOPMENT-STANDARDS.md).
+
+### Code Style
+- TypeScript with strict mode
+- Component-based architecture
+- Service layer pattern
+- RESTful API design
+
+### Committing Code
 ```bash
-docker build -t ims-production .
-docker run -d -p 3001:3001 --env-file .env.production ims-production
+git add .
+git commit -m "feat: description" or "fix: description"
+git push origin stable-nov11-production
 ```
 
-### Option 3: IIS
-- Build static files: `npm run build`
-- Deploy dist/ folder to IIS
-- Configure URL rewrite for SPA
-- Set up reverse proxy for API
+## ❓ Troubleshooting
 
-## 📋 Production Checklist
+**Database Connection Issues:**
+- Verify SQL Server is running
+- Check credentials in backend-server.cjs
+- Ensure InventoryManagementDB exists
 
-### Before Deployment
-- [ ] Database schema deployed
-- [ ] Environment variables configured  
-- [ ] SSL certificates installed
-- [ ] Backup strategy implemented
-- [ ] Monitoring tools configured
+**Port Conflicts:**
+- Backend: Change port in backend-server.cjs (default 3000)
+- Frontend: Vite uses 5173 by default
 
-### After Deployment
-- [ ] Health checks passing
-- [ ] Database connections stable
-- [ ] User authentication working
-- [ ] Reports generating correctly
-- [ ] Performance metrics optimal
-
-## 🔒 Security
-
-### Authentication
-- JWT-based session management
-- Role-based access control (RBAC)
-- Password policy enforcement
-- Session timeout configuration
-
-### Data Protection
-- SQL injection prevention
-- Input validation and sanitization
-- Encrypted sensitive data storage
-- Audit trail for all transactions
-
-## 📈 Performance
-
-### Optimization Features
-- Database query optimization
-- Connection pooling
-- Response compression
-- Static asset caching
-- CDN integration ready
-
-### Monitoring
-- Application performance metrics
-- Database performance tracking
-- Error rate monitoring
-- User activity analytics
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-**Database Connection Failed**
-```bash
-# Check SQL Server connectivity
-sqlcmd -S server -U username -P password
-```
-
-**Application Won't Start**
-```bash
-# Check logs
-tail -f logs/application.log
-```
-
-**Performance Issues**
-```bash
-# Monitor system resources
-npm run health-check
-```
+**TypeScript Errors:**
+- Run: `npm run build`
+- Check tsconfig.app.json settings
 
 ## 📞 Support
 
-### Documentation
-- API documentation: `/api/docs`
-- User manual: Available in admin panel
-- System requirements: See deployment guide
+For issues or questions:
+1. Check [Documentation](docs/)
+2. Review [Troubleshooting](docs/TROUBLESHOOTING.md)
+3. Check GitHub Issues
 
-### Contact
-- Technical Support: [support-email]
-- System Administration: [admin-email]
-- Emergency Contact: [emergency-contact]
+## 📄 License
+
+Proprietary - Confidential
 
 ---
 
-**System Version:** 1.0.0  
-**Last Updated:** July 2025  
-**Supported Browsers:** Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+**Last Updated:** December 28, 2025  
+**Version:** 1.0  
+**Status:** Production Ready
