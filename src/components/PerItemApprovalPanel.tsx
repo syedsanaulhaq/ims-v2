@@ -663,95 +663,150 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
                   <div className="grid grid-cols-5 gap-2 min-w-fit border border-gray-200 p-2 rounded">
                     {/* Grid should have 5 columns - Return button is the 5th */}
-                    {/* Option 1 */}
-                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                      decision?.decision === 'approve_wing'
-                        ? 'bg-green-100 border-green-500'
-                        : 'bg-white border-gray-200 hover:border-green-400'
-                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                      <input
-                        type="radio"
-                        name={`decision-${itemId}`}
-                        checked={decision?.decision === 'approve_wing'}
-                        onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
-                        disabled={shouldDisableControls()}
-                        className="mb-2"
-                      />
-                      <div className="text-sm font-medium text-green-700">✓ Approve</div>
-                      <div className="text-xs text-gray-600 mt-1">From Wing</div>
-                    </label>
+                    {/* Option 1 - Approve */}
+                    {request?.current_status === 'pending' ? (
+                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
+                        decision?.decision === 'approve_wing'
+                          ? 'bg-green-100 border-green-500'
+                          : 'bg-white border-gray-200 hover:border-green-400'
+                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input
+                          type="radio"
+                          name={`decision-${itemId}`}
+                          checked={decision?.decision === 'approve_wing'}
+                          onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
+                          disabled={shouldDisableControls()}
+                          className="mb-2"
+                        />
+                        <div className="text-sm font-medium text-green-700">✓ Approve</div>
+                        <div className="text-xs text-gray-600 mt-1">From Wing</div>
+                      </label>
+                    ) : (
+                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
+                        decision?.decision === 'approve_wing'
+                          ? 'bg-green-100 border-green-500'
+                          : 'bg-gray-100 border-gray-300'
+                      }`}>
+                        <div className="text-sm font-medium text-green-700">✓ Approve</div>
+                        <div className="text-xs text-gray-600 mt-1">From Wing</div>
+                      </div>
+                    )}
 
-                    {/* Option 2 */}
-                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                      decision?.decision === 'forward_admin'
-                        ? 'bg-amber-100 border-amber-500'
-                        : 'bg-white border-gray-200 hover:border-amber-400'
-                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                      <input
-                        type="radio"
-                        name={`decision-${itemId}`}
-                        checked={decision?.decision === 'forward_admin'}
-                        onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
-                        disabled={shouldDisableControls()}
-                        className="mb-2"
-                      />
-                      <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
-                      <div className="text-xs text-gray-600 mt-1">To Admin</div>
-                    </label>
+                    {/* Option 2 - Forward to Admin */}
+                    {request?.current_status === 'pending' ? (
+                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
+                        decision?.decision === 'forward_admin'
+                          ? 'bg-amber-100 border-amber-500'
+                          : 'bg-white border-gray-200 hover:border-amber-400'
+                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input
+                          type="radio"
+                          name={`decision-${itemId}`}
+                          checked={decision?.decision === 'forward_admin'}
+                          onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
+                          disabled={shouldDisableControls()}
+                          className="mb-2"
+                        />
+                        <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
+                        <div className="text-xs text-gray-600 mt-1">To Admin</div>
+                      </label>
+                    ) : (
+                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
+                        decision?.decision === 'forward_admin'
+                          ? 'bg-amber-100 border-amber-500'
+                          : 'bg-gray-100 border-gray-300'
+                      }`}>
+                        <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
+                        <div className="text-xs text-gray-600 mt-1">To Admin</div>
+                      </div>
+                    )}
 
-                    {/* Option 3 */}
-                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                      decision?.decision === 'forward_supervisor'
-                        ? 'bg-blue-100 border-blue-500'
-                        : 'bg-white border-gray-200 hover:border-blue-400'
-                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                      <input
-                        type="radio"
-                        name={`decision-${itemId}`}
-                        checked={decision?.decision === 'forward_supervisor'}
-                        onChange={() => setItemDecision(itemId, 'forward_supervisor', getItemQuantity(item))}
-                        disabled={shouldDisableControls()}
-                        className="mb-2"
-                      />
-                      <div className="text-sm font-medium text-blue-700">↗ Forward</div>
-                      <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
-                    </label>
+                    {/* Option 3 - Forward to Supervisor */}
+                    {request?.current_status === 'pending' ? (
+                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
+                        decision?.decision === 'forward_supervisor'
+                          ? 'bg-blue-100 border-blue-500'
+                          : 'bg-white border-gray-200 hover:border-blue-400'
+                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input
+                          type="radio"
+                          name={`decision-${itemId}`}
+                          checked={decision?.decision === 'forward_supervisor'}
+                          onChange={() => setItemDecision(itemId, 'forward_supervisor', getItemQuantity(item))}
+                          disabled={shouldDisableControls()}
+                          className="mb-2"
+                        />
+                        <div className="text-sm font-medium text-blue-700">↗ Forward</div>
+                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
+                      </label>
+                    ) : (
+                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
+                        decision?.decision === 'forward_supervisor'
+                          ? 'bg-blue-100 border-blue-500'
+                          : 'bg-gray-100 border-gray-300'
+                      }`}>
+                        <div className="text-sm font-medium text-blue-700">↗ Forward</div>
+                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
+                      </div>
+                    )}
 
-                    {/* Option 4 */}
-                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                      decision?.decision === 'reject'
-                        ? 'bg-red-100 border-red-500'
-                        : 'bg-white border-gray-200 hover:border-red-400'
-                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                      <input
-                        type="radio"
-                        name={`decision-${itemId}`}
-                        checked={decision?.decision === 'reject'}
-                        onChange={() => setItemDecision(itemId, 'reject', 0)}
-                        disabled={shouldDisableControls()}
-                        className="mb-2"
-                      />
-                      <div className="text-sm font-medium text-red-700">✗ Reject</div>
-                      <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
-                    </label>
+                    {/* Option 4 - Reject */}
+                    {request?.current_status === 'pending' ? (
+                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
+                        decision?.decision === 'reject'
+                          ? 'bg-red-100 border-red-500'
+                          : 'bg-white border-gray-200 hover:border-red-400'
+                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input
+                          type="radio"
+                          name={`decision-${itemId}`}
+                          checked={decision?.decision === 'reject'}
+                          onChange={() => setItemDecision(itemId, 'reject', 0)}
+                          disabled={shouldDisableControls()}
+                          className="mb-2"
+                        />
+                        <div className="text-sm font-medium text-red-700">✗ Reject</div>
+                        <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
+                      </label>
+                    ) : (
+                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
+                        decision?.decision === 'reject'
+                          ? 'bg-red-100 border-red-500'
+                          : 'bg-gray-100 border-gray-300'
+                      }`}>
+                        <div className="text-sm font-medium text-red-700">✗ Reject</div>
+                        <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
+                      </div>
+                    )}
 
                     {/* Option 5 - Return */}
-                    <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                      decision?.decision === 'return'
-                        ? 'bg-orange-100 border-orange-500'
-                        : 'bg-white border-gray-200 hover:border-orange-400'
-                    } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                      <input
-                        type="radio"
-                        name={`decision-${itemId}`}
-                        checked={decision?.decision === 'return'}
-                        onChange={() => setItemDecision(itemId, 'return', 0)}
-                        disabled={shouldDisableControls()}
-                        className="mb-2"
-                      />
-                      <div className="text-sm font-medium text-orange-700">↩ Return</div>
-                      <div className="text-xs text-gray-600 mt-1 leading-tight">To Requester</div>
-                    </label>
+                    {request?.current_status === 'pending' ? (
+                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
+                        decision?.decision === 'return'
+                          ? 'bg-orange-100 border-orange-500'
+                          : 'bg-white border-gray-200 hover:border-orange-400'
+                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input
+                          type="radio"
+                          name={`decision-${itemId}`}
+                          checked={decision?.decision === 'return'}
+                          onChange={() => setItemDecision(itemId, 'return', 0)}
+                          disabled={shouldDisableControls()}
+                          className="mb-2"
+                        />
+                        <div className="text-sm font-medium text-orange-700">↩ Return</div>
+                        <div className="text-xs text-gray-600 mt-1 leading-tight">To Requester</div>
+                      </label>
+                    ) : (
+                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
+                        decision?.decision === 'return'
+                          ? 'bg-orange-100 border-orange-500'
+                          : 'bg-gray-100 border-gray-300'
+                      }`}>
+                        <div className="text-sm font-medium text-orange-700">↩ Return</div>
+                        <div className="text-xs text-gray-600 mt-1 leading-tight">To Requester</div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Item-specific Description Box */}
