@@ -17080,6 +17080,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         requested_date: approval.requested_date || approval.submitted_date,
         submitted_date: approval.submitted_date,
         requester_name: approval.requester_name || 'Unknown User',
+        submitted_by_name: approval.requester_name || 'Unknown User',  // ← Add this field for frontend
         current_approver_name: approval.current_approver_name,
         current_status: approval.current_status || 'pending',
         items: items,
