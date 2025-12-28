@@ -538,10 +538,9 @@ export class ApprovalForwardingService {
 
 ### Database Connection
 
-- **Server:** SQL Server (InventoryManagementDB)
-- **Never use:** InvMISDB (old database)
+- **Database:** InventoryManagementDB (SQL Server)
 - **Connection string:** Located in backend-server.cjs
-- **Always use:** Parameterized queries
+- **Always use:** Parameterized queries for all SQL operations
 
 ### Service Methods (ApprovalForwardingService)
 

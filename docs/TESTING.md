@@ -17,24 +17,21 @@ Complete testing procedures for IMS system verification.
 
 ### Prerequisites
 
+All testing must use the production database: **InventoryManagementDB**
+
 ```bash
-# Create test database
-CREATE DATABASE InventoryManagementDB_Test
-
-# Restore test data
-# (Use backup from clean database)
-
-# Update connection string in backend-server.cjs
-const testConfig = {
+# Connection string in backend-server.cjs must always be:
+const config = {
   server: 'localhost',
-  database: 'InventoryManagementDB_Test',
-  user: 'sa',
-  password: 'password'
+  database: 'InventoryManagementDB',
+  user: 'your_username',
+  password: 'your_password'
 };
 ```
 
 ### Test Data
 
+- **Database:** InventoryManagementDB (production)
 - **15 test items** (various categories)
 - **7 test vendors**
 - **50 test users** (various roles)

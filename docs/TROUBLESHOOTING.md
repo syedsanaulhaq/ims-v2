@@ -28,7 +28,7 @@ Error: ConnectionError: Failed to connect to server
    ```javascript
    // In backend-server.cjs, verify:
    server: 'localhost',
-   database: 'InventoryManagementDB',  // NOT InvMISDB
+   database: 'InventoryManagementDB',
    user: 'your_username',
    password: 'your_password'
    ```
@@ -45,31 +45,6 @@ Error: ConnectionError: Failed to connect to server
    ping localhost
    telnet localhost 1433
    ```
-
----
-
-### Issue: Wrong Database (InvMISDB vs InventoryManagementDB)
-
-**Problem:** System is querying InvMISDB instead of InventoryManagementDB
-
-**Solution:**
-
-Check and update connection string:
-```javascript
-// backend-server.cjs
-const config = {
-  server: 'localhost',
-  database: 'InventoryManagementDB',  // ✓ Correct
-  // NOT: 'InvMISDB'                  // ✗ Wrong
-};
-```
-
-Verify all database operations use correct database:
-```bash
-# Check which database is active
-SELECT DB_NAME()
--- Should return: InventoryManagementDB
-```
 
 ---
 
