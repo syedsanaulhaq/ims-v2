@@ -311,6 +311,7 @@ const ApprovalDashboard: React.FC = () => {
                         <PerItemApprovalPanel
                           approvalId={approval.id}
                           onActionComplete={handleActionComplete}
+                          activeFilter={activeFilter}
                         />
                       </div>
                     )}

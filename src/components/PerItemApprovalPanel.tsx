@@ -23,6 +23,7 @@ const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:3001';
 interface PerItemApprovalPanelProps {
   approvalId: string;
   onActionComplete?: () => void;
+  activeFilter?: 'pending' | 'approved' | 'rejected' | 'returned' | 'forwarded';
 }
 
 interface ItemDecision {
@@ -89,11 +90,13 @@ interface ApprovalRequest {
 
 export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   approvalId,
-  onActionComplete
+  onActionComplete,
+  activeFilter = 'pending'
 }) => {
   // Debug: Confirm latest code is running
   console.log('🚀 PerItemApprovalPanel: Latest code loaded - Return button should be visible!');
   console.log('📋 Approval ID:', approvalId);
+  console.log('📊 Active Filter:', activeFilter);
   console.log('✅ Component should render 5-button grid: ✓Approve, ⏭Forward, ↗Forward, ✗Reject, ↩Return');
 
   const [request, setRequest] = useState<ApprovalRequest | null>(null);
@@ -128,7 +131,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
   // Helper function to check if controls should be disabled
   const shouldDisableControls = () => {
-    return request?.current_status !== 'pending' || hasReturnedItems();
+    // Disable controls if user clicked on a non-pending filter (viewing past decisions)
+    return activeFilter !== 'pending' || hasReturnedItems();
   };
 
   useEffect(() => {
@@ -313,29 +317,34 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const getFilteredItems = () => {
     if (!request?.items || !Array.isArray(request.items)) return [];
     
-    // If approval is pending, show all items
-    if (request.current_status === 'pending') {
-      return request.items;
+    // Filter based on which card the user clicked (activeFilter)
+    // not based on the approval's overall status
+    
+    // If user clicked pending, show items with no decision yet
+    if (activeFilter === 'pending') {
+      return request.items.filter((item: any) => 
+        !item.decision_type || item.decision_type === ''
+      );
     }
     
-    // If approval is approved, show only approved items
-    if (request.current_status === 'approved') {
+    // If user clicked approved, show only approved items
+    if (activeFilter === 'approved') {
       return request.items.filter((item: any) => 
         item.decision_type === 'APPROVE_FROM_STOCK' || 
         item.decision_type === 'APPROVE_FOR_PROCUREMENT'
       );
     }
     
-    // If approval is rejected, show only rejected items
-    if (request.current_status === 'rejected') {
+    // If user clicked rejected, show only rejected items
+    if (activeFilter === 'rejected') {
       return request.items.filter((item: any) => 
         item.decision_type === 'REJECT' && 
         !item.rejection_reason?.toLowerCase().includes('returned to requester')
       );
     }
     
-    // If approval is returned, show only returned items
-    if (request.current_status === 'returned') {
+    // If user clicked returned, show only returned items
+    if (activeFilter === 'returned') {
       return request.items.filter((item: any) => 
         item.decision_type === 'RETURN' || 
         (item.decision_type === 'REJECT' && 
@@ -343,8 +352,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       );
     }
     
-    // If approval is forwarded, show only forwarded items
-    if (request.current_status === 'forwarded') {
+    // If user clicked forwarded, show only forwarded items
+    if (activeFilter === 'forwarded') {
       return request.items.filter((item: any) => 
         item.decision_type === 'FORWARD_TO_SUPERVISOR' || 
         item.decision_type === 'FORWARD_TO_ADMIN'
