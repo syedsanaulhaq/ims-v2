@@ -14271,7 +14271,7 @@ app.post('/api/approvals/submit', async (req, res) => {
         const itemsResult = await request
           .input('requestId', sql.UniqueIdentifier, request_id)
           .query(`
-            SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity, unit
+            SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity
             FROM stock_issuance_items
             WHERE request_id = @requestId
           `);
@@ -14280,20 +14280,18 @@ app.post('/api/approvals/submit', async (req, res) => {
           for (const item of itemsResult.recordset) {
             await pool.request()
               .input('approvalId', sql.UniqueIdentifier, approvalId)
-              .input('itemId', sql.UniqueIdentifier, item.id)
               .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
               .input('nomenclature', sql.NVarChar, item.nomenclature)
               .input('customItemName', sql.NVarChar, item.custom_item_name)
               .input('requestedQuantity', sql.Int, item.requested_quantity)
-              .input('unit', sql.NVarChar, item.unit)
               .query(`
                 INSERT INTO approval_items (
-                  request_approval_id, id, item_master_id, nomenclature,
-                  custom_item_name, requested_quantity, unit
+                  request_approval_id, item_master_id, nomenclature,
+                  custom_item_name, requested_quantity
                 )
                 VALUES (
-                  @approvalId, @itemId, @itemMasterId, @nomenclature,
-                  @customItemName, @requestedQuantity, @unit
+                  @approvalId, @itemMasterId, @nomenclature,
+                  @customItemName, @requestedQuantity
                 )
               `);
           }
