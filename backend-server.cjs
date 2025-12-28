@@ -17252,16 +17252,24 @@ app.get('/api/approvals/dashboard', async (req, res) => {
     let userId = req.query.userId || req.session.userId;
     console.log('User ID:', userId);
 
-    // Get dashboard statistics
+    // Get dashboard statistics - count by items with specific decision types
     const statsQuery = `
       SELECT
-        COUNT(CASE WHEN ra.current_status = 'pending' AND ra.current_approver_id = @userId THEN 1 END) as pending_approvals,
-        COUNT(CASE WHEN ra.current_status = 'approved' AND ra.current_approver_id = @userId THEN 1 END) as approved_today,
-        COUNT(CASE WHEN ra.current_status = 'rejected' AND ra.current_approver_id = @userId THEN 1 END) as rejected_today,
-        COUNT(CASE WHEN ra.submitted_by = @userId THEN 1 END) as my_requests
-      FROM request_approvals ra
-      WHERE (ra.current_approver_id = @userId OR ra.submitted_by = @userId)
-      AND ra.submitted_date >= CAST(GETDATE() AS DATE)`;
+        (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+         INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+         WHERE ra.current_approver_id = @userId
+         AND (ai.decision_type IS NULL OR ai.decision_type = '')) as pending_approvals,
+        (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+         INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+         WHERE ra.current_approver_id = @userId
+         AND ai.decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')) as approved_today,
+        (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+         INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+         WHERE ra.current_approver_id = @userId
+         AND ai.decision_type = 'REJECT') as rejected_today,
+        (SELECT COUNT(DISTINCT ra.id) FROM request_approvals ra
+         WHERE ra.submitted_by = @userId
+         AND ra.submitted_date >= CAST(GETDATE() AS DATE)) as my_requests`;
 
     const statsResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
