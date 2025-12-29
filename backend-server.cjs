@@ -16221,13 +16221,21 @@ app.get('/api/my-approval-history', async (req, res) => {
     console.log('Fetching approval history...');
     console.log('Session:', req.session);
     
-    // Check authentication and use correct user ID
-    let userId = req.session.userId;
+    // Get user ID from session
+    let userId = req.session?.userId;
     console.log('Session userId:', userId);
     
-    // Use Muhammad Ehtesham Siddiqui for testing
-    userId = '4dae06b7-17cd-480b-81eb-da9c76ad5728'; // Muhammad Ehtesham Siddiqui
-    console.log('Using correct user ID for approval history:', userId);
+    if (!userId) {
+      console.log('⚠️  No userId in session, attempting to fetch from authenticated user...');
+      // Try to get from auth header or return error
+      return res.status(401).json({ 
+        success: false, 
+        error: 'User not authenticated',
+        requests: []
+      });
+    }
+
+    console.log('Using user ID from session:', userId);
     console.log('Loading approval history for user:', userId);
 
     // Test with absolute minimal query first
