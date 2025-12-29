@@ -1,7 +1,5 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { ArrowRight, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 const RequestsHistoryLayout: React.FC = () => {
@@ -47,42 +45,31 @@ const RequestsHistoryLayout: React.FC = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Requests History</h1>
-        <p className="text-gray-600 mt-2">
-          View your request history organized by status
-        </p>
+        <h1 className="text-3xl font-bold text-gray-900">Request History:</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="space-y-3 pl-6">
         {categories.map((category) => {
           const Icon = category.icon;
           return (
-            <Card
+            <button
               key={category.path}
-              className={`cursor-pointer border-2 ${category.borderColor} ${category.bgColor} transition-all hover:shadow-lg hover:scale-105`}
               onClick={() => navigate(category.path)}
+              className="w-full text-left flex items-center gap-3 p-4 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              <div className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                      <ArrowRight className="h-5 w-5" />
-                      {category.label}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {category.description}
-                    </p>
-                  </div>
-                  <Icon className={`h-8 w-8 ${category.color}`} />
+              <ArrowRight className="h-5 w-5 text-gray-600 flex-shrink-0" />
+              <div className="flex items-center gap-3">
+                <Icon className={`h-6 w-6 ${category.color}`} />
+                <div>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {category.label}
+                  </p>
+                  {category.label === 'Future Request' && (
+                    <p className="text-sm text-gray-600">{category.description}</p>
+                  )}
                 </div>
-                <Button
-                  className="w-full"
-                  onClick={() => navigate(category.path)}
-                >
-                  View Requests
-                </Button>
               </div>
-            </Card>
+            </button>
           );
         })}
       </div>
