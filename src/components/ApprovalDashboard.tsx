@@ -109,7 +109,7 @@ const ApprovalDashboard: React.FC = () => {
     <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
       {/* Page Header */}
       <div>
-        <h1 className="text-4xl font-bold text-gray-900">My Approvals</h1>
+        <h1 className="text-4xl font-bold text-gray-900">My Approvals (Item wise)</h1>
         <p className="text-lg text-gray-600 mt-2">
           Manage requests awaiting your approval
         </p>

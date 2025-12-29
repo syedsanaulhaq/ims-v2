@@ -295,6 +295,32 @@ const RequestHistoryPage: React.FC = () => {
     return matchesSearch && matchesAction && matchesStatus;
   });
 
+  // Group requests by final_status
+  const groupRequestsByStatus = (reqs: ApprovalRequest[]) => {
+    const grouped = {
+      'approved': [] as ApprovalRequest[],
+      'rejected': [] as ApprovalRequest[],
+      'pending': [] as ApprovalRequest[],
+      'other': [] as ApprovalRequest[]
+    };
+
+    reqs.forEach(request => {
+      if (request.final_status === 'approved') {
+        grouped.approved.push(request);
+      } else if (request.final_status === 'rejected') {
+        grouped.rejected.push(request);
+      } else if (request.final_status === 'pending') {
+        grouped.pending.push(request);
+      } else {
+        grouped.other.push(request);
+      }
+    });
+
+    return grouped;
+  };
+
+  const groupedRequests = groupRequestsByStatus(filteredRequests);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -399,8 +425,8 @@ const RequestHistoryPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Approval History List */}
-      <div className="space-y-4">
+      {/* Approval History List - Grouped by Status */}
+      <div className="space-y-8">
         {filteredRequests.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
@@ -417,7 +443,16 @@ const RequestHistoryPage: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          filteredRequests.map(request => (
+          <>
+            {/* Future Request (Approved) Section */}
+            {groupedRequests.approved.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl font-bold text-gray-900">→</span>
+                  <h2 className="text-2xl font-bold text-green-700">Future Request (approved request)</h2>
+                </div>
+                <div className="space-y-4">
+                  {groupedRequests.approved.map(request => (
             <Card key={request.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -562,7 +597,327 @@ const RequestHistoryPage: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-          ))
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rejected Request Section */}
+            {groupedRequests.rejected.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl font-bold text-gray-900">→</span>
+                  <h2 className="text-2xl font-bold text-red-700">Rejected Request</h2>
+                </div>
+                <div className="space-y-4">
+                  {groupedRequests.rejected.map(request => (
+            <Card key={request.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg">{request.title}</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">{request.description}</p>
+                    <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
+                      <User size={14} />
+                      <span>Requested by: {request.requester_name}</span>
+                      {request.requester_office && (
+                        <>
+                          <span>•</span>
+                          <span>{request.requester_office}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex flex-col gap-1 items-center">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Priority</span>
+                      {getPriorityBadge(request.priority)}
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">My Action</span>
+                      {getActionBadge(request.my_action)}
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Current Status</span>
+                      {getStatusBadge(request.final_status)}
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Request Details */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-600">Request ID</p>
+                    <p className="font-mono text-xs">{request.request_id.slice(0, 8)}...</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600">Submitted Date</p>
+                    <p>{format(new Date(request.submitted_date), 'MMM dd, yyyy')}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600">Required Date</p>
+                    <p>{format(new Date(request.requested_date), 'MMM dd, yyyy')}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600">Total Items</p>
+                    <p>{request.total_items} items</p>
+                  </div>
+                </div>
+
+                {/* My Action Details */}
+                {request.my_action !== 'pending' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">
+                          Your Action: {request.my_action.charAt(0).toUpperCase() + request.my_action.slice(1)}
+                        </p>
+                        {request.my_action_date && (
+                          <p className="text-xs text-gray-600">
+                            {format(new Date(request.my_action_date), 'MMM dd, yyyy HH:mm')}
+                          </p>
+                        )}
+                      </div>
+                      {request.forwarded_to && (
+                        <div className="text-sm">
+                          <span className="font-medium">Forwarded to:</span> {request.forwarded_to}
+                        </div>
+                      )}
+                    </div>
+                    {request.my_comments && (
+                      <div className="text-sm text-gray-700 mt-2 bg-white rounded p-2">
+                        <span className="font-medium">Comments:</span> {request.my_comments}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Items Summary */}
+                <div>
+                  <p className="font-medium text-gray-600 mb-2">Items Requested:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {request.items.slice(0, 4).map((item, index) => (
+                      <div key={index} className="bg-gray-50 rounded p-2 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">{item.item_name}</span>
+                          <span className="text-gray-600">
+                            {item.requested_quantity} {item.unit}
+                          </span>
+                        </div>
+                        {item.approved_quantity !== undefined && (
+                          <div className="text-xs text-green-600 mt-1">
+                            Approved: {item.approved_quantity} {item.unit}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {request.items.length > 4 && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      +{request.items.length - 4} more items
+                    </p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button
+                    onClick={() => handleViewDetails(request)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Eye size={14} />
+                    View Details
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleTracking(request)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 text-purple-600 border-purple-300 hover:bg-purple-50"
+                  >
+                    <History size={14} />
+                    Tracking
+                  </Button>
+                  
+                  {request.my_action === 'pending' && (
+                    <Button
+                      onClick={() => navigate(`/dashboard/approval-forwarding/${request.id}`)}
+                      variant="default"
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Take Action
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pending Request Section */}
+            {groupedRequests.pending.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl font-bold text-gray-900">→</span>
+                  <h2 className="text-2xl font-bold text-yellow-700">Pending Request</h2>
+                </div>
+                <div className="space-y-4">
+                  {groupedRequests.pending.map(request => (
+            <Card key={request.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg">{request.title}</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">{request.description}</p>
+                    <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
+                      <User size={14} />
+                      <span>Requested by: {request.requester_name}</span>
+                      {request.requester_office && (
+                        <>
+                          <span>•</span>
+                          <span>{request.requester_office}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex flex-col gap-1 items-center">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Priority</span>
+                      {getPriorityBadge(request.priority)}
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">My Action</span>
+                      {getActionBadge(request.my_action)}
+                    </div>
+                    <div className="flex flex-col gap-1 items-center">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Current Status</span>
+                      {getStatusBadge(request.final_status)}
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Request Details */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-600">Request ID</p>
+                    <p className="font-mono text-xs">{request.request_id.slice(0, 8)}...</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600">Submitted Date</p>
+                    <p>{format(new Date(request.submitted_date), 'MMM dd, yyyy')}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600">Required Date</p>
+                    <p>{format(new Date(request.requested_date), 'MMM dd, yyyy')}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-600">Total Items</p>
+                    <p>{request.total_items} items</p>
+                  </div>
+                </div>
+
+                {/* My Action Details */}
+                {request.my_action !== 'pending' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">
+                          Your Action: {request.my_action.charAt(0).toUpperCase() + request.my_action.slice(1)}
+                        </p>
+                        {request.my_action_date && (
+                          <p className="text-xs text-gray-600">
+                            {format(new Date(request.my_action_date), 'MMM dd, yyyy HH:mm')}
+                          </p>
+                        )}
+                      </div>
+                      {request.forwarded_to && (
+                        <div className="text-sm">
+                          <span className="font-medium">Forwarded to:</span> {request.forwarded_to}
+                        </div>
+                      )}
+                    </div>
+                    {request.my_comments && (
+                      <div className="text-sm text-gray-700 mt-2 bg-white rounded p-2">
+                        <span className="font-medium">Comments:</span> {request.my_comments}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Items Summary */}
+                <div>
+                  <p className="font-medium text-gray-600 mb-2">Items Requested:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {request.items.slice(0, 4).map((item, index) => (
+                      <div key={index} className="bg-gray-50 rounded p-2 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">{item.item_name}</span>
+                          <span className="text-gray-600">
+                            {item.requested_quantity} {item.unit}
+                          </span>
+                        </div>
+                        {item.approved_quantity !== undefined && (
+                          <div className="text-xs text-green-600 mt-1">
+                            Approved: {item.approved_quantity} {item.unit}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {request.items.length > 4 && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      +{request.items.length - 4} more items
+                    </p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button
+                    onClick={() => handleViewDetails(request)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Eye size={14} />
+                    View Details
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleTracking(request)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 text-purple-600 border-purple-300 hover:bg-purple-50"
+                  >
+                    <History size={14} />
+                    Tracking
+                  </Button>
+                  
+                  {request.my_action === 'pending' && (
+                    <Button
+                      onClick={() => navigate(`/dashboard/approval-forwarding/${request.id}`)}
+                      variant="default"
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Take Action
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
