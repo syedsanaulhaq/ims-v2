@@ -39,6 +39,19 @@ interface ApprovalRequest {
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
 }
 
+// Safe date formatting helper
+const safeFormat = (dateValue: string | Date | null | undefined, formatStr: string = 'MMM dd, yyyy'): string => {
+  try {
+    if (!dateValue) return '-';
+    const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+    if (isNaN(date.getTime())) return '-';
+    return format(date, formatStr);
+  } catch (error) {
+    console.error('Error formatting date:', dateValue, error);
+    return '-';
+  }
+};
+
 const RequestHistoryPage: React.FC = () => {
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -495,11 +508,11 @@ const RequestHistoryPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Submitted Date</p>
-                    <p>{format(new Date(request.submitted_date), 'MMM dd, yyyy')}</p>
+                    <p>{safeFormat(request.submitted_date, 'MMM dd, yyyy')}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Required Date</p>
-                    <p>{format(new Date(request.requested_date), 'MMM dd, yyyy')}</p>
+                    <p>{safeFormat(request.requested_date, 'MMM dd, yyyy')}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Total Items</p>
@@ -517,7 +530,7 @@ const RequestHistoryPage: React.FC = () => {
                         </p>
                         {request.my_action_date && (
                           <p className="text-xs text-gray-600">
-                            {format(new Date(request.my_action_date), 'MMM dd, yyyy HH:mm')}
+                            {safeFormat(request.my_action_date, 'MMM dd, yyyy HH:mm')}
                           </p>
                         )}
                       </div>
@@ -653,11 +666,11 @@ const RequestHistoryPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Submitted Date</p>
-                    <p>{format(new Date(request.submitted_date), 'MMM dd, yyyy')}</p>
+                    <p>{safeFormat(request.submitted_date, 'MMM dd, yyyy')}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Required Date</p>
-                    <p>{format(new Date(request.requested_date), 'MMM dd, yyyy')}</p>
+                    <p>{safeFormat(request.requested_date, 'MMM dd, yyyy')}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Total Items</p>
@@ -675,7 +688,7 @@ const RequestHistoryPage: React.FC = () => {
                         </p>
                         {request.my_action_date && (
                           <p className="text-xs text-gray-600">
-                            {format(new Date(request.my_action_date), 'MMM dd, yyyy HH:mm')}
+                            {safeFormat(request.my_action_date, 'MMM dd, yyyy HH:mm')}
                           </p>
                         )}
                       </div>
@@ -811,11 +824,11 @@ const RequestHistoryPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Submitted Date</p>
-                    <p>{format(new Date(request.submitted_date), 'MMM dd, yyyy')}</p>
+                    <p>{safeFormat(request.submitted_date, 'MMM dd, yyyy')}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Required Date</p>
-                    <p>{format(new Date(request.requested_date), 'MMM dd, yyyy')}</p>
+                    <p>{safeFormat(request.requested_date, 'MMM dd, yyyy')}</p>
                   </div>
                   <div>
                     <p className="font-medium text-gray-600">Total Items</p>
@@ -833,7 +846,7 @@ const RequestHistoryPage: React.FC = () => {
                         </p>
                         {request.my_action_date && (
                           <p className="text-xs text-gray-600">
-                            {format(new Date(request.my_action_date), 'MMM dd, yyyy HH:mm')}
+                            {safeFormat(request.my_action_date, 'MMM dd, yyyy HH:mm')}
                           </p>
                         )}
                       </div>
@@ -999,7 +1012,7 @@ const RequestHistoryPage: React.FC = () => {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Submitted:</span>
-                        <span className="font-medium">{format(new Date(selectedRequest.submitted_date), 'MMM dd, yyyy HH:mm')}</span>
+                        <span className="font-medium">{safeFormat(selectedRequest.submitted_date, 'MMM dd, yyyy HH:mm')}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Current Status:</span>
@@ -1027,7 +1040,7 @@ const RequestHistoryPage: React.FC = () => {
                       {selectedRequest.my_action_date && (
                         <div className="flex justify-between">
                           <span className="text-gray-600">Action Date:</span>
-                          <span className="font-medium">{format(new Date(selectedRequest.my_action_date), 'MMM dd, yyyy HH:mm')}</span>
+                          <span className="font-medium">{safeFormat(selectedRequest.my_action_date, 'MMM dd, yyyy HH:mm')}</span>
                         </div>
                       )}
                     </div>
@@ -1144,7 +1157,7 @@ const RequestHistoryPage: React.FC = () => {
                         <span className="font-medium">Requester:</span> {selectedRequest.requester_name}
                       </div>
                       <div>
-                        <span className="font-medium">Submitted:</span> {format(new Date(selectedRequest.submitted_date), 'MMM dd, yyyy HH:mm')}
+                        <span className="font-medium">Submitted:</span> {safeFormat(selectedRequest.submitted_date, 'MMM dd, yyyy HH:mm')}
                       </div>
                       <div>
                         <span className="font-medium">Current Status:</span> {selectedRequest.current_status}
@@ -1223,7 +1236,7 @@ const RequestHistoryPage: React.FC = () => {
                                 )}
                                 {step.action_date && (
                                   <span className="text-sm text-gray-500">
-                                    {format(new Date(step.action_date), 'MMM dd, yyyy HH:mm')}
+                                    {safeFormat(step.action_date, 'MMM dd, yyyy HH:mm')}
                                   </span>
                                 )}
                               </div>
