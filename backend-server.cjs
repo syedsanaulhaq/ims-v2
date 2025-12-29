@@ -16225,8 +16225,8 @@ app.get('/api/my-approval-history', async (req, res) => {
     let userId = req.session.userId;
     console.log('Session userId:', userId);
     
-    // Always use the known correct user ID for now
-    userId = '869dd81b-a782-494d-b8c2-695369b5ebb6'; // Syed Sana ul Haq Fazli
+    // Use Muhammad Ehtesham Siddiqui for testing
+    userId = '4dae06b7-17cd-480b-81eb-da9c76ad5728'; // Muhammad Ehtesham Siddiqui
     console.log('Using correct user ID for approval history:', userId);
     console.log('Loading approval history for user:', userId);
 
@@ -16292,7 +16292,8 @@ app.get('/api/my-approval-history', async (req, res) => {
       .input('userId', sql.NVarChar(450), userId)
       .query(approvalHistoryQuery);
 
-    console.log('✅ Query executed successfully. Records:', historyResult.recordset);
+    console.log('✅ Query executed successfully. Records:', historyResult.recordset.length);
+    console.log('🔍 Sample record:', historyResult.recordset[0]);
     
     const requests = [];
 
