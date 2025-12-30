@@ -52,11 +52,12 @@ const PendingRequestsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadApprovalHistory();
-  }, []);
+  }, [refreshTrigger]);
 
   const loadApprovalHistory = async () => {
     try {
@@ -105,19 +106,20 @@ const PendingRequestsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="p-6 flex items-center justify-center min-h-96">
         <div className="text-center">
           <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading pending requests...</p>
+          <p className="text-gray-600">Loading pending requests...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+      {/* Page Header */}
+      <div>
+        <div className="flex items-center gap-3 mb-2">
           <Button
             variant="outline"
             size="sm"
@@ -127,134 +129,167 @@ const PendingRequestsPage: React.FC = () => {
             <ArrowLeft size={16} />
             Back
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="text-yellow-600" size={32} />
-              Pending Request
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Requests waiting for your action
-            </p>
-          </div>
         </div>
-        <Button
-          onClick={loadApprovalHistory}
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <RefreshCw size={16} />
-          Refresh
-        </Button>
+        <h1 className="text-4xl font-bold text-gray-900">Pending Request</h1>
+        <p className="text-lg text-gray-600 mt-2">
+          Requests waiting for your action
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+            <Clock className="h-3 w-3 mr-1" />
+            {requests.length} Pending Requests
+          </Badge>
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+            <Clock className="h-3 w-3 mr-1" />
+            Last Updated: {new Date().toLocaleTimeString()}
+          </Badge>
+        </div>
       </div>
 
-      {/* Search */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search requests..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div
+          className={`transition-all duration-300 rounded-lg border-l-4 bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500`}
+        >
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-yellow-700 font-semibold">Total Pending</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-yellow-600">{requests.length}</div>
+              <p className="text-xs text-gray-600 mt-2">Need your action</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="relative">
+          <Card className="border border-gray-200">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm">Search Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by title or requester..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Requests List Header */}
+      <Card className="border border-gray-200">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              Pending Requests
+              <Badge className="ml-2 bg-gray-100 text-gray-800">{filteredRequests.length}</Badge>
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRefreshTrigger(prev => prev + 1)}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
           </div>
-        </CardContent>
+        </CardHeader>
       </Card>
 
       {/* Requests List */}
       <div className="space-y-4">
         {filteredRequests.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="text-gray-400 mb-4">
-                <Clock size={48} className="mx-auto" />
+          <Card className="border border-gray-200">
+            <CardContent className="p-12 text-center">
+              <div className="text-gray-300 mb-4">
+                <Clock className="h-16 w-16 mx-auto" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No pending requests</h3>
               <p className="text-gray-600">
-                You don't have any pending requests.
+                You don't have any pending requests at this time.
               </p>
             </CardContent>
           </Card>
         ) : (
           filteredRequests.map(request => (
-            <Card key={request.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{request.title}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{request.description}</p>
-                    <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
-                      <span>Requested by: {request.requester_name}</span>
-                    </div>
-                  </div>
-                  <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="font-medium text-gray-600">Submitted Date</p>
-                    <p>{safeFormat(request.submitted_date, 'MMM dd, yyyy')}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-600">Required Date</p>
-                    <p>{safeFormat(request.requested_date, 'MMM dd, yyyy')}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-600">Total Items</p>
-                    <p>{request.total_items} items</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-600">Priority</p>
-                    <Badge variant="outline">{request.priority}</Badge>
-                  </div>
-                </div>
-
-                {/* Items */}
+            <div
+              key={request.id}
+              className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-white"
+            >
+              <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="font-medium text-gray-600 mb-2">Items:</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {request.items.slice(0, 4).map((item, index) => (
-                      <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">{item.item_name}</span>
-                          <span className="text-gray-600">
-                            {item.requested_quantity} {item.unit}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {request.items.length > 4 && (
-                    <p className="text-sm text-gray-500 mt-2">
-                      +{request.items.length - 4} more items
-                    </p>
-                  )}
+                  <h3 className="text-lg font-semibold text-gray-900">{request.title}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{request.description}</p>
                 </div>
+                <div className="flex gap-2">
+                  <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                  <Badge className={getPriorityClass(request.priority)}>
+                    {request.priority}
+                  </Badge>
+                </div>
+              </div>
 
-                {/* Actions */}
-                <div className="flex gap-2 pt-2 border-t">
-                  <Button
-                    onClick={() => handleViewDetails(request)}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Eye size={14} />
-                    View Details
-                  </Button>
-                  <Button
-                    onClick={() => navigate(`/dashboard/approval-forwarding/${request.id}`)}
-                    variant="default"
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    Take Action
-                  </Button>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
+                <div>
+                  <p className="font-medium text-gray-600">Submitted</p>
+                  <p>{safeFormat(request.submitted_date, 'MMM dd, yyyy')}</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="font-medium text-gray-600">Required</p>
+                  <p>{safeFormat(request.requested_date, 'MMM dd, yyyy')}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-600">Items</p>
+                  <p>{request.total_items}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-600">Requester</p>
+                  <p>{request.requester_name}</p>
+                </div>
+              </div>
+
+              {/* Items Preview */}
+              {request.items.length > 0 && (
+                <div className="bg-gray-50 rounded p-3 mb-3">
+                  <p className="text-sm font-medium text-gray-600 mb-2">Items ({request.items.length}):</p>
+                  <div className="space-y-1">
+                    {request.items.slice(0, 3).map((item, index) => (
+                      <p key={index} className="text-sm text-gray-700">
+                        • {item.item_name} - <span className="text-gray-600">{item.requested_quantity} {item.unit}</span>
+                      </p>
+                    ))}
+                    {request.items.length > 3 && (
+                      <p className="text-sm text-gray-500">+{request.items.length - 3} more items</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleViewDetails(request)}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Details
+                </Button>
+                <Button
+                  onClick={() => navigate(`/dashboard/approval-forwarding/${request.id}`)}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  Take Action
+                </Button>
+              </div>
+            </div>
           ))
         )}
       </div>
@@ -334,6 +369,17 @@ const PendingRequestsPage: React.FC = () => {
       )}
     </div>
   );
+};
+
+// Helper functions
+const getPriorityClass = (priority: string) => {
+  const classes = {
+    'Low': 'bg-gray-100 text-gray-800',
+    'Medium': 'bg-blue-100 text-blue-800',
+    'High': 'bg-orange-100 text-orange-800',
+    'Urgent': 'bg-red-100 text-red-800'
+  };
+  return classes[priority as keyof typeof classes] || classes.Medium;
 };
 
 export default PendingRequestsPage;
