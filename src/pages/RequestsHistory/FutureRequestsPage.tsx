@@ -14,6 +14,7 @@ interface RequestItem {
   requested_quantity: number;
   approved_quantity?: number;
   unit: string;
+  item_status?: string;
 }
 
 interface ApprovalRequest {
@@ -107,6 +108,24 @@ const FutureRequestsPage: React.FC = () => {
   const closeModal = () => {
     setShowModal(false);
     setSelectedRequest(null);
+  };
+
+  const getItemStatusBadge = (status?: string) => {
+    const statusText = status || 'pending';
+    const statusLower = statusText.toLowerCase();
+    
+    if (statusLower === 'approved') {
+      return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
+    } else if (statusLower === 'rejected') {
+      return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+    } else if (statusLower === 'pending') {
+      return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+    } else if (statusLower === 'issued') {
+      return <Badge className="bg-blue-100 text-blue-800">Issued</Badge>;
+    } else if (statusLower === 'partial') {
+      return <Badge className="bg-orange-100 text-orange-800">Partial</Badge>;
+    }
+    return <Badge className="bg-gray-100 text-gray-800">{statusText}</Badge>;
   };
 
   if (loading) {
@@ -270,6 +289,7 @@ const FutureRequestsPage: React.FC = () => {
                           <th className="text-left py-3 px-4 font-semibold text-green-900">Item Name</th>
                           <th className="text-center py-3 px-4 font-semibold text-green-900">Quantity</th>
                           <th className="text-center py-3 px-4 font-semibold text-green-900">Unit</th>
+                          <th className="text-center py-3 px-4 font-semibold text-green-900">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -283,6 +303,7 @@ const FutureRequestsPage: React.FC = () => {
                             <td className="py-3 px-4 text-gray-800 font-medium">{item.item_name}</td>
                             <td className="text-center py-3 px-4 text-gray-700">{item.requested_quantity}</td>
                             <td className="text-center py-3 px-4 text-gray-700">{item.unit}</td>
+                            <td className="text-center py-3 px-4">{getItemStatusBadge(item.item_status)}</td>
                           </tr>
                         ))}
                       </tbody>
