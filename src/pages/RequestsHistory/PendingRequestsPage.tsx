@@ -257,17 +257,30 @@ const PendingRequestsPage: React.FC = () => {
               {/* Items Preview */}
               {request.items.length > 0 && (
                 <div className="bg-gray-50 rounded p-3 mb-3">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Items ({request.items.length}):</p>
-                  <div className="space-y-1">
-                    {request.items.slice(0, 3).map((item, index) => (
-                      <p key={index} className="text-sm text-gray-700">
-                        • {item.item_name} - <span className="text-gray-600">{item.requested_quantity} {item.unit}</span>
-                      </p>
-                    ))}
-                    {request.items.length > 3 && (
-                      <p className="text-sm text-gray-500">+{request.items.length - 3} more items</p>
-                    )}
+                  <p className="text-sm font-medium text-gray-600 mb-3">Items ({request.items.length}):</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 px-2 font-medium text-gray-700">Item Name</th>
+                          <th className="text-center py-2 px-2 font-medium text-gray-700">Quantity</th>
+                          <th className="text-center py-2 px-2 font-medium text-gray-700">Unit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {request.items.slice(0, 5).map((item, index) => (
+                          <tr key={index} className="border-b border-gray-100 hover:bg-white transition-colors">
+                            <td className="py-2 px-2 text-gray-700">{item.item_name}</td>
+                            <td className="text-center py-2 px-2 text-gray-600">{item.requested_quantity}</td>
+                            <td className="text-center py-2 px-2 text-gray-600">{item.unit}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
+                  {request.items.length > 5 && (
+                    <p className="text-xs text-gray-500 mt-2">+{request.items.length - 5} more items</p>
+                  )}
                 </div>
               )}
 
