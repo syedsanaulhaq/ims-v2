@@ -30,7 +30,9 @@ import {
   User,
   AlertTriangle,
   ShoppingCart,
-  History
+  History,
+  XCircle,
+  Clock
 } from "lucide-react";
 import { usePermission } from '@/hooks/usePermission';
 import { useSession } from '@/contexts/SessionContext';
