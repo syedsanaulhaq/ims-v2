@@ -3,6 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Eye, Clock, RefreshCw, Search, Filter, ArrowLeft, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -361,63 +368,49 @@ const FutureRequestsPage: React.FC = () => {
                 </div>
 
                 {/* Edit Request Status */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                  <Button
-                    onClick={() => handleRequestStatusChange(request, 'approve')}
-                    className={`text-sm ${
-                      editingRequestStatus === 'approve'
-                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'border border-gray-300 hover:bg-green-50'
-                    }`}
-                    variant={editingRequestStatus === 'approve' ? 'default' : 'outline'}
-                  >
-                    ✓ Approve
-                  </Button>
-                  <Button
-                    onClick={() => handleRequestStatusChange(request, 'forward_admin')}
-                    className={`text-sm ${
-                      editingRequestStatus === 'forward_admin'
-                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                        : 'border border-gray-300 hover:bg-amber-50'
-                    }`}
-                    variant={editingRequestStatus === 'forward_admin' ? 'default' : 'outline'}
-                  >
-                    ⏭ Forward to Admin
-                  </Button>
-                  <Button
-                    onClick={() => handleRequestStatusChange(request, 'forward_supervisor')}
-                    className={`text-sm ${
-                      editingRequestStatus === 'forward_supervisor'
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'border border-gray-300 hover:bg-blue-50'
-                    }`}
-                    variant={editingRequestStatus === 'forward_supervisor' ? 'default' : 'outline'}
-                  >
-                    ↗ Forward to Supervisor
-                  </Button>
-                  <Button
-                    onClick={() => handleRequestStatusChange(request, 'return')}
-                    className={`text-sm ${
-                      editingRequestStatus === 'return'
-                        ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                        : 'border border-gray-300 hover:bg-orange-50'
-                    }`}
-                    variant={editingRequestStatus === 'return' ? 'default' : 'outline'}
-                  >
-                    ↩ Return All
-                  </Button>
-                  <Button
-                    onClick={() => handleRequestStatusChange(request, 'reject')}
-                    className={`text-sm ${
-                      editingRequestStatus === 'reject'
-                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                        : 'border border-gray-300 hover:bg-red-50'
-                    }`}
-                    variant={editingRequestStatus === 'reject' ? 'default' : 'outline'}
-                  >
-                    ✗ Reject All
-                  </Button>
-                </div>
+                <Select 
+                  value={editingRequestStatus || ''} 
+                  onValueChange={(value) => handleRequestStatusChange(request, value)}
+                >
+                  <SelectTrigger className="w-full md:w-96">
+                    <SelectValue placeholder="Select request decision..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="approve">
+                      ✓ Approve
+                    </SelectItem>
+                    <SelectItem value="forward_admin">
+                      ⏭ Forward to Admin
+                    </SelectItem>
+                    <SelectItem value="forward_supervisor">
+                      ↗ Forward to Supervisor
+                    </SelectItem>
+                    <SelectItem value="return">
+                      ↩ Return All
+                    </SelectItem>
+                    <SelectItem value="reject">
+                      ✗ Reject All
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {editingRequestStatus && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge className={`${
+                      editingRequestStatus === 'approve' ? 'bg-green-100 text-green-800' :
+                      editingRequestStatus === 'forward_admin' ? 'bg-amber-100 text-amber-800' :
+                      editingRequestStatus === 'forward_supervisor' ? 'bg-blue-100 text-blue-800' :
+                      editingRequestStatus === 'return' ? 'bg-orange-100 text-orange-800' :
+                      editingRequestStatus === 'reject' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {editingRequestStatus === 'approve' ? '✓ Approve' :
+                       editingRequestStatus === 'forward_admin' ? '⏭ Forward to Admin' :
+                       editingRequestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
+                       editingRequestStatus === 'return' ? '↩ Return' :
+                       editingRequestStatus === 'reject' ? '✗ Reject' : 'Selected'}
+                    </Badge>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">

@@ -7,6 +7,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -745,68 +752,59 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           {!shouldDisableControls() && (
             <div className="mt-4 pt-4 border-t">
               <Label className="text-sm font-semibold mb-2 block">Request Decision</Label>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <Button
-                  onClick={() => handleRequestStatusChange('approve_wing')}
-                  className={`text-sm ${
-                    requestStatus === 'approve_wing'
-                      ? 'bg-green-600 hover:bg-green-700 text-white'
-                      : 'border border-gray-300 hover:bg-green-50'
-                  }`}
-                  variant={requestStatus === 'approve_wing' ? 'default' : 'outline'}
-                  disabled={shouldDisableControls()}
-                >
-                  ✓ Approve
-                </Button>
-                <Button
-                  onClick={() => handleRequestStatusChange('forward_admin')}
-                  className={`text-sm ${
-                    requestStatus === 'forward_admin'
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                      : 'border border-gray-300 hover:bg-amber-50'
-                  }`}
-                  variant={requestStatus === 'forward_admin' ? 'default' : 'outline'}
-                  disabled={shouldDisableControls()}
-                >
-                  ⏭ Forward to Admin
-                </Button>
-                <Button
-                  onClick={() => handleRequestStatusChange('forward_supervisor')}
-                  className={`text-sm ${
-                    requestStatus === 'forward_supervisor'
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'border border-gray-300 hover:bg-blue-50'
-                  }`}
-                  variant={requestStatus === 'forward_supervisor' ? 'default' : 'outline'}
-                  disabled={shouldDisableControls()}
-                >
-                  ↗ Forward to Supervisor
-                </Button>
-                <Button
-                  onClick={() => handleRequestStatusChange('return')}
-                  className={`text-sm ${
-                    requestStatus === 'return'
-                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                      : 'border border-gray-300 hover:bg-orange-50'
-                  }`}
-                  variant={requestStatus === 'return' ? 'default' : 'outline'}
-                  disabled={shouldDisableControls()}
-                >
-                  ↩ Return All
-                </Button>
-                <Button
-                  onClick={() => handleRequestStatusChange('reject')}
-                  className={`text-sm ${
-                    requestStatus === 'reject'
-                      ? 'bg-red-600 hover:bg-red-700 text-white'
-                      : 'border border-gray-300 hover:bg-red-50'
-                  }`}
-                  variant={requestStatus === 'reject' ? 'default' : 'outline'}
-                  disabled={shouldDisableControls()}
-                >
-                  ✗ Reject All
-                </Button>
-              </div>
+              <Select 
+                value={requestStatus || ''} 
+                onValueChange={(value) => handleRequestStatusChange(value as any)}
+              >
+                <SelectTrigger className="w-full md:w-96">
+                  <SelectValue placeholder="Select request decision..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approve_wing">
+                    <span className="flex items-center gap-2">
+                      ✓ Approve from Wing
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="forward_admin">
+                    <span className="flex items-center gap-2">
+                      ⏭ Forward to Admin
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="forward_supervisor">
+                    <span className="flex items-center gap-2">
+                      ↗ Forward to Supervisor
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="return">
+                    <span className="flex items-center gap-2">
+                      ↩ Return All
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="reject">
+                    <span className="flex items-center gap-2">
+                      ✗ Reject All
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {requestStatus && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge className={`${
+                    requestStatus === 'approve_wing' ? 'bg-green-100 text-green-800' :
+                    requestStatus === 'forward_admin' ? 'bg-amber-100 text-amber-800' :
+                    requestStatus === 'forward_supervisor' ? 'bg-blue-100 text-blue-800' :
+                    requestStatus === 'return' ? 'bg-orange-100 text-orange-800' :
+                    requestStatus === 'reject' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {requestStatus === 'approve_wing' ? '✓ Approve' :
+                     requestStatus === 'forward_admin' ? '⏭ Forward to Admin' :
+                     requestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
+                     requestStatus === 'return' ? '↩ Return' :
+                     requestStatus === 'reject' ? '✗ Reject' : 'Selected'}
+                  </Badge>
+                </div>
+              )}
               <p className="text-xs text-gray-600 mt-2">
                 💡 Selecting any request-level action marks all items with that decision. You can also make individual item decisions.
               </p>
