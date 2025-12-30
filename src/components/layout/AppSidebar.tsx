@@ -198,15 +198,23 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ]
   };
 
+  // REQUEST HISTORY MENU - For approvers
+  const requestHistoryMenuGroup: MenuGroup = {
+    label: "Request History",
+    icon: FileText,
+    items: [
+      { title: "Requests History", icon: History, path: "/dashboard/requests-history", permission: 'approval.approve' },
+      { title: "Request History", icon: FileText, path: "/dashboard/request-history", permission: 'approval.approve' },
+      { title: "Wing Request History", icon: Building2, path: "/dashboard/wing-request-history", permission: 'approval.approve' },
+    ]
+  };
+
   // APPROVAL MENU - For approvers
   const approvalMenuGroup: MenuGroup = {
     label: "Approval Menu",
     icon: CheckCircle,
     items: [
       { title: "My Pending Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
-      { title: "Request History", icon: FileText, path: "/dashboard/request-history", permission: 'approval.approve' },
-      { title: "Requests History", icon: History, path: "/dashboard/requests-history", permission: 'approval.approve' },
-      { title: "Wing Request History", icon: Building2, path: "/dashboard/wing-request-history", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
@@ -286,6 +294,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       const visibleIssuanceItems = issuanceMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleIssuanceItems.length > 0) {
         groups.push({ ...issuanceMenuGroup, items: visibleIssuanceItems });
+      }
+    }
+
+    // Show request history menu if user has APPROVAL permissions (approvers only)
+    if (canApprove) {
+      const visibleRequestHistoryItems = requestHistoryMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleRequestHistoryItems.length > 0) {
+        groups.push({ ...requestHistoryMenuGroup, items: visibleRequestHistoryItems });
       }
     }
 
