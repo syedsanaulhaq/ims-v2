@@ -174,21 +174,31 @@ const FutureRequestsPage: React.FC = () => {
   const handleRequestStatusChange = (request: ApprovalRequest, newStatus: string) => {
     setEditingRequestStatus(newStatus);
     
-    // If request status is reject, mark all items as rejected
-    if (newStatus === 'reject') {
-      const newItemStatuses: { [itemId: string]: string } = {};
-      request.items.forEach(item => {
-        newItemStatuses[item.id] = 'reject';
-      });
-      setEditingItemStatuses(newItemStatuses);
-    }
+    const newItemStatuses: { [itemId: string]: string } = {};
     
-    // If request status is approve, mark all items as approved
     if (newStatus === 'approve') {
-      const newItemStatuses: { [itemId: string]: string } = {};
       request.items.forEach(item => {
         newItemStatuses[item.id] = 'approved';
       });
+    } else if (newStatus === 'reject') {
+      request.items.forEach(item => {
+        newItemStatuses[item.id] = 'reject';
+      });
+    } else if (newStatus === 'forward_admin') {
+      request.items.forEach(item => {
+        newItemStatuses[item.id] = 'forward_admin';
+      });
+    } else if (newStatus === 'forward_supervisor') {
+      request.items.forEach(item => {
+        newItemStatuses[item.id] = 'forward_supervisor';
+      });
+    } else if (newStatus === 'return') {
+      request.items.forEach(item => {
+        newItemStatuses[item.id] = 'return';
+      });
+    }
+    
+    if (Object.keys(newItemStatuses).length > 0) {
       setEditingItemStatuses(newItemStatuses);
     }
   };
@@ -344,7 +354,7 @@ const FutureRequestsPage: React.FC = () => {
                 </div>
 
                 {/* Edit Request Status */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                   <Button
                     onClick={() => handleRequestStatusChange(request, 'approve')}
                     className={`text-sm ${
@@ -376,7 +386,18 @@ const FutureRequestsPage: React.FC = () => {
                     }`}
                     variant={editingRequestStatus === 'forward_supervisor' ? 'default' : 'outline'}
                   >
-                    ⏭ Forward to Supervisor
+                    ↗ Forward to Supervisor
+                  </Button>
+                  <Button
+                    onClick={() => handleRequestStatusChange(request, 'return')}
+                    className={`text-sm ${
+                      editingRequestStatus === 'return'
+                        ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                        : 'border border-gray-300 hover:bg-orange-50'
+                    }`}
+                    variant={editingRequestStatus === 'return' ? 'default' : 'outline'}
+                  >
+                    ↩ Return All
                   </Button>
                   <Button
                     onClick={() => handleRequestStatusChange(request, 'reject')}
@@ -445,8 +466,42 @@ const FutureRequestsPage: React.FC = () => {
                                       ? 'bg-green-600 text-white'
                                       : 'bg-green-100 text-green-800 hover:bg-green-200'
                                   }`}
+                                  title="Approve"
                                 >
                                   ✓
+                                </button>
+                                <button
+                                  onClick={() => handleItemStatusChange(item.id, 'forward_admin', request)}
+                                  className={`px-2 py-1 text-xs rounded transition ${
+                                    (editingItemStatuses[item.id] || item.item_status || 'pending') === 'forward_admin'
+                                      ? 'bg-amber-600 text-white'
+                                      : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                                  }`}
+                                  title="Forward to Admin"
+                                >
+                                  ⏭
+                                </button>
+                                <button
+                                  onClick={() => handleItemStatusChange(item.id, 'forward_supervisor', request)}
+                                  className={`px-2 py-1 text-xs rounded transition ${
+                                    (editingItemStatuses[item.id] || item.item_status || 'pending') === 'forward_supervisor'
+                                      ? 'bg-blue-600 text-white'
+                                      : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                                  }`}
+                                  title="Forward to Supervisor"
+                                >
+                                  ↗
+                                </button>
+                                <button
+                                  onClick={() => handleItemStatusChange(item.id, 'return', request)}
+                                  className={`px-2 py-1 text-xs rounded transition ${
+                                    (editingItemStatuses[item.id] || item.item_status || 'pending') === 'return'
+                                      ? 'bg-orange-600 text-white'
+                                      : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
+                                  }`}
+                                  title="Return"
+                                >
+                                  ↩
                                 </button>
                                 <button
                                   onClick={() => handleItemStatusChange(item.id, 'reject', request)}
@@ -455,11 +510,21 @@ const FutureRequestsPage: React.FC = () => {
                                       ? 'bg-red-600 text-white'
                                       : 'bg-red-100 text-red-800 hover:bg-red-200'
                                   }`}
+                                  title="Reject"
                                 >
                                   ✗
                                 </button>
                                 {(editingItemStatuses[item.id] || item.item_status || 'pending') === 'approved' && (
                                   <Badge className="bg-green-100 text-green-800 text-xs">Approved</Badge>
+                                )}
+                                {(editingItemStatuses[item.id] || item.item_status || 'pending') === 'forward_admin' && (
+                                  <Badge className="bg-amber-100 text-amber-800 text-xs">Forward Admin</Badge>
+                                )}
+                                {(editingItemStatuses[item.id] || item.item_status || 'pending') === 'forward_supervisor' && (
+                                  <Badge className="bg-blue-100 text-blue-800 text-xs">Forward Supervisor</Badge>
+                                )}
+                                {(editingItemStatuses[item.id] || item.item_status || 'pending') === 'return' && (
+                                  <Badge className="bg-orange-100 text-orange-800 text-xs">Return</Badge>
                                 )}
                                 {(editingItemStatuses[item.id] || item.item_status || 'pending') === 'reject' && (
                                   <Badge className="bg-red-100 text-red-800 text-xs">Rejected</Badge>

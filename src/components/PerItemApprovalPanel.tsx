@@ -110,7 +110,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [approverDesignation, setApproverDesignation] = useState('Wing Supervisor');
   const [approvalComments, setApprovalComments] = useState('');
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
-  const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | null>(null);
+  const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null>(null);
   
   // Stock check state
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
@@ -296,13 +296,14 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setItemDecisions(newDecisions);
   };
 
-  const handleRequestStatusChange = (status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | null) => {
+  const handleRequestStatusChange = (status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null) => {
     setRequestStatus(status);
     
-    // If request status is 'reject', automatically set all items to 'reject'
-    if (status === 'reject') {
-      const newDecisions = new Map<string, ItemDecision>();
-      if (request?.items && Array.isArray(request.items)) {
+    const newDecisions = new Map<string, ItemDecision>();
+    
+    if (request?.items && Array.isArray(request.items)) {
+      if (status === 'reject') {
+        // Reject all items
         request.items.forEach((item: any) => {
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
@@ -312,14 +313,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             reason: 'Request rejected at request level'
           });
         });
-      }
-      setItemDecisions(newDecisions);
-    }
-    
-    // If request status is 'approve_wing', automatically set all items to 'approve_wing'
-    if (status === 'approve_wing') {
-      const newDecisions = new Map<string, ItemDecision>();
-      if (request?.items && Array.isArray(request.items)) {
+      } else if (status === 'approve_wing') {
+        // Approve all items
         request.items.forEach((item: any) => {
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
@@ -329,8 +324,44 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             reason: 'Request approved at request level'
           });
         });
+      } else if (status === 'forward_admin') {
+        // Forward all items to admin
+        request.items.forEach((item: any) => {
+          const itemId = getItemId(item);
+          newDecisions.set(itemId, {
+            itemId,
+            decision: 'forward_admin',
+            approvedQuantity: 0,
+            reason: 'Request forwarded to admin at request level'
+          });
+        });
+      } else if (status === 'forward_supervisor') {
+        // Forward all items to supervisor
+        request.items.forEach((item: any) => {
+          const itemId = getItemId(item);
+          newDecisions.set(itemId, {
+            itemId,
+            decision: 'forward_supervisor',
+            approvedQuantity: 0,
+            reason: 'Request forwarded to supervisor at request level'
+          });
+        });
+      } else if (status === 'return') {
+        // Return all items to requester
+        request.items.forEach((item: any) => {
+          const itemId = getItemId(item);
+          newDecisions.set(itemId, {
+            itemId,
+            decision: 'return',
+            approvedQuantity: 0,
+            reason: 'Request returned to requester at request level'
+          });
+        });
       }
-      setItemDecisions(newDecisions);
+      
+      if (newDecisions.size > 0) {
+        setItemDecisions(newDecisions);
+      }
     }
   };
 
@@ -709,7 +740,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           {!shouldDisableControls() && (
             <div className="mt-4 pt-4 border-t">
               <Label className="text-sm font-semibold mb-2 block">Request Decision</Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 <Button
                   onClick={() => handleRequestStatusChange('approve_wing')}
                   className={`text-sm ${
@@ -744,7 +775,19 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   variant={requestStatus === 'forward_supervisor' ? 'default' : 'outline'}
                   disabled={shouldDisableControls()}
                 >
-                  ⏭ Forward to Supervisor
+                  ↗ Forward to Supervisor
+                </Button>
+                <Button
+                  onClick={() => handleRequestStatusChange('return')}
+                  className={`text-sm ${
+                    requestStatus === 'return'
+                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                      : 'border border-gray-300 hover:bg-orange-50'
+                  }`}
+                  variant={requestStatus === 'return' ? 'default' : 'outline'}
+                  disabled={shouldDisableControls()}
+                >
+                  ↩ Return All
                 </Button>
                 <Button
                   onClick={() => handleRequestStatusChange('reject')}
@@ -760,7 +803,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 </Button>
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                💡 Selecting "Approve All" marks all items as approved. "Reject All" rejects all items. Other options allow individual item decisions.
+                💡 Selecting any request-level action marks all items with that decision. You can also make individual item decisions.
               </p>
             </div>
           )}
