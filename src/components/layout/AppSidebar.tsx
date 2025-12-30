@@ -203,9 +203,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Request History",
     icon: FileText,
     items: [
-      { title: "Requests History", icon: History, path: "/dashboard/requests-history", permission: 'approval.approve' },
-      { title: "Request History", icon: FileText, path: "/dashboard/request-history", permission: 'approval.approve' },
-      { title: "Wing Request History", icon: Building2, path: "/dashboard/wing-request-history", permission: 'approval.approve' },
+      { title: "Future Request", icon: CheckCircle, path: "/dashboard/requests-history/future", permission: 'approval.approve' },
+      { title: "Rejected Request", icon: XCircle, path: "/dashboard/requests-history/rejected", permission: 'approval.approve' },
+      { title: "Pending Request", icon: Clock, path: "/dashboard/requests-history/pending", permission: 'approval.approve' },
     ]
   };
 
