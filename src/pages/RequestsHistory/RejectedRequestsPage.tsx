@@ -264,30 +264,35 @@ const RejectedRequestsPage: React.FC = () => {
 
               {/* Items Preview */}
               {request.items.length > 0 && (
-                <div className="bg-gray-50 rounded p-3 mb-3">
-                  <p className="text-sm font-medium text-gray-600 mb-3">Items ({request.items.length}):</p>
+                <div className="bg-white border border-gray-200 rounded-lg p-4 mb-3">
+                  <p className="text-sm font-semibold text-gray-900 mb-4">Items ({request.items.length}):</p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 px-2 font-medium text-gray-700">Item Name</th>
-                          <th className="text-center py-2 px-2 font-medium text-gray-700">Quantity</th>
-                          <th className="text-center py-2 px-2 font-medium text-gray-700">Unit</th>
+                        <tr className="bg-gradient-to-r from-red-50 to-red-100 border-b-2 border-red-300">
+                          <th className="text-left py-3 px-4 font-semibold text-red-900">Item Name</th>
+                          <th className="text-center py-3 px-4 font-semibold text-red-900">Quantity</th>
+                          <th className="text-center py-3 px-4 font-semibold text-red-900">Unit</th>
                         </tr>
                       </thead>
                       <tbody>
                         {request.items.slice(0, 5).map((item, index) => (
-                          <tr key={index} className="border-b border-gray-100 hover:bg-white transition-colors">
-                            <td className="py-2 px-2 text-gray-700">{item.item_name}</td>
-                            <td className="text-center py-2 px-2 text-gray-600">{item.requested_quantity}</td>
-                            <td className="text-center py-2 px-2 text-gray-600">{item.unit}</td>
+                          <tr 
+                            key={index} 
+                            className={`border-b border-gray-100 transition-colors ${
+                              index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
+                            } hover:bg-red-50`}
+                          >
+                            <td className="py-3 px-4 text-gray-800 font-medium">{item.item_name}</td>
+                            <td className="text-center py-3 px-4 text-gray-700">{item.requested_quantity}</td>
+                            <td className="text-center py-3 px-4 text-gray-700">{item.unit}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                   {request.items.length > 5 && (
-                    <p className="text-xs text-gray-500 mt-2">+{request.items.length - 5} more items</p>
+                    <p className="text-xs text-gray-500 mt-3 text-center font-medium">+{request.items.length - 5} more items</p>
                   )}
                 </div>
               )}
