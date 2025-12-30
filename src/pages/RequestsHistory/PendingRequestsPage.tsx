@@ -54,8 +54,8 @@ const PendingRequestsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -107,13 +107,20 @@ const PendingRequestsPage: React.FC = () => {
     setSelectedRequest(null);
   };
 
-  const handleApprovalClick = (requestId: string) => {
-    setExpandedRequestId(expandedRequestId === requestId ? null : requestId);
+  const closeActionModal = () => {
+    setShowActionModal(false);
+    setSelectedRequest(null);
+  };
+
+  const handleApprovalClick = (request: ApprovalRequest) => {
+    setSelectedRequest(request);
+    setShowActionModal(true);
   };
 
   const handleActionComplete = () => {
     setRefreshTrigger(prev => prev + 1);
-    setExpandedRequestId(null);
+    setShowActionModal(false);
+    setSelectedRequest(null);
   };
 
   if (loading) {
@@ -311,25 +318,14 @@ const PendingRequestsPage: React.FC = () => {
                   View Details
                 </Button>
                 <Button
-                  onClick={() => handleApprovalClick(request.id)}
+                  onClick={() => handleApprovalClick(request)}
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Clock className="h-4 w-4 mr-2" />
-                  {expandedRequestId === request.id ? 'Hide Action' : 'Take Action'}
+                  Take Action
                 </Button>
               </div>
-
-              {/* Expanded Action Panel */}
-              {expandedRequestId === request.id && (
-                <div className="mt-4 bg-blue-50 border-t border-blue-200 p-4 rounded-lg">
-                  <PerItemApprovalPanel
-                    approvalId={request.id}
-                    onActionComplete={handleActionComplete}
-                    activeFilter="pending"
-                  />
-                </div>
-              )}
             </div>
           ))
         )}
@@ -394,7 +390,7 @@ const PendingRequestsPage: React.FC = () => {
                 <Button
                   onClick={() => {
                     closeModal();
-                    handleApprovalClick(selectedRequest.id);
+                    handleApprovalClick(selectedRequest);
                   }}
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                 >
@@ -404,6 +400,33 @@ const PendingRequestsPage: React.FC = () => {
                   Close
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Modal - Approval Panel Popup */}
+      {showActionModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">Take Action - {selectedRequest.title}</h2>
+                <button
+                  onClick={closeActionModal}
+                  className="text-white hover:text-gray-200 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <PerItemApprovalPanel
+                approvalId={selectedRequest.id}
+                onActionComplete={handleActionComplete}
+                activeFilter="pending"
+              />
             </div>
           </div>
         </div>
