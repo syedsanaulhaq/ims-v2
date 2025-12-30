@@ -128,6 +128,30 @@ const FutureRequestsPage: React.FC = () => {
     return <Badge className="bg-gray-100 text-gray-800">{statusText}</Badge>;
   };
 
+  const getRequestWorkflowStatus = (request: ApprovalRequest) => {
+    let status = 'Status: ';
+    let color = 'bg-green-100 text-green-800';
+    
+    if (request.my_action === 'Approved') {
+      status += 'Approved';
+      color = 'bg-green-100 text-green-800';
+    } else if (request.my_action === 'Rejected') {
+      status += 'Rejected';
+      color = 'bg-red-100 text-red-800';
+    } else if (request.forwarded_to) {
+      status += `Forwarded to ${request.forwarded_to}`;
+      color = 'bg-blue-100 text-blue-800';
+    } else if (request.current_status === 'pending') {
+      status += 'Pending Action';
+      color = 'bg-yellow-100 text-yellow-800';
+    } else {
+      status += request.final_status?.charAt(0).toUpperCase() + request.final_status?.slice(1).toLowerCase();
+      color = 'bg-gray-100 text-gray-800';
+    }
+    
+    return { status, color };
+  };
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-96">
@@ -256,6 +280,26 @@ const FutureRequestsPage: React.FC = () => {
                   <Badge className={getPriorityClass(request.priority)}>
                     {request.priority}
                   </Badge>
+                </div>
+              </div>
+
+              {/* Request Workflow Status */}
+              <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-900 mb-2">Request Workflow Status</p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge className={`${getRequestWorkflowStatus(request).color}`}>
+                    {getRequestWorkflowStatus(request).status}
+                  </Badge>
+                  {request.my_action_date && (
+                    <span className="text-xs text-gray-600 flex items-center">
+                      {safeFormat(request.my_action_date, 'MMM dd, yyyy')}
+                    </span>
+                  )}
+                  {request.my_comments && (
+                    <span className="text-xs text-gray-700 italic">
+                      "{request.my_comments}"
+                    </span>
+                  )}
                 </div>
               </div>
 
