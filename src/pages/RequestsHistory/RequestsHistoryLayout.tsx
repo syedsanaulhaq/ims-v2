@@ -1,6 +1,8 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowRight, Clock, CheckCircle, XCircle, Badge as BadgeIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const RequestsHistoryLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -43,32 +45,58 @@ const RequestsHistoryLayout: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+      {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Request History:</h1>
+        <h1 className="text-4xl font-bold text-gray-900">Request History</h1>
+        <p className="text-lg text-gray-600 mt-2">
+          Manage and track all your requests across different statuses
+        </p>
+        <div className="flex items-center gap-2 mt-3">
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+            <BadgeIcon className="h-3 w-3 mr-1" />
+            3 Categories
+          </Badge>
+          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+            <Clock className="h-3 w-3 mr-1" />
+            Last Updated: {new Date().toLocaleTimeString()}
+          </Badge>
+        </div>
       </div>
 
-      <div className="space-y-3 pl-6">
+      {/* Category Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {categories.map((category) => {
           const Icon = category.icon;
+          const isActive = location.pathname.includes(category.path.split('/').pop() || '');
+          
           return (
             <button
               key={category.path}
               onClick={() => navigate(category.path)}
-              className="w-full text-left flex items-center gap-3 p-4 rounded-lg hover:bg-gray-100 transition-colors"
+              className={`text-left transition-all duration-300 rounded-lg border-l-4 ${
+                isActive
+                  ? `bg-gradient-to-br ${category.bgColor} border-l-${category.color.split('-')[1]}-500 shadow-lg`
+                  : `bg-gradient-to-br ${category.bgColor} border-l-${category.color.split('-')[1]}-500 hover:shadow-xl`
+              }`}
             >
-              <ArrowRight className="h-5 w-5 text-gray-600 flex-shrink-0" />
-              <div className="flex items-center gap-3">
-                <Icon className={`h-6 w-6 ${category.color}`} />
-                <div>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {category.label}
-                  </p>
-                  {category.label === 'Future Request' && (
-                    <p className="text-sm text-gray-600">{category.description}</p>
-                  )}
-                </div>
-              </div>
+              <Card className="h-full bg-transparent border-none shadow-none">
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <Icon className={`h-8 w-8 ${category.color}`} />
+                      <div>
+                        <CardTitle className="text-lg text-gray-900">{category.label}</CardTitle>
+                        <p className="text-xs text-gray-600 mt-1">{category.description}</p>
+                      </div>
+                    </div>
+                    <ArrowRight className={`h-5 w-5 ${category.color} flex-shrink-0`} />
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-sm text-gray-600">Click to view details</p>
+                </CardContent>
+              </Card>
             </button>
           );
         })}
