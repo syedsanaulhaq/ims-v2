@@ -369,6 +369,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setItemDecision(itemId, decision, approvedQty);
     
     // Update request status based on item decisions
+    // If any item is returned, set request to return
     // If all items are rejected, set request to reject
     const newDecisions = new Map(itemDecisions);
     newDecisions.set(itemId, {
@@ -380,9 +381,13 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     
     const allItemsRejected = Array.from(newDecisions.values()).every(d => d.decision === 'reject');
     const anyItemApproved = Array.from(newDecisions.values()).some(d => d.decision === 'approve_wing');
+    const anyItemReturned = Array.from(newDecisions.values()).some(d => d.decision === 'return');
     
     // Auto-update request status based on item decisions
-    if (allItemsRejected && newDecisions.size > 0) {
+    if (anyItemReturned) {
+      // If ANY item is returned → set request status to return
+      setRequestStatus('return');
+    } else if (allItemsRejected && newDecisions.size > 0) {
       setRequestStatus('reject');
     } else if (anyItemApproved && newDecisions.size > 0) {
       // If any item is approved, suggest approve status

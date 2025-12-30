@@ -158,14 +158,21 @@ const FutureRequestsPage: React.FC = () => {
     const newItemStatuses = { ...editingItemStatuses, [itemId]: newStatus };
     setEditingItemStatuses(newItemStatuses);
     
-    // Check if all items in the request have the same status
+    // Check if any item has been marked as returned
     const requestItems = request.items;
     const allItemStatuses = requestItems.map(item => newItemStatuses[item.id] || item.item_status || 'pending');
     
-    if (allItemStatuses.every(s => s === 'reject')) {
+    const anyItemReturned = allItemStatuses.some(s => s === 'return');
+    const allItemsRejected = allItemStatuses.every(s => s === 'reject');
+    const allItemsApproved = allItemStatuses.every(s => s === 'approved');
+    
+    if (anyItemReturned) {
+      // If ANY item is returned → set request status to return
+      setEditingRequestStatus('return');
+    } else if (allItemsRejected) {
       // All items rejected → set request status to rejected
       setEditingRequestStatus('reject');
-    } else if (allItemStatuses.every(s => s === 'approved')) {
+    } else if (allItemsApproved) {
       // All items approved → set request status to approved
       setEditingRequestStatus('approve');
     }
