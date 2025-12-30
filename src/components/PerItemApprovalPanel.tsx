@@ -386,23 +386,23 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     
     // Priority-based auto-sync logic:
     // 1. If ANY item is returned → request = return (highest priority)
-    // 2. If ALL items are rejected → request = reject
-    // 3. If ALL items are approved → request = approve
-    // 4. Otherwise → don't auto-sync (allow mixed states)
+    // 2. If ALL items have the SAME status → request = that status
+    // 3. Otherwise → don't auto-sync (allow mixed states)
     const anyItemReturned = Array.from(newDecisions.values()).some(d => d.decision === 'return');
-    const allItemsRejected = Array.from(newDecisions.values()).every(d => d.decision === 'reject');
-    const allItemsApproved = Array.from(newDecisions.values()).every(d => d.decision === 'approve_wing');
     
     // Auto-update request status based on item decisions
     if (anyItemReturned) {
       // If ANY item is returned → set request status to return
       setRequestStatus('return');
-    } else if (allItemsRejected && newDecisions.size > 0) {
-      // If ALL items are rejected → set request status to reject
-      setRequestStatus('reject');
-    } else if (allItemsApproved && newDecisions.size > 0) {
-      // If ALL items are approved → set request status to approve
-      setRequestStatus('approve_wing');
+    } else if (newDecisions.size > 0) {
+      // Check if all items have the same status
+      const firstDecision = Array.from(newDecisions.values())[0]?.decision;
+      const allItemsSameStatus = Array.from(newDecisions.values()).every(d => d.decision === firstDecision);
+      
+      if (allItemsSameStatus) {
+        // If ALL items have the same status → set request to that status
+        setRequestStatus(firstDecision);
+      }
     }
   };
 
