@@ -182,6 +182,15 @@ const FutureRequestsPage: React.FC = () => {
       });
       setEditingItemStatuses(newItemStatuses);
     }
+    
+    // If request status is approve, mark all items as approved
+    if (newStatus === 'approve') {
+      const newItemStatuses: { [itemId: string]: string } = {};
+      request.items.forEach(item => {
+        newItemStatuses[item.id] = 'approved';
+      });
+      setEditingItemStatuses(newItemStatuses);
+    }
   };
 
   if (loading) {

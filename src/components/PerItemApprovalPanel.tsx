@@ -315,6 +315,23 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       }
       setItemDecisions(newDecisions);
     }
+    
+    // If request status is 'approve_wing', automatically set all items to 'approve_wing'
+    if (status === 'approve_wing') {
+      const newDecisions = new Map<string, ItemDecision>();
+      if (request?.items && Array.isArray(request.items)) {
+        request.items.forEach((item: any) => {
+          const itemId = getItemId(item);
+          newDecisions.set(itemId, {
+            itemId,
+            decision: 'approve_wing',
+            approvedQuantity: getItemQuantity(item),
+            reason: 'Request approved at request level'
+          });
+        });
+      }
+      setItemDecisions(newDecisions);
+    }
   };
 
   const handleItemDecisionChange = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return', approvedQty: number) => {
@@ -743,7 +760,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 </Button>
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                💡 Selecting "Reject All" will mark all items as rejected. Other options allow individual item decisions.
+                💡 Selecting "Approve All" marks all items as approved. "Reject All" rejects all items. Other options allow individual item decisions.
               </p>
             </div>
           )}
