@@ -59,6 +59,8 @@ const FutureRequestsPage: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [editingItemStatuses, setEditingItemStatuses] = useState<{ [itemId: string]: string }>({});
+  const [editingRequestStatus, setEditingRequestStatus] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -150,6 +152,36 @@ const FutureRequestsPage: React.FC = () => {
     }
     
     return { status, color };
+  };
+
+  const handleItemStatusChange = (itemId: string, newStatus: string, request: ApprovalRequest) => {
+    const newItemStatuses = { ...editingItemStatuses, [itemId]: newStatus };
+    setEditingItemStatuses(newItemStatuses);
+    
+    // Check if all items in the request have the same status
+    const requestItems = request.items;
+    const allItemStatuses = requestItems.map(item => newItemStatuses[item.id] || item.item_status || 'pending');
+    
+    if (allItemStatuses.every(s => s === 'reject')) {
+      // All items rejected → set request status to rejected
+      setEditingRequestStatus('reject');
+    } else if (allItemStatuses.every(s => s === 'approved')) {
+      // All items approved → set request status to approved
+      setEditingRequestStatus('approve');
+    }
+  };
+
+  const handleRequestStatusChange = (request: ApprovalRequest, newStatus: string) => {
+    setEditingRequestStatus(newStatus);
+    
+    // If request status is reject, mark all items as rejected
+    if (newStatus === 'reject') {
+      const newItemStatuses: { [itemId: string]: string } = {};
+      request.items.forEach(item => {
+        newItemStatuses[item.id] = 'reject';
+      });
+      setEditingItemStatuses(newItemStatuses);
+    }
   };
 
   if (loading) {
@@ -286,9 +318,9 @@ const FutureRequestsPage: React.FC = () => {
               {/* Request Workflow Status */}
               <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <p className="text-sm font-semibold text-gray-900 mb-2">Request Workflow Status</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-3">
                   <Badge className={`${getRequestWorkflowStatus(request).color}`}>
-                    {getRequestWorkflowStatus(request).status}
+                    {editingRequestStatus || getRequestWorkflowStatus(request).status}
                   </Badge>
                   {request.my_action_date && (
                     <span className="text-xs text-gray-600 flex items-center">
@@ -300,6 +332,54 @@ const FutureRequestsPage: React.FC = () => {
                       "{request.my_comments}"
                     </span>
                   )}
+                </div>
+
+                {/* Edit Request Status */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <Button
+                    onClick={() => handleRequestStatusChange(request, 'approve')}
+                    className={`text-sm ${
+                      editingRequestStatus === 'approve'
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : 'border border-gray-300 hover:bg-green-50'
+                    }`}
+                    variant={editingRequestStatus === 'approve' ? 'default' : 'outline'}
+                  >
+                    ✓ Approve
+                  </Button>
+                  <Button
+                    onClick={() => handleRequestStatusChange(request, 'forward_admin')}
+                    className={`text-sm ${
+                      editingRequestStatus === 'forward_admin'
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : 'border border-gray-300 hover:bg-amber-50'
+                    }`}
+                    variant={editingRequestStatus === 'forward_admin' ? 'default' : 'outline'}
+                  >
+                    ⏭ Forward to Admin
+                  </Button>
+                  <Button
+                    onClick={() => handleRequestStatusChange(request, 'forward_supervisor')}
+                    className={`text-sm ${
+                      editingRequestStatus === 'forward_supervisor'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'border border-gray-300 hover:bg-blue-50'
+                    }`}
+                    variant={editingRequestStatus === 'forward_supervisor' ? 'default' : 'outline'}
+                  >
+                    ⏭ Forward to Supervisor
+                  </Button>
+                  <Button
+                    onClick={() => handleRequestStatusChange(request, 'reject')}
+                    className={`text-sm ${
+                      editingRequestStatus === 'reject'
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'border border-gray-300 hover:bg-red-50'
+                    }`}
+                    variant={editingRequestStatus === 'reject' ? 'default' : 'outline'}
+                  >
+                    ✗ Reject All
+                  </Button>
                 </div>
               </div>
 
@@ -347,7 +427,36 @@ const FutureRequestsPage: React.FC = () => {
                             <td className="py-3 px-4 text-gray-800 font-medium">{item.item_name}</td>
                             <td className="text-center py-3 px-4 text-gray-700">{item.requested_quantity}</td>
                             <td className="text-center py-3 px-4 text-gray-700">{item.unit}</td>
-                            <td className="text-center py-3 px-4">{getItemStatusBadge(item.item_status)}</td>
+                            <td className="text-center py-3 px-4">
+                              <div className="flex gap-1 justify-center flex-wrap">
+                                <button
+                                  onClick={() => handleItemStatusChange(item.id, 'approved', request)}
+                                  className={`px-2 py-1 text-xs rounded transition ${
+                                    (editingItemStatuses[item.id] || item.item_status || 'pending') === 'approved'
+                                      ? 'bg-green-600 text-white'
+                                      : 'bg-green-100 text-green-800 hover:bg-green-200'
+                                  }`}
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  onClick={() => handleItemStatusChange(item.id, 'reject', request)}
+                                  className={`px-2 py-1 text-xs rounded transition ${
+                                    (editingItemStatuses[item.id] || item.item_status || 'pending') === 'reject'
+                                      ? 'bg-red-600 text-white'
+                                      : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                  }`}
+                                >
+                                  ✗
+                                </button>
+                                {(editingItemStatuses[item.id] || item.item_status || 'pending') === 'approved' && (
+                                  <Badge className="bg-green-100 text-green-800 text-xs">Approved</Badge>
+                                )}
+                                {(editingItemStatuses[item.id] || item.item_status || 'pending') === 'reject' && (
+                                  <Badge className="bg-red-100 text-red-800 text-xs">Rejected</Badge>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

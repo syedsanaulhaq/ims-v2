@@ -110,6 +110,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [approverDesignation, setApproverDesignation] = useState('Wing Supervisor');
   const [approvalComments, setApprovalComments] = useState('');
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
+  const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | null>(null);
   
   // Stock check state
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
@@ -293,6 +294,54 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       reason: existingDecision?.reason || ''
     });
     setItemDecisions(newDecisions);
+  };
+
+  const handleRequestStatusChange = (status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | null) => {
+    setRequestStatus(status);
+    
+    // If request status is 'reject', automatically set all items to 'reject'
+    if (status === 'reject') {
+      const newDecisions = new Map<string, ItemDecision>();
+      if (request?.items && Array.isArray(request.items)) {
+        request.items.forEach((item: any) => {
+          const itemId = getItemId(item);
+          newDecisions.set(itemId, {
+            itemId,
+            decision: 'reject',
+            approvedQuantity: 0,
+            reason: 'Request rejected at request level'
+          });
+        });
+      }
+      setItemDecisions(newDecisions);
+    }
+  };
+
+  const handleItemDecisionChange = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return', approvedQty: number) => {
+    setItemDecision(itemId, decision, approvedQty);
+    
+    // Update request status based on item decisions
+    // If all items are rejected, set request to reject
+    const newDecisions = new Map(itemDecisions);
+    newDecisions.set(itemId, {
+      itemId,
+      decision,
+      approvedQuantity: approvedQty,
+      reason: newDecisions.get(itemId)?.reason || ''
+    });
+    
+    const allItemsRejected = Array.from(newDecisions.values()).every(d => d.decision === 'reject');
+    const anyItemApproved = Array.from(newDecisions.values()).some(d => d.decision === 'approve_wing');
+    
+    // Auto-update request status based on item decisions
+    if (allItemsRejected && newDecisions.size > 0) {
+      setRequestStatus('reject');
+    } else if (anyItemApproved && newDecisions.size > 0) {
+      // If any item is approved, suggest approve status
+      if (!requestStatus) {
+        setRequestStatus('approve_wing');
+      }
+    }
   };
 
   const getItemName = (item: RequestItem) => {
@@ -638,6 +687,66 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
               <Badge className="text-xs" variant="outline">{request?.current_status || 'N/A'}</Badge>
             </div>
           </div>
+
+          {/* Request-Level Status Selection */}
+          {!shouldDisableControls() && (
+            <div className="mt-4 pt-4 border-t">
+              <Label className="text-sm font-semibold mb-2 block">Request Decision</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Button
+                  onClick={() => handleRequestStatusChange('approve_wing')}
+                  className={`text-sm ${
+                    requestStatus === 'approve_wing'
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'border border-gray-300 hover:bg-green-50'
+                  }`}
+                  variant={requestStatus === 'approve_wing' ? 'default' : 'outline'}
+                  disabled={shouldDisableControls()}
+                >
+                  ✓ Approve
+                </Button>
+                <Button
+                  onClick={() => handleRequestStatusChange('forward_admin')}
+                  className={`text-sm ${
+                    requestStatus === 'forward_admin'
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : 'border border-gray-300 hover:bg-amber-50'
+                  }`}
+                  variant={requestStatus === 'forward_admin' ? 'default' : 'outline'}
+                  disabled={shouldDisableControls()}
+                >
+                  ⏭ Forward to Admin
+                </Button>
+                <Button
+                  onClick={() => handleRequestStatusChange('forward_supervisor')}
+                  className={`text-sm ${
+                    requestStatus === 'forward_supervisor'
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'border border-gray-300 hover:bg-blue-50'
+                  }`}
+                  variant={requestStatus === 'forward_supervisor' ? 'default' : 'outline'}
+                  disabled={shouldDisableControls()}
+                >
+                  ⏭ Forward to Supervisor
+                </Button>
+                <Button
+                  onClick={() => handleRequestStatusChange('reject')}
+                  className={`text-sm ${
+                    requestStatus === 'reject'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'border border-gray-300 hover:bg-red-50'
+                  }`}
+                  variant={requestStatus === 'reject' ? 'default' : 'outline'}
+                  disabled={shouldDisableControls()}
+                >
+                  ✗ Reject All
+                </Button>
+              </div>
+              <p className="text-xs text-gray-600 mt-2">
+                💡 Selecting "Reject All" will mark all items as rejected. Other options allow individual item decisions.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -730,7 +839,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           type="radio"
                           name={`decision-${itemId}`}
                           checked={decision?.decision === 'approve_wing'}
-                          onChange={() => setItemDecision(itemId, 'approve_wing', getItemQuantity(item))}
+                          onChange={() => handleItemDecisionChange(itemId, 'approve_wing', getItemQuantity(item))}
                           disabled={shouldDisableControls()}
                           className="mb-2"
                         />
@@ -759,7 +868,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           type="radio"
                           name={`decision-${itemId}`}
                           checked={decision?.decision === 'forward_admin'}
-                          onChange={() => setItemDecision(itemId, 'forward_admin', getItemQuantity(item))}
+                          onChange={() => handleItemDecisionChange(itemId, 'forward_admin', getItemQuantity(item))}
                           disabled={shouldDisableControls()}
                           className="mb-2"
                         />
@@ -788,7 +897,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           type="radio"
                           name={`decision-${itemId}`}
                           checked={decision?.decision === 'forward_supervisor'}
-                          onChange={() => setItemDecision(itemId, 'forward_supervisor', getItemQuantity(item))}
+                          onChange={() => handleItemDecisionChange(itemId, 'forward_supervisor', getItemQuantity(item))}
                           disabled={shouldDisableControls()}
                           className="mb-2"
                         />
@@ -817,7 +926,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           type="radio"
                           name={`decision-${itemId}`}
                           checked={decision?.decision === 'reject'}
-                          onChange={() => setItemDecision(itemId, 'reject', 0)}
+                          onChange={() => handleItemDecisionChange(itemId, 'reject', 0)}
                           disabled={shouldDisableControls()}
                           className="mb-2"
                         />
@@ -846,7 +955,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           type="radio"
                           name={`decision-${itemId}`}
                           checked={decision?.decision === 'return'}
-                          onChange={() => setItemDecision(itemId, 'return', 0)}
+                          onChange={() => handleItemDecisionChange(itemId, 'return', 0)}
                           disabled={shouldDisableControls()}
                           className="mb-2"
                         />
