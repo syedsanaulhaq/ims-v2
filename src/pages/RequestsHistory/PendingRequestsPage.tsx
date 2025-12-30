@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Eye, RefreshCw, Search, ArrowLeft, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import PerItemApprovalPanel from '@/components/PerItemApprovalPanel';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 interface RequestItem {
   id: string;
@@ -53,6 +55,7 @@ const PendingRequestsPage: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -102,6 +105,15 @@ const PendingRequestsPage: React.FC = () => {
   const closeModal = () => {
     setShowModal(false);
     setSelectedRequest(null);
+  };
+
+  const handleApprovalClick = (requestId: string) => {
+    setExpandedRequestId(expandedRequestId === requestId ? null : requestId);
+  };
+
+  const handleActionComplete = () => {
+    setRefreshTrigger(prev => prev + 1);
+    setExpandedRequestId(null);
   };
 
   if (loading) {
@@ -299,14 +311,25 @@ const PendingRequestsPage: React.FC = () => {
                   View Details
                 </Button>
                 <Button
-                  onClick={() => navigate(`/dashboard/approval-forwarding/${request.id}`)}
+                  onClick={() => handleApprovalClick(request.id)}
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Clock className="h-4 w-4 mr-2" />
-                  Take Action
+                  {expandedRequestId === request.id ? 'Hide Action' : 'Take Action'}
                 </Button>
               </div>
+
+              {/* Expanded Action Panel */}
+              {expandedRequestId === request.id && (
+                <div className="mt-4 bg-blue-50 border-t border-blue-200 p-4 rounded-lg">
+                  <PerItemApprovalPanel
+                    approvalId={request.id}
+                    onActionComplete={handleActionComplete}
+                    activeFilter="pending"
+                  />
+                </div>
+              )}
             </div>
           ))
         )}
@@ -371,7 +394,7 @@ const PendingRequestsPage: React.FC = () => {
                 <Button
                   onClick={() => {
                     closeModal();
-                    navigate(`/dashboard/approval-forwarding/${selectedRequest.id}`);
+                    handleApprovalClick(selectedRequest.id);
                   }}
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                 >
