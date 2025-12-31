@@ -55,18 +55,16 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       setLoading(true);
       const userId = (user as any)?.user_id || (user as any)?.Id;
       
-      // Get all approvals for this user
+      // Get all approvals for this user from all statuses
       const allStatuses = ['pending', 'approved', 'rejected', 'forwarded', 'returned'] as const;
-      const allApprovalsMap = new Map<string, RequestApproval>();
+      const allApprovals: RequestApproval[] = [];
       
       for (const status of allStatuses) {
         const approvals = await approvalForwardingService.getMyApprovalsByStatus(userId, status as any);
-        approvals.forEach(approval => {
-          allApprovalsMap.set(approval.id, approval);
-        });
+        allApprovals.push(...approvals);
       }
 
-      // Group approvals by request_id and aggregate request-level status
+      // Fetch full details for each approval (which includes items)
       const requestMap = new Map<string, RequestSummary>();
       const statusCounts = {
         pending_count: 0,
@@ -77,11 +75,30 @@ const ApprovalDashboardRequestBased: React.FC = () => {
         return_count: 0
       };
 
-      allApprovalsMap.forEach((approval) => {
+      for (const approval of allApprovals) {
         const requestId = approval.request_id;
         
-        if (!requestMap.has(requestId)) {
-          // Fetch actual request status from approval's metadata or default to pending
+        // Skip if we already have this request
+        if (requestMap.has(requestId)) {
+          continue;
+        }
+
+        try {
+          // Fetch full approval details including items
+          const apiUrl = 'http://localhost:3001';
+          const detailResponse = await fetch(`${apiUrl}/api/approvals/${approval.id}`, {
+            credentials: 'include'
+          });
+
+          if (!detailResponse.ok) {
+            console.warn(`Failed to fetch details for approval ${approval.id}`);
+            continue;
+          }
+
+          const detailData = await detailResponse.json();
+          const fullApproval = detailData.data || detailData;
+
+          // Get request status
           const requestStatus = getRequestStatusFromApproval(approval);
           
           const summary: RequestSummary = {
@@ -98,8 +115,27 @@ const ApprovalDashboardRequestBased: React.FC = () => {
             returned_items: 0,
             forwarded_items: 0,
             pending_items: 0,
-            approval
+            approval: { ...approval, items: fullApproval.items || [] } as any
           };
+
+          // Count items by status
+          const items = fullApproval.items || [];
+          summary.total_items = items.length;
+
+          items.forEach((item: any) => {
+            const itemStatus = item.decision_type || 'PENDING';
+            if (itemStatus === 'APPROVE_FROM_STOCK' || itemStatus === 'APPROVE_FOR_PROCUREMENT') {
+              summary.approved_items++;
+            } else if (itemStatus === 'REJECT') {
+              summary.rejected_items++;
+            } else if (itemStatus === 'RETURN') {
+              summary.returned_items++;
+            } else if (itemStatus === 'FORWARD') {
+              summary.forwarded_items++;
+            } else {
+              summary.pending_items++;
+            }
+          });
 
           requestMap.set(requestId, summary);
           
@@ -110,8 +146,10 @@ const ApprovalDashboardRequestBased: React.FC = () => {
           else if (requestStatus === 'forward_admin') statusCounts.forward_admin_count++;
           else if (requestStatus === 'forward_supervisor') statusCounts.forward_supervisor_count++;
           else if (requestStatus === 'return') statusCounts.return_count++;
+        } catch (error) {
+          console.error(`Error fetching details for approval ${approval.id}:`, error);
         }
-      });
+      }
 
       // Convert to array and filter by active filter
       let filteredRequests = Array.from(requestMap.values());
