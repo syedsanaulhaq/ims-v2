@@ -142,7 +142,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
       { title: "Stock Requests", icon: ClipboardList, path: "/procurement/my-requests", permission: 'procurement.view_own' },
-      { title: "My Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "My Approvals (Item-wise)", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "My Approvals (Request-wise)", icon: CheckCircle, path: "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
     ]
   };
 

@@ -67,6 +67,7 @@ import TenderAcquisitionReport from "./pages/TenderAcquisitionReport";
 import AllInventoryItemsPage from "./pages/AllInventoryItemsPage";
 import StockQuantitiesPage from "./pages/StockQuantitiesPage";
 import ApprovalDashboard from "./components/ApprovalDashboard";
+import ApprovalDashboardRequestBased from "./components/ApprovalDashboardRequestBased";
 import WingApprovalDashboard from "./components/WingApprovalDashboard";
 import WorkflowAdmin from "./components/WorkflowAdmin";
 import ApprovalForwarding from "./components/ApprovalForwarding";
@@ -207,6 +208,7 @@ function App() {
                   <Route path="verification-history" element={<VerificationHistoryPage />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
+                  <Route path="approval-dashboard-request-based" element={<ApprovalDashboardRequestBased />} />
                   <Route path="wing-approval-dashboard" element={<WingApprovalDashboard />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />
                   <Route path="wing-requests" element={<WingRequestsPage />} />
