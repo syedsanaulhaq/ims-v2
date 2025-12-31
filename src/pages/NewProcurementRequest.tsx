@@ -164,6 +164,72 @@ const NewProcurementRequest: React.FC = () => {
     setSelectedItems(updated);
   };
 
+  const handleSubmit = async () => {
+    try {
+      setSubmitting(true);
+      setError('');
+      setSuccess('');
+
+      if (!selectedItems || selectedItems.length === 0) {
+        setError('Please select at least one item');
+        return;
+      }
+
+      if (!justification.trim()) {
+        setError('Please provide a justification for this request');
+        return;
+      }
+
+      // Get user ID from session
+      const userId = user?.user_id || user?.Id;
+      if (!userId) {
+        setError('User information not found. Please log in again.');
+        return;
+      }
+
+      const payload = {
+        request_type: 'Organizational',
+        requester_user_id: userId,
+        justification,
+        priority,
+        items: selectedItems.map(item => ({
+          item_master_id: item.item_master_id,
+          item_nomenclature: item.item_nomenclature,
+          requested_quantity: item.requested_quantity,
+          unit_of_measurement: item.unit_of_measurement,
+          notes: item.notes || ''
+        }))
+      };
+
+      const response = await fetch(`${getApiBaseUrl()}/stock-issuance-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to submit request');
+      }
+
+      setSuccess('Wing request submitted successfully!');
+      setSelectedItems([]);
+      setJustification('');
+      setPriority('normal');
+
+      // Redirect after success
+      setTimeout(() => {
+        navigate('/procurement/my-requests');
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit request');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
@@ -422,8 +488,12 @@ const NewProcurementRequest: React.FC = () => {
                 )}
               </CardContent>
             </Card>
-            <Button disabled={selectedItems.length === 0 || submitting} className="w-full">
-              Submit Wing Request
+            <Button 
+              disabled={selectedItems.length === 0 || submitting} 
+              className="w-full"
+              onClick={handleSubmit}
+            >
+              {submitting ? 'Submitting...' : 'Submit Wing Request'}
             </Button>
           </div>
         </div>
