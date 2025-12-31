@@ -45,6 +45,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'pending' | 'approve_wing' | 'reject' | 'forward_admin' | 'forward_supervisor' | 'return'>('pending');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     loadDashboardData();
@@ -220,6 +221,20 @@ const ApprovalDashboardRequestBased: React.FC = () => {
     setExpandedRequest(null);
   };
 
+  const getFilteredRequests = () => {
+    if (!searchTerm.trim()) {
+      return requests;
+    }
+    
+    const lowerSearch = searchTerm.toLowerCase();
+    return requests.filter((request) => 
+      request.request_id.toLowerCase().includes(lowerSearch) ||
+      request.submitted_by_name?.toLowerCase().includes(lowerSearch) ||
+      request.request_type.toLowerCase().includes(lowerSearch) ||
+      request.current_approver_name?.toLowerCase().includes(lowerSearch)
+    );
+  };
+
   const handleConfigureWorkflows = () => {
     navigate('/dashboard/workflow-admin');
   };
@@ -256,6 +271,25 @@ const ApprovalDashboardRequestBased: React.FC = () => {
             <Clock className="h-3 w-3 mr-1" />
             Last Updated: {new Date().toLocaleTimeString()}
           </Badge>
+        </div>
+        
+        {/* Search Input */}
+        <div className="mt-4 flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Search by request ID, requester, type..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -379,13 +413,13 @@ const ApprovalDashboardRequestBased: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {requests.length === 0 ? (
+          {getFilteredRequests().length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No requests found for this status</p>
+              <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No requests found for this status'}</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {requests.map((request) => (
+              {getFilteredRequests().map((request) => (
                 <Card key={request.id} className="border border-gray-200 hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
