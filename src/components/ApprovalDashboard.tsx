@@ -139,29 +139,10 @@ const ApprovalDashboard: React.FC = () => {
             Last Updated: {new Date().toLocaleTimeString()}
           </Badge>
         </div>
-        
-        {/* Search Input */}
-        <div className="mt-4 flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Search by request ID, requester, type..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm"
-            >
-              Clear
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-4">
         <button
           onClick={() => setActiveFilter('pending')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
@@ -258,8 +239,10 @@ const ApprovalDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Requests List */}
-      <Card className="border border-gray-200">
+      {/* Search and Requests List Container */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Requests List */}
+        <Card className="border border-gray-200 flex-1">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>
@@ -357,6 +340,45 @@ const ApprovalDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+        {/* Search Sidebar */}
+        <div className="lg:w-80">
+          <Card className="border border-gray-200 sticky top-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Search</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Filter Requests
+                </label>
+                <input
+                  type="text"
+                  placeholder="Request ID, requester, type..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Clear Search
+                </button>
+              )}
+              {searchTerm && (
+                <div className="pt-2 border-t border-gray-200">
+                  <p className="text-xs text-gray-600">
+                    Found <span className="font-semibold">{getFilteredApprovals().length}</span> request(s)
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Quick Actions */}
       <Card className="border border-gray-200">
