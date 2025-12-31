@@ -11,7 +11,7 @@ import {
 import ApprovalForwarding from './ApprovalForwarding';
 import PerItemApprovalPanel from './PerItemApprovalPanel';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import { CheckCircle, Clock, RefreshCw, Settings, Users } from "lucide-react";
+import { CheckCircle, Clock, RefreshCw, Settings, Users, Search } from "lucide-react";
 
 const ApprovalDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -255,6 +255,14 @@ const ApprovalDashboard: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
               />
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-2"
+                onClick={() => {/* Already filtering in real-time */}}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
