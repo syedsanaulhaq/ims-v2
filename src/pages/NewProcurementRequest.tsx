@@ -187,31 +187,69 @@ const NewProcurementRequest: React.FC = () => {
         return;
       }
 
-      const payload = {
+      // Get wing ID from user
+      const wingId = user?.intWingID || user?.wing_id || user?.WingID;
+
+      // Generate request number
+      const requestNumber = `WING-${Date.now()}`;
+
+      // Create the stock issuance request first
+      const requestPayload = {
+        request_number: requestNumber,
         request_type: 'Organizational',
+        requester_office_id: null,
+        requester_wing_id: wingId || null,
+        requester_branch_id: null,
         requester_user_id: userId,
+        purpose: 'Wing Stock Request',
+        urgency_level: priority === 'critical' ? 'High' : priority === 'urgent' ? 'Medium' : 'Normal',
         justification,
-        priority,
-        items: selectedItems.map(item => ({
+        expected_return_date: null,
+        is_returnable: 0,
+        request_status: 'Submitted'
+      };
+
+      const requestResponse = await fetch(`${getApiBaseUrl()}/api/stock-issuance/requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestPayload)
+      });
+
+      const requestData = await requestResponse.json();
+
+      if (!requestResponse.ok) {
+        throw new Error(requestData.error || requestData.message || 'Failed to create request');
+      }
+
+      const requestId = requestData.data?.id;
+      if (!requestId) {
+        throw new Error('No request ID returned from server');
+      }
+
+      console.log('✅ Request created with ID:', requestId);
+
+      // Now add items to the request
+      for (const item of selectedItems) {
+        const itemPayload = {
+          request_id: requestId,
           item_master_id: item.item_master_id,
           item_nomenclature: item.item_nomenclature,
           requested_quantity: item.requested_quantity,
           unit_of_measurement: item.unit_of_measurement,
           notes: item.notes || ''
-        }))
-      };
+        };
 
-      const response = await fetch(`${getApiBaseUrl()}/stock-issuance-requests`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
+        const itemResponse = await fetch(`${getApiBaseUrl()}/api/stock-issuance/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(itemPayload)
+        });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to submit request');
+        if (!itemResponse.ok) {
+          console.warn('⚠️ Failed to add item:', item.item_nomenclature);
+        }
       }
 
       setSuccess('Wing request submitted successfully!');
@@ -224,7 +262,9 @@ const NewProcurementRequest: React.FC = () => {
         navigate('/procurement/my-requests');
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit request');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit request';
+      console.error('❌ Submit error:', errorMessage);
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
