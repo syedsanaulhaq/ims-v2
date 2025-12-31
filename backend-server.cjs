@@ -14723,7 +14723,7 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
     }
     const request = pool.request();
     
-    // Get approval details
+    // Get approval details with scope information from stock_issuance_requests
     const approvalResult = await request
       .input('approvalId', sql.UniqueIdentifier, approvalId)
       .query(`
@@ -14731,11 +14731,13 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
           ra.*,
           submitter.FullName as submitted_by_name,
           current_approver.FullName as current_approver_name,
-          wf.workflow_name
+          wf.workflow_name,
+          sir.request_type as scope_type
         FROM request_approvals ra
         LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
         LEFT JOIN AspNetUsers current_approver ON ra.current_approver_id = current_approver.Id
         LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
+        LEFT JOIN stock_issuance_requests sir ON ra.request_id = sir.id
         WHERE ra.id = @approvalId
       `);
     
@@ -17009,6 +17011,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
           ra.id,
           ra.request_id,
           ra.request_type,
+          sir.request_type as scope_type,
           ra.submitted_date,
           ra.current_status,
           ra.submitted_by,
@@ -17041,6 +17044,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
           ra.id,
           ra.request_id,
           ra.request_type,
+          sir.request_type as scope_type,
           ra.submitted_date,
           ra.current_status,
           ra.submitted_by,
@@ -17073,6 +17077,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
           ra.id,
           ra.request_id,
           ra.request_type,
+          sir.request_type as scope_type,
           ra.submitted_date,
           ra.current_status,
           ra.submitted_by,
@@ -17105,6 +17110,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
           ra.id,
           ra.request_id,
           ra.request_type,
+          sir.request_type as scope_type,
           ra.submitted_date,
           ra.current_status,
           ra.submitted_by,
@@ -17137,6 +17143,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
           ra.id,
           ra.request_id,
           ra.request_type,
+          sir.request_type as scope_type,
           ra.submitted_date,
           ra.current_status,
           ra.submitted_by,
@@ -17206,6 +17213,7 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         id: approval.id,
         request_id: approval.request_id,
         request_type: approval.request_type || 'stock_issuance',
+        scope_type: approval.scope_type || 'Individual',
         title: approval.title || 'Stock Issuance Request',
         description: approval.description || 'Request for inventory items',
         requested_date: approval.requested_date || approval.submitted_date,

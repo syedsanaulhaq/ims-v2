@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -10,7 +10,7 @@ import {
 } from '../services/approvalForwardingService';
 import PerItemApprovalPanel from './PerItemApprovalPanel';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import { CheckCircle, Clock, RefreshCw, Settings, Users, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { CheckCircle, Clock, RefreshCw, Search, ChevronDown, ChevronUp } from "lucide-react";
 
 interface RequestSummary {
   id: string;
@@ -46,6 +46,10 @@ const ApprovalDashboardRequestBased: React.FC = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'pending' | 'approve_wing' | 'reject' | 'forward_admin' | 'forward_supervisor' | 'return'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
+  const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     loadDashboardData();
@@ -116,7 +120,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
             returned_items: 0,
             forwarded_items: 0,
             pending_items: 0,
-            approval: { ...approval, items: fullApproval.items || [] } as any
+            approval: { ...fullApproval, items: fullApproval.items || [] } as any
           };
 
           // Count items by status
@@ -233,6 +237,89 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       request.request_type.toLowerCase().includes(lowerSearch) ||
       request.current_approver_name?.toLowerCase().includes(lowerSearch)
     );
+  };
+
+  const getSortedAndPaginatedRequests = () => {
+    const filtered = getFilteredRequests();
+    
+    const sorted = [...filtered].sort((a, b) => {
+      let compareValue = 0;
+      
+      if (sortBy === 'date') {
+        compareValue = new Date(a.submitted_date).getTime() - new Date(b.submitted_date).getTime();
+      } else if (sortBy === 'requester') {
+        compareValue = (a.submitted_by_name || '').localeCompare(b.submitted_by_name || '');
+      }
+      
+      return sortOrder === 'asc' ? compareValue : -compareValue;
+    });
+
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return sorted.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = () => {
+    return Math.ceil(getFilteredRequests().length / itemsPerPage);
+  };
+
+  // Group requests by type (personal vs wing-wise)
+  const getPersonalRequests = () => {
+    const filtered = getFilteredRequests();
+    const personal = filtered.filter(r => {
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      return scopeType === 'individual';
+    });
+    return personal;
+  };
+
+  const getWingRequests = () => {
+    const filtered = getFilteredRequests();
+    const wing = filtered.filter(r => {
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      return scopeType === 'organizational';
+    });
+    return wing;
+  };
+
+  // Get paginated results for personal requests
+  const getPersonalPaginated = () => {
+    const filtered = getPersonalRequests();
+    const sorted = [...filtered].sort((a, b) => {
+      let compareValue = 0;
+      if (sortBy === 'date') {
+        compareValue = new Date(a.submitted_date).getTime() - new Date(b.submitted_date).getTime();
+      } else if (sortBy === 'requester') {
+        compareValue = (a.submitted_by_name || '').localeCompare(b.submitted_by_name || '');
+      }
+      return sortOrder === 'asc' ? compareValue : -compareValue;
+    });
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sorted.slice(startIndex, startIndex + itemsPerPage);
+  };
+
+  // Get paginated results for wing requests
+  const getWingPaginated = () => {
+    const filtered = getWingRequests();
+    const sorted = [...filtered].sort((a, b) => {
+      let compareValue = 0;
+      if (sortBy === 'date') {
+        compareValue = new Date(a.submitted_date).getTime() - new Date(b.submitted_date).getTime();
+      } else if (sortBy === 'requester') {
+        compareValue = (a.submitted_by_name || '').localeCompare(b.submitted_by_name || '');
+      }
+      return sortOrder === 'asc' ? compareValue : -compareValue;
+    });
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sorted.slice(startIndex, startIndex + itemsPerPage);
+  };
+
+  const getPersonalTotalPages = () => {
+    return Math.ceil(getPersonalRequests().length / itemsPerPage);
+  };
+
+  const getWingTotalPages = () => {
+    return Math.ceil(getWingRequests().length / itemsPerPage);
   };
 
   const handleConfigureWorkflows = () => {
@@ -385,49 +472,70 @@ const ApprovalDashboardRequestBased: React.FC = () => {
         </button>
       </div>
 
-      {/* Requests List */}
+      {/* Personal Requests Table */}
       <Card className="border border-gray-200">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-blue-600" />
-              Requests - {getStatusLabel(activeFilter === 'pending' ? 'pending' : activeFilter)} ({requests.length})
+            <CardTitle className="text-4xl font-bold flex items-center gap-3">
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Personal Requests</Badge>
+              <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                className="px-2"
-                onClick={() => {/* Already filtering in real-time */}}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="px-2 py-2 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+              <div className="flex items-center gap-2">
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [by, order] = e.target.value.split('-');
+                    setSortBy(by as 'date' | 'requester');
+                    setSortOrder(order as 'asc' | 'desc');
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  ✕
-                </button>
-              )}
+                  <option value="date-desc">Newest First</option>
+                  <option value="date-asc">Oldest First</option>
+                  <option value="requester-asc">Requester A-Z</option>
+                  <option value="requester-desc">Requester Z-A</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2"
+                  onClick={() => {/* Already filtering in real-time */}}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-2 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {getFilteredRequests().length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No requests found for this status'}</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {getFilteredRequests().map((request) => (
+          </CardHeader>
+          <CardContent>
+            {getPersonalRequests().length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No personal requests'}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {getPersonalPaginated().map((request) => (
                 <Card key={request.id} className="border border-gray-200 hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
@@ -530,50 +638,235 @@ const ApprovalDashboardRequestBased: React.FC = () => {
             </div>
           )}
         </CardContent>
+        <CardFooter className="border-t border-gray-200 bg-gray-50 py-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            {getPersonalRequests().length > 0 ? (
+              <>
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, getPersonalRequests().length)} of {getPersonalRequests().length} requests
+              </>
+            ) : (
+              'No requests to display'
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              ← Previous
+            </Button>
+            <div className="px-3 py-1 bg-white border border-gray-300 rounded-lg">
+              <span className="text-sm font-medium">
+                Page {currentPage} of {getPersonalTotalPages()}
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(getPersonalTotalPages(), prev + 1))}
+              disabled={currentPage === getPersonalTotalPages()}
+            >
+              Next →
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
 
-      {/* Quick Actions */}
+      {/* Wing Requests Table */}
       <Card className="border border-gray-200">
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button 
-              onClick={handleConfigureWorkflows}
-              className="p-4 text-left border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors group"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <Settings className="h-5 w-5 text-blue-600 group-hover:text-blue-700" />
-                <div className="font-semibold text-gray-900">Configure Workflows</div>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="text-4xl font-bold flex items-center gap-3">
+                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Requests</Badge>
+                <span className="text-gray-600 text-2xl">({getWingRequests().length})</span>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [by, order] = e.target.value.split('-');
+                    setSortBy(by as 'date' | 'requester');
+                    setSortOrder(order as 'asc' | 'desc');
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="date-desc">Newest First</option>
+                  <option value="date-asc">Oldest First</option>
+                  <option value="requester-asc">Requester A-Z</option>
+                  <option value="requester-desc">Requester Z-A</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2"
+                  onClick={() => {/* Already filtering in real-time */}}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-2 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
-              <div className="text-sm text-gray-600">Set up approval workflows for different request types</div>
-            </button>
-            
-            <button 
-              onClick={handleManageApprovers}
-              className="p-4 text-left border border-gray-200 rounded-lg hover:bg-green-50 hover:border-green-300 transition-colors group"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <Users className="h-5 w-5 text-green-600 group-hover:text-green-700" />
-                <div className="font-semibold text-gray-900">Manage Approvers</div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {getWingRequests().length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing requests'}</p>
               </div>
-              <div className="text-sm text-gray-600">Add or remove approvers from workflows</div>
-            </button>
-            
-            <button 
-              onClick={() => setRefreshTrigger(prev => prev + 1)}
-              className="p-4 text-left border border-gray-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-colors group"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <RefreshCw className="h-5 w-5 text-purple-600 group-hover:text-purple-700" />
-                <div className="font-semibold text-gray-900">Refresh Dashboard</div>
+            ) : (
+              <div className="space-y-4">
+                {getWingPaginated().map((request) => (
+                  <Card key={request.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {request.request_id}
+                            </h3>
+                            <Badge className="text-xs">
+                              {request.request_type.replace('_', ' ').toUpperCase()}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${getStatusColor(request.request_status)}`}
+                            >
+                              {getStatusLabel(request.request_status)}
+                            </Badge>
+                          </div>
+                          
+                          <div className="text-sm text-gray-600 space-y-1 mb-3">
+                            <div>Submitted by: <span className="font-medium text-gray-900">{request.submitted_by_name}</span></div>
+                            <div>
+                              Submitted: {(() => {
+                                const date = new Date(request.submitted_date);
+                                return date.toLocaleString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                });
+                              })()}
+                            </div>
+                            {request.current_approver_name && (
+                              <div>Current Approver: <span className="font-medium text-gray-900">{request.current_approver_name}</span></div>
+                            )}
+                          </div>
+
+                          {/* Summary Stats */}
+                          <div className="flex gap-4 text-xs text-gray-500 mt-3">
+                            <div>Total: <span className="font-bold text-gray-900">{request.total_items}</span></div>
+                            {request.approved_items > 0 && (
+                              <div>✓ <span className="font-bold text-green-600">{request.approved_items}</span></div>
+                            )}
+                            {request.rejected_items > 0 && (
+                              <div>✗ <span className="font-bold text-red-600">{request.rejected_items}</span></div>
+                            )}
+                            {request.returned_items > 0 && (
+                              <div>↩ <span className="font-bold text-orange-600">{request.returned_items}</span></div>
+                            )}
+                            {request.pending_items > 0 && (
+                              <div>⏳ <span className="font-bold">{request.pending_items}</span></div>
+                            )}
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedRequest(expandedRequest === request.id ? null : request.id)}
+                          className="ml-4 flex items-center gap-1"
+                        >
+                          {expandedRequest === request.id ? (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              Hide
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-4 w-4" />
+                              View Items
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Expanded Items View */}
+                      {expandedRequest === request.id && (
+                        <div className="mt-4 bg-gray-50 border-t border-gray-200 p-4 rounded-lg">
+                          <PerItemApprovalPanel
+                            approvalId={request.id}
+                            onActionComplete={handleActionComplete}
+                            activeFilter={'all' as any}
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-              <div className="text-sm text-gray-600">Refresh to see latest approval requests</div>
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+          <CardFooter className="border-t border-gray-200 bg-gray-50 py-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              {getWingRequests().length > 0 ? (
+                <>
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, getWingRequests().length)} of {getWingRequests().length} requests
+                </>
+              ) : (
+                'No requests to display'
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                ← Previous
+              </Button>
+              <div className="px-3 py-1 bg-white border border-gray-300 rounded-lg">
+                <span className="text-sm font-medium">
+                  Page {currentPage} of {getWingTotalPages()}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(getWingTotalPages(), prev + 1))}
+                disabled={currentPage === getWingTotalPages()}
+              >
+                Next →
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+
     </div>
   );
 };
