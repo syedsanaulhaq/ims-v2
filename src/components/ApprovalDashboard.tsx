@@ -239,24 +239,39 @@ const ApprovalDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Search and Requests List Container */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Requests List */}
-        <Card className="border border-gray-200 flex-1">
+      {/* Requests List */}
+      <Card className="border border-gray-200">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <CardTitle>
               {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Requests
               <Badge className="ml-2 bg-gray-100 text-gray-800">{pendingApprovals.length}</Badge>
             </CardTitle>
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={() => setRefreshTrigger(prev => prev + 1)}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="px-2 py-2 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+                >
+                  ✕
+                </button>
+              )}
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => setRefreshTrigger(prev => prev + 1)}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -340,45 +355,6 @@ const ApprovalDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
-        {/* Search Sidebar */}
-        <div className="lg:w-80">
-          <Card className="border border-gray-200 sticky top-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Search</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Filter Requests
-                </label>
-                <input
-                  type="text"
-                  placeholder="Request ID, requester, type..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Clear Search
-                </button>
-              )}
-              {searchTerm && (
-                <div className="pt-2 border-t border-gray-200">
-                  <p className="text-xs text-gray-600">
-                    Found <span className="font-semibold">{getFilteredApprovals().length}</span> request(s)
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
 
       {/* Quick Actions */}
       <Card className="border border-gray-200">
