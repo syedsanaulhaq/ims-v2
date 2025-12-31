@@ -30,7 +30,7 @@ const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:3001';
 interface PerItemApprovalPanelProps {
   approvalId: string;
   onActionComplete?: () => void;
-  activeFilter?: 'pending' | 'approved' | 'rejected' | 'returned' | 'forwarded';
+  activeFilter?: 'pending' | 'approved' | 'rejected' | 'returned' | 'forwarded' | 'all';
 }
 
 interface ItemDecision {
@@ -471,7 +471,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       );
     }
     
-    // Default: show all items
+    // Default or "all": show all items
     return request.items;
   };
 
