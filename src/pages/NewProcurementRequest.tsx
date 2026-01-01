@@ -265,7 +265,7 @@ const NewProcurementRequest: React.FC = () => {
 
       // Redirect after success
       setTimeout(() => {
-        navigate('/procurement/my-requests');
+        navigate('/dashboard/wing-dashboard');
       }, 2000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to submit request';
