@@ -2309,7 +2309,7 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
       let firstApproverId = null;
       
       // For Individual requests: Use hierarchy-based supervisor lookup
-      // For Organizer/Department requests: Use workflow_approvers directly
+      // For Organizational requests: Use Wing HOD lookup
       if (request_type === 'Individual' && requester_user_id) {
         console.log('🔍 Individual request - Looking up supervisor for requester_user_id:', requester_user_id);
         const supervisorResult = await pool.request()
@@ -2336,8 +2336,33 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
         } else {
           console.log('⚠️ No supervisor found in hierarchy for Individual request, falling back to workflow approvers');
         }
+      } else if (request_type === 'Organizational' && requester_wing_id) {
+        console.log('🏢 Organizational request - Looking up Wing HOD for wing_id:', requester_wing_id);
+        // For organizational requests, route to Wing HOD
+        const wingResult = await pool.request()
+          .input('wing_id', sql.Int, requester_wing_id)
+          .query(`
+            SELECT 
+              u.Id as HODUserId,
+              u.FullName as HODName,
+              u.Email as HODEmail,
+              w.Name as WingName
+            FROM WingsInformation w
+            LEFT JOIN AspNetUsers u ON u.FullName = w.HODName
+            WHERE w.Id = @wing_id
+          `);
+
+        console.log('🔍 Wing HOD lookup result:', wingResult.recordset);
+        
+        if (wingResult.recordset.length > 0 && wingResult.recordset[0].HODUserId) {
+          // Found Wing HOD
+          firstApproverId = wingResult.recordset[0].HODUserId;
+          console.log('👤 Auto-assigning to Wing HOD:', wingResult.recordset[0].HODName, '(', firstApproverId, ') for wing:', wingResult.recordset[0].WingName);
+        } else {
+          console.log('⚠️ No Wing HOD found for Organizational request, will use workflow approvers');
+        }
       } else {
-        console.log('🏢 Organizer/Department request - Using workflow approvers directly');
+        console.log('🏢 Request type:', request_type, '- Using workflow approvers or hierarchy');
       }
       
       // If no approver found yet (Organizer/Department OR Individual without supervisor), use workflow_approvers
