@@ -16448,14 +16448,15 @@ app.get('/api/wing-request-history', async (req, res) => {
     console.log('User wing ID:', userWingId);
 
     // Get all requests from users in the same wing
+    // This includes both requests with approvals AND direct requests from stock_issuance_requests
     const wingRequestsQuery = `
       SELECT 
-        ra.id,
-        ra.request_id,
-        ra.request_type,
-        ra.submitted_date,
-        ra.current_status,
-        ra.submitted_by,
+        COALESCE(ra.id, sir.id) as id,
+        sir.id as request_id,
+        sir.request_type,
+        COALESCE(ra.submitted_date, sir.submitted_at) as submitted_date,
+        COALESCE(ra.current_status, sir.request_status) as current_status,
+        COALESCE(ra.submitted_by, sir.requester_user_id) as submitted_by,
         ra.current_approver_id,
         u_requester.FullName as requester_name,
         u_current_approver.FullName as current_approver_name,
@@ -16465,20 +16466,21 @@ app.get('/api/wing-request-history', async (req, res) => {
         sir.expected_return_date as requested_date,
         COALESCE(item_counts.item_count, 0) as total_items,
         w.Name as requester_wing_name
-      FROM request_approvals ra
-      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
+      FROM stock_issuance_requests sir
+      LEFT JOIN request_approvals ra ON ra.request_id = sir.id
+      LEFT JOIN AspNetUsers u_requester ON u_requester.Id = COALESCE(ra.submitted_by, sir.requester_user_id)
       LEFT JOIN AspNetUsers u_current_approver ON u_current_approver.Id = ra.current_approver_id
       LEFT JOIN tblUserDesignations d_approver ON u_current_approver.intDesignationID = d_approver.intDesignationID
-      LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
       LEFT JOIN WingsInformation w ON u_requester.intWingID = w.Id
       LEFT JOIN (
         SELECT request_id, COUNT(*) as item_count
         FROM stock_issuance_items 
         GROUP BY request_id
-      ) item_counts ON item_counts.request_id = ra.request_id
+      ) item_counts ON item_counts.request_id = sir.id
       WHERE u_requester.intWingID IS NOT NULL 
       AND u_requester.intWingID = @wingId
-      ORDER BY ra.submitted_date DESC`;
+      AND sir.request_type = 'Organizational'
+      ORDER BY COALESCE(ra.submitted_date, sir.submitted_at) DESC`;
 
     console.log('📊 WING REQUESTS QUERY:', wingRequestsQuery);
     console.log('🔢 Wing ID parameter:', userWingId, 'Type:', typeof userWingId);
