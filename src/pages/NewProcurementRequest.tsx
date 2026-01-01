@@ -229,26 +229,32 @@ const NewProcurementRequest: React.FC = () => {
 
       console.log('✅ Request created with ID:', requestId);
 
-      // Now add items to the request
-      for (const item of selectedItems) {
-        const itemPayload = {
+      // Now add items to the request - send all items in one request
+      if (selectedItems.length > 0) {
+        const itemsPayload = {
           request_id: requestId,
-          item_master_id: item.item_master_id,
-          item_nomenclature: item.item_nomenclature,
-          requested_quantity: item.requested_quantity,
-          unit_of_measurement: item.unit_of_measurement,
-          notes: item.notes || ''
+          items: selectedItems.map(item => ({
+            item_master_id: item.item_master_id,
+            nomenclature: item.item_nomenclature,
+            requested_quantity: item.requested_quantity,
+            unit_price: 0,
+            item_type: item.item_master_id.toString().startsWith('custom_') ? 'custom' : 'standard',
+            custom_item_name: item.item_master_id.toString().startsWith('custom_') ? item.item_nomenclature : null
+          }))
         };
 
         const itemResponse = await fetch(`${getApiBaseUrl()}/api/stock-issuance/items`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify(itemPayload)
+          body: JSON.stringify(itemsPayload)
         });
 
         if (!itemResponse.ok) {
-          console.warn('⚠️ Failed to add item:', item.item_nomenclature);
+          const errorData = await itemResponse.json();
+          console.warn('⚠️ Failed to add items:', errorData);
+        } else {
+          console.log('✅ Items added successfully');
         }
       }
 
