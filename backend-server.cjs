@@ -16431,21 +16431,27 @@ app.get('/api/wing-request-history', async (req, res) => {
 
     // Get user's wing ID
     const userWingQuery = `
-      SELECT intWingID as wing_id 
-      FROM AspNetUsers 
-      WHERE Id = @userId
+      SELECT u.intWingID as wing_id, u.FullName, w.Name as wing_name
+      FROM AspNetUsers u
+      LEFT JOIN WingsInformation w ON w.Id = u.intWingID
+      WHERE u.Id = @userId
     `;
     
     const userWingResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(userWingQuery);
     
+    console.log('🔍 User query result:', userWingResult.recordset);
+    
     if (!userWingResult.recordset[0]?.wing_id) {
+      console.error('❌ No wing ID found for user:', userId);
       return res.status(400).json({ success: false, error: 'User wing information not found' });
     }
     
     const userWingId = userWingResult.recordset[0].wing_id;
-    console.log('User wing ID:', userWingId);
+    const userName = userWingResult.recordset[0].FullName;
+    const userWingName = userWingResult.recordset[0].wing_name;
+    console.log('✅ Found user:', userName, 'with wing ID:', userWingId, 'Wing:', userWingName);
 
     // Get all requests from users in the same wing
     // This includes both requests with approvals AND direct requests from stock_issuance_requests
@@ -16565,7 +16571,7 @@ app.get('/api/wing-request-history', async (req, res) => {
       success: true,
       requests: requests,
       total: requests.length,
-      wing_name: userWingResult.recordset[0]?.wing_name || 'Your Wing',
+      wing_name: userWingName || 'Your Wing',
       debug_request_ids: requests.map(r => ({ 
         approval_id: r.id, 
         request_id: r.request_id,
