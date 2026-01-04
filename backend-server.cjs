@@ -12241,6 +12241,77 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
   }
 });
 
+// Get forwarded verifications for Store Keeper
+app.get('/api/inventory/my-forwarded-verifications', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ 
+        error: 'User ID is required' 
+      });
+    }
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    console.log('📋 My Forwarded Verifications - userId:', userId);
+
+    // Query inventory_verification_requests forwarded to this store keeper
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          ivr.id,
+          ivr.stock_issuance_id,
+          ivr.item_master_id,
+          ivr.requested_by_user_id,
+          ivr.requested_by_name,
+          ivr.requested_at,
+          ivr.requested_quantity,
+          ivr.verification_status,
+          ivr.verified_by_user_id,
+          ivr.verified_by_name,
+          ivr.verified_at,
+          ivr.physical_count,
+          ivr.available_quantity,
+          ivr.verification_notes,
+          ivr.wing_id,
+          ivr.wing_name,
+          ivr.item_nomenclature,
+          ivr.forwarded_to_user_id,
+          ivr.forwarded_to_name,
+          ivr.forwarded_by_user_id,
+          ivr.forwarded_by_name,
+          ivr.forwarded_at,
+          ivr.forward_notes,
+          ivr.created_at,
+          ivr.updated_at
+        FROM inventory_verification_requests ivr
+        WHERE ivr.forwarded_to_user_id = @userId
+        ORDER BY ivr.forwarded_at DESC
+      `);
+
+    console.log('✅ Found', result.recordset.length, 'forwarded verifications for store keeper', userId);
+    
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching forwarded verifications:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch forwarded verifications', 
+      details: error.message 
+    });
+  }
+});
+
 // Update verification status (by inventory supervisor)
 app.post('/api/inventory/update-verification', async (req, res) => {
   try {

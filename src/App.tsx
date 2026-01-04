@@ -86,6 +86,7 @@ import InventoryDetails from "./pages/InventoryDetails";
 import ItemDetailsPage from "./pages/ItemDetailsPage";
 import StockOperations from "./pages/StockOperations";
 import { PendingVerificationsPage } from "./pages/PendingVerificationsPage";
+import { StoreKeeperVerificationsPage } from "./pages/StoreKeeperVerificationsPage";
 import VerificationHistoryPage from "./pages/VerificationHistoryPage";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NewProcurementRequest from "./pages/NewProcurementRequest";
@@ -205,6 +206,7 @@ function App() {
                   <Route path="wing-dashboard" element={<WingDashboard />} />
                   <Route path="wing-members" element={<WingMembers />} />
                   <Route path="pending-verifications" element={<PendingVerificationsPage />} />
+                  <Route path="store-keeper-verifications" element={<StoreKeeperVerificationsPage />} />
                   <Route path="verification-history" element={<VerificationHistoryPage />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
