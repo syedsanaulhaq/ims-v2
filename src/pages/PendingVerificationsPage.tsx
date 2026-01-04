@@ -375,35 +375,17 @@ export const PendingVerificationsPage: React.FC = () => {
 
       {/* Main Requests List */}
       <Card className="shadow-lg border-2 border-indigo-200">
-              <p className="text-3xl font-bold text-green-600">{getVerifiedCount()}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <AlertCircle className="w-8 h-8 text-teal-600 mx-auto mb-2" />
-              <p className="text-gray-600">Total</p>
-              <p className="text-3xl font-bold text-teal-600">{verificationRequests.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Verification Requests List */}
-      <Card>
-        <CardHeader>
+        <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-indigo-100">
           <CardTitle className="flex items-center gap-2">
-            <Eye className="w-5 h-5 text-teal-600" />
+            <Eye className="w-5 h-5 text-indigo-600" />
             Pending Inventory Verifications
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {verificationRequests.length === 0 ? (
+        <CardContent className="pt-6">
+          {verificationRequests.length === 0 || getFilteredRequests().length === 0 ? (
             <div className="text-center py-12">
               <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-4 opacity-50" />
-              <p className="text-gray-600">No pending verifications at the moment</p>
+              <p className="text-gray-600">No verifications found for selected filter</p>
             </div>
           ) : (
             <div className="space-y-3">
