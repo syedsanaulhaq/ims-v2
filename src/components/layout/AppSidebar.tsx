@@ -80,28 +80,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { user } = useSession();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   
-  // Debug: Log user permissions
-  useEffect(() => {
-    console.log('👤 AppSidebar - User data received:', {
-      user_id: user?.user_id,
-      user_name: user?.user_name,
-      ims_permissions: user?.ims_permissions?.length || 0,
-      ims_roles: user?.ims_roles?.length || 0,
-      is_super_admin: user?.is_super_admin,
-      permissionKeys: user?.ims_permissions?.map(p => p.permission_key) || [],
-      roleNames: user?.ims_roles?.map(r => r.role_name) || [],
-      wing_id: user?.wing_id,
-    });
-    
-    console.log('🔐 Permission Checks in AppSidebar:', {
-      canRequestIssuance: !!user?.ims_permissions?.some(p => p.permission_key === 'issuance.request'),
-      canApprove: !!user?.ims_permissions?.some(p => p.permission_key === 'approval.approve'),
-      isWingSupervisor: !!user?.ims_permissions?.some(p => p.permission_key === 'wing.supervisor'),
-      hasStoreKeeperRole: hasStoreKeeperRole,
-      isSuperAdmin: user?.is_super_admin
-    });
-  }, [user, hasStoreKeeperRole]);
-  
   // Permission hooks
   const { hasPermission: canManageRoles } = usePermission('roles.manage');
   const { hasPermission: canAssignRoles } = usePermission('users.assign_roles');
@@ -127,6 +105,28 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   
   // Store keeper can view the menu if they have the permission OR the role
   const canAccessStoreKeeperMenu = isWingStoreKeeper || hasStoreKeeperRole;
+  
+  // Debug: Log user permissions
+  useEffect(() => {
+    console.log('👤 AppSidebar - User data received:', {
+      user_id: user?.user_id,
+      user_name: user?.user_name,
+      ims_permissions: user?.ims_permissions?.length || 0,
+      ims_roles: user?.ims_roles?.length || 0,
+      is_super_admin: user?.is_super_admin,
+      permissionKeys: user?.ims_permissions?.map(p => p.permission_key) || [],
+      roleNames: user?.ims_roles?.map(r => r.role_name) || [],
+      wing_id: user?.wing_id,
+    });
+    
+    console.log('🔐 Permission Checks in AppSidebar:', {
+      canRequestIssuance: !!user?.ims_permissions?.some(p => p.permission_key === 'issuance.request'),
+      canApprove: !!user?.ims_permissions?.some(p => p.permission_key === 'approval.approve'),
+      isWingSupervisor: !!user?.ims_permissions?.some(p => p.permission_key === 'wing.supervisor'),
+      hasStoreKeeperRole: hasStoreKeeperRole,
+      isSuperAdmin: user?.is_super_admin
+    });
+  }, [user, hasStoreKeeperRole]);
 
   const handleLogout = async () => {
     try {
