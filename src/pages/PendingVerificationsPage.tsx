@@ -69,10 +69,20 @@ export const PendingVerificationsPage: React.FC = () => {
         return;
       }
       
-      const response = await fetch(`http://localhost:3001/api/inventory/pending-verifications?userId=${encodeURIComponent(user.user_id)}`);
+      // Get user's wing ID for filtering
+      const wingId = (user as any)?.intWingID;
+      const params = new URLSearchParams();
+      params.append('userId', user.user_id);
+      if (wingId) {
+        params.append('wingId', wingId);
+        console.log('🏢 Fetching pending verifications for wing:', wingId);
+      }
+      
+      const response = await fetch(`http://localhost:3001/api/inventory/pending-verifications?${params.toString()}`);
       const data = await response.json();
       
       if (data.success) {
+        console.log('✅ Loaded', data.data.length, 'pending verifications');
         setVerificationRequests(data.data);
       } else {
         console.error('Failed to fetch verifications:', data.error);
