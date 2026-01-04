@@ -69,26 +69,32 @@ export const PendingVerificationsPage: React.FC = () => {
         return;
       }
       
-      // Get user's wing ID for filtering
-      const wingId = (user as any)?.intWingID;
-      const params = new URLSearchParams();
-      params.append('userId', user.user_id);
-      if (wingId) {
-        params.append('wingId', wingId);
-        console.log('🏢 Fetching pending verifications for wing:', wingId);
-      }
+      console.log('📋 Fetching verification requests for user:', user.user_id);
       
-      const response = await fetch(`http://localhost:3001/api/inventory/pending-verifications?${params.toString()}`);
+      // Use the same endpoint as WingDashboard - fetches verification requests made BY the user
+      const response = await fetch(`http://localhost:3001/api/inventory/my-verification-requests?userId=${encodeURIComponent(user.user_id)}`);
       const data = await response.json();
       
+      console.log('📦 API Response:', data);
+      
       if (data.success) {
-        console.log('✅ Loaded', data.data.length, 'pending verifications');
+        console.log('✅ Loaded', data.data.length, 'verification requests');
+        setVerificationRequests(data.data || []);
+      } else if (Array.isArray(data)) {
+        // Fallback if API returns array directly
+        console.log('✅ Loaded', data.length, 'verification requests (array format)');
+        setVerificationRequests(data);
+      } else if (data.data) {
+        // Fallback if response has data property
+        console.log('✅ Loaded', data.data.length, 'verification requests');
         setVerificationRequests(data.data);
       } else {
-        console.error('Failed to fetch verifications:', data.error);
+        console.warn('Unexpected response format:', data);
+        setVerificationRequests([]);
       }
     } catch (error) {
-      console.error('Error fetching pending verifications:', error);
+      console.error('❌ Error fetching pending verifications:', error);
+      setVerificationRequests([]);
     } finally {
       setLoading(false);
     }
