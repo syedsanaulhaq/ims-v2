@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { AlertCircle, CheckCircle2, XCircle, Clock, Eye, Edit2, Send } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, Clock, Eye, Edit2, Send, Package } from 'lucide-react';
 import { useSession } from '@/contexts/SessionContext';
 
 interface InventoryVerificationRequest {
