@@ -12145,7 +12145,7 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
       });
     }
 
-    // Get pending verifications for wings this user supervises, plus forwarded items specifically assigned to this user
+    // Get pending verifications for wings this user supervises
     const placeholders = wingIds.map((_, i) => `@wingId${i}`).join(',');
     let query = `
       SELECT 
@@ -12165,21 +12165,12 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
         verified_by_user_id,
         verified_by_name,
         verified_at,
-        forwarded_to_user_id,
-        forwarded_to_name,
-        forwarded_at,
-        forward_notes,
-        forwarded_by_user_id,
-        forwarded_by_name,
         requested_at,
         created_at,
         updated_at
       FROM inventory_verification_requests 
       WHERE (
         wing_id IN (${placeholders}) AND verification_status = 'pending'
-      )
-      OR (
-        verification_status = 'forwarded' AND forwarded_to_user_id = @userId
       )
       ORDER BY requested_at DESC
     `;
