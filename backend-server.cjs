@@ -12061,6 +12061,10 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       let storeKeeperUserId = forwardToStoreKeeperId;
       let storeKeeperName = null;
       
+      console.log('🔍 Auto-forwarding logic:');
+      console.log('   wingId received:', wingId);
+      console.log('   forwardToStoreKeeperId:', forwardToStoreKeeperId);
+      
       if (storeKeeperUserId) {
         // Get store keeper's name
         const skResult = await pool.request()
@@ -12095,9 +12099,10 @@ app.post('/api/inventory/request-verification', async (req, res) => {
           // Forward to the first store keeper found
           storeKeeperUserId = skSearchResult.recordset[0].Id;
           storeKeeperName = skSearchResult.recordset[0].UserName;
-          console.log('👤 Store keeper auto-assigned:', { storeKeeperUserId, storeKeeperName });
+          console.log('✅ Store keeper auto-assigned:', { storeKeeperUserId, storeKeeperName });
         } else {
           console.log('⚠️  No store keepers found for wing:', wingId);
+          console.log('    Query may have failed silently or no store keepers have that role in that wing');
         }
       }
 

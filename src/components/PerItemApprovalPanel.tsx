@@ -623,7 +623,19 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       const currentUser = sessionService.getCurrentUser();
       const requestedByUserId = currentUser?.user_id || 'unknown';
       const requestedByName = currentUser?.user_name || approverName || 'System';
-      const wingId = currentUser?.wing_id;
+      
+      // Get wing ID - use current user's wing or fallback to 19
+      let wingId = currentUser?.wing_id;
+      if (!wingId) {
+        console.warn('⚠️ Wing ID not found in session, using fallback');
+        wingId = 19;  // Fallback to wing 19
+      }
+      
+      console.log('📤 Forwarding verification with user context:', {
+        requestedByUserId,
+        requestedByName,
+        wingId
+      });
       
       const apiUrl = getApiUrl();
       const endpoint = `${apiUrl}/api/inventory/request-verification`;
