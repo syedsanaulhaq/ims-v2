@@ -12034,10 +12034,11 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       requestedByUserId,
       requestedByName,
       wingId,
-      wingName
+      wingName,
+      forwardToStoreKeeperId  // Optional: specific store keeper to forward to
     } = req.body;
 
-    console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, itemNomenclature, requestedByUserId });
+    console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, itemNomenclature, requestedByUserId, wingId });
 
     if (!stockIssuanceId || !itemMasterId || !requestedByUserId) {
       return res.status(400).json({ 
@@ -12056,23 +12057,72 @@ app.post('/api/inventory/request-verification', async (req, res) => {
     }
 
     try {
-      // Create verification request
+      // First, if forwarding to a specific store keeper, get their name
+      let storeKeeperUserId = forwardToStoreKeeperId;
+      let storeKeeperName = null;
+      
+      if (storeKeeperUserId) {
+        // Get store keeper's name
+        const skResult = await pool.request()
+          .input('userId', sql.NVarChar, storeKeeperUserId)
+          .query(`
+            SELECT u.UserName, u.Id FROM AspNetUsers u 
+            WHERE u.Id = @userId
+          `);
+        
+        if (skResult.recordset.length > 0) {
+          storeKeeperName = skResult.recordset[0].UserName;
+          console.log('👤 Store keeper found:', { storeKeeperUserId, storeKeeperName });
+        }
+      } else if (wingId) {
+        // Auto-forward to any store keeper in this wing
+        console.log('🔍 Finding store keepers for wing:', wingId);
+        
+        const skSearchResult = await pool.request()
+          .input('wingId', sql.Int, wingId)
+          .query(`
+            SELECT DISTINCT u.Id, u.UserName
+            FROM AspNetUsers u
+            INNER JOIN user_wings uw ON u.Id = uw.user_id
+            INNER JOIN ims_roles ir ON u.Id = ir.user_id
+            WHERE uw.wing_id = @wingId
+              AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
+            ORDER BY u.UserName
+          `);
+        
+        if (skSearchResult.recordset.length > 0) {
+          // Forward to the first store keeper found
+          storeKeeperUserId = skSearchResult.recordset[0].Id;
+          storeKeeperName = skSearchResult.recordset[0].UserName;
+          console.log('👤 Store keeper auto-assigned:', { storeKeeperUserId, storeKeeperName });
+        } else {
+          console.log('⚠️  No store keepers found for wing:', wingId);
+        }
+      }
+
+      // Create verification request with forwarding information
       const result = await pool.request()
         .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
-        .input('itemMasterId', sql.NVarChar, itemMasterId)  // Changed to NVarChar to match actual ID type
+        .input('itemMasterId', sql.NVarChar, itemMasterId)
         .input('itemNomenclature', sql.NVarChar, itemNomenclature || 'Unknown Item')
         .input('requestedByUserId', sql.NVarChar, requestedByUserId)
         .input('requestedByName', sql.NVarChar, requestedByName || 'System')
         .input('requestedQuantity', sql.Int, requestedQuantity || 0)
         .input('wingId', sql.Int, wingId || 0)
         .input('wingName', sql.NVarChar, wingName || 'Unknown')
+        .input('forwardedToUserId', sql.NVarChar, storeKeeperUserId || null)
+        .input('forwardedToName', sql.NVarChar, storeKeeperName || null)
+        .input('forwardedByUserId', sql.NVarChar, requestedByUserId)
+        .input('forwardedByName', sql.NVarChar, requestedByName)
         .query(`
           INSERT INTO inventory_verification_requests 
           (stock_issuance_id, item_master_id, item_nomenclature, requested_by_user_id, requested_by_name, 
-           requested_quantity, verification_status, wing_id, wing_name, created_at, updated_at)
+           requested_quantity, verification_status, wing_id, wing_name, created_at, updated_at,
+           forwarded_to_user_id, forwarded_to_name, forwarded_by_user_id, forwarded_by_name, forwarded_at)
           OUTPUT INSERTED.id
           VALUES (@stockIssuanceId, @itemMasterId, @itemNomenclature, @requestedByUserId, @requestedByName,
-                  @requestedQuantity, 'pending', @wingId, @wingName, GETDATE(), GETDATE())
+                  @requestedQuantity, 'pending', @wingId, @wingName, GETDATE(), GETDATE(),
+                  @forwardedToUserId, @forwardedToName, @forwardedByUserId, @forwardedByName, GETDATE())
         `);
 
       const verificationId = result.recordset[0]?.id;
