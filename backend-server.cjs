@@ -12075,7 +12075,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
           console.log('👤 Store keeper found:', { storeKeeperUserId, storeKeeperName });
         }
       } else if (wingId) {
-        // Auto-forward to any store keeper in this wing
+        // Auto-forward to any store keeper in this wing with CUSTOM_WING_STORE_KEEPER role
         console.log('🔍 Finding store keepers for wing:', wingId);
         
         const skSearchResult = await pool.request()
@@ -12083,10 +12083,11 @@ app.post('/api/inventory/request-verification', async (req, res) => {
           .query(`
             SELECT TOP 1 u.Id, u.UserName
             FROM AspNetUsers u
-            INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
-            INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
-            WHERE u.office_id = @wingId
-              AND (r.Name LIKE '%STORE_KEEPER%' OR r.Name = 'CUSTOM_WING_STORE_KEEPER')
+            INNER JOIN ims_user_roles ur ON u.Id = ur.user_id
+            INNER JOIN ims_roles ir ON ur.role_id = ir.id
+            WHERE u.intWingID = @wingId
+              AND ir.is_active = 1
+              AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
             ORDER BY u.UserName
           `);
         
