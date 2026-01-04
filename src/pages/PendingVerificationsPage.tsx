@@ -54,6 +54,7 @@ export const PendingVerificationsPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
   const [submittedVerificationId, setSubmittedVerificationId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null); // null = show all pending, 'pending', 'verified_available', etc.
 
   // Fetch pending verification requests
   useEffect(() => {
@@ -271,8 +272,23 @@ export const PendingVerificationsPage: React.FC = () => {
     }
   };
 
-  const getPendingCount = () => verificationRequests.filter(r => r.status === 'pending' || r.status === 'forwarded').length;
+  const getPendingCount = () => verificationRequests.filter(r => r.status === 'pending' || r.status === 'submitted').length;
   const getVerifiedCount = () => verificationRequests.filter(r => r.status?.startsWith('verified')).length;
+  const getVerifiedAvailableCount = () => verificationRequests.filter(r => r.status === 'verified_available').length;
+  const getVerifiedPartialCount = () => verificationRequests.filter(r => r.status === 'verified_partial').length;
+  const getVerifiedUnavailableCount = () => verificationRequests.filter(r => r.status === 'verified_unavailable').length;
+
+  const getFilteredRequests = () => {
+    if (!statusFilter) {
+      // Show only pending when no filter selected
+      return verificationRequests.filter(r => {
+        const status = (r.status || '').toLowerCase();
+        return status === 'pending' || status === 'submitted' || status === 'under_review' || status === 'forwarded';
+      });
+    }
+    // Show requests matching the selected status
+    return verificationRequests.filter(r => r.status === statusFilter);
+  };
 
   if (loading) {
     return (
@@ -288,22 +304,77 @@ export const PendingVerificationsPage: React.FC = () => {
   return (
     <div className="space-y-6 p-6">
       {/* Header Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Pending Card */}
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${statusFilter === null ? 'border-yellow-500 border-2 bg-yellow-50' : ''}`}
+          onClick={() => setStatusFilter(null)}
+        >
           <CardContent className="pt-6">
             <div className="text-center">
               <Clock className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-              <p className="text-gray-600">Pending Verifications</p>
+              <p className="text-gray-600 text-sm">Pending</p>
               <p className="text-3xl font-bold text-yellow-600">{getPendingCount()}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Verified Available Card */}
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${statusFilter === 'verified_available' ? 'border-green-500 border-2 bg-green-50' : ''}`}
+          onClick={() => setStatusFilter('verified_available')}
+        >
           <CardContent className="pt-6">
             <div className="text-center">
               <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
-              <p className="text-gray-600">Verified</p>
+              <p className="text-gray-600 text-sm">Available</p>
+              <p className="text-3xl font-bold text-green-600">{getVerifiedAvailableCount()}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Verified Partial Card */}
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${statusFilter === 'verified_partial' ? 'border-orange-500 border-2 bg-orange-50' : ''}`}
+          onClick={() => setStatusFilter('verified_partial')}
+        >
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <AlertCircle className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+              <p className="text-gray-600 text-sm">Partial</p>
+              <p className="text-3xl font-bold text-orange-600">{getVerifiedPartialCount()}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Verified Unavailable Card */}
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-lg ${statusFilter === 'verified_unavailable' ? 'border-red-500 border-2 bg-red-50' : ''}`}
+          onClick={() => setStatusFilter('verified_unavailable')}
+        >
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <XCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+              <p className="text-gray-600 text-sm">Unavailable</p>
+              <p className="text-3xl font-bold text-red-600">{getVerifiedUnavailableCount()}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Total Card */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <Package className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <p className="text-gray-600 text-sm">Total</p>
+              <p className="text-3xl font-bold text-blue-600">{verificationRequests.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Requests List */}
+      <Card className="shadow-lg border-2 border-indigo-200">
               <p className="text-3xl font-bold text-green-600">{getVerifiedCount()}</p>
             </div>
           </CardContent>
@@ -480,10 +551,17 @@ export const PendingVerificationsPage: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <Card className="w-full max-w-2xl mx-4">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Eye className="w-5 h-5 text-teal-600" />
-                {verificationSubmitted ? 'Verification Submitted ✅' : 'Verify Item Inventory'}
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-teal-600" />
+                  {verificationSubmitted ? 'Verification Submitted ✅' : selectedRequest.status === 'pending' ? 'Verify Item Inventory' : 'View Verification Details'}
+                </CardTitle>
+                {selectedRequest.status !== 'pending' && (
+                  <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                    View Only
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {!verificationSubmitted ? (
@@ -515,7 +593,8 @@ export const PendingVerificationsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Verification Result Selection */}
+                  {/* Verification Result Selection - Only show if PENDING */}
+                  {selectedRequest.status === 'pending' ? (
                   <div className="space-y-3">
                     <p className="text-sm font-semibold text-gray-900">Verification Result</p>
                     <div className="space-y-2">
@@ -574,9 +653,35 @@ export const PendingVerificationsPage: React.FC = () => {
                       </label>
                     </div>
                   </div>
+                  ) : (
+                    // VIEW ONLY - Show what was verified
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-gray-900">Verification Result</p>
+                      <div className="p-3 border rounded-lg bg-gray-50">
+                        {selectedRequest.status === 'verified_available' && (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                            <span className="font-semibold text-green-600">✅ Available</span>
+                          </div>
+                        )}
+                        {selectedRequest.status === 'verified_partial' && (
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-5 h-5 text-orange-600" />
+                            <span className="font-semibold text-orange-600">⚠️ Partially Available</span>
+                          </div>
+                        )}
+                        {selectedRequest.status === 'verified_unavailable' && (
+                          <div className="flex items-center gap-2">
+                            <XCircle className="w-5 h-5 text-red-600" />
+                            <span className="font-semibold text-red-600">❌ Unavailable</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Available Quantity Input (for partial) */}
-                  {verificationResult === 'partial' && (
+                  {/* Available Quantity Input (for partial) - Only for PENDING */}
+                  {selectedRequest.status === 'pending' && verificationResult === 'partial' && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-900 mb-2">
                         Quantity Found in Stock
@@ -595,19 +700,50 @@ export const PendingVerificationsPage: React.FC = () => {
                   {/* Verification Notes */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Verification Notes
+                      {selectedRequest.status === 'pending' ? 'Verification Notes' : 'Verified Notes'}
                     </label>
                     <textarea
                       value={verificationNotes}
-                      onChange={(e) => setVerificationNotes(e.target.value)}
-                      placeholder="Add any notes about the verification, condition of items, location found, etc."
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 resize-none"
+                      onChange={(e) => {
+                        if (selectedRequest.status === 'pending') {
+                          setVerificationNotes(e.target.value);
+                        }
+                      }}
+                      placeholder={selectedRequest.status === 'pending' ? "Add any notes about the verification, condition of items, location found, etc." : "View notes from verification"}
+                      className={`w-full px-4 py-2 border border-gray-300 rounded-lg resize-none ${
+                        selectedRequest.status === 'pending' 
+                          ? 'focus:outline-none focus:ring-2 focus:ring-teal-600' 
+                          : 'bg-gray-50 cursor-not-allowed'
+                      }`}
                       rows={4}
+                      disabled={selectedRequest.status !== 'pending'}
                     />
                   </div>
 
+                  {/* Verified By Information - Show only for verified items */}
+                  {selectedRequest.status !== 'pending' && selectedRequest.verified_by_name && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-sm font-semibold text-gray-900 mb-3">Verification Information</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Verified By</p>
+                          <p className="font-semibold text-gray-900">{selectedRequest.verified_by_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Verified On</p>
+                          <p className="font-semibold text-gray-900">
+                            {selectedRequest.verified_at 
+                              ? new Date(selectedRequest.verified_at).toLocaleDateString() 
+                              : 'Recently'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="flex gap-3 justify-end pt-4 border-t">
+                    {selectedRequest.status === 'pending' && (
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -628,6 +764,20 @@ export const PendingVerificationsPage: React.FC = () => {
                       <Send className="w-4 h-4 mr-2" />
                       {submitting ? 'Submitting...' : 'Submit Verification'}
                     </Button>
+                    )}
+                    {selectedRequest.status !== 'pending' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowModal(false);
+                        setSelectedRequest(null);
+                        setItemDetails(null);
+                        setVerificationSubmitted(false);
+                      }}
+                    >
+                      Close
+                    </Button>
+                    )}
                   </div>
                 </>
               ) : (
