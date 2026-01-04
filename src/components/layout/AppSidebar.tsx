@@ -113,6 +113,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: canApprove } = usePermission('approval.approve');
   const { hasPermission: canViewReports } = usePermission('reports.view');
   const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
+  const { hasPermission: isWingStoreKeeper } = usePermission('inventory.manage_store_keeper');
   const { hasPermission: isSuperAdmin } = usePermission('admin.super');
 
   const handleLogout = async () => {
@@ -157,6 +158,17 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Request Items", icon: ShoppingCart, path: "/procurement/new-request", permission: undefined },
       { title: "Wing Inventory", icon: Warehouse, path: "/dashboard/wing-inventory", permission: 'wing.supervisor' },
       { title: "Wing Members", icon: Users, path: "/dashboard/wing-members", permission: 'wing.supervisor' },
+    ]
+  };
+
+  // STORE KEEPER MENU - For wing store keepers
+  const storeKeeperMenuGroup: MenuGroup = {
+    label: "Store Keeper Menu",
+    icon: Warehouse,
+    items: [
+      { title: "Forwarded Verifications", icon: Eye, path: "/dashboard/store-keeper-verifications", permission: 'inventory.manage_store_keeper' },
+      { title: "Verification History", icon: History, path: "/dashboard/verification-history", permission: 'inventory.manage_store_keeper' },
+      { title: "Wing Inventory", icon: Package, path: "/dashboard/wing-inventory", permission: 'inventory.manage_store_keeper' },
     ]
   };
 
@@ -242,6 +254,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     switch (permissionKey) {
       case 'inventory.view': return canViewInventory;
       case 'inventory.manage': return canManageInventory;
+      case 'inventory.manage_store_keeper': return isWingStoreKeeper;
       case 'procurement.view': return canViewProcurement;
       case 'procurement.manage': return canManageProcurement;
       case 'procurement.request': return canRequestProcurement;
@@ -273,6 +286,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       const visibleWingItems = wingMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleWingItems.length > 0) {
         groups.push({ ...wingMenuGroup, items: visibleWingItems });
+      }
+    }
+
+    // Show store keeper menu if user is wing store keeper
+    if (isWingStoreKeeper) {
+      const visibleStoreKeeperItems = storeKeeperMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleStoreKeeperItems.length > 0) {
+        groups.push({ ...storeKeeperMenuGroup, items: visibleStoreKeeperItems });
       }
     }
 
