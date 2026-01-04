@@ -12373,6 +12373,96 @@ app.post('/api/inventory/update-verification', async (req, res) => {
   }
 });
 
+// Forward verification request to Store Keeper (by Supervisor)
+app.post('/api/inventory/forward-verification-to-storekeeper', async (req, res) => {
+  try {
+    const {
+      verificationId,
+      forwardedToUserId,
+      forwardedToName,
+      forwardedByUserId,
+      forwardedByName,
+      forwardNotes
+    } = req.body;
+
+    if (!verificationId || !forwardedToUserId || !forwardedByUserId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: verificationId, forwardedToUserId, forwardedByUserId' 
+      });
+    }
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        message: 'Verification forwarded to store keeper (mock)'
+      });
+    }
+
+    try {
+      console.log('📤 Forwarding verification to store keeper:', { verificationId, forwardedToName });
+
+      // Update the verification request to forward it to store keeper
+      const result = await pool.request()
+        .input('verificationId', sql.Int, verificationId)
+        .input('forwardedToUserId', sql.NVarChar, forwardedToUserId)
+        .input('forwardedToName', sql.NVarChar, forwardedToName || 'Store Keeper')
+        .input('forwardedByUserId', sql.NVarChar, forwardedByUserId)
+        .input('forwardedByName', sql.NVarChar, forwardedByName || 'Supervisor')
+        .input('forwardNotes', sql.NVarChar, forwardNotes || 'Please verify item availability')
+        .query(`
+          UPDATE inventory_verification_requests
+          SET verification_status = 'forwarded',
+              forwarded_to_user_id = @forwardedToUserId,
+              forwarded_to_name = @forwardedToName,
+              forwarded_by_user_id = @forwardedByUserId,
+              forwarded_by_name = @forwardedByName,
+              forward_notes = @forwardNotes,
+              forwarded_at = GETDATE(),
+              updated_at = GETDATE()
+          WHERE id = @verificationId
+          
+          SELECT 
+            id,
+            stock_issuance_id,
+            item_nomenclature,
+            requested_quantity,
+            verification_status,
+            forwarded_to_name,
+            forwarded_at
+          FROM inventory_verification_requests
+          WHERE id = @verificationId
+        `);
+
+      if (result.recordset.length === 0) {
+        return res.status(404).json({ 
+          error: 'Verification request not found' 
+        });
+      }
+
+      const updatedVerification = result.recordset[0];
+
+      console.log('✅ Verification forwarded successfully to:', updatedVerification.forwarded_to_name);
+
+      res.json({
+        success: true,
+        message: 'Verification request forwarded to store keeper',
+        data: updatedVerification
+      });
+
+    } catch (error) {
+      console.error('❌ Database error in forwarding:', error.message);
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error forwarding verification:', error);
+    res.status(500).json({ 
+      error: 'Failed to forward verification request', 
+      details: error.message 
+    });
+  }
+});
+
 // Get verification history for a specific user (requester)
 app.get('/api/inventory/verification-history', async (req, res) => {
   try {
