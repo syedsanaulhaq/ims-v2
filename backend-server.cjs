@@ -12099,6 +12099,71 @@ app.post('/api/inventory/request-verification', async (req, res) => {
   }
 });
 
+// Forward verification request to store keeper
+app.post('/api/inventory/forward-verification-to-store-keeper', async (req, res) => {
+  try {
+    const {
+      verificationId,
+      storeKeeperUserId,
+      storeKeeperName,
+      forwardedByUserId,
+      forwardedByName,
+      forwardNotes
+    } = req.body;
+
+    if (!verificationId || !storeKeeperUserId) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['verificationId', 'storeKeeperUserId']
+      });
+    }
+
+    if (!pool) {
+      return res.json({
+        success: true,
+        message: 'Forwarded to store keeper (mock)',
+        verificationId
+      });
+    }
+
+    // Update verification request with forwarding info
+    const result = await pool.request()
+      .input('verificationId', sql.Int, verificationId)
+      .input('storeKeeperUserId', sql.NVarChar, storeKeeperUserId)
+      .input('storeKeeperName', sql.NVarChar, storeKeeperName || 'Store Keeper')
+      .input('forwardedByUserId', sql.NVarChar, forwardedByUserId || 'System')
+      .input('forwardedByName', sql.NVarChar, forwardedByName || 'System')
+      .input('forwardNotes', sql.NVarChar, forwardNotes || null)
+      .query(`
+        UPDATE inventory_verification_requests
+        SET 
+          forwarded_to_user_id = @storeKeeperUserId,
+          forwarded_to_name = @storeKeeperName,
+          forwarded_by_user_id = @forwardedByUserId,
+          forwarded_by_name = @forwardedByName,
+          forwarded_at = GETDATE(),
+          forward_notes = @forwardNotes,
+          updated_at = GETDATE()
+        WHERE id = @verificationId
+      `);
+
+    console.log('✅ Verification forwarded to store keeper:', { verificationId, storeKeeperUserId });
+
+    res.json({
+      success: true,
+      message: 'Verification forwarded to store keeper successfully',
+      verificationId
+    });
+
+  } catch (error) {
+    console.error('❌ Error forwarding verification:', error);
+    res.status(500).json({
+      error: 'Failed to forward verification',
+      details: error.message
+    });
+  }
+});
+
 // Get pending verification requests for inventory supervisor
 app.get('/api/inventory/pending-verifications', async (req, res) => {
   try {

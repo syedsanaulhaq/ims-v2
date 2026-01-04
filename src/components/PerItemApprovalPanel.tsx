@@ -23,6 +23,7 @@ import {
 import { CheckCircle, AlertCircle, Package } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import approvalService from '@/services/approvalService';
+import { sessionService } from '@/services/sessionService';
 
 // Get API URL from environment or default to localhost
 const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -619,29 +620,33 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       // Create and forward a verification request to the wing store keeper
       const itemId = item.item_id || item.item_master_id || item.id;
+      const currentUser = sessionService.getCurrentUser();
+      const requestedByUserId = currentUser?.user_id || 'unknown';
+      const requestedByName = currentUser?.user_name || approverName || 'System';
+      const wingId = currentUser?.wing_id;
+      
       const apiUrl = getApiUrl();
       const endpoint = `${apiUrl}/api/inventory/request-verification`;
       
+      // Build payload with camelCase field names as expected by backend
+      const payload = {
+        stockIssuanceId: approvalId,
+        itemMasterId: itemId,
+        itemNomenclature: getItemName(item),
+        requestedQuantity: getItemQuantity(item),
+        requestedByUserId: requestedByUserId,
+        requestedByName: requestedByName,
+        wingId: wingId
+      };
+      
       console.log('📤 Forwarding verification to wing store keeper');
-      console.log('Request payload:', {
-        stock_issuance_id: approvalId,
-        item_master_id: itemId,
-        item_nomenclature: getItemName(item),
-        requested_quantity: getItemQuantity(item),
-        request_type: 'store_keeper_verification'
-      });
+      console.log('Request payload (camelCase):', payload);
 
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          stock_issuance_id: approvalId,
-          item_master_id: itemId,
-          item_nomenclature: getItemName(item),
-          requested_quantity: getItemQuantity(item),
-          request_type: 'store_keeper_verification'
-        })
+        body: JSON.stringify(payload)
       });
       
       console.log('📥 Response received - Status:', response.status, response.statusText);
