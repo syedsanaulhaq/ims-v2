@@ -178,9 +178,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Store Keeper Menu",
     icon: Warehouse,
     items: [
-      { title: "Forwarded Verifications", icon: Eye, path: "/dashboard/store-keeper-verifications", permission: 'inventory.manage_store_keeper' },
-      { title: "Verification History", icon: History, path: "/dashboard/verification-history", permission: 'inventory.manage_store_keeper' },
-      { title: "Wing Inventory", icon: Package, path: "/dashboard/wing-inventory", permission: 'inventory.manage_store_keeper' },
+      { title: "Forwarded Verifications", icon: Eye, path: "/dashboard/store-keeper-verifications", permission: undefined },
+      { title: "Verification History", icon: History, path: "/dashboard/verification-history", permission: undefined },
+      { title: "Wing Inventory", icon: Package, path: "/dashboard/wing-inventory", permission: undefined },
     ]
   };
 
