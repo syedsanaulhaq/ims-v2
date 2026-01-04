@@ -272,11 +272,14 @@ export const PendingVerificationsPage: React.FC = () => {
     }
   };
 
-  const getPendingCount = () => verificationRequests.filter(r => r.status === 'pending' || r.status === 'submitted').length;
-  const getVerifiedCount = () => verificationRequests.filter(r => r.status?.startsWith('verified')).length;
-  const getVerifiedAvailableCount = () => verificationRequests.filter(r => r.status === 'verified_available').length;
-  const getVerifiedPartialCount = () => verificationRequests.filter(r => r.status === 'verified_partial').length;
-  const getVerifiedUnavailableCount = () => verificationRequests.filter(r => r.status === 'verified_unavailable').length;
+  const getPendingCount = () => verificationRequests.filter(r => {
+    const status = (r.status || '').toLowerCase();
+    return status === 'pending' || status === 'submitted' || status === 'under_review' || status === 'forwarded';
+  }).length;
+  const getVerifiedCount = () => verificationRequests.filter(r => (r.status || '').toLowerCase().startsWith('verified')).length;
+  const getVerifiedAvailableCount = () => verificationRequests.filter(r => (r.status || '').toLowerCase() === 'verified_available').length;
+  const getVerifiedPartialCount = () => verificationRequests.filter(r => (r.status || '').toLowerCase() === 'verified_partial').length;
+  const getVerifiedUnavailableCount = () => verificationRequests.filter(r => (r.status || '').toLowerCase() === 'verified_unavailable').length;
 
   const getFilteredRequests = () => {
     if (!statusFilter) {

@@ -12194,35 +12194,35 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
 
     console.log('📋 My Verification Requests - userId:', userId);
 
-    // Query stock issuance requests made by this user - ONLY PENDING ones
-    // These are verification requests from the wing that haven't been verified yet
+    // Query inventory_verification_requests made by this user - ONLY PENDING ones
+    // These are actual verification requests that need to be verified
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query(`
         SELECT 
-          sir.id,
-          sir.id as request_id,
-          sir.request_number,
-          sir.request_type,
-          sir.requester_wing_id as wing_id,
-          sir.requester_user_id,
-          sir.requester_user_id as requested_by_user_id,
-          u.FullName as requested_by_name,
-          sir.purpose as item_nomenclature,
-          sir.request_status as status,
-          sir.submitted_at as requested_at,
-          sir.created_at,
-          sir.updated_at,
-          COUNT(DISTINCT sii.id) as requested_quantity
-        FROM stock_issuance_requests sir
-        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-        LEFT JOIN stock_issuance_items sii ON sir.id = sii.request_id
-        WHERE sir.requester_user_id = @userId
-          AND (sir.request_status = 'Submitted' OR sir.request_status = 'Pending' OR sir.request_status = 'pending' OR sir.request_status = 'submitted')
-        GROUP BY sir.id, sir.request_number, sir.request_type, sir.requester_wing_id, 
-                 sir.requester_user_id, u.FullName, sir.purpose, sir.request_status, 
-                 sir.submitted_at, sir.created_at, sir.updated_at
-        ORDER BY sir.submitted_at DESC
+          ivr.id,
+          ivr.stock_issuance_id as request_id,
+          ivr.item_master_id,
+          ivr.requested_by_user_id,
+          ivr.requested_by_name,
+          ivr.requested_at,
+          ivr.requested_quantity,
+          ivr.verification_status as status,
+          ivr.verified_by_user_id,
+          ivr.verified_by_name,
+          ivr.verified_at,
+          ivr.physical_count,
+          ivr.available_quantity,
+          ivr.verification_notes,
+          ivr.wing_id,
+          ivr.wing_name,
+          ivr.item_nomenclature,
+          ivr.created_at,
+          ivr.updated_at
+        FROM inventory_verification_requests ivr
+        WHERE ivr.requested_by_user_id = @userId
+          AND (ivr.verification_status = 'pending' OR ivr.verification_status = 'Pending' OR ivr.verification_status = 'submitted' OR ivr.verification_status = 'Submitted')
+        ORDER BY ivr.requested_at DESC
       `);
 
     console.log('✅ Found', result.recordset.length, 'verification requests for user', userId);
