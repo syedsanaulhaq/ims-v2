@@ -12192,15 +12192,40 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
       });
     }
 
-    // Get verification requests made by this user
+    console.log('📋 My Verification Requests - userId:', userId);
+
+    // Query stock issuance requests made by this user
+    // These are verification requests from the wing
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query(`
-        SELECT * FROM View_Pending_Inventory_Verifications
-        WHERE requested_by_user_id = @userId
-        ORDER BY requested_at DESC
+        SELECT 
+          sir.id,
+          sir.id as request_id,
+          sir.request_number,
+          sir.request_type,
+          sir.requester_wing_id as wing_id,
+          sir.requester_user_id,
+          sir.requester_user_id as requested_by_user_id,
+          u.FullName as requested_by_name,
+          sir.purpose as item_nomenclature,
+          sir.request_status as status,
+          sir.submitted_at as requested_at,
+          sir.created_at,
+          sir.updated_at,
+          COUNT(DISTINCT sii.id) as requested_quantity
+        FROM stock_issuance_requests sir
+        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+        LEFT JOIN stock_issuance_items sii ON sir.id = sii.request_id
+        WHERE sir.requester_user_id = @userId
+        GROUP BY sir.id, sir.request_number, sir.request_type, sir.requester_wing_id, 
+                 sir.requester_user_id, u.FullName, sir.purpose, sir.request_status, 
+                 sir.submitted_at, sir.created_at, sir.updated_at
+        ORDER BY sir.submitted_at DESC
       `);
 
+    console.log('✅ Found', result.recordset.length, 'verification requests for user', userId);
+    
     res.json({
       success: true,
       data: result.recordset
