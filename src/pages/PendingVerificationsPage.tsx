@@ -55,6 +55,8 @@ export const PendingVerificationsPage: React.FC = () => {
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
   const [submittedVerificationId, setSubmittedVerificationId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null); // null = show all pending, 'pending', 'verified_available', etc.
+  const [storeKeepers, setStoreKeepers] = useState<any[]>([]); // List of wing store keepers
+  const [selectedStoreKeeperId, setSelectedStoreKeeperId] = useState<string>(''); // Selected store keeper
 
   // Fetch pending verification requests
   useEffect(() => {
@@ -161,6 +163,7 @@ export const PendingVerificationsPage: React.FC = () => {
 
   const handleViewDetails = async (request: InventoryVerificationRequest) => {
     setSelectedRequest(request);
+    setSelectedStoreKeeperId(''); // Reset store keeper selection
     
     // Fetch detailed inventory information
     try {
@@ -214,45 +217,58 @@ export const PendingVerificationsPage: React.FC = () => {
         verification_status: 'pending'
       });
     }
+
+    // Fetch store keepers for the same wing
+    try {
+      const skResponse = await fetch(`http://localhost:3001/api/ims/users?wing_id=${request.wing_id}&role=WING_STORE_KEEPER`);
+      const skData = await skResponse.json();
+      if (skData.success && Array.isArray(skData.data)) {
+        setStoreKeepers(skData.data);
+        console.log('✅ Found', skData.data.length, 'store keepers for wing', request.wing_id);
+      } else {
+        setStoreKeepers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching store keepers:', error);
+      setStoreKeepers([]);
+    }
     
     setShowModal(true);
   };
 
   const handleSubmitVerification = async () => {
-    if (!selectedRequest) return;
+    if (!selectedRequest || !selectedStoreKeeperId) {
+      alert('⚠️ Please select a Store Keeper');
+      return;
+    }
 
     try {
       setSubmitting(true);
-      
-      // Map user-friendly status to backend format
-      const statusMap: { [key: string]: string } = {
-        'available': 'verified_available',
-        'partial': 'verified_partial',
-        'unavailable': 'verified_unavailable'
-      };
 
-      const verificationPayload = {
+      // Find the selected store keeper's name
+      const selectedStoreKeeperObj = storeKeepers.find(sk => sk.Id === selectedStoreKeeperId);
+      const storeKeeperName = selectedStoreKeeperObj?.FullName || 'Store Keeper';
+
+      const forwardingPayload = {
         verificationId: String(selectedRequest.id),
-        verificationStatus: statusMap[verificationResult] || 'verified_available',
-        physicalCount: availableQuantity,
-        availableQuantity: availableQuantity,
-        verificationNotes: verificationNotes,
-        verifiedByUserId: user?.user_id || 'system-user',
-        verifiedByName: user?.user_name || 'System'
+        forwardedToUserId: selectedStoreKeeperId,
+        forwardedToName: storeKeeperName,
+        forwardedByUserId: user?.user_id || 'system-user',
+        forwardedByName: user?.user_name || 'System',
+        forwardNotes: verificationNotes || 'Please verify item availability from the store.'
       };
 
-      console.log('📦 Submitting verification:', verificationPayload);
+      console.log('📦 Forwarding verification to store keeper:', forwardingPayload);
 
-      const response = await fetch('http://localhost:3001/api/inventory/update-verification', {
+      const response = await fetch('http://localhost:3001/api/inventory/forward-verification-to-storekeeper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(verificationPayload)
+        body: JSON.stringify(forwardingPayload)
       });
       const result = await response.json();
 
       if (result.success) {
-        console.log('✅ Verification submitted successfully');
-        // Show success state instead of closing immediately
+        console.log('✅ Verification forwarded to store keeper successfully');
         setVerificationSubmitted(true);
         setSubmittedVerificationId(selectedRequest.id);
         
@@ -261,12 +277,12 @@ export const PendingVerificationsPage: React.FC = () => {
           await fetchPendingVerifications();
         }, 3000);
       } else {
-        console.error('❌ Verification failed:', result.error);
-        alert('❌ Failed to submit verification: ' + (result.error || 'Unknown error'));
+        console.error('❌ Forwarding failed:', result.error);
+        alert('❌ Failed to forward verification: ' + (result.error || 'Unknown error'));
       }
     } catch (err: any) {
-      console.error('Error submitting verification:', err);
-      alert('❌ Error submitting verification: ' + (err.message || 'Unknown error'));
+      console.error('Error forwarding verification:', err);
+      alert('❌ Error forwarding verification: ' + (err.message || 'Unknown error'));
     } finally {
       setSubmitting(false);
     }
@@ -533,7 +549,7 @@ export const PendingVerificationsPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Eye className="w-5 h-5 text-teal-600" />
-                  {verificationSubmitted ? 'Verification Submitted ✅' : selectedRequest.status === 'pending' ? 'Verify Item Inventory' : 'View Verification Details'}
+                  {verificationSubmitted ? 'Verification Sent ✅' : selectedRequest.status === 'pending' ? 'Forward to Store Keeper' : 'View Verification Details'}
                 </CardTitle>
                 {selectedRequest.status !== 'pending' && (
                   <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
@@ -572,70 +588,34 @@ export const PendingVerificationsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Verification Result Selection - Only show if PENDING */}
+                  {/* Store Keeper Selection - Only show if PENDING */}
                   {selectedRequest.status === 'pending' ? (
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold text-gray-900">Verification Result</p>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                        style={{ borderColor: verificationResult === 'available' ? '#0d9488' : '#e5e7eb' }}>
-                        <input
-                          type="radio"
-                          name="verification"
-                          value="available"
-                          checked={verificationResult === 'available'}
-                          onChange={(e) => {
-                            setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
-                            setAvailableQuantity(itemDetails.requested_quantity);
-                          }}
-                          className="w-4 h-4"
-                        />
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">✅ Available</p>
-                          <p className="text-xs text-gray-600">Item is fully available in stock</p>
-                        </div>
-                      </label>
-
-                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                        style={{ borderColor: verificationResult === 'partial' ? '#0d9488' : '#e5e7eb' }}>
-                        <input
-                          type="radio"
-                          name="verification"
-                          value="partial"
-                          checked={verificationResult === 'partial'}
-                          onChange={(e) => setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable')}
-                          className="w-4 h-4"
-                        />
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">⚠️ Partial</p>
-                          <p className="text-xs text-gray-600">Item is available in reduced quantity</p>
-                        </div>
-                      </label>
-
-                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                        style={{ borderColor: verificationResult === 'unavailable' ? '#0d9488' : '#e5e7eb' }}>
-                        <input
-                          type="radio"
-                          name="verification"
-                          value="unavailable"
-                          checked={verificationResult === 'unavailable'}
-                          onChange={(e) => {
-                            setVerificationResult(e.target.value as 'available' | 'partial' | 'unavailable');
-                            setAvailableQuantity(0);
-                          }}
-                          className="w-4 h-4"
-                        />
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">❌ Unavailable</p>
-                          <p className="text-xs text-gray-600">Item is not available in stock</p>
-                        </div>
-                      </label>
-                    </div>
+                    <p className="text-sm font-semibold text-gray-900">🏪 Select Wing Store Keeper</p>
+                    <p className="text-xs text-gray-600 mb-2">Send this verification request to the store keeper of {selectedRequest.wing_name} wing</p>
+                    {storeKeepers.length > 0 ? (
+                      <select
+                        value={selectedStoreKeeperId}
+                        onChange={(e) => setSelectedStoreKeeperId(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                      >
+                        <option value="">-- Select a Store Keeper --</option>
+                        {storeKeepers.map((sk) => (
+                          <option key={sk.Id} value={sk.Id}>
+                            {sk.FullName} ({sk.UserName})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">⚠️ No store keepers found for this wing</p>
+                      </div>
+                    )}
                   </div>
                   ) : (
-                    // VIEW ONLY - Show what was verified
+                    // VIEW ONLY - Show who verified it
                     <div className="space-y-3">
-                      <p className="text-sm font-semibold text-gray-900">Verification Result</p>
+                      <p className="text-sm font-semibold text-gray-900">Verification Status</p>
                       <div className="p-3 border rounded-lg bg-gray-50">
                         {selectedRequest.status === 'verified_available' && (
                           <div className="flex items-center gap-2">
@@ -659,45 +639,33 @@ export const PendingVerificationsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Available Quantity Input (for partial) - Only for PENDING */}
-                  {selectedRequest.status === 'pending' && verificationResult === 'partial' && (
+                  {/* Forwarding Notes - Only for PENDING */}
+                  {selectedRequest.status === 'pending' && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        Quantity Found in Stock
+                        📝 Additional Notes (Optional)
                       </label>
-                      <input
-                        type="number"
-                        value={availableQuantity}
-                        onChange={(e) => setAvailableQuantity(Math.max(0, parseInt(e.target.value) || 0))}
-                        max={Math.max(itemDetails.wing_available, itemDetails.admin_available)}
-                        min={0}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                      <textarea
+                        value={verificationNotes}
+                        onChange={(e) => setVerificationNotes(e.target.value)}
+                        placeholder="Add any notes for the store keeper about what to verify, special items to check, etc."
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-teal-600"
+                        rows={3}
                       />
                     </div>
                   )}
 
-                  {/* Verification Notes */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      {selectedRequest.status === 'pending' ? 'Verification Notes' : 'Verified Notes'}
-                    </label>
-                    <textarea
-                      value={verificationNotes}
-                      onChange={(e) => {
-                        if (selectedRequest.status === 'pending') {
-                          setVerificationNotes(e.target.value);
-                        }
-                      }}
-                      placeholder={selectedRequest.status === 'pending' ? "Add any notes about the verification, condition of items, location found, etc." : "View notes from verification"}
-                      className={`w-full px-4 py-2 border border-gray-300 rounded-lg resize-none ${
-                        selectedRequest.status === 'pending' 
-                          ? 'focus:outline-none focus:ring-2 focus:ring-teal-600' 
-                          : 'bg-gray-50 cursor-not-allowed'
-                      }`}
-                      rows={4}
-                      disabled={selectedRequest.status !== 'pending'}
-                    />
-                  </div>
+                  {/* View Only Notes - for verified items */}
+                  {selectedRequest.status !== 'pending' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-2">
+                        Verification Notes
+                      </label>
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 text-sm">
+                        {selectedRequest.verification_notes || 'No notes provided'}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Verified By Information - Show only for verified items */}
                   {selectedRequest.status !== 'pending' && selectedRequest.verified_by_name && (
@@ -738,11 +706,11 @@ export const PendingVerificationsPage: React.FC = () => {
                         </Button>
                         <Button
                           onClick={handleSubmitVerification}
-                          disabled={submitting}
+                          disabled={submitting || !selectedStoreKeeperId}
                           className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50"
                         >
                           <Send className="w-4 h-4 mr-2" />
-                          {submitting ? 'Submitting...' : 'Submit Verification'}
+                          {submitting ? 'Sending...' : 'Send to Store Keeper'}
                         </Button>
                       </>
                     ) : (
