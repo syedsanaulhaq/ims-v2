@@ -389,13 +389,7 @@ export const PendingVerificationsPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {verificationRequests
-                .filter(r => {
-                  // Only show truly pending requests - filter out verified/completed ones
-                  const status = (r.status || '').toLowerCase();
-                  return status === 'pending' || status === 'submitted' || status === 'under_review' || status === 'forwarded';
-                })
-                .map((request) => (
+              {getFilteredRequests().map((request) => (
                 <div key={request.id}>
                   <div
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
@@ -725,40 +719,41 @@ export const PendingVerificationsPage: React.FC = () => {
 
                   {/* Action Buttons */}
                   <div className="flex gap-3 justify-end pt-4 border-t">
-                    {selectedRequest.status === 'pending' && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowModal(false);
-                        setSelectedRequest(null);
-                        setItemDetails(null);
-                        setVerificationSubmitted(false);
-                      }}
-                      disabled={submitting}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleSubmitVerification}
-                      disabled={submitting}
-                      className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50"
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      {submitting ? 'Submitting...' : 'Submit Verification'}
-                    </Button>
-                    )}
-                    {selectedRequest.status !== 'pending' && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowModal(false);
-                        setSelectedRequest(null);
-                        setItemDetails(null);
-                        setVerificationSubmitted(false);
-                      }}
-                    >
-                      Close
-                    </Button>
+                    {selectedRequest.status === 'pending' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowModal(false);
+                            setSelectedRequest(null);
+                            setItemDetails(null);
+                            setVerificationSubmitted(false);
+                          }}
+                          disabled={submitting}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleSubmitVerification}
+                          disabled={submitting}
+                          className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50"
+                        >
+                          <Send className="w-4 h-4 mr-2" />
+                          {submitting ? 'Submitting...' : 'Submit Verification'}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowModal(false);
+                          setSelectedRequest(null);
+                          setItemDetails(null);
+                          setVerificationSubmitted(false);
+                        }}
+                      >
+                        Close
+                      </Button>
                     )}
                   </div>
                 </>
