@@ -12194,8 +12194,8 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
 
     console.log('📋 My Verification Requests - userId:', userId);
 
-    // Query stock issuance requests made by this user
-    // These are verification requests from the wing
+    // Query stock issuance requests made by this user - ONLY PENDING ones
+    // These are verification requests from the wing that haven't been verified yet
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query(`
@@ -12218,6 +12218,7 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
         LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
         LEFT JOIN stock_issuance_items sii ON sir.id = sii.request_id
         WHERE sir.requester_user_id = @userId
+          AND (sir.request_status = 'Submitted' OR sir.request_status = 'Pending' OR sir.request_status = 'pending' OR sir.request_status = 'submitted')
         GROUP BY sir.id, sir.request_number, sir.request_type, sir.requester_wing_id, 
                  sir.requester_user_id, u.FullName, sir.purpose, sir.request_status, 
                  sir.submitted_at, sir.created_at, sir.updated_at

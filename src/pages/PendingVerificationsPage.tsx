@@ -336,7 +336,13 @@ export const PendingVerificationsPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {verificationRequests.map((request) => (
+              {verificationRequests
+                .filter(r => {
+                  // Only show truly pending requests - filter out verified/completed ones
+                  const status = (r.status || '').toLowerCase();
+                  return status === 'pending' || status === 'submitted' || status === 'under_review' || status === 'forwarded';
+                })
+                .map((request) => (
                 <div key={request.id}>
                   <div
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
