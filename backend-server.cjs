@@ -12102,7 +12102,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
 // Get pending verification requests for inventory supervisor
 app.get('/api/inventory/pending-verifications', async (req, res) => {
   try {
-    const { userId, wingId: wingIdOverride } = req.query;
+    const { userId, wingId } = req.query;
 
     if (!userId) {
       return res.status(400).json({ 
@@ -12117,74 +12117,48 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
       });
     }
 
-    // Get wings where this user is a Wing Supervisor, unless wingIdOverride is provided
-    let wingIds = [];
-    if (wingIdOverride) {
-      wingIds = [parseInt(wingIdOverride)];
-      console.log(`🔧 Using wingId override for pending verifications: ${wingIds[0]}`);
+    console.log('📋 Pending Verifications API - userId:', userId, 'wingId:', wingId);
+
+    // If wingId is provided, filter by that wing. Otherwise return empty (user must be a supervisor)
+    let whereClause = '';
+    if (wingId) {
+      whereClause = `WHERE sir.requester_wing_id = ${parseInt(wingId)}`;
+      console.log(`🏢 Filtering pending verifications for wing: ${wingId}`);
     } else {
-      const userWingsResult = await pool.request()
-        .input('userId', sql.NVarChar, userId)
-        .query(`
-          SELECT DISTINCT scope_wing_id
-          FROM ims_user_roles ur
-          JOIN ims_roles r ON ur.role_id = r.id
-          WHERE ur.user_id = @userId
-            AND r.role_name = 'WING_SUPERVISOR'
-            AND ur.scope_wing_id IS NOT NULL
-        `);
-
-      wingIds = userWingsResult.recordset.map(w => w.scope_wing_id);
-    }
-
-    if (wingIds.length === 0) {
-      // User is not a Wing Supervisor for any wing
+      // No wing specified - return empty
       return res.json({
         success: true,
         data: []
       });
     }
 
-    // Get pending verifications for wings this user supervises
-    const placeholders = wingIds.map((_, i) => `@wingId${i}`).join(',');
-    let query = `
+    // Get pending stock issuance requests for the wing
+    const query = `
       SELECT 
-        id,
-        stock_issuance_id,
-        item_master_id,
-        item_nomenclature,
-        requested_quantity,
-        requested_by_user_id,
-        requested_by_name,
-        wing_id,
-        wing_name,
-        verification_status as status,
-        physical_count,
-        available_quantity,
-        verification_notes,
-        verified_by_user_id,
-        verified_by_name,
-        verified_at,
-        requested_at,
-        created_at,
-        updated_at
-      FROM inventory_verification_requests 
-      WHERE (
-        wing_id IN (${placeholders}) AND verification_status = 'pending'
-      )
-      ORDER BY requested_at DESC
+        sir.id as request_id,
+        sir.request_number,
+        sir.request_type,
+        sir.requester_wing_id,
+        u.FullName as requester_name,
+        sir.purpose,
+        sir.request_status as status,
+        sir.submitted_at as requested_at,
+        sir.created_at,
+        sir.updated_at,
+        COUNT(DISTINCT sii.id) as total_items
+      FROM stock_issuance_requests sir
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      LEFT JOIN stock_issuance_items sii ON sir.id = sii.request_id
+      ${whereClause}
+      GROUP BY sir.id, sir.request_number, sir.request_type, sir.requester_wing_id, u.FullName, 
+               sir.purpose, sir.request_status, sir.submitted_at, sir.created_at, sir.updated_at
+      ORDER BY sir.submitted_at DESC
     `;
     
-    let request = pool.request();
-    wingIds.forEach((wingId, i) => {
-      request.input(`wingId${i}`, sql.Int, wingId);
-    });
-    request.input('userId', sql.NVarChar, userId);
+    console.log('🔍 Query:', query.substring(0, 100) + '...');
+    const result = await pool.request().query(query);
 
-    const result = await request.query(query);
-
-    console.log(`✅ Fetched ${result.recordset.length} pending verifications for user ${userId} in ${wingIds.length} wing(s)`);
-    console.log(`   Wing IDs: ${wingIds.join(', ')}`);
+    console.log(`✅ Fetched ${result.recordset.length} pending stock issuance requests for wing ${wingId}`);
 
     res.json({
       success: true,
