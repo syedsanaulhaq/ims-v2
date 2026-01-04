@@ -12082,27 +12082,32 @@ app.post('/api/inventory/request-verification', async (req, res) => {
         // Auto-forward to any store keeper in this wing with CUSTOM_WING_STORE_KEEPER role
         console.log('🔍 Finding store keepers for wing:', wingId);
         
-        const skSearchResult = await pool.request()
-          .input('wingId', sql.Int, wingId)
-          .query(`
-            SELECT TOP 1 u.Id, u.UserName
-            FROM AspNetUsers u
-            INNER JOIN ims_user_roles ur ON u.Id = ur.user_id
-            INNER JOIN ims_roles ir ON ur.role_id = ir.id
-            WHERE u.intWingID = @wingId
-              AND ir.is_active = 1
-              AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
-            ORDER BY u.UserName
-          `);
-        
-        if (skSearchResult.recordset.length > 0) {
-          // Forward to the first store keeper found
-          storeKeeperUserId = skSearchResult.recordset[0].Id;
-          storeKeeperName = skSearchResult.recordset[0].UserName;
-          console.log('✅ Store keeper auto-assigned:', { storeKeeperUserId, storeKeeperName });
-        } else {
-          console.log('⚠️  No store keepers found for wing:', wingId);
-          console.log('    Query may have failed silently or no store keepers have that role in that wing');
+        try {
+          const skSearchResult = await pool.request()
+            .input('wingId', sql.Int, wingId)
+            .query(`
+              SELECT TOP 1 u.Id, u.UserName
+              FROM AspNetUsers u
+              INNER JOIN ims_user_roles ur ON u.Id = ur.user_id
+              INNER JOIN ims_roles ir ON ur.role_id = ir.id
+              WHERE u.intWingID = @wingId
+                AND ir.is_active = 1
+                AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
+              ORDER BY u.UserName
+            `);
+          
+          if (skSearchResult.recordset.length > 0) {
+            // Forward to the first store keeper found
+            storeKeeperUserId = skSearchResult.recordset[0].Id;
+            storeKeeperName = skSearchResult.recordset[0].UserName;
+            console.log('✅ Store keeper auto-assigned:', { storeKeeperUserId, storeKeeperName });
+          } else {
+            console.log('⚠️  No store keepers found for wing:', wingId);
+            console.log('    Query may have failed silently or no store keepers have that role in that wing');
+          }
+        } catch (queryError) {
+          console.error('❌ Error querying for store keepers:', queryError.message);
+          console.log('    Stack:', queryError.stack);
         }
       }
 
