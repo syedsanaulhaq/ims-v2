@@ -12081,12 +12081,12 @@ app.post('/api/inventory/request-verification', async (req, res) => {
         const skSearchResult = await pool.request()
           .input('wingId', sql.Int, wingId)
           .query(`
-            SELECT DISTINCT u.Id, u.UserName
+            SELECT TOP 1 u.Id, u.UserName
             FROM AspNetUsers u
-            INNER JOIN user_wings uw ON u.Id = uw.user_id
-            INNER JOIN ims_roles ir ON u.Id = ir.user_id
-            WHERE uw.wing_id = @wingId
-              AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
+            INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
+            INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
+            WHERE u.office_id = @wingId
+              AND (r.Name LIKE '%STORE_KEEPER%' OR r.Name = 'CUSTOM_WING_STORE_KEEPER')
             ORDER BY u.UserName
           `);
         
