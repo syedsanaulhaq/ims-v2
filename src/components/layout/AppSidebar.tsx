@@ -89,6 +89,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       ims_roles: user?.ims_roles?.length || 0,
       is_super_admin: user?.is_super_admin,
       permissionKeys: user?.ims_permissions?.map(p => p.permission_key) || [],
+      roleNames: user?.ims_roles?.map(r => r.role_name) || [],
       wing_id: user?.wing_id,
     });
     
@@ -96,9 +97,10 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       canRequestIssuance: !!user?.ims_permissions?.some(p => p.permission_key === 'issuance.request'),
       canApprove: !!user?.ims_permissions?.some(p => p.permission_key === 'approval.approve'),
       isWingSupervisor: !!user?.ims_permissions?.some(p => p.permission_key === 'wing.supervisor'),
+      hasStoreKeeperRole: hasStoreKeeperRole,
       isSuperAdmin: user?.is_super_admin
     });
-  }, [user]);
+  }, [user, hasStoreKeeperRole]);
   
   // Permission hooks
   const { hasPermission: canManageRoles } = usePermission('roles.manage');
@@ -115,6 +117,16 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
   const { hasPermission: isWingStoreKeeper } = usePermission('inventory.manage_store_keeper');
   const { hasPermission: isSuperAdmin } = usePermission('admin.super');
+  
+  // Check if user has any store keeper role (including custom roles)
+  const hasStoreKeeperRole = user?.ims_roles?.some(role => 
+    role.role_name === 'WING_STORE_KEEPER' || 
+    role.role_name === 'CUSTOM_WING_STORE_KEEPER' ||
+    role.role_name.includes('STORE_KEEPER')
+  ) || false;
+  
+  // Store keeper can view the menu if they have the permission OR the role
+  const canAccessStoreKeeperMenu = isWingStoreKeeper || hasStoreKeeperRole;
 
   const handleLogout = async () => {
     try {
@@ -289,8 +301,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show store keeper menu if user is wing store keeper
-    if (isWingStoreKeeper) {
+    // Show store keeper menu if user is wing store keeper (by permission or role)
+    if (canAccessStoreKeeperMenu) {
       const visibleStoreKeeperItems = storeKeeperMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleStoreKeeperItems.length > 0) {
         groups.push({ ...storeKeeperMenuGroup, items: visibleStoreKeeperItems });
