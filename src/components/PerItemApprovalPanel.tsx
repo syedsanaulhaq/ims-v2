@@ -610,6 +610,77 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     }
   };
 
+  const forwardToStoreKeeper = async (item: any) => {
+    setWingConfirmItem(item);
+    setWingConfirmLoading(true);
+    setConfirmationStatus('pending');
+    setError('');
+    
+    try {
+      // Create and forward a verification request to the wing store keeper
+      const itemId = item.item_id || item.item_master_id || item.id;
+      const apiUrl = getApiUrl();
+      const endpoint = `${apiUrl}/api/inventory/request-verification`;
+      
+      console.log('📤 Forwarding verification to wing store keeper');
+      console.log('Request payload:', {
+        stock_issuance_id: approvalId,
+        item_master_id: itemId,
+        item_nomenclature: getItemName(item),
+        requested_quantity: getItemQuantity(item),
+        request_type: 'store_keeper_verification'
+      });
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          stock_issuance_id: approvalId,
+          item_master_id: itemId,
+          item_nomenclature: getItemName(item),
+          requested_quantity: getItemQuantity(item),
+          request_type: 'store_keeper_verification'
+        })
+      });
+      
+      console.log('📥 Response received - Status:', response.status, response.statusText);
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        console.error('❌ Failed to parse JSON response:', parseErr);
+        const text = await response.text();
+        console.log('Response text:', text);
+        setError('Server returned invalid response: ' + text.substring(0, 100));
+        setConfirmationStatus('error');
+        setWingConfirmLoading(false);
+        return;
+      }
+      
+      console.log('📋 Response data:', data);
+
+      if (response.status === 200 || response.ok || data?.success) {
+        console.log('✓ Verification request forwarded to store keeper:', data);
+        setConfirmationStatus('sent');
+        setSuccess('✓ Verification request forwarded to Store Keeper - they will verify and respond');
+      } else {
+        const errorMsg = data?.error || data?.message || `Request failed with status ${response.status}`;
+        setError(errorMsg);
+        setConfirmationStatus('error');
+        console.error('❌ Request failed:', { status: response.status, statusOk: response.ok, data });
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('❌ Error forwarding to store keeper:', err);
+      setError('Error: ' + errorMsg);
+      setConfirmationStatus('error');
+    } finally {
+      setWingConfirmLoading(false);
+    }
+  };
+
   const confirmWingStock = async (item: any) => {
     setWingConfirmItem(item);
     setWingConfirmLoading(true);
@@ -884,9 +955,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                         size="sm" 
                         variant="outline" 
                         className="text-xs"
-                        onClick={() => confirmWingStock(item)}
+                        onClick={() => forwardToStoreKeeper(item)}
                       >
-                        ✓ Confirm from Wing Stock
+                        👤 Forward to Store Keeper
                       </Button>
                     </div>
                   </div>
@@ -1166,11 +1237,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Wing Stock Confirmation Modal */}
+      {/* Store Keeper Verification Modal */}
       <Dialog open={!!wingConfirmItem} onOpenChange={(open) => !open && setWingConfirmItem(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Wing Stock Availability</DialogTitle>
+            <DialogTitle>Forward to Store Keeper for Verification</DialogTitle>
           </DialogHeader>
           
           {wingConfirmItem && (
@@ -1190,62 +1261,56 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   <div className="font-semibold">{getItemQuantity(wingConfirmItem)} {wingConfirmItem.unit || 'units'}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-600 font-medium mb-1">Wing Stock Available</div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">Current Stock</div>
                   {wingConfirmLoading ? (
                     <div className="text-xs"><LoadingSpinner size="sm" className="inline" /> Loading...</div>
                   ) : (
-                    <div className={`font-bold ${wingStockAvailable >= getItemQuantity(wingConfirmItem) ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className={`font-bold ${wingStockAvailable >= getItemQuantity(wingConfirmItem) ? 'text-green-600' : 'text-amber-600'}`}>
                       {wingStockAvailable} {wingConfirmItem.unit || 'units'}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Wing Stock Status */}
-              <div className="mt-4 p-3 rounded-lg border-2">
+              {/* Verification Request Info */}
+              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
                 {confirmationStatus === 'pending' && (
-                  <div className="bg-yellow-50 border-yellow-200">
-                    <div className="text-sm text-yellow-700">
-                      <strong>⏳ Request Pending</strong> - Waiting to send confirmation request to Wing Stock Supervisor
-                    </div>
+                  <div className="text-sm text-blue-700">
+                    <strong>👤 Store Keeper Verification Request</strong><br/>
+                    A verification request will be created and forwarded to the Store Keeper of this wing. They will physically verify the item availability and respond.
                   </div>
                 )}
                 {confirmationStatus === 'sent' && (
-                  <div className="bg-blue-50 border-blue-200 text-sm text-blue-700">
-                    <strong>✓ Request Sent</strong> - Confirmation request has been sent to Wing Stock Supervisor. They will verify and respond.
-                  </div>
-                )}
-                {confirmationStatus === 'confirmed' && (
-                  <div className="bg-green-50 border-green-200 text-sm text-green-700">
-                    <strong>✓ Confirmed</strong> - Wing stock availability has been confirmed by supervisor
-                  </div>
-                )}
-                {confirmationStatus === 'rejected' && (
-                  <div className="bg-red-50 border-red-200 text-sm text-red-700">
-                    <strong>✗ Rejected</strong> - Wing stock availability could not be confirmed
+                  <div className="text-sm text-green-700">
+                    <strong>✓ Request Sent Successfully</strong><br/>
+                    The verification request has been forwarded to the Store Keeper. You can check the approval status once they respond.
                   </div>
                 )}
                 {confirmationStatus === 'error' && (
-                  <div className="bg-red-50 border-red-200 text-sm text-red-700">
-                    <strong>⚠ Error</strong> - Failed to send confirmation request
+                  <div className="text-sm text-red-700">
+                    <strong>❌ Error Sending Request</strong><br/>
+                    Please try again or contact your administrator.
                   </div>
                 )}
               </div>
 
-              <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                <p><strong>Process:</strong> When you request confirmation, the Wing Stock Supervisor will receive a request to verify the stock availability for this item.</p>
-              </div>
+              {error && (
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-800">{error}</AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
 
           <div className="flex gap-2 mt-4">
             {confirmationStatus === 'pending' && (
               <Button 
-                onClick={() => confirmWingStock(wingConfirmItem)}
+                onClick={() => forwardToStoreKeeper(wingConfirmItem)}
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
                 disabled={wingConfirmLoading}
               >
-                {wingConfirmLoading ? 'Sending...' : '📤 Send Request to Supervisor'}
+                {wingConfirmLoading ? 'Sending...' : '👤 Forward to Store Keeper'}
               </Button>
             )}
             {confirmationStatus === 'sent' && (
@@ -1253,7 +1318,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 onClick={() => setWingConfirmItem(null)} 
                 className="flex-1"
               >
-                Close & Wait for Response
+                Close
               </Button>
             )}
             {(confirmationStatus === 'confirmed' || confirmationStatus === 'rejected' || confirmationStatus === 'error') && (
