@@ -25,7 +25,7 @@ interface ForwardedVerification {
   available_quantity?: number;
   verification_notes?: string;
   wing_id: number;
-  wing_name: string;
+  requester_designation?: string;
   created_at: string;
   verified_at?: string;
 }
@@ -346,8 +346,8 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                           <p className="font-semibold text-gray-900">{verification.requested_quantity}</p>
                         </div>
                         <div>
-                          <p className="text-gray-600">Wing</p>
-                          <p className="font-semibold text-gray-900">{verification.wing_name}</p>
+                          <p className="text-gray-600">Designation</p>
+                          <p className="font-semibold text-gray-900">{verification.requester_designation || 'N/A'}</p>
                         </div>
                         <div>
                           <p className="text-gray-600">Requested By</p>
