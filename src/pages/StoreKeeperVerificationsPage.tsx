@@ -197,7 +197,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
 
   const getPendingCount = () => verifications.filter(r => {
     const status = (r.verification_status || '').toLowerCase();
-    return status === 'forwarded';
+    return status === 'pending';
   }).length;
 
   const getVerifiedCount = () => verifications.filter(r => (r.verification_status || '').toLowerCase().startsWith('verified')).length;
@@ -209,7 +209,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
     if (!statusFilter) {
       return verifications.filter(r => {
         const status = (r.verification_status || '').toLowerCase();
-        return status === 'forwarded';
+        return status === 'pending';
       });
     }
     return verifications.filter(r => r.verification_status === statusFilter);
