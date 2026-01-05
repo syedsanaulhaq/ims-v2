@@ -13,12 +13,14 @@ interface ForwardedVerification {
   requested_by_user_id: string;
   requested_by_name: string;
   requested_quantity: number;
-  verification_status: 'forwarded' | 'verified_available' | 'verified_partial' | 'verified_unavailable';
+  verification_status: 'pending' | 'verified_available' | 'verified_partial' | 'verified_unavailable';
   forwarded_by_user_id?: string;
   forwarded_by_name?: string;
   forwarded_at?: string;
   forwarded_to_user_id?: string;
   forwarded_to_name?: string;
+  verified_by_user_id?: string;
+  verified_by_name?: string;
   physical_count?: number;
   available_quantity?: number;
   verification_notes?: string;
