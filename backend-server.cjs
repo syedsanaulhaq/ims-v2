@@ -12320,8 +12320,8 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
 
     console.log('📋 My Verification Requests - userId:', userId);
 
-    // Query inventory_verification_requests made by this user - ONLY PENDING ones
-    // These are actual verification requests that need to be verified
+    // Query inventory_verification_requests made by this user
+    // Returns both pending (waiting for store keeper) and verified (store keeper replied) requests
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query(`
@@ -12343,11 +12343,13 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
           ivr.wing_id,
           ivr.wing_name,
           ivr.item_nomenclature,
+          ivr.forwarded_to_user_id,
+          ivr.forwarded_to_name,
+          ivr.forwarded_at,
           ivr.created_at,
           ivr.updated_at
         FROM inventory_verification_requests ivr
         WHERE ivr.requested_by_user_id = @userId
-          AND (ivr.verification_status = 'pending' OR ivr.verification_status = 'Pending' OR ivr.verification_status = 'submitted' OR ivr.verification_status = 'Submitted')
         ORDER BY ivr.requested_at DESC
       `);
 
