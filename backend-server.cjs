@@ -12112,6 +12112,33 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       }
 
       // Create verification request with forwarding information
+      // Get wing name if not provided
+      let finalWingName = wingName || 'Unknown';
+      if (wingId && !wingName) {
+        try {
+          const wingQuery = await pool.request()
+            .input('wingId', sql.Int, wingId)
+            .query(`
+              SELECT TOP 1
+                CASE 
+                  WHEN intWingID = 1 THEN 'Wing 1 - Admin'
+                  WHEN intWingID = 2 THEN 'Wing 2 - Stores'
+                  WHEN intWingID = 3 THEN 'Wing 3 - Finance'
+                  WHEN intWingID = 19 THEN 'Wing 19'
+                  ELSE 'Wing ' + CAST(intWingID AS NVARCHAR(10))
+                END AS wing_name
+              FROM AspNetUsers
+              WHERE intWingID = @wingId
+            `);
+          if (wingQuery.recordset.length > 0) {
+            finalWingName = wingQuery.recordset[0].wing_name;
+            console.log('✅ Wing name found:', finalWingName);
+          }
+        } catch (wingError) {
+          console.warn('⚠️  Could not lookup wing name, using default:', wingError.message);
+        }
+      }
+
       const result = await pool.request()
         .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
         .input('itemMasterId', sql.NVarChar, itemMasterId)
@@ -12120,7 +12147,7 @@ app.post('/api/inventory/request-verification', async (req, res) => {
         .input('requestedByName', sql.NVarChar, requestedByName || 'System')
         .input('requestedQuantity', sql.Int, requestedQuantity || 0)
         .input('wingId', sql.Int, wingId || 0)
-        .input('wingName', sql.NVarChar, wingName || 'Unknown')
+        .input('wingName', sql.NVarChar, finalWingName)
         .input('forwardedToUserId', sql.NVarChar, storeKeeperUserId || null)
         .input('forwardedToName', sql.NVarChar, storeKeeperName || null)
         .input('forwardedByUserId', sql.NVarChar, requestedByUserId)
