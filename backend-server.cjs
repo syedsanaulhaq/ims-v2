@@ -12445,10 +12445,9 @@ app.get('/api/inventory/my-forwarded-verifications', async (req, res) => {
           ivr.forward_notes,
           ivr.created_at,
           ivr.updated_at,
-          ud.strDesignation AS requester_designation
+          vud.strDesignation AS requester_designation
         FROM inventory_verification_requests ivr
-        LEFT JOIN AspNetUsers au ON ivr.requested_by_user_id = au.Id
-        LEFT JOIN tblUserDesignations ud ON au.intDesignationID = ud.intDesignationID
+        LEFT JOIN vw_User_with_designation vud ON ivr.requested_by_user_id = vud.Id
         WHERE ivr.forwarded_to_user_id = @userId
         ORDER BY ivr.forwarded_at DESC
       `);
