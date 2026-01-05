@@ -335,7 +335,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-3">
                         <h3 className="font-semibold text-gray-900">{verification.item_nomenclature || 'Item'}</h3>
-                        <Badge className="bg-red-100 text-red-800 border-red-300">{verification.verification_status === 'forwarded' ? 'Forwarded' : 'Verified'}</Badge>
+                        <Badge className="bg-red-100 text-red-800 border-red-300">{verification.verification_status === 'pending' ? 'Pending' : 'Verified'}</Badge>
                       </div>
                       
                       <div className="grid grid-cols-4 gap-4 text-sm">
@@ -373,7 +373,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                       className="gap-2 whitespace-nowrap"
                     >
                       <Eye className="w-4 h-4" />
-                      {verification.verification_status === 'forwarded' ? 'Verify' : 'View'}
+                      {verification.verification_status === 'pending' ? 'Verify' : 'View'}
                     </Button>
                   </div>
                 </div>
@@ -393,7 +393,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                   <Eye className="w-5 h-5 text-teal-600" />
                   {verificationSubmitted ? 'Verification Submitted ✅' : 'Verify Item Inventory'}
                 </CardTitle>
-                {selectedVerification.verification_status !== 'forwarded' && (
+                {selectedVerification.verification_status !== 'pending' && (
                   <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
                     View Only
                   </Badge>
@@ -430,8 +430,8 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Verification Result Selection - Only for FORWARDED */}
-                  {selectedVerification.verification_status === 'forwarded' ? (
+                  {/* Verification Result Selection - Only for PENDING */}
+                  {selectedVerification.verification_status === 'pending' ? (
                     <div className="space-y-3">
                       <p className="text-sm font-semibold text-gray-900">Verification Result</p>
                       <div className="space-y-2">
@@ -516,8 +516,8 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Available Quantity Input (for partial) - Only for FORWARDED */}
-                  {selectedVerification.verification_status === 'forwarded' && verificationResult === 'partial' && (
+                  {/* Available Quantity Input (for partial) - Only for PENDING */}
+                  {selectedVerification.verification_status === 'pending' && verificationResult === 'partial' && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-900 mb-2">
                         Quantity Found in Stock
@@ -536,23 +536,23 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                   {/* Verification Notes */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      {selectedVerification.verification_status === 'forwarded' ? 'Verification Notes' : 'Verified Notes'}
+                      {selectedVerification.verification_status === 'pending' ? 'Verification Notes' : 'Verified Notes'}
                     </label>
                     <textarea
                       value={verificationNotes}
                       onChange={(e) => {
-                        if (selectedVerification.verification_status === 'forwarded') {
+                        if (selectedVerification.verification_status === 'pending') {
                           setVerificationNotes(e.target.value);
                         }
                       }}
-                      placeholder={selectedVerification.verification_status === 'forwarded' ? "Add any notes about the verification, condition of items, location found, etc." : "View notes from verification"}
+                      placeholder={selectedVerification.verification_status === 'pending' ? "Add any notes about the verification, condition of items, location found, etc." : "View notes from verification"}
                       className={`w-full px-4 py-2 border border-gray-300 rounded-lg resize-none ${
-                        selectedVerification.verification_status === 'forwarded' 
+                        selectedVerification.verification_status === 'pending' 
                           ? 'focus:outline-none focus:ring-2 focus:ring-teal-600' 
                           : 'bg-gray-50 cursor-not-allowed'
                       }`}
                       rows={4}
-                      disabled={selectedVerification.verification_status !== 'forwarded'}
+                      disabled={selectedVerification.verification_status !== 'pending'}
                     />
                   </div>
                 </>
@@ -595,7 +595,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="flex gap-3 justify-end pt-4 border-t">
-                {selectedVerification.verification_status === 'forwarded' ? (
+                {selectedVerification.verification_status === 'pending' ? (
                   <>
                     <Button
                       variant="outline"
