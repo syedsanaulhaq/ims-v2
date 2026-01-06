@@ -17,7 +17,9 @@ import {
   AlertCircle,
   ShieldCheck,
   Edit,
-  File
+  File,
+  Printer,
+  FileDown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -29,6 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
 
 interface TenderItem {
   id: string;
@@ -266,6 +269,57 @@ const TenderDetails: React.FC = () => {
     navigate(`/dashboard/${tenderType}`);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExport = () => {
+    if (!tender) return;
+
+    // Prepare data for export
+    const csvContent = [
+      ['Tender Details Report'],
+      [],
+      ['Title', tender.title],
+      ['Reference Number', tender.reference_number],
+      ['Tender Type', tender.tender_type],
+      ['Status', tender.status],
+      ['Estimated Value', formatCurrency(tender.estimated_value)],
+      ['Publish Date', formatDate(tender.publish_date)],
+      ['Submission Deadline', formatDate(tender.submission_deadline)],
+      ['Opening Date', formatDate(tender.opening_date)],
+      ['Description', tender.description || ''],
+      ['Created By', tender.created_by || ''],
+      ['Created Date', formatDateTime(tender.created_at)],
+      [],
+      ['Tender Items'],
+      ['Item', 'Quantity', 'Unit Price', 'Total Amount', 'Specifications', 'Remarks'],
+      ...(tender.items?.map((item) => [
+        item.nomenclature,
+        item.quantity,
+        item.estimated_unit_price || 0,
+        item.total_amount || 0,
+        item.specifications || '',
+        item.remarks || ''
+      ]) || [])
+    ];
+
+    const csvString = csvContent.map(row => 
+      row.map(cell => `"${cell}"`).join(',')
+    ).join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${tender.reference_number || 'tender'}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -307,6 +361,14 @@ const TenderDetails: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           {getStatusBadge(tender.status, tender.is_finalized)}
+          <Button onClick={handlePrint} variant="outline" size="sm">
+            <Printer className="w-4 h-4 mr-2" />
+            Print
+          </Button>
+          <Button onClick={handleExport} variant="outline" size="sm">
+            <FileDown className="w-4 h-4 mr-2" />
+            Export
+          </Button>
           {!tender.is_finalized && (
             <Button onClick={handleEdit} variant="outline" size="sm">
               <Edit className="w-4 h-4 mr-2" />
@@ -675,6 +737,12 @@ const TenderDetails: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Participating Bidders Section */}
+      <TenderVendorManagement
+        tenderId={tender.id}
+        readOnly={true}
+      />
 
       {/* Tender Items */}
       {tender.items && tender.items.length > 0 && (

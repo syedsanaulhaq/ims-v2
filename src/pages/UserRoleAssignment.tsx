@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useIsSuperAdmin } from '../hooks/usePermission';
 import { useNavigate } from 'react-router-dom';
+import { sessionService } from '../services/sessionService';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -24,8 +25,10 @@ interface User {
   cnic: string;
   office_id: number;
   wing_id: number;
+  designation_id: number;
   office_name: string;
   wing_name: string;
+  designation_name: string;
   is_super_admin: boolean;
   roles: UserRole[];
 }
@@ -62,14 +65,17 @@ const UserRoleAssignment: React.FC = () => {
   
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [offices, setOffices] = useState<Array<{ intOfficeID: number; strOfficeName: string }>>([]);
   const [wings, setWings] = useState<Wing[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterOffice, setFilterOffice] = useState('');
   const [filterWing, setFilterWing] = useState('');
   const [filterRole, setFilterRole] = useState('');
   // Applied filters (used for actual API calls)
   const [appliedSearch, setAppliedSearch] = useState('');
+  const [appliedOffice, setAppliedOffice] = useState('');
   const [appliedWing, setAppliedWing] = useState('');
   const [appliedRole, setAppliedRole] = useState('');
   // Pagination
@@ -89,26 +95,51 @@ const UserRoleAssignment: React.FC = () => {
       setLoading(true);
       const params = new URLSearchParams();
       if (appliedSearch) params.append('search', appliedSearch);
+      if (appliedOffice) params.append('office_id', appliedOffice);
       if (appliedWing) params.append('wing_id', appliedWing);
       if (appliedRole) params.append('role_name', appliedRole);
 
-      const response = await fetch(`${API_BASE_URL}/api/ims/users?${params.toString()}`, {
+      const queryString = params.toString();
+      const urlToFetch = `${API_BASE_URL}/api/ims/users${queryString ? '?' + queryString : ''}`;
+      console.log('🔍 FILTER DEBUG: Fetching users with URL:', urlToFetch);
+      console.log('🔍 FILTER DEBUG: Applied filters:', { appliedSearch, appliedOffice, appliedWing, appliedRole });
+      console.log('🔍 FILTER DEBUG: Query string:', queryString);
+
+      const response = await fetch(urlToFetch, {
         credentials: 'include',
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Users data received:', data);
+        console.log('✅ FILTER DEBUG: Users data received - COUNT:', data.length);
+        console.log('✅ FILTER DEBUG: Users data:', data);
         setUsers(data);
       } else {
-        console.error('Failed to fetch users:', response.status);
+        console.error('❌ FILTER DEBUG: Failed to fetch users - Status:', response.status);
+        const errorText = await response.text();
+        console.error('❌ FILTER DEBUG: Error response:', errorText);
       }
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
-  }, [appliedSearch, appliedWing, appliedRole]);
+  }, [appliedSearch, appliedOffice, appliedWing, appliedRole]);
+
+  const fetchOffices = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/offices`, {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setOffices(data);
+      }
+    } catch (error) {
+      console.error('Error fetching offices:', error);
+    }
+  }, []);
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -125,9 +156,15 @@ const UserRoleAssignment: React.FC = () => {
     }
   }, []);
 
-  const fetchWings = useCallback(async () => {
+  const fetchWings = useCallback(async (officeId: string) => {
+    if (!officeId) {
+      setWings([]);
+      return;
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/wings`, {
+      const wingUrl = `${API_BASE_URL}/api/wings?office_id=${officeId}`;
+      const response = await fetch(wingUrl, {
         credentials: 'include',
       });
 
@@ -143,6 +180,7 @@ const UserRoleAssignment: React.FC = () => {
   // Handle manual search/filter submission
   const handleSearch = () => {
     setAppliedSearch(searchTerm);
+    setAppliedOffice(filterOffice);
     setAppliedWing(filterWing);
     setAppliedRole(filterRole);
     setCurrentPage(1); // Reset to first page when searching
@@ -151,11 +189,14 @@ const UserRoleAssignment: React.FC = () => {
   // Handle clear filters
   const handleClearFilters = () => {
     setSearchTerm('');
+    setFilterOffice('');
     setFilterWing('');
     setFilterRole('');
     setAppliedSearch('');
+    setAppliedOffice('');
     setAppliedWing('');
     setAppliedRole('');
+    setWings([]);
     setCurrentPage(1); // Reset to first page
   };
 
@@ -169,17 +210,24 @@ const UserRoleAssignment: React.FC = () => {
   // Fetch initial data only once after auth is confirmed
   useEffect(() => {
     if (!authLoading && isSuperAdmin) {
+      fetchOffices();
       fetchRoles();
-      fetchWings();
     }
-  }, [authLoading, isSuperAdmin, fetchRoles, fetchWings]);
+  }, [authLoading, isSuperAdmin, fetchOffices, fetchRoles]);
 
   // Fetch users when applied filters change
   useEffect(() => {
     if (!authLoading && isSuperAdmin) {
       fetchUsers();
     }
-  }, [appliedSearch, appliedWing, appliedRole, authLoading, isSuperAdmin, fetchUsers]);
+  }, [appliedSearch, appliedOffice, appliedWing, appliedRole, authLoading, isSuperAdmin, fetchUsers]);
+
+  // Handle office change - fetch wings for that office
+  const handleOfficeChange = (officeId: string) => {
+    setFilterOffice(officeId);
+    setFilterWing(''); // Reset wing filter when office changes
+    fetchWings(officeId);
+  };
 
   const handleAssignRole = async () => {
     if (!selectedUser || !assignForm.role_id) return;
@@ -280,54 +328,57 @@ const UserRoleAssignment: React.FC = () => {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters - Office and Wing Filters */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Office Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search Users</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search by name, email, or CNIC..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Office</label>
+            <select
+              value={filterOffice}
+              onChange={(e) => handleOfficeChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select Office</option>
+              {offices.map((office) => (
+                <option key={office.intOfficeID} value={String(office.intOfficeID)}>
+                  {office.strOfficeName}
+                </option>
+              ))}
+            </select>
           </div>
 
+          {/* Wing Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Wing</label>
             <select
               value={filterWing}
               onChange={(e) => setFilterWing(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              disabled={!filterOffice}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
-              <option key="all-wings" value="">All Wings</option>
+              <option value="">
+                {filterOffice ? 'Select Wing' : 'Select Office First'}
+              </option>
               {wings.map((wing) => (
                 <option key={wing.Id} value={String(wing.Id)}>
-                  {wing.Name}
+                  [{wing.Id}] {wing.Name}
+                  {wing.ShortName ? ` (${wing.ShortName})` : ''}
                 </option>
               ))}
             </select>
           </div>
 
+          {/* Search Box */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Role</label>
-            <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search by Name</label>
+            <input
+              type="text"
+              placeholder="User name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option key="all-roles" value="">All Roles</option>
-              {roles.map((role) => (
-                <option key={role.role_id} value={role.role_name}>
-                  {role.display_name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className="flex items-end gap-2">
@@ -340,10 +391,10 @@ const UserRoleAssignment: React.FC = () => {
             </button>
             <button
               onClick={handleClearFilters}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center"
-              title="Clear Filters"
+              className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
             >
               <X className="w-4 h-4" />
+              Clear
             </button>
           </div>
         </div>
@@ -359,7 +410,7 @@ const UserRoleAssignment: React.FC = () => {
                   User
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Office/Wing
+                  Office / Wing / Designation
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Current Roles
@@ -389,7 +440,8 @@ const UserRoleAssignment: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="text-sm">
                       <div className="text-gray-900">{user.office_name || 'N/A'}</div>
-                      <div className="text-gray-500">{user.wing_name || 'N/A'}</div>
+                      <div className="text-gray-600">{user.wing_name || 'N/A'}</div>
+                      <div className="text-gray-500">{user.designation_name || 'Not Assigned'}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4">

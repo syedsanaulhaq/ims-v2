@@ -39,6 +39,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PermissionGate } from '@/components/PermissionGate';
+import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
 
 interface TenderItem {
   id: string;
@@ -384,15 +385,16 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                               </Button>
                             </PermissionGate>
                             
-                        {/* Delete button hidden - prevents accidental deletion */}
-                        {/* <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(tender.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                          <Trash2 className="w-4 h-4" />
-                        </Button> */}
+                            <PermissionGate permission="tender.delete">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDelete(tender.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </PermissionGate>
                           </>
                         )}
                       </div>
@@ -679,6 +681,14 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                   </div>
                 </div>
               )}
+
+              {/* Participating Bidders Section */}
+              <div className="border-t pt-6">
+                <TenderVendorManagement
+                  tenderId={selectedTender.id}
+                  readOnly={true}
+                />
+              </div>
 
               {selectedTender.is_finalized && (
                 <Alert>

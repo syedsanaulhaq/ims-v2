@@ -138,6 +138,9 @@ const CreateTender: React.FC = () => {
     remarks: ''
   });
 
+  // Store bidders/vendors to be saved after tender creation
+  const [bidders, setBidders] = useState<any[]>([]);
+
   // Fetch initial data (item masters, offices, and vendors)
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -440,6 +443,35 @@ const CreateTender: React.FC = () => {
       }
 
       const result = await response.json();
+      const newTenderId = result.tenderId;
+      
+      // Save bidders to the newly created tender
+      if (bidders.length > 0 && newTenderId) {
+        console.log('💼 Saving', bidders.length, 'bidders to tender:', newTenderId);
+        for (const bidder of bidders) {
+          try {
+            const bidderResponse = await fetch(`http://localhost:3001/api/tenders/${newTenderId}/vendors`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                vendor_id: bidder.vendor_id,
+                vendor_name: bidder.vendor_name,
+                quoted_amount: bidder.quoted_amount || null,
+                remarks: bidder.remarks || null
+              })
+            });
+            
+            if (!bidderResponse.ok) {
+              console.error('⚠️ Failed to save bidder:', bidder.vendor_name);
+            } else {
+              console.log('✅ Bidder saved:', bidder.vendor_name);
+            }
+          } catch (bidderErr) {
+            console.error('❌ Error saving bidder:', bidderErr);
+          }
+        }
+      }
+      
       alert(`${tenderType === 'spot-purchase' ? 'Spot purchase' : 'Contract tender'} created successfully!`);
       navigate(tenderType === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender');
     } catch (err) {
@@ -956,6 +988,16 @@ const CreateTender: React.FC = () => {
             vendors={vendors}
             onVendorsChange={(updatedVendors) => {
               console.log('Vendors updated:', updatedVendors);
+              // Store the bidders to be saved after tender creation
+              setBidders(updatedVendors);
+            }}
+            onSuccessfulVendorChange={(vendorId) => {
+              console.log('Selected successful vendor:', vendorId);
+              // When a vendor is marked as successful/selected, set it as the main vendor_id
+              setTenderData(prev => ({
+                ...prev,
+                vendor_id: vendorId || ''
+              }));
             }}
             maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
             minVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}

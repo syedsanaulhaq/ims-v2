@@ -1350,38 +1350,14 @@ app.get('/api/ims/permissions', requireAuth, async (req, res) => {
 // Get users with their IMS roles
 app.get('/api/ims/users', requireAuth, async (req, res) => {
   try {
-    const { search, wing_id, role_name } = req.query;
+    const { search, office_id, wing_id, role_name } = req.query;
     const userId = req.session.userId;
 
-    if (!pool) {
-      return res.json([]);
-    }
+    console.log('🔍 BACKEND DEBUG: /api/ims/users called with params:', { search, office_id, wing_id, role_name });
 
-    // If wing_id is specified, verify user belongs to that wing
-    if (wing_id) {
-      const wingCheck = await pool.request()
-        .input('userId', sql.NVarChar(450), userId)
-        .query(`SELECT intWingID FROM AspNetUsers WHERE Id = @userId`);
-      
-      if (wingCheck.recordset.length > 0) {
-        const userWingId = wingCheck.recordset[0].intWingID;
-        if (userWingId !== parseInt(wing_id)) {
-          // User is requesting a different wing - check if they have users.manage permission
-          const permCheck = await pool.request()
-            .input('userId', sql.NVarChar(450), userId)
-            .query(`
-              SELECT 1 FROM ims_user_roles ur
-              INNER JOIN ims_roles r ON ur.role_id = r.id
-              INNER JOIN ims_role_permissions rp ON r.id = rp.role_id
-              INNER JOIN ims_permissions p ON rp.permission_id = p.id
-              WHERE ur.user_id = @userId AND p.permission_key = 'users.manage' AND ur.is_active = 1
-            `);
-          
-          if (permCheck.recordset.length === 0) {
-            return res.status(403).json({ error: 'Forbidden' });
-          }
-        }
-      }
+    if (!pool) {
+      console.log('❌ BACKEND DEBUG: No pool available');
+      return res.json([]);
     }
 
     let query = `
@@ -1392,12 +1368,15 @@ app.get('/api/ims/users', requireAuth, async (req, res) => {
         u.CNIC as cnic,
         u.intOfficeID as office_id,
         u.intWingID as wing_id,
+        u.intDesignationID as designation_id,
         o.strOfficeName as office_name,
         w.Name as wing_name,
+        COALESCE(d.strDesignation, 'Not Assigned') as designation_name,
         dbo.fn_IsSuperAdmin(u.Id) as is_super_admin
       FROM AspNetUsers u
       LEFT JOIN tblOffices o ON u.intOfficeID = o.intOfficeID
       LEFT JOIN WingsInformation w ON u.intWingID = w.Id
+      LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
       WHERE u.ISACT = 1
     `;
 
@@ -1409,8 +1388,13 @@ app.get('/api/ims/users', requireAuth, async (req, res) => {
     }
 
     if (wing_id) {
-      query += ` AND u.intWingID = @wingId`;
+      query += ` AND u.intWingID = @wingId AND u.intWingID > 0`;
       request.input('wingId', sql.Int, parseInt(wing_id));
+    }
+    
+    // Always exclude users with unassigned wings (intWingID = 0)
+    if (!wing_id) {
+      query += ` AND (u.intWingID > 0 OR u.intWingID IS NULL)`;
     }
 
     if (role_name) {
@@ -1424,7 +1408,11 @@ app.get('/api/ims/users', requireAuth, async (req, res) => {
 
     query += ` ORDER BY u.FullName`;
 
+    console.log('🔍 BACKEND DEBUG: Final SQL Query:', query);
+    
     const result = await request.query(query);
+
+    console.log('✅ BACKEND DEBUG: Query returned', result.recordset.length, 'users');
 
     // Fetch roles separately for each user (SQL Server 2012 compatible)
     const users = await Promise.all(result.recordset.map(async (user) => {
@@ -1725,20 +1713,59 @@ app.get('/api/offices', async (req, res) => {
   }
 });
 
+// Get all offices for filter dropdown
+app.get('/api/offices', async (req, res) => {
+  try {
+    if (!pool) {
+      // Return mock offices when SQL Server is not connected
+      const mockOffices = [
+        { intOfficeID: 583, strOfficeName: 'ECP Secretariat' },
+        { intOfficeID: 584, strOfficeName: 'PEC Balochistan' },
+        { intOfficeID: 585, strOfficeName: 'PEC Khyber Pakhtunkhwa' },
+        { intOfficeID: 586, strOfficeName: 'PEC Punjab' },
+        { intOfficeID: 587, strOfficeName: 'PEC Sindh' }
+      ];
+      return res.json(mockOffices);
+    }
+
+    const result = await pool.request().query(`
+      SELECT 
+        intOfficeID,
+        strOfficeName
+      FROM tblOffices
+      ORDER BY strOfficeName
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching offices:', error);
+    // Fallback to mock data on any error
+    const mockOffices = [
+      { intOfficeID: 583, strOfficeName: 'ECP Secretariat' },
+      { intOfficeID: 584, strOfficeName: 'PEC Balochistan' },
+      { intOfficeID: 585, strOfficeName: 'PEC Khyber Pakhtunkhwa' },
+      { intOfficeID: 586, strOfficeName: 'PEC Punjab' },
+      { intOfficeID: 587, strOfficeName: 'PEC Sindh' }
+    ];
+    res.json(mockOffices);
+  }
+});
+
 // Get all active wings
 app.get('/api/wings', async (req, res) => {
   try {
+    const { office_id } = req.query;
+    
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockWings = [
-        { Id: 1, Name: 'Administration Wing', ShortName: 'Admin', FocalPerson: 'John Smith', ContactNo: '021-1111111', WingCode: 'ADM001' },
-        { Id: 2, Name: 'Finance Wing', ShortName: 'Finance', FocalPerson: 'Jane Doe', ContactNo: '021-2222222', WingCode: 'FIN001' },
-        { Id: 3, Name: 'Operations Wing', ShortName: 'Operations', FocalPerson: 'Mike Johnson', ContactNo: '021-3333333', WingCode: 'OPS001' }
+        { Id: 1, Name: 'Administration Wing', ShortName: 'Admin', FocalPerson: 'John Smith', ContactNo: '021-1111111', WingCode: 'ADM001', OfficeID: office_id || 583 },
+        { Id: 2, Name: 'Finance Wing', ShortName: 'Finance', FocalPerson: 'Jane Doe', ContactNo: '021-2222222', WingCode: 'FIN001', OfficeID: office_id || 583 },
+        { Id: 3, Name: 'Operations Wing', ShortName: 'Operations', FocalPerson: 'Mike Johnson', ContactNo: '021-3333333', WingCode: 'OPS001', OfficeID: office_id || 583 }
       ];
       return res.json(mockWings);
     }
 
-    const result = await pool.request().query(`
+    let query = `
       SELECT 
         Id,
         Name,
@@ -1757,11 +1784,19 @@ app.get('/api/wings', async (req, res) => {
         CreatedAt,
         UpdatedAt
       FROM WingsInformation 
-      WHERE IS_ACT = 1
-      ORDER BY Name
-    `);
+      WHERE IS_ACT = 1`;
+    
+    // If office_id is provided, filter by that office
+    if (office_id) {
+      query += ` AND OfficeID = ${parseInt(office_id)}`;
+    }
+    
+    query += ` ORDER BY Name`;
+    
+    const result = await pool.request().query(query);
     res.json(result.recordset);
   } catch (error) {
+    console.error('Error fetching wings:', error);
     // Fallback to mock data on any error
     const mockWings = [
       { Id: 1, Name: 'Administration Wing', ShortName: 'Admin', FocalPerson: 'John Smith', ContactNo: '021-1111111', WingCode: 'ADM001' },
@@ -5358,6 +5393,7 @@ app.put('/api/tenders/:id', async (req, res) => {
       reference_number: sql.NVarChar,
       title: sql.NVarChar,
       description: sql.NVarChar,
+      status: sql.NVarChar,
       estimated_value: sql.Decimal(15, 2),
       publish_date: sql.Date,
       submission_deadline: sql.DateTime2,
@@ -5487,20 +5523,58 @@ app.put('/api/tenders/:id', async (req, res) => {
 // DELETE /api/tenders/:id - Delete a tender
 app.delete('/api/tenders/:id', async (req, res) => {
   const { id } = req.params;
-  const transaction = new sql.Transaction(pool);
+  const transaction = pool.transaction();
   try {
+    console.log('🗑️ DELETE TENDER: Starting deletion for tender ID:', id);
+    
     await transaction.begin();
 
-    // The ON DELETE CASCADE constraint on the foreign key will handle deleting tender_items
-    await transaction.request()
-      .input('id', sql.UniqueIdentifier, id)
+    // First, check if tender exists
+    const checkResult = await transaction.request()
+      .input('id', sql.NVarChar, id)
+      .query('SELECT id, is_finalized FROM tenders WHERE id = @id');
+    
+    console.log('🔍 DELETE TENDER: Check result:', checkResult.recordset.length, 'records found');
+    
+    if (checkResult.recordset.length === 0) {
+      await transaction.rollback();
+      console.log('❌ DELETE TENDER: Tender not found');
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+    
+    const tender = checkResult.recordset[0];
+    if (tender.is_finalized) {
+      await transaction.rollback();
+      console.log('❌ DELETE TENDER: Cannot delete finalized tender');
+      return res.status(400).json({ error: 'Cannot delete a finalized tender' });
+    }
+
+    // Delete tender_items first (if cascade is not working)
+    console.log('🗑️ DELETE TENDER: Deleting tender items...');
+    const itemsDeleteResult = await transaction.request()
+      .input('tender_id', sql.NVarChar, id)
+      .query('DELETE FROM tender_items WHERE tender_id = @tender_id');
+    
+    console.log('🗑️ DELETE TENDER: Deleted', itemsDeleteResult.rowsAffected[0], 'items');
+
+    // Now delete the tender
+    console.log('🗑️ DELETE TENDER: Deleting tender...');
+    const tenderDeleteResult = await transaction.request()
+      .input('id', sql.NVarChar, id)
       .query('DELETE FROM tenders WHERE id = @id');
+    
+    console.log('🗑️ DELETE TENDER: Deleted', tenderDeleteResult.rowsAffected[0], 'tender(s)');
 
     await transaction.commit();
+    console.log('✅ DELETE TENDER: Successfully deleted tender and items');
     res.json({ success: true, message: 'Tender deleted successfully' });
   } catch (error) {
-    await transaction.rollback();
-    console.error('Failed to delete tender:', error);
+    console.error('❌ DELETE TENDER: Error deleting tender:', error);
+    try {
+      await transaction.rollback();
+    } catch (rollbackError) {
+      console.error('❌ DELETE TENDER: Rollback error:', rollbackError);
+    }
     res.status(500).json({ error: 'Failed to delete tender', details: error.message });
   }
 });

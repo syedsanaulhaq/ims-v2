@@ -70,6 +70,7 @@ interface TenderVendorManagementProps {
   tenderId?: string; // Optional - for editing existing tender
   vendors: Vendor[]; // All available vendors
   onVendorsChange?: (vendors: TenderVendor[]) => void; // Callback for parent component
+  onSuccessfulVendorChange?: (vendorId: string | null) => void; // Callback when successful vendor is selected
   onPendingProposalsChange?: (hasPending: boolean) => void; // Callback when pending proposals change
   readOnly?: boolean;
   maxVendors?: number; // Maximum number of vendors allowed (for spot purchase)
@@ -81,6 +82,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   tenderId,
   vendors,
   onVendorsChange,
+  onSuccessfulVendorChange,
   onPendingProposalsChange,
   readOnly = false,
   maxVendors,
@@ -396,6 +398,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         ...tv,
         is_successful: tv.vendor_id === vendorId ? isSuccessful : false
       })));
+      // Notify parent component of selected vendor
+      if (onSuccessfulVendorChange) {
+        onSuccessfulVendorChange(isSuccessful ? vendorId : null);
+      }
       return;
     }
 
@@ -415,6 +421,10 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
           ...tv,
           is_successful: tv.vendor_id === vendorId ? isSuccessful : false
         })));
+        // Notify parent component of selected vendor
+        if (onSuccessfulVendorChange) {
+          onSuccessfulVendorChange(isSuccessful ? vendorId : null);
+        }
       } else {
         throw new Error('Failed to mark bidder as successful');
       }

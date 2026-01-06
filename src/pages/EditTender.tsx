@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
 
 interface TenderItem {
   id?: string;
@@ -344,6 +345,7 @@ const EditTender: React.FC = () => {
         reference_number: tenderData.reference_number,
         title: tenderData.title,
         description: tenderData.description,
+        status: tenderData.status || 'draft',
         estimated_value: totalTenderValue || (tenderData.estimated_value ? parseFloat(tenderData.estimated_value) : null),
         publish_date: tenderData.publish_date || null,
         submission_deadline: tenderData.submission_deadline || null,
@@ -737,6 +739,13 @@ const EditTender: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Card 5.5: Participating Bidders */}
+        <TenderVendorManagement
+          tenderId={id}
+          vendors={vendors}
+          readOnly={false}
+        />
 
         {/* Card 6: Tender Items */}
         <Card>
