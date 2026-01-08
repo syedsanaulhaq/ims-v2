@@ -19,10 +19,10 @@ interface AnnualTender {
   status: string;
 }
 
-interface ItemGroup {
-  id: string;
-  group_code: string;
-  group_name: string;
+interface Category {
+  category_id: string;
+  category_name: string;
+  category_code: string;
 }
 
 interface Vendor {
@@ -32,7 +32,7 @@ interface Vendor {
   contact_person: string;
 }
 
-interface GroupVendor {
+interface CategoryVendor {
   vendor_id: string;
   vendor_name: string;
 }
@@ -51,13 +51,13 @@ interface VendorItemAssignment {
 export const VendorAssignmentManager: React.FC = () => {
   const [tenders, setTenders] = useState<AnnualTender[]>([]);
   const [selectedTender, setSelectedTender] = useState<AnnualTender | null>(null);
-  const [groups, setGroups] = useState<ItemGroup[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [groupVendors, setGroupVendors] = useState<Record<string, GroupVendor[]>>({});
-  const [groupItems, setGroupItems] = useState<ItemMaster[]>([]);
+  const [categoryVendors, setCategoryVendors] = useState<Record<string, CategoryVendor[]>>({});
+  const [categoryItems, setCategoryItems] = useState<ItemMaster[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<ItemGroup | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedItems, setSelectedItems] = useState<ItemMaster[]>([]);
   const [selectedVendors, setSelectedVendors] = useState<Vendor[]>([]);
   const [currentVendorId, setCurrentVendorId] = useState<string>('');
@@ -65,7 +65,7 @@ export const VendorAssignmentManager: React.FC = () => {
   useEffect(() => {
     loadTenders();
     loadVendors();
-    loadGroups();
+    loadCategories();
   }, []);
 
   const loadTenders = async () => {
@@ -76,7 +76,7 @@ export const VendorAssignmentManager: React.FC = () => {
       setTenders(data);
       if (data.length > 0) {
         setSelectedTender(data[0]);
-        loadGroupVendors(data[0].id);
+        loadCategoryVendors(data[0].id);
       }
     } catch (error) {
       console.error('Error loading tenders:', error);
@@ -102,56 +102,56 @@ export const VendorAssignmentManager: React.FC = () => {
     }
   };
 
-  const loadGroups = async () => {
+  const loadCategories = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/item-groups');
+      const response = await fetch('http://localhost:3001/api/categories');
       const data = await response.json();
-      setGroups(data);
+      setCategories(data);
     } catch (error) {
-      console.error('Error loading groups:', error);
+      console.error('Error loading categories:', error);
     }
   };
 
-  const loadGroupItems = async (groupId: string) => {
+  const loadCategoryItems = async (categoryId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/item-groups/${groupId}/items`);
+      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}/items`);
       if (response.ok) {
         const data = await response.json();
-        setGroupItems(data);
-        console.log('📦 Group items loaded:', data);
+        setCategoryItems(data);
+        console.log('📦 Category items loaded:', data);
       }
     } catch (error) {
-      console.error('Error loading group items:', error);
+      console.error('Error loading category items:', error);
     }
   };
 
-  const loadGroupVendors = async (tenderId: string) => {
+  const loadCategoryVendors = async (tenderId: string) => {
     try {
-      for (const group of groups) {
+      for (const category of categories) {
         const response = await fetch(
-          `http://localhost:3001/api/annual-tenders/${tenderId}/groups/${group.id}/vendors`
+          `http://localhost:3001/api/annual-tenders/${tenderId}/categories/${category.category_id}/vendors`
         );
         if (response.ok) {
           const data = await response.json();
-          setGroupVendors(prev => ({
+          setCategoryVendors(prev => ({
             ...prev,
-            [group.id]: data
+            [category.category_id]: data
           }));
         }
       }
     } catch (error) {
-      console.error('Error loading group vendors:', error);
+      console.error('Error loading category vendors:', error);
     }
   };
 
   const handleAssignVendors = async () => {
-    if (!selectedTender || !selectedGroup || selectedItems.length === 0 || selectedVendors.length === 0) {
-      alert('Please select Tender → Group → Items → Vendors');
+    if (!selectedTender || !selectedCategory || selectedItems.length === 0 || selectedVendors.length === 0) {
+      alert('Please select Tender → Category → Items → Vendors');
       return;
     }
 
     try {
-      // Assign selected vendors to selected items in the group
+      // Assign selected vendors to selected items in the category
       const itemIds = selectedItems.map(item => item.id);
       const vendorIds = selectedVendors.map(vendor => vendor.id);
 
@@ -163,7 +163,7 @@ export const VendorAssignmentManager: React.FC = () => {
           body: JSON.stringify({
             assignments: [
               {
-                groupId: selectedGroup.id,
+                categoryId: selectedCategory.category_id,
                 vendorIds: vendorIds,
                 itemIds: itemIds
               }
@@ -178,7 +178,7 @@ export const VendorAssignmentManager: React.FC = () => {
 
       alert('✅ Vendors assigned to items successfully!');
       if (selectedTender) {
-        loadGroupVendors(selectedTender.id);
+        loadCategoryVendors(selectedTender.id);
       }
       setShowAssignDialog(false);
       setSelectedItems([]);
@@ -194,15 +194,15 @@ export const VendorAssignmentManager: React.FC = () => {
     const tender = tenders.find(t => t.id === tenderId);
     if (tender) {
       setSelectedTender(tender);
-      loadGroupVendors(tender.id);
+      loadCategoryVendors(tender.id);
     }
   };
 
-  const removeVendorFromGroup = async (groupId: string, vendorId: string) => {
+  const removeVendorFromCategory = async (categoryId: string, vendorId: string) => {
     if (!selectedTender) return;
 
     try {
-      const currentVendors = (groupVendors[groupId] || [])
+      const currentVendors = (categoryVendors[categoryId] || [])
         .filter(v => v.vendor_id !== vendorId)
         .map(v => v.vendor_id);
 
@@ -214,7 +214,7 @@ export const VendorAssignmentManager: React.FC = () => {
           body: JSON.stringify({
             assignments: [
               {
-                groupId: groupId,
+                categoryId: categoryId,
                 vendorIds: currentVendors
               }
             ]
@@ -223,7 +223,7 @@ export const VendorAssignmentManager: React.FC = () => {
       );
 
       if (response.ok) {
-        loadGroupVendors(selectedTender.id);
+        loadCategoryVendors(selectedTender.id);
       }
     } catch (error) {
       console.error('Error removing vendor:', error);
@@ -234,7 +234,7 @@ export const VendorAssignmentManager: React.FC = () => {
     <div className="w-full max-w-6xl mx-auto p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Vendor Assignment</h1>
-        <p className="text-gray-600">Assign vendors to item groups in annual tenders</p>
+        <p className="text-gray-600">Assign vendors to item categories in annual tenders</p>
       </div>
 
       {/* Tender Selection */}
@@ -264,24 +264,24 @@ export const VendorAssignmentManager: React.FC = () => {
         <div className="text-center py-8">Loading...</div>
       ) : selectedTender ? (
         <div className="grid gap-6">
-          {groups.map(group => {
-            const assignedVendors = groupVendors[group.id] || [];
+          {categories.map(category => {
+            const assignedVendors = categoryVendors[category.category_id] || [];
             
             return (
-              <Card key={group.id}>
+              <Card key={category.category_id}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-lg">{group.group_name}</CardTitle>
-                      <p className="text-sm text-gray-600">{group.group_code}</p>
+                      <CardTitle className="text-lg">{category.category_name}</CardTitle>
+                      <p className="text-sm text-gray-600">{category.category_code}</p>
                     </div>
-                    <Dialog open={showAssignDialog && selectedGroup?.id === group.id} onOpenChange={setShowAssignDialog}>
+                    <Dialog open={showAssignDialog && selectedCategory?.category_id === category.category_id} onOpenChange={setShowAssignDialog}>
                       <DialogTrigger asChild>
                         <Button
                           size="sm"
                           onClick={() => {
-                            setSelectedGroup(group);
-                            loadGroupItems(group.id);
+                            setSelectedCategory(category);
+                            loadCategoryItems(category.category_id);
                             setSelectedItems([]);
                             setSelectedVendors([]);
                           }}
@@ -293,7 +293,7 @@ export const VendorAssignmentManager: React.FC = () => {
                         <DialogHeader>
                           <DialogTitle>Vendor Assignment Workflow</DialogTitle>
                           <DialogDescription>
-                            Tender → Group → Items → Vendors
+                            Tender → Category → Items → Vendors
                           </DialogDescription>
                         </DialogHeader>
 
@@ -303,18 +303,18 @@ export const VendorAssignmentManager: React.FC = () => {
                           <p className="text-sm font-medium">{selectedTender?.title} ({selectedTender?.tender_number})</p>
                         </div>
 
-                        {/* Step 2: Group (Already Selected) */}
+                        {/* Step 2: Category (Already Selected) */}
                         <div className="space-y-3 p-4 bg-blue-50 rounded">
-                          <p className="font-semibold text-sm">✅ Step 2: Group Selected</p>
-                          <p className="text-sm font-medium">{selectedGroup?.group_name} ({selectedGroup?.group_code})</p>
+                          <p className="font-semibold text-sm">✅ Step 2: Category Selected</p>
+                          <p className="text-sm font-medium">{selectedCategory?.category_name} ({selectedCategory?.category_code})</p>
                         </div>
 
                         {/* Step 3: Select Items */}
                         <div className="space-y-3 p-4 bg-yellow-50 rounded">
-                          <p className="font-semibold text-sm">📍 Step 3: Select Items from {selectedGroup?.group_name}</p>
+                          <p className="font-semibold text-sm">📍 Step 3: Select Items from {selectedCategory?.category_name}</p>
                           <div className="space-y-2 border rounded p-3 bg-white max-h-40 overflow-y-auto">
-                            {groupItems.length > 0 ? (
-                              groupItems.map(item => (
+                            {categoryItems.length > 0 ? (
+                              categoryItems.map(item => (
                                 <label key={item.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
                                   <input
                                     type="checkbox"
@@ -425,7 +425,7 @@ export const VendorAssignmentManager: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeVendorFromGroup(group.id, vendor.vendor_id)}
+                            onClick={() => removeVendorFromCategory(category.category_id, vendor.vendor_id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <X className="w-4 h-4" />
