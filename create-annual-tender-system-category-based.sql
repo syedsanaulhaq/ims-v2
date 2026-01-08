@@ -1,8 +1,10 @@
--- Annual Tender System - Simplified version
--- NOTE: Using category from item_master instead of separate item_groups table
--- This eliminates redundancy since category already exists in item_master
+-- Annual Tender System - Category-Based (Optimized)
+-- Uses category from item_master instead of separate item_groups table
+-- This eliminates redundancy and simplifies the data model
 
--- 3. ANNUAL TENDERS
+PRINT '🔄 Creating Annual Tender System Tables...';
+
+-- 1. ANNUAL TENDERS
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('annual_tenders') AND type = 'U')
 BEGIN
     CREATE TABLE annual_tenders (
@@ -25,7 +27,7 @@ BEGIN
     PRINT '✅ Created annual_tenders table';
 END;
 
--- 3. ANNUAL_TENDER_CATEGORIES (instead of annual_tender_groups)
+-- 2. ANNUAL_TENDER_CATEGORIES
 -- Links tenders to item categories
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('annual_tender_categories') AND type = 'U')
 BEGIN
@@ -41,7 +43,7 @@ BEGIN
     PRINT '✅ Created annual_tender_categories table';
 END;
 
--- 4. ANNUAL_TENDER_VENDORS
+-- 3. ANNUAL_TENDER_VENDORS
 -- Vendors assigned to specific categories within tenders
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('annual_tender_vendors') AND type = 'U')
 BEGIN
@@ -64,7 +66,7 @@ BEGIN
     PRINT '✅ Created annual_tender_vendors table';
 END;
 
--- 5. VENDOR_PROPOSALS
+-- 4. VENDOR_PROPOSALS
 -- Vendor pricing for specific items in tender categories
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('vendor_proposals') AND type = 'U')
 BEGIN
@@ -93,7 +95,7 @@ BEGIN
     PRINT '✅ Created vendor_proposals table';
 END;
 
--- 6. PURCHASE_ORDERS
+-- 5. PURCHASE_ORDERS
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('purchase_orders') AND type = 'U')
 BEGIN
     CREATE TABLE purchase_orders (
@@ -119,7 +121,7 @@ BEGIN
     PRINT '✅ Created purchase_orders table';
 END;
 
--- 7. PURCHASE_ORDER_ITEMS
+-- 6. PURCHASE_ORDER_ITEMS
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('purchase_order_items') AND type = 'U')
 BEGIN
     CREATE TABLE purchase_order_items (
@@ -137,7 +139,7 @@ BEGIN
     PRINT '✅ Created purchase_order_items table';
 END;
 
--- 8. PO_DELIVERIES
+-- 7. PO_DELIVERIES
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('po_deliveries') AND type = 'U')
 BEGIN
     CREATE TABLE po_deliveries (
@@ -160,7 +162,7 @@ BEGIN
     PRINT '✅ Created po_deliveries table';
 END;
 
--- 9. PO_DELIVERY_ITEMS
+-- 8. PO_DELIVERY_ITEMS
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('po_delivery_items') AND type = 'U')
 BEGIN
     CREATE TABLE po_delivery_items (
@@ -177,7 +179,7 @@ BEGIN
     PRINT '✅ Created po_delivery_items table';
 END;
 
--- 10. PO_DELIVERY_ITEM_SERIAL_NUMBERS
+-- 9. PO_DELIVERY_ITEM_SERIAL_NUMBERS
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('po_delivery_item_serial_numbers') AND type = 'U')
 BEGIN
     CREATE TABLE po_delivery_item_serial_numbers (
@@ -196,4 +198,4 @@ BEGIN
     PRINT '✅ Created po_delivery_item_serial_numbers table';
 END;
 
-PRINT '✅ Annual Tender System setup complete! (9 tables, no redundant item_groups)';
+PRINT '✅ Annual Tender System setup complete! (9 tables, uses category from item_master)';
