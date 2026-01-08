@@ -189,7 +189,7 @@ PRINT '🔄 Creating Annual Tender System Tables...';
             item_master_id UNIQUEIDENTIFIER NOT NULL,
             quantity INT NOT NULL,
             unit_price DECIMAL(15, 2) NOT NULL,
-            total_amount DECIMAL(15, 2) AS (quantity * unit_price) PERSISTED,
+            total_amount DECIMAL(15, 2),
             remarks NVARCHAR(MAX),
             created_at DATETIME2 DEFAULT GETDATE(),
             CONSTRAINT FK_po_item_po FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE,
