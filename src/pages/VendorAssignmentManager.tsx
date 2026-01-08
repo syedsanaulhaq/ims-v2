@@ -37,16 +37,30 @@ interface GroupVendor {
   vendor_name: string;
 }
 
+interface ItemMaster {
+  id: string;
+  nomenclature: string;
+  item_code: string;
+}
+
+interface VendorItemAssignment {
+  vendorId: string;
+  itemIds: string[];
+}
+
 export const VendorAssignmentManager: React.FC = () => {
   const [tenders, setTenders] = useState<AnnualTender[]>([]);
   const [selectedTender, setSelectedTender] = useState<AnnualTender | null>(null);
   const [groups, setGroups] = useState<ItemGroup[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [groupVendors, setGroupVendors] = useState<Record<string, GroupVendor[]>>({});
+  const [groupItems, setGroupItems] = useState<ItemMaster[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ItemGroup | null>(null);
-  const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
+  const [selectedVendors, setSelectedVendors] = useState<VendorItemAssignment[]>([]);
+  const [currentVendorId, setCurrentVendorId] = useState<string>('');
+  const [currentSelectedItems, setCurrentSelectedItems] = useState<string[]>([]);
 
   useEffect(() => {
     loadTenders();
@@ -98,6 +112,19 @@ export const VendorAssignmentManager: React.FC = () => {
     }
   };
 
+  const loadGroupItems = async (groupId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/item-groups/${groupId}/items`);
+      if (response.ok) {
+        const data = await response.json();
+        setGroupItems(data);
+        console.log('📦 Group items loaded:', data);
+      }
+    } catch (error) {
+      console.error('Error loading group items:', error);
+    }
+  };
+
   const loadGroupVendors = async (tenderId: string) => {
     try {
       for (const group of groups) {
@@ -118,35 +145,44 @@ export const VendorAssignmentManager: React.FC = () => {
   };
 
   const handleAssignVendors = async () => {
-    if (!selectedTender || !selectedGroup) return;
+    if (!selectedTender || !selectedGroup || selectedVendors.length === 0) {
+      alert('Please select at least one vendor with items');
+      return;
+    }
 
     try {
-      const response = await fetch(
-        `http://localhost:3001/api/annual-tenders/${selectedTender.id}/assign-vendors`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            assignments: [
-              {
-                groupId: selectedGroup.id,
-                vendorIds: selectedVendors
-              }
-            ]
-          })
-        }
-      );
+      // Assign each vendor-item combination
+      for (const assignment of selectedVendors) {
+        const response = await fetch(
+          `http://localhost:3001/api/annual-tenders/${selectedTender.id}/assign-vendors`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              assignments: [
+                {
+                  groupId: selectedGroup.id,
+                  vendorIds: [assignment.vendorId],
+                  itemIds: assignment.itemIds
+                }
+              ]
+            })
+          }
+        );
 
-      if (response.ok) {
-        alert('✅ Vendors assigned successfully!');
-        if (selectedTender) {
-          loadGroupVendors(selectedTender.id);
+        if (!response.ok) {
+          throw new Error(`Failed to assign vendor ${assignment.vendorId}`);
         }
-        setShowAssignDialog(false);
-        setSelectedVendors([]);
-      } else {
-        alert('❌ Failed to assign vendors');
       }
+
+      alert('✅ Vendors and items assigned successfully!');
+      if (selectedTender) {
+        loadGroupVendors(selectedTender.id);
+      }
+      setShowAssignDialog(false);
+      setSelectedVendors([]);
+      setCurrentVendorId('');
+      setCurrentSelectedItems([]);
     } catch (error) {
       console.error('Error assigning vendors:', error);
       alert('Failed to assign vendors');
@@ -242,51 +278,141 @@ export const VendorAssignmentManager: React.FC = () => {
                       <DialogTrigger asChild>
                         <Button
                           size="sm"
-                          onClick={() => setSelectedGroup(group)}
+                          onClick={() => {
+                            setSelectedGroup(group);
+                            loadGroupItems(group.id);
+                          }}
                         >
                           Add Vendors
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-md">
+                      <DialogContent className="max-w-2xl">
                         <DialogHeader>
                           <DialogTitle>Assign Vendors to {group.group_name}</DialogTitle>
                           <DialogDescription>
-                            Select vendors for this group
+                            Select vendors and assign items they'll provide
                           </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {Array.isArray(vendors) && vendors.length > 0 ? (
-                            vendors.map(vendor => (
-                              <label key={vendor.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedVendors.includes(vendor.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                    setSelectedVendors([...selectedVendors, vendor.id]);
-                                  } else {
-                                    setSelectedVendors(selectedVendors.filter(id => id !== vendor.id));
-                                  }
-                                }}
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{vendor.vendor_name}</p>
-                                <p className="text-xs text-gray-600">{vendor.vendor_code}</p>
-                              </div>
-                            </label>
-                          ))
-                          ) : (
-                            <div className="text-center py-4 text-gray-500">
-                              <p>No vendors available</p>
+                        <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                          {/* Vendors List */}
+                          <div className="space-y-2">
+                            <p className="font-semibold text-sm">Select Vendor</p>
+                            <div className="space-y-2 border rounded p-3">
+                              {Array.isArray(vendors) && vendors.length > 0 ? (
+                                vendors.map(vendor => (
+                                  <label key={vendor.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="vendor"
+                                      value={vendor.id}
+                                      checked={currentVendorId === vendor.id}
+                                      onChange={() => {
+                                        setCurrentVendorId(vendor.id);
+                                        setCurrentSelectedItems([]);
+                                      }}
+                                    />
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">{vendor.vendor_name}</p>
+                                      <p className="text-xs text-gray-600">{vendor.vendor_code}</p>
+                                    </div>
+                                  </label>
+                                ))
+                              ) : (
+                                <p className="text-center py-4 text-gray-500 text-sm">No vendors available</p>
+                              )}
                             </div>
-                          )}
+                          </div>
+
+                          {/* Items List */}
+                          <div className="space-y-2">
+                            <p className="font-semibold text-sm">Select Items for Vendor</p>
+                            <div className="space-y-2 border rounded p-3">
+                              {groupItems.length > 0 ? (
+                                groupItems.map(item => (
+                                  <label key={item.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={currentSelectedItems.includes(item.id)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setCurrentSelectedItems([...currentSelectedItems, item.id]);
+                                        } else {
+                                          setCurrentSelectedItems(currentSelectedItems.filter(id => id !== item.id));
+                                        }
+                                      }}
+                                      disabled={!currentVendorId}
+                                    />
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">{item.nomenclature}</p>
+                                      <p className="text-xs text-gray-600">Code: {item.item_code}</p>
+                                    </div>
+                                  </label>
+                                ))
+                              ) : (
+                                <p className="text-center py-4 text-gray-500 text-sm">No items in this group</p>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
-                        <Button onClick={handleAssignVendors} className="w-full">
-                          <Check className="w-4 h-4 mr-2" />
-                          Confirm Assignment
-                        </Button>
+                        {/* Selected Assignments Preview */}
+                        <div className="space-y-2">
+                          <p className="font-semibold text-sm">Selected Assignments</p>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {selectedVendors.length > 0 ? (
+                              selectedVendors.map(assignment => {
+                                const vendor = vendors.find(v => v.id === assignment.vendorId);
+                                const assignedItems = groupItems.filter(i => assignment.itemIds.includes(i.id));
+                                return (
+                                  <div key={assignment.vendorId} className="text-sm p-2 bg-blue-50 rounded">
+                                    <p className="font-medium">{vendor?.vendor_name}</p>
+                                    <p className="text-xs text-gray-600">
+                                      Items: {assignedItems.map(i => i.nomenclature).join(', ')}
+                                    </p>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p className="text-xs text-gray-500">No assignments yet</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              if (currentVendorId && currentSelectedItems.length > 0) {
+                                const existing = selectedVendors.find(v => v.vendorId === currentVendorId);
+                                if (existing) {
+                                  setSelectedVendors(selectedVendors.map(v =>
+                                    v.vendorId === currentVendorId
+                                      ? { ...v, itemIds: currentSelectedItems }
+                                      : v
+                                  ));
+                                } else {
+                                  setSelectedVendors([...selectedVendors, {
+                                    vendorId: currentVendorId,
+                                    itemIds: currentSelectedItems
+                                  }]);
+                                }
+                                setCurrentVendorId('');
+                                setCurrentSelectedItems([]);
+                              } else {
+                                alert('Please select a vendor and at least one item');
+                              }
+                            }}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            Add Assignment
+                          </Button>
+                          <Button onClick={handleAssignVendors} className="flex-1">
+                            <Check className="w-4 h-4 mr-2" />
+                            Confirm All
+                          </Button>
+                        </div>
                       </DialogContent>
                     </Dialog>
                   </div>
