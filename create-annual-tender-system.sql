@@ -261,7 +261,7 @@ PRINT '🔄 Creating Annual Tender System Tables...';
             notes NVARCHAR(MAX),
             created_at DATETIME2 DEFAULT GETDATE(),
             CONSTRAINT FK_po_serial_delivery FOREIGN KEY (po_delivery_id) REFERENCES po_deliveries(id) ON DELETE CASCADE,
-            CONSTRAINT FK_po_serial_item FOREIGN KEY (po_delivery_item_id) REFERENCES po_delivery_items(id) ON DELETE CASCADE,
+            CONSTRAINT FK_po_serial_item FOREIGN KEY (po_delivery_item_id) REFERENCES po_delivery_items(id) ON DELETE NO ACTION,
             CONSTRAINT FK_po_serial_master FOREIGN KEY (item_master_id) REFERENCES item_masters(id)
         );
         CREATE INDEX IX_po_serial_delivery ON po_delivery_item_serial_numbers(po_delivery_id);
