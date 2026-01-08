@@ -58,9 +58,9 @@ export const VendorAssignmentManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ItemGroup | null>(null);
-  const [selectedVendors, setSelectedVendors] = useState<VendorItemAssignment[]>([]);
+  const [selectedItems, setSelectedItems] = useState<ItemMaster[]>([]);
+  const [selectedVendors, setSelectedVendors] = useState<Vendor[]>([]);
   const [currentVendorId, setCurrentVendorId] = useState<string>('');
-  const [currentSelectedItems, setCurrentSelectedItems] = useState<string[]>([]);
 
   useEffect(() => {
     loadTenders();
@@ -145,44 +145,45 @@ export const VendorAssignmentManager: React.FC = () => {
   };
 
   const handleAssignVendors = async () => {
-    if (!selectedTender || !selectedGroup || selectedVendors.length === 0) {
-      alert('Please select at least one vendor with items');
+    if (!selectedTender || !selectedGroup || selectedItems.length === 0 || selectedVendors.length === 0) {
+      alert('Please select Tender → Group → Items → Vendors');
       return;
     }
 
     try {
-      // Assign each vendor-item combination
-      for (const assignment of selectedVendors) {
-        const response = await fetch(
-          `http://localhost:3001/api/annual-tenders/${selectedTender.id}/assign-vendors`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              assignments: [
-                {
-                  groupId: selectedGroup.id,
-                  vendorIds: [assignment.vendorId],
-                  itemIds: assignment.itemIds
-                }
-              ]
-            })
-          }
-        );
+      // Assign selected vendors to selected items in the group
+      const itemIds = selectedItems.map(item => item.id);
+      const vendorIds = selectedVendors.map(vendor => vendor.id);
 
-        if (!response.ok) {
-          throw new Error(`Failed to assign vendor ${assignment.vendorId}`);
+      const response = await fetch(
+        `http://localhost:3001/api/annual-tenders/${selectedTender.id}/assign-vendors`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assignments: [
+              {
+                groupId: selectedGroup.id,
+                vendorIds: vendorIds,
+                itemIds: itemIds
+              }
+            ]
+          })
         }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to assign vendors');
       }
 
-      alert('✅ Vendors and items assigned successfully!');
+      alert('✅ Vendors assigned to items successfully!');
       if (selectedTender) {
         loadGroupVendors(selectedTender.id);
       }
       setShowAssignDialog(false);
+      setSelectedItems([]);
       setSelectedVendors([]);
       setCurrentVendorId('');
-      setCurrentSelectedItems([]);
     } catch (error) {
       console.error('Error assigning vendors:', error);
       alert('Failed to assign vendors');
@@ -281,136 +282,128 @@ export const VendorAssignmentManager: React.FC = () => {
                           onClick={() => {
                             setSelectedGroup(group);
                             loadGroupItems(group.id);
+                            setSelectedItems([]);
+                            setSelectedVendors([]);
                           }}
                         >
-                          Add Vendors
+                          Assign Vendors
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="max-w-3xl">
                         <DialogHeader>
-                          <DialogTitle>Assign Vendors to {group.group_name}</DialogTitle>
+                          <DialogTitle>Vendor Assignment Workflow</DialogTitle>
                           <DialogDescription>
-                            Select vendors and assign items they'll provide
+                            Tender → Group → Items → Vendors
                           </DialogDescription>
                         </DialogHeader>
 
-                        <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                          {/* Vendors List */}
-                          <div className="space-y-2">
-                            <p className="font-semibold text-sm">Select Vendor</p>
-                            <div className="space-y-2 border rounded p-3">
-                              {Array.isArray(vendors) && vendors.length > 0 ? (
-                                vendors.map(vendor => (
-                                  <label key={vendor.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                                    <input
-                                      type="radio"
-                                      name="vendor"
-                                      value={vendor.id}
-                                      checked={currentVendorId === vendor.id}
-                                      onChange={() => {
-                                        setCurrentVendorId(vendor.id);
-                                        setCurrentSelectedItems([]);
-                                      }}
-                                    />
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm">{vendor.vendor_name}</p>
-                                      <p className="text-xs text-gray-600">{vendor.vendor_code}</p>
-                                    </div>
-                                  </label>
-                                ))
-                              ) : (
-                                <p className="text-center py-4 text-gray-500 text-sm">No vendors available</p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Items List */}
-                          <div className="space-y-2">
-                            <p className="font-semibold text-sm">Select Items for Vendor</p>
-                            <div className="space-y-2 border rounded p-3">
-                              {groupItems.length > 0 ? (
-                                groupItems.map(item => (
-                                  <label key={item.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={currentSelectedItems.includes(item.id)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setCurrentSelectedItems([...currentSelectedItems, item.id]);
-                                        } else {
-                                          setCurrentSelectedItems(currentSelectedItems.filter(id => id !== item.id));
-                                        }
-                                      }}
-                                      disabled={!currentVendorId}
-                                    />
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm">{item.nomenclature}</p>
-                                      <p className="text-xs text-gray-600">Code: {item.item_code}</p>
-                                    </div>
-                                  </label>
-                                ))
-                              ) : (
-                                <p className="text-center py-4 text-gray-500 text-sm">No items in this group</p>
-                              )}
-                            </div>
-                          </div>
+                        {/* Step 1: Tender (Already Selected) */}
+                        <div className="space-y-3 p-4 bg-blue-50 rounded">
+                          <p className="font-semibold text-sm">✅ Step 1: Tender Selected</p>
+                          <p className="text-sm font-medium">{selectedTender?.title} ({selectedTender?.tender_number})</p>
                         </div>
 
-                        {/* Selected Assignments Preview */}
-                        <div className="space-y-2">
-                          <p className="font-semibold text-sm">Selected Assignments</p>
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {selectedVendors.length > 0 ? (
-                              selectedVendors.map(assignment => {
-                                const vendor = vendors.find(v => v.id === assignment.vendorId);
-                                const assignedItems = groupItems.filter(i => assignment.itemIds.includes(i.id));
-                                return (
-                                  <div key={assignment.vendorId} className="text-sm p-2 bg-blue-50 rounded">
-                                    <p className="font-medium">{vendor?.vendor_name}</p>
-                                    <p className="text-xs text-gray-600">
-                                      Items: {assignedItems.map(i => i.nomenclature).join(', ')}
-                                    </p>
+                        {/* Step 2: Group (Already Selected) */}
+                        <div className="space-y-3 p-4 bg-blue-50 rounded">
+                          <p className="font-semibold text-sm">✅ Step 2: Group Selected</p>
+                          <p className="text-sm font-medium">{selectedGroup?.group_name} ({selectedGroup?.group_code})</p>
+                        </div>
+
+                        {/* Step 3: Select Items */}
+                        <div className="space-y-3 p-4 bg-yellow-50 rounded">
+                          <p className="font-semibold text-sm">📍 Step 3: Select Items from {selectedGroup?.group_name}</p>
+                          <div className="space-y-2 border rounded p-3 bg-white max-h-40 overflow-y-auto">
+                            {groupItems.length > 0 ? (
+                              groupItems.map(item => (
+                                <label key={item.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedItems.some(i => i.id === item.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedItems([...selectedItems, item]);
+                                      } else {
+                                        setSelectedItems(selectedItems.filter(i => i.id !== item.id));
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{item.nomenclature}</p>
+                                    <p className="text-xs text-gray-600">Code: {item.item_code}</p>
                                   </div>
-                                );
-                              })
+                                </label>
+                              ))
                             ) : (
-                              <p className="text-xs text-gray-500">No assignments yet</p>
+                              <p className="text-center py-4 text-gray-500 text-sm">No items in this group</p>
                             )}
                           </div>
+                          {selectedItems.length > 0 && (
+                            <div className="text-xs text-green-600">✓ {selectedItems.length} item(s) selected</div>
+                          )}
                         </div>
 
+                        {/* Step 4: Select Vendors */}
+                        <div className="space-y-3 p-4 bg-purple-50 rounded">
+                          <p className="font-semibold text-sm">📍 Step 4: Select Vendors for These Items</p>
+                          <div className="space-y-2 border rounded p-3 bg-white max-h-40 overflow-y-auto">
+                            {Array.isArray(vendors) && vendors.length > 0 ? (
+                              vendors.map(vendor => (
+                                <label key={vendor.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedVendors.some(v => v.id === vendor.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedVendors([...selectedVendors, vendor]);
+                                      } else {
+                                        setSelectedVendors(selectedVendors.filter(v => v.id !== vendor.id));
+                                      }
+                                    }}
+                                    disabled={selectedItems.length === 0}
+                                  />
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{vendor.vendor_name}</p>
+                                    <p className="text-xs text-gray-600">{vendor.vendor_code}</p>
+                                  </div>
+                                </label>
+                              ))
+                            ) : (
+                              <p className="text-center py-4 text-gray-500 text-sm">No vendors available</p>
+                            )}
+                          </div>
+                          {selectedVendors.length > 0 && (
+                            <div className="text-xs text-green-600">✓ {selectedVendors.length} vendor(s) selected</div>
+                          )}
+                        </div>
+
+                        {/* Summary */}
+                        {selectedItems.length > 0 && selectedVendors.length > 0 && (
+                          <div className="space-y-3 p-4 bg-green-50 rounded">
+                            <p className="font-semibold text-sm">📋 Summary</p>
+                            <div className="text-sm space-y-1">
+                              <p><strong>Tender:</strong> {selectedTender?.title}</p>
+                              <p><strong>Group:</strong> {selectedGroup?.group_name}</p>
+                              <p><strong>Items:</strong> {selectedItems.map(i => i.nomenclature).join(', ')}</p>
+                              <p><strong>Vendors:</strong> {selectedVendors.map(v => v.vendor_name).join(', ')}</p>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Action Buttons */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 justify-end">
                           <Button
-                            onClick={() => {
-                              if (currentVendorId && currentSelectedItems.length > 0) {
-                                const existing = selectedVendors.find(v => v.vendorId === currentVendorId);
-                                if (existing) {
-                                  setSelectedVendors(selectedVendors.map(v =>
-                                    v.vendorId === currentVendorId
-                                      ? { ...v, itemIds: currentSelectedItems }
-                                      : v
-                                  ));
-                                } else {
-                                  setSelectedVendors([...selectedVendors, {
-                                    vendorId: currentVendorId,
-                                    itemIds: currentSelectedItems
-                                  }]);
-                                }
-                                setCurrentVendorId('');
-                                setCurrentSelectedItems([]);
-                              } else {
-                                alert('Please select a vendor and at least one item');
-                              }
-                            }}
+                            onClick={() => setShowAssignDialog(false)}
                             variant="outline"
-                            className="flex-1"
                           >
-                            Add Assignment
+                            Cancel
                           </Button>
-                          <Button onClick={handleAssignVendors} className="flex-1">
-                            <Check className="w-4 h-4 mr-2" />
-                            Confirm All
+                          <Button
+                            onClick={handleAssignVendors}
+                            disabled={selectedItems.length === 0 || selectedVendors.length === 0}
+                            className="gap-2"
+                          >
+                            <Check className="w-4 h-4" />
+                            Assign {selectedVendors.length} Vendors to {selectedItems.length} Items
                           </Button>
                         </div>
                       </DialogContent>
