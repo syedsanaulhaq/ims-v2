@@ -34,12 +34,14 @@ BEGIN
     CREATE TABLE annual_tender_categories (
         id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
         annual_tender_id UNIQUEIDENTIFIER NOT NULL,
-        category NVARCHAR(100) NOT NULL,
+        category_id UNIQUEIDENTIFIER NOT NULL,
         created_at DATETIME2 DEFAULT GETDATE(),
         FOREIGN KEY (annual_tender_id) REFERENCES annual_tenders(id) ON DELETE CASCADE,
-        UNIQUE(annual_tender_id, category)
+        FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE,
+        UNIQUE(annual_tender_id, category_id)
     );
     CREATE INDEX IX_tender_categories_tender ON annual_tender_categories(annual_tender_id);
+    CREATE INDEX IX_tender_categories_category ON annual_tender_categories(category_id);
     PRINT '✅ Created annual_tender_categories table';
 END;
 
@@ -50,19 +52,20 @@ BEGIN
     CREATE TABLE annual_tender_vendors (
         id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
         annual_tender_id UNIQUEIDENTIFIER NOT NULL,
-        category NVARCHAR(100) NOT NULL,
+        category_id UNIQUEIDENTIFIER NOT NULL,
         vendor_id UNIQUEIDENTIFIER NOT NULL,
         assignment_date DATETIME2 DEFAULT GETDATE(),
         status NVARCHAR(50) DEFAULT 'Active',
         created_by NVARCHAR(450),
         created_at DATETIME2 DEFAULT GETDATE(),
         FOREIGN KEY (annual_tender_id) REFERENCES annual_tenders(id) ON DELETE CASCADE,
+        FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE,
         FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
-        UNIQUE(annual_tender_id, category, vendor_id)
+        UNIQUE(annual_tender_id, category_id, vendor_id)
     );
     CREATE INDEX IX_tender_vendor_tender ON annual_tender_vendors(annual_tender_id);
     CREATE INDEX IX_tender_vendor_vendor ON annual_tender_vendors(vendor_id);
-    CREATE INDEX IX_tender_vendor_category ON annual_tender_vendors(category);
+    CREATE INDEX IX_tender_vendor_category ON annual_tender_vendors(category_id);
     PRINT '✅ Created annual_tender_vendors table';
 END;
 
@@ -73,7 +76,7 @@ BEGIN
     CREATE TABLE vendor_proposals (
         id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
         annual_tender_id UNIQUEIDENTIFIER NOT NULL,
-        category NVARCHAR(100) NOT NULL,
+        category_id UNIQUEIDENTIFIER NOT NULL,
         vendor_id UNIQUEIDENTIFIER NOT NULL,
         item_master_id UNIQUEIDENTIFIER NOT NULL,
         proposed_unit_price DECIMAL(15, 2) NOT NULL,
@@ -86,12 +89,13 @@ BEGIN
         created_at DATETIME2 DEFAULT GETDATE(),
         updated_at DATETIME2 DEFAULT GETDATE(),
         FOREIGN KEY (annual_tender_id) REFERENCES annual_tenders(id) ON DELETE CASCADE,
+        FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE,
         FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE,
         FOREIGN KEY (item_master_id) REFERENCES item_masters(id) ON DELETE CASCADE
     );
     CREATE INDEX IX_proposal_tender ON vendor_proposals(annual_tender_id);
     CREATE INDEX IX_proposal_vendor ON vendor_proposals(vendor_id);
-    CREATE INDEX IX_proposal_category ON vendor_proposals(category);
+    CREATE INDEX IX_proposal_category ON vendor_proposals(category_id);
     PRINT '✅ Created vendor_proposals table';
 END;
 
@@ -102,7 +106,7 @@ BEGIN
         id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
         po_number NVARCHAR(100) NOT NULL UNIQUE,
         annual_tender_id UNIQUEIDENTIFIER NOT NULL,
-        category NVARCHAR(100) NOT NULL,
+        category_id UNIQUEIDENTIFIER NOT NULL,
         vendor_id UNIQUEIDENTIFIER NOT NULL,
         po_date DATE NOT NULL,
         delivery_date DATE,
@@ -114,6 +118,7 @@ BEGIN
         created_at DATETIME2 DEFAULT GETDATE(),
         updated_at DATETIME2 DEFAULT GETDATE(),
         FOREIGN KEY (annual_tender_id) REFERENCES annual_tenders(id),
+        FOREIGN KEY (category_id) REFERENCES categories(category_id),
         FOREIGN KEY (vendor_id) REFERENCES vendors(id)
     );
     CREATE INDEX IX_po_number ON purchase_orders(po_number);
