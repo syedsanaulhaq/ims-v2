@@ -210,6 +210,10 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Stock Acquisition", icon: Warehouse, path: "/dashboard/stock-acquisition-dashboard", permission: 'procurement.view' },
       { title: "Review Requests", icon: CheckCircle, path: "/procurement/admin-review", permission: 'procurement.approve' },
       { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
+      { title: "Annual Tenders", icon: FileText, path: "/dashboard/annual-tenders", permission: 'procurement.manage' },
+      { title: "Item Groups", icon: Boxes, path: "/dashboard/item-groups", permission: 'procurement.manage' },
+      { title: "Vendor Assignment", icon: Users, path: "/dashboard/vendor-assignment", permission: 'procurement.manage' },
+      { title: "Vendor Proposals", icon: ShoppingCart, path: "/dashboard/vendor-proposals", permission: 'procurement.manage' },
     ]
   };
 

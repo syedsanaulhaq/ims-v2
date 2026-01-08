@@ -359,7 +359,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {verification.verification_status !== 'forwarded' && (
+                      {verification.verification_status && verification.verification_status !== 'pending' && (
                         <div className="mt-3 pt-3 border-t">
                           <p className="text-xs text-gray-600 mb-1">Verified by: {verification.verified_by_name || 'N/A'}</p>
                           {verification.verification_notes && (

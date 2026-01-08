@@ -687,6 +687,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <TenderVendorManagement
                   tenderId={selectedTender.id}
                   readOnly={true}
+                  vendors={[]}
                 />
               </div>
 

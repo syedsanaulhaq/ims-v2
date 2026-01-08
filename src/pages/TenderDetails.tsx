@@ -742,6 +742,7 @@ const TenderDetails: React.FC = () => {
       <TenderVendorManagement
         tenderId={tender.id}
         readOnly={true}
+        vendors={[]}
       />
 
       {/* Tender Items */}

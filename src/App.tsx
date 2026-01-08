@@ -97,6 +97,10 @@ import InitialSetupPage from "./pages/InitialSetupPage";
 import DigitalSystemLanding from "./pages/DigitalSystemLanding";
 import PersonalIMS from "./pages/PersonalIMS";
 import SSOLogin from "./pages/SSOLogin";
+import AnnualTenderManagement from "./pages/AnnualTenderManagement";
+import ItemGroupsManager from "./pages/ItemGroupsManager";
+import VendorAssignmentManager from "./pages/VendorAssignmentManager";
+import VendorProposalsGrid from "./pages/VendorProposalsGrid";
 import { useParams } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -273,6 +277,12 @@ function App() {
                   <Route path="delivery-report/:id" element={<DeliveryReport />} />
                   <Route path="inventory/:id/report" element={<InventoryReportPage />} />
                   <Route path="item-master" element={<ItemMaster />} />
+                  
+                  {/* Annual Tender Management */}
+                  <Route path="annual-tenders" element={<AnnualTenderManagement />} />
+                  <Route path="item-groups" element={<ItemGroupsManager />} />
+                  <Route path="vendor-assignment" element={<VendorAssignmentManager />} />
+                  <Route path="vendor-proposals" element={<VendorProposalsGrid />} />
                 </Route>
 
                 {/* Stock Acquisition - Protected */}

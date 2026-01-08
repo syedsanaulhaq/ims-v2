@@ -49,6 +49,8 @@ interface TenderData {
   tender_type: string;
   tender_status?: string;
   procurement_method?: string;
+  procedure?: string;
+  published_date?: string;
   estimated_value: number;
   submission_date?: string;
   opening_date?: string;
@@ -76,7 +78,7 @@ const TenderReportEnhanced: React.FC = () => {
   const [tenderData, setTenderData] = useState<TenderData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { offices, wings, decs, loading: hierarchyLoading } = useOfficeHierarchy();
+  const { offices, wings, decs, isLoading: hierarchyLoading } = useOfficeHierarchy();
 
   // Fetch tender data only (no deliveries for contract tenders)
   useEffect(() => {
@@ -397,9 +399,15 @@ const TenderReportEnhanced: React.FC = () => {
               <p className="text-gray-900 font-medium">{tenderData.tender_type || 'N/A'}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Procurement Method</label>
-              <p className="text-gray-900 font-medium">{tenderData.procurement_method || 'N/A'}</p>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Reference Number</label>
+              <p className="text-gray-900 font-medium">{tenderData.reference_number || 'N/A'}</p>
             </div>
+            {tenderData.tender_number && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Tender Number</label>
+                <p className="text-gray-900 font-medium">{tenderData.tender_number}</p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-1">Status</label>
               <Badge className={
@@ -412,12 +420,8 @@ const TenderReportEnhanced: React.FC = () => {
               </Badge>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Submission Date</label>
-              <p className="text-gray-900">{formatDate(tenderData.submission_date)}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Opening Date</label>
-              <p className="text-gray-900">{formatDate(tenderData.opening_date)}</p>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Estimated Value</label>
+              <p className="text-gray-900 font-semibold text-green-600">{formatCurrency(estimatedValue)}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-1">Item Count</label>
@@ -428,9 +432,93 @@ const TenderReportEnhanced: React.FC = () => {
           {tenderData.description && (
             <div className="mt-6">
               <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
-              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">{tenderData.description}</p>
+              <p className="text-gray-900 bg-gray-50 p-3 rounded-md whitespace-pre-wrap">{tenderData.description}</p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Important Dates */}
+      <Card className="border-blue-200">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
+          <CardTitle className="flex items-center space-x-2 text-blue-800">
+            <Calendar className="h-5 w-5" />
+            <span>Important Dates</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tenderData.published_date && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Publish Date</label>
+                <p className="text-gray-900">{formatDate(tenderData.published_date)}</p>
+              </div>
+            )}
+            {tenderData.submission_date && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Submission Date</label>
+                <p className="text-gray-900">{formatDate(tenderData.submission_date)}</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Submission Deadline</label>
+              <p className="text-gray-900 font-semibold text-red-600">{formatDate(tenderData.submission_deadline)}</p>
+            </div>
+            {tenderData.opening_date && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Opening Date</label>
+                <p className="text-gray-900">{formatDate(tenderData.opening_date)}</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Created At</label>
+              <p className="text-gray-900">{formatDateTime(tenderData.created_at)}</p>
+            </div>
+            {tenderData.updated_at && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Last Updated</label>
+                <p className="text-gray-900">{formatDateTime(tenderData.updated_at)}</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Procurement Details */}
+      <Card className="border-orange-200">
+        <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100">
+          <CardTitle className="flex items-center space-x-2 text-orange-800">
+            <Building className="h-5 w-5" />
+            <span>Procurement Details</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tenderData.procedure && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Procedure Adopted</label>
+                <p className="text-gray-900">{tenderData.procedure}</p>
+              </div>
+            )}
+            {tenderData.procurement_method && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Procurement Method</label>
+                <p className="text-gray-900">{tenderData.procurement_method}</p>
+              </div>
+            )}
+            {tenderData.publication_daily && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Publication Daily</label>
+                <p className="text-gray-900">{tenderData.publication_daily}</p>
+              </div>
+            )}
+            {tenderData.vendor_name && (
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Vendor</label>
+                <p className="text-gray-900">{tenderData.vendor_name}</p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

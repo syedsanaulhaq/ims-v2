@@ -509,16 +509,17 @@ const UnifiedTenderManagement: React.FC = () => {
 
     const deliveryList = pendingDeliveries.map(d => `  • Delivery #${d.delivery_number}`).join('\n');
     
-    if (!confirm(`Are you sure you want to FINALIZE ALL DELIVERIES for this tender?\n\n${pendingDeliveries.length} pending deliveries will be finalized:\n${deliveryList}\n\nThis will:\n- Mark all deliveries as complete\n- Add ALL items to inventory\n- Create stock movement logs\n- CANNOT be undone\n\nProceed with finalization?`)) {
+    if (!confirm(`Are you sure you want to FINALIZE ALL DELIVERIES for this tender?\n\n${pendingDeliveries.length} pending deliveries will be finalized:\n${deliveryList}\n\nThis will:\n- Mark all deliveries as complete\n- CANNOT be undone\n\nProceed with finalization?`)) {
       return;
     }
 
     try {
-      // Get current user ID from session/auth
-      const currentUserId = 'SYSTEM-USER-ID'; // TODO: Get from auth context
+      // Get current user ID from session
+      const sessionResponse = await fetch('http://localhost:3001/api/session');
+      const session = await sessionResponse.json();
+      const currentUserId = session.userId || 'SYSTEM-USER-ID';
       
       let successCount = 0;
-      let totalItemsAdded = 0;
       const errors: string[] = [];
 
       // Finalize each delivery
@@ -535,7 +536,6 @@ const UnifiedTenderManagement: React.FC = () => {
           if (response.ok) {
             const result = await response.json();
             successCount++;
-            totalItemsAdded += result.items_added || 0;
           } else {
             const errorData = await response.json();
             errors.push(`Delivery #${delivery.delivery_number}: ${errorData.details || errorData.error}`);
@@ -550,9 +550,9 @@ const UnifiedTenderManagement: React.FC = () => {
 
       // Show results
       if (successCount === pendingDeliveries.length) {
-        alert(`✅ ALL ${successCount} DELIVERIES FINALIZED SUCCESSFULLY!\n\n${totalItemsAdded} items added to inventory.`);
+        alert(`✅ ALL ${successCount} DELIVERIES FINALIZED SUCCESSFULLY!`);
       } else if (successCount > 0) {
-        alert(`⚠️ PARTIALLY COMPLETED\n\n✅ ${successCount} deliveries finalized (${totalItemsAdded} items added)\n❌ ${errors.length} failed:\n\n${errors.join('\n')}`);
+        alert(`⚠️ PARTIALLY COMPLETED\n\n✅ ${successCount} deliveries finalized\n❌ ${errors.length} failed:\n\n${errors.join('\n')}`);
       } else {
         alert(`❌ FINALIZATION FAILED\n\nNo deliveries were finalized.\n\nErrors:\n${errors.join('\n')}`);
       }

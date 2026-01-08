@@ -513,9 +513,7 @@ class ApprovalForwardingService {
         pending_count: data.pending_count || 0,
         approved_count: data.approved_count || 0,
         rejected_count: data.rejected_count || 0,
-        forwarded_count: data.forwarded_count || 0,
-        returned_count: data.returned_count || 0,
-        finalized_count: data.forwarded_count || 0,
+        finalized_count: data.finalized_count || 0,
         my_pending: [],
         recent_actions: []
       };

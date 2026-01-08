@@ -139,7 +139,7 @@ app.get('/items-master', async (req, res) => {
 
 // SQL Server configuration - Using environment variables from .env.sqlserver
 const sqlConfig = {
-  server: process.env.SQL_SERVER_HOST || 'SYED-FAZLI-LAPT',
+  server: process.env.SQL_SERVER_HOST || 'localhost',
   // Default to the main InventoryManagementDB (not the TEST DB)
   database: process.env.SQL_SERVER_DATABASE || 'InventoryManagementDB',
   user: process.env.SQL_SERVER_USER || 'inventorymanagementuser',
@@ -6337,172 +6337,55 @@ app.put('/api/deliveries/:id/finalize', async (req, res) => {
     const { finalized_by } = req.body;
 
     const now = new Date().toISOString();
-    
-    const transaction = pool.transaction();
-    await transaction.begin();
 
     try {
-      // Check if delivery exists, is not already finalized, and get delivery items
-      const checkResult = await transaction.request()
+      // Check if delivery exists and is not already finalized
+      const checkResult = await pool.request()
         .input('id', sql.UniqueIdentifier, id)
         .query(`
-          SELECT d.is_finalized, d.tender_id, t.is_finalized as tender_is_finalized
+          SELECT d.is_finalized
           FROM deliveries d
-          LEFT JOIN tenders t ON d.tender_id = t.id
           WHERE d.id = @id
         `);
 
       if (checkResult.recordset.length === 0) {
-        throw new Error('Delivery not found');
+        return res.status(404).json({ error: 'Delivery not found' });
       }
 
-      const { is_finalized, tender_is_finalized, tender_id } = checkResult.recordset[0];
-
-      if (tender_is_finalized) {
-        throw new Error('Cannot finalize delivery - tender is already finalized');
-      }
+      const { is_finalized } = checkResult.recordset[0];
 
       if (is_finalized) {
-        throw new Error('Delivery is already finalized');
-      }
-
-      // Get delivery items to add to inventory
-      const deliveryItemsResult = await transaction.request()
-        .input('delivery_id', sql.UniqueIdentifier, id)
-        .query(`
-          SELECT 
-            di.item_master_id,
-            di.quantity_delivered,
-            di.unit_price,
-            im.nomenclature,
-            im.unit,
-            im.minimum_stock_level,
-            im.maximum_stock_level,
-            im.reorder_level
-          FROM delivery_items di
-          INNER JOIN item_masters im ON di.item_master_id = im.id
-          WHERE di.delivery_id = @delivery_id
-        `);
-
-      // Process each delivery item
-      for (const item of deliveryItemsResult.recordset) {
-        const { 
-          item_master_id, 
-          quantity_delivered, 
-          unit_price, 
-          nomenclature,
-          unit,
-          minimum_stock_level,
-          maximum_stock_level,
-          reorder_level
-        } = item;
-
-        // Check if inventory record exists for this item
-        const inventoryCheck = await transaction.request()
-          .input('item_master_id', sql.UniqueIdentifier, item_master_id)
-          .query(`
-            SELECT id, current_quantity 
-            FROM current_inventory_stock 
-            WHERE item_master_id = @item_master_id
-          `);
-
-        let inventoryId;
-        
-        if (inventoryCheck.recordset.length === 0) {
-          // Create new inventory record
-          inventoryId = uuidv4();
-          await transaction.request()
-            .input('id', sql.UniqueIdentifier, inventoryId)
-            .input('item_master_id', sql.UniqueIdentifier, item_master_id)
-            .input('current_quantity', sql.Int, quantity_delivered)
-            .input('available_quantity', sql.Int, quantity_delivered)
-            .input('reserved_quantity', sql.Int, 0)
-            .input('minimum_stock_level', sql.Int, minimum_stock_level || 0)
-            .input('maximum_stock_level', sql.Int, maximum_stock_level || 0)
-            .input('reorder_point', sql.Int, reorder_level || 0)
-            .input('updated_by', sql.NVarChar, finalized_by)
-            .query(`
-              INSERT INTO current_inventory_stock (
-                id, item_master_id, current_quantity, available_quantity, reserved_quantity,
-                minimum_stock_level, maximum_stock_level, reorder_point, updated_by,
-                last_updated, created_at
-              ) VALUES (
-                @id, @item_master_id, @current_quantity, @available_quantity, @reserved_quantity,
-                @minimum_stock_level, @maximum_stock_level, @reorder_point, @updated_by,
-                GETDATE(), GETDATE()
-              )
-            `);
-        } else {
-          // Update existing inventory record
-          inventoryId = inventoryCheck.recordset[0].id;
-          const currentQty = inventoryCheck.recordset[0].current_quantity;
-          
-          await transaction.request()
-            .input('id', sql.UniqueIdentifier, inventoryId)
-            .input('quantity_delivered', sql.Int, quantity_delivered)
-            .input('updated_by', sql.NVarChar, finalized_by)
-            .query(`
-              UPDATE current_inventory_stock 
-              SET 
-                current_quantity = current_quantity + @quantity_delivered,
-                available_quantity = (current_quantity + @quantity_delivered) - ISNULL(reserved_quantity, 0),
-                updated_by = @updated_by,
-                last_updated = GETDATE()
-              WHERE id = @id
-            `);
-        }
-
-        // Create stock movement log entry
-        const movementId = uuidv4();
-        await transaction.request()
-          .input('movement_id', sql.UniqueIdentifier, movementId)
-          .input('item_master_id', sql.UniqueIdentifier, item_master_id)
-          .input('quantity', sql.Int, quantity_delivered)
-          .input('unit_price', sql.Decimal(15, 2), unit_price || 0)
-          .input('reference_id', sql.UniqueIdentifier, id)
-          .input('authorized_by', sql.NVarChar, finalized_by)
-          .input('nomenclature', sql.NVarChar, nomenclature)
-          .query(`
-            INSERT INTO stock_movement_log (
-              id, item_master_id, movement_type, reference_type, reference_id,
-              quantity, unit_price, total_value, movement_date, authorized_by, 
-              movement_notes, nomenclature, created_at
-            ) VALUES (
-              @movement_id, @item_master_id, 'Issue', 'Delivery', @reference_id,
-              @quantity, @unit_price, (@quantity * @unit_price), GETDATE(), @authorized_by,
-              'Stock added from delivery finalization', @nomenclature, GETDATE()
-            )
-          `);
+        return res.status(400).json({ error: 'Delivery is already finalized' });
       }
 
       // Update delivery to finalized status
-      await transaction.request()
-        .input('id', sql.UniqueIdentifier, id)
-        .input('finalized_by', sql.UniqueIdentifier, finalized_by)
-        .input('finalized_at', sql.DateTime2, now)
-        .input('updated_at', sql.DateTime2, now)
-        .query(`
-          UPDATE deliveries SET
-            is_finalized = 1,
-            finalized_by = @finalized_by,
-            finalized_at = @finalized_at,
-            updated_at = @updated_at
-          WHERE id = @id
-        `);
+      // Note: finalized_by is stored as NVARCHAR, so we don't need to convert it to GUID
+      const updateQuery = `
+        UPDATE deliveries SET
+          is_finalized = 1,
+          finalized_by = @finalized_by,
+          finalized_at = @finalized_at,
+          updated_at = @updated_at
+        WHERE id = @id
+      `;
 
-      await transaction.commit();
+      const request = pool.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('finalized_by', sql.NVarChar(450), finalized_by)
+        .input('finalized_at', sql.DateTime2, now)
+        .input('updated_at', sql.DateTime2, now);
+
+      await request.query(updateQuery);
 
       res.json({ 
         success: true, 
         id: id,
-        message: 'Delivery finalized successfully and inventory updated',
+        message: 'Delivery finalized successfully',
         finalized_at: now,
-        finalized_by: finalized_by,
-        items_added: deliveryItemsResult.recordset.length
+        finalized_by: finalized_by
       });
 
     } catch (error) {
-      await transaction.rollback();
       throw error;
     }
 
@@ -17733,5 +17616,486 @@ app.get('/api/approvals/dashboard', async (req, res) => {
     });
   }
 });
+
+// =====================================================================
+// ANNUAL TENDER SYSTEM APIS
+// =====================================================================
+
+// 1. GET ALL ANNUAL TENDERS
+app.get('/api/annual-tenders', async (req, res) => {
+  try {
+    const status = req.query.status || null;
+    
+    let query = `
+      SELECT 
+        id,
+        tender_number,
+        title,
+        description,
+        start_date,
+        end_date,
+        status,
+        total_budget,
+        remarks,
+        created_by,
+        created_at,
+        updated_at
+      FROM annual_tenders
+      WHERE 1=1
+    `;
+
+    if (status) {
+      query += ` AND status = @status`;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const request = pool.request();
+    if (status) {
+      request.input('status', sql.NVarChar(50), status);
+    }
+
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching annual tenders:', error);
+    res.status(500).json({ error: 'Failed to fetch annual tenders', details: error.message });
+  }
+});
+
+// 2. GET SINGLE ANNUAL TENDER WITH DETAILS
+app.get('/api/annual-tenders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get tender
+    const tenderResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`SELECT * FROM annual_tenders WHERE id = @id`);
+
+    if (tenderResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Annual tender not found' });
+    }
+
+    const tender = tenderResult.recordset[0];
+
+    // Get groups in this tender
+    const groupsResult = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          atg.id,
+          atg.group_id,
+          ig.group_code,
+          ig.group_name,
+          ig.description
+        FROM annual_tender_groups atg
+        INNER JOIN item_groups ig ON atg.group_id = ig.id
+        WHERE atg.annual_tender_id = @tenderId
+        ORDER BY ig.group_name
+      `);
+
+    // Get vendors assigned to this tender
+    const vendorsResult = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT DISTINCT
+          atv.id,
+          atv.vendor_id,
+          atv.group_id,
+          ig.group_name,
+          v.vendor_name,
+          v.vendor_code,
+          v.contact_person,
+          atv.status
+        FROM annual_tender_vendors atv
+        INNER JOIN item_groups ig ON atv.group_id = ig.id
+        INNER JOIN vendors v ON atv.vendor_id = v.id
+        WHERE atv.annual_tender_id = @tenderId AND atv.status = 'Active'
+        ORDER BY ig.group_name, v.vendor_name
+      `);
+
+    res.json({
+      ...tender,
+      groups: groupsResult.recordset,
+      vendors: vendorsResult.recordset
+    });
+  } catch (error) {
+    console.error('❌ Error fetching annual tender:', error);
+    res.status(500).json({ error: 'Failed to fetch annual tender', details: error.message });
+  }
+});
+
+// 3. CREATE ANNUAL TENDER
+app.post('/api/annual-tenders', async (req, res) => {
+  try {
+    const { tender_number, title, description, start_date, end_date, total_budget, remarks, created_by, groupIds } = req.body;
+
+    if (!tender_number || !title || !start_date || !end_date) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const id = uuidv4();
+
+    // Insert tender
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('tender_number', sql.NVarChar(100), tender_number)
+      .input('title', sql.NVarChar(255), title)
+      .input('description', sql.NVarChar(sql.MAX), description || null)
+      .input('start_date', sql.Date, start_date)
+      .input('end_date', sql.Date, end_date)
+      .input('status', sql.NVarChar(50), 'Active')
+      .input('total_budget', sql.Decimal(15, 2), total_budget || null)
+      .input('remarks', sql.NVarChar(sql.MAX), remarks || null)
+      .input('created_by', sql.NVarChar(450), created_by)
+      .query(`
+        INSERT INTO annual_tenders (id, tender_number, title, description, start_date, end_date, status, total_budget, remarks, created_by, created_at, updated_at)
+        VALUES (@id, @tender_number, @title, @description, @start_date, @end_date, @status, @total_budget, @remarks, @created_by, GETDATE(), GETDATE())
+      `);
+
+    // Assign groups if provided
+    if (groupIds && Array.isArray(groupIds) && groupIds.length > 0) {
+      for (const groupId of groupIds) {
+        const groupAssignId = uuidv4();
+        await pool.request()
+          .input('id', sql.UniqueIdentifier, groupAssignId)
+          .input('tenderId', sql.UniqueIdentifier, id)
+          .input('groupId', sql.UniqueIdentifier, groupId)
+          .query(`
+            INSERT INTO annual_tender_groups (id, annual_tender_id, group_id, created_at)
+            VALUES (@id, @tenderId, @groupId, GETDATE())
+          `);
+      }
+    }
+
+    res.json({ success: true, id, message: 'Annual tender created successfully' });
+  } catch (error) {
+    console.error('❌ Error creating annual tender:', error);
+    res.status(500).json({ error: 'Failed to create annual tender', details: error.message });
+  }
+});
+
+// 4. GET ALL ITEM GROUPS
+app.get('/api/item-groups', async (req, res) => {
+  try {
+    const result = await pool.request().query(`
+      SELECT 
+        ig.id, 
+        ig.group_code, 
+        ig.group_name, 
+        ig.description, 
+        ig.is_active, 
+        ig.created_at,
+        COUNT(gi.id) as item_count
+      FROM item_groups ig
+      LEFT JOIN group_items gi ON ig.id = gi.group_id
+      WHERE ig.is_active = 1
+      GROUP BY ig.id, ig.group_code, ig.group_name, ig.description, ig.is_active, ig.created_at
+      ORDER BY ig.group_name
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching item groups:', error);
+    res.status(500).json({ error: 'Failed to fetch item groups' });
+  }
+});
+
+// 5. CREATE ITEM GROUP
+app.post('/api/item-groups', async (req, res) => {
+  try {
+    const { group_code, group_name, description, itemIds, created_by } = req.body;
+
+    console.log('📥 Item Group Creation Request:', {
+      group_code,
+      group_name,
+      description,
+      itemIds,
+      itemIdsLength: itemIds ? itemIds.length : 0,
+      created_by
+    });
+
+    if (!group_code || !group_name) {
+      return res.status(400).json({ error: 'Group code and name are required' });
+    }
+
+    const id = uuidv4();
+
+    // Create group
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('group_code', sql.NVarChar(50), group_code)
+      .input('group_name', sql.NVarChar(255), group_name)
+      .input('description', sql.NVarChar(sql.MAX), description || null)
+      .input('created_by', sql.NVarChar(450), created_by)
+      .query(`
+        INSERT INTO item_groups (id, group_code, group_name, description, is_active, created_by, created_at, updated_at)
+        VALUES (@id, @group_code, @group_name, @description, 1, @created_by, GETDATE(), GETDATE())
+      `);
+
+    // Add items if provided
+    if (itemIds && Array.isArray(itemIds) && itemIds.length > 0) {
+      console.log(`✅ Adding ${itemIds.length} items to group ${id}`);
+      for (const itemId of itemIds) {
+        const groupItemId = uuidv4();
+        console.log(`  - Adding item ${itemId}`);
+        await pool.request()
+          .input('id', sql.UniqueIdentifier, groupItemId)
+          .input('groupId', sql.UniqueIdentifier, id)
+          .input('itemId', sql.UniqueIdentifier, itemId)
+          .query(`
+            INSERT INTO group_items (id, group_id, item_master_id, created_at)
+            VALUES (@id, @groupId, @itemId, GETDATE())
+          `);
+      }
+    } else {
+      console.log('⚠️ No items provided for this group');
+    }
+
+    res.json({ success: true, id, message: 'Item group created successfully' });
+  } catch (error) {
+    console.error('❌ Error creating item group:', error);
+    res.status(500).json({ error: 'Failed to create item group', details: error.message });
+  }
+});
+
+// 6. GET ITEMS IN A GROUP
+app.get('/api/item-groups/:groupId/items', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    console.log(`📥 Fetching items for group: ${groupId}`);
+
+    // First check if group exists
+    const groupCheck = await pool.request()
+      .input('groupId', sql.UniqueIdentifier, groupId)
+      .query(`SELECT id, group_code, group_name FROM item_groups WHERE id = @groupId`);
+    
+    console.log(`Group found:`, groupCheck.recordset.length > 0 ? groupCheck.recordset[0] : 'NOT FOUND');
+
+    // Check group_items records
+    const groupItemsCheck = await pool.request()
+      .input('groupId', sql.UniqueIdentifier, groupId)
+      .query(`SELECT id, group_id, item_master_id FROM group_items WHERE group_id = @groupId`);
+    
+    console.log(`Group items records found: ${groupItemsCheck.recordset.length}`);
+    if (groupItemsCheck.recordset.length > 0) {
+      console.log('Sample group_items:', groupItemsCheck.recordset[0]);
+    }
+
+    const result = await pool.request()
+      .input('groupId', sql.UniqueIdentifier, groupId)
+      .query(`
+        SELECT 
+          gi.id,
+          gi.item_master_id,
+          im.id as item_id,
+          im.nomenclature,
+          im.item_code,
+          im.unit,
+          gi.created_at
+        FROM group_items gi
+        INNER JOIN item_masters im ON gi.item_master_id = im.id
+        WHERE gi.group_id = @groupId
+        ORDER BY im.nomenclature
+      `);
+
+    console.log(`✅ Found ${result.recordset.length} items for group ${groupId}`);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching group items:', error);
+    res.status(500).json({ error: 'Failed to fetch group items' });
+  }
+});
+
+// 8. DELETE ITEM GROUP
+app.delete('/api/item-groups/:groupId', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    console.log(`🗑️ Deleting item group: ${groupId}`);
+
+    const result = await pool.request()
+      .input('groupId', sql.UniqueIdentifier, groupId)
+      .query(`
+        DELETE FROM item_groups
+        WHERE id = @groupId
+      `);
+
+    console.log(`✅ Item group deleted successfully`);
+    res.json({ success: true, message: 'Item group deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting item group:', error);
+    res.status(500).json({ error: 'Failed to delete item group', details: error.message });
+  }
+});
+
+// 9. ASSIGN VENDORS TO GROUPS IN TENDER
+app.post('/api/annual-tenders/:tenderId/assign-vendors', async (req, res) => {
+  try {
+    const { tenderId } = req.params;
+    const { assignments, created_by } = req.body;
+
+    if (!Array.isArray(assignments)) {
+      return res.status(400).json({ error: 'Assignments must be an array' });
+    }
+
+    // Delete existing assignments
+    await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .query(`DELETE FROM annual_tender_vendors WHERE annual_tender_id = @tenderId`);
+
+    // Add new assignments
+    for (const assignment of assignments) {
+      const { groupId, vendorIds } = assignment;
+      for (const vendorId of vendorIds) {
+        const id = uuidv4();
+        await pool.request()
+          .input('id', sql.UniqueIdentifier, id)
+          .input('tenderId', sql.UniqueIdentifier, tenderId)
+          .input('groupId', sql.UniqueIdentifier, groupId)
+          .input('vendorId', sql.UniqueIdentifier, vendorId)
+          .input('created_by', sql.NVarChar(450), created_by)
+          .query(`
+            INSERT INTO annual_tender_vendors (id, annual_tender_id, group_id, vendor_id, assignment_date, status, created_by, created_at)
+            VALUES (@id, @tenderId, @groupId, @vendorId, GETDATE(), 'Active', @created_by, GETDATE())
+          `);
+      }
+    }
+
+    res.json({ success: true, message: 'Vendors assigned successfully' });
+  } catch (error) {
+    console.error('❌ Error assigning vendors:', error);
+    res.status(500).json({ error: 'Failed to assign vendors', details: error.message });
+  }
+});
+
+// 8. GET VENDORS FOR A GROUP IN TENDER
+app.get('/api/annual-tenders/:tenderId/groups/:groupId/vendors', async (req, res) => {
+  try {
+    const { tenderId, groupId } = req.params;
+
+    const result = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('groupId', sql.UniqueIdentifier, groupId)
+      .query(`
+        SELECT 
+          atv.id,
+          atv.vendor_id,
+          v.vendor_name,
+          v.vendor_code,
+          v.contact_person,
+          v.email,
+          v.phone,
+          atv.status
+        FROM annual_tender_vendors atv
+        INNER JOIN vendors v ON atv.vendor_id = v.id
+        WHERE atv.annual_tender_id = @tenderId 
+          AND atv.group_id = @groupId
+          AND atv.status = 'Active'
+        ORDER BY v.vendor_name
+      `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching group vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch group vendors' });
+  }
+});
+
+// 9. CREATE/UPDATE VENDOR PROPOSAL
+app.post('/api/vendor-proposals', async (req, res) => {
+  try {
+    const { annual_tender_id, group_id, vendor_id, item_master_id, proposed_unit_price, created_by } = req.body;
+
+    if (!annual_tender_id || !group_id || !vendor_id || !item_master_id || proposed_unit_price === null) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Check if proposal exists
+    const existingResult = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, annual_tender_id)
+      .input('vendorId', sql.UniqueIdentifier, vendor_id)
+      .input('itemId', sql.UniqueIdentifier, item_master_id)
+      .query(`
+        SELECT id FROM vendor_proposals 
+        WHERE annual_tender_id = @tenderId 
+          AND vendor_id = @vendorId 
+          AND item_master_id = @itemId
+      `);
+
+    if (existingResult.recordset.length > 0) {
+      // Update existing
+      await pool.request()
+        .input('tenderId', sql.UniqueIdentifier, annual_tender_id)
+        .input('vendorId', sql.UniqueIdentifier, vendor_id)
+        .input('itemId', sql.UniqueIdentifier, item_master_id)
+        .input('price', sql.Decimal(15, 2), proposed_unit_price)
+        .input('updated_by', sql.NVarChar(450), created_by)
+        .query(`
+          UPDATE vendor_proposals
+          SET proposed_unit_price = @price, updated_by = @updated_by, updated_at = GETDATE()
+          WHERE annual_tender_id = @tenderId 
+            AND vendor_id = @vendorId 
+            AND item_master_id = @itemId
+        `);
+    } else {
+      // Create new
+      const id = uuidv4();
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('tenderId', sql.UniqueIdentifier, annual_tender_id)
+        .input('groupId', sql.UniqueIdentifier, group_id)
+        .input('vendorId', sql.UniqueIdentifier, vendor_id)
+        .input('itemId', sql.UniqueIdentifier, item_master_id)
+        .input('price', sql.Decimal(15, 2), proposed_unit_price)
+        .input('created_by', sql.NVarChar(450), created_by)
+        .query(`
+          INSERT INTO vendor_proposals (id, annual_tender_id, group_id, vendor_id, item_master_id, proposed_unit_price, created_by, created_at, updated_at)
+          VALUES (@id, @tenderId, @groupId, @vendorId, @itemId, @price, @created_by, GETDATE(), GETDATE())
+        `);
+    }
+
+    res.json({ success: true, message: 'Proposal updated successfully' });
+  } catch (error) {
+    console.error('❌ Error saving proposal:', error);
+    res.status(500).json({ error: 'Failed to save proposal', details: error.message });
+  }
+});
+
+// 10. GET ALL VENDOR PROPOSALS FOR A TENDER
+app.get('/api/annual-tenders/:tenderId/vendor-proposals', async (req, res) => {
+  try {
+    const { tenderId } = req.params;
+
+    const result = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .query(`
+        SELECT 
+          vp.id,
+          vp.vendor_id,
+          vp.group_id,
+          vp.item_master_id,
+          vp.proposed_unit_price,
+          ig.group_name,
+          v.vendor_name,
+          im.nomenclature,
+          im.unit
+        FROM vendor_proposals vp
+        INNER JOIN item_groups ig ON vp.group_id = ig.id
+        INNER JOIN vendors v ON vp.vendor_id = v.id
+        INNER JOIN item_masters im ON vp.item_master_id = im.id
+        WHERE vp.annual_tender_id = @tenderId
+        ORDER BY ig.group_name, v.vendor_name, im.nomenclature
+      `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching proposals:', error);
+    res.status(500).json({ error: 'Failed to fetch proposals' });
+  }
+});
+
+console.log('✅ Annual Tender System APIs loaded');
 
 startServer().catch(err => process.exit(1));
