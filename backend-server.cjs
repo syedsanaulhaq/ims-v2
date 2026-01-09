@@ -7043,11 +7043,11 @@ app.get('/api/categories', async (req, res) => {
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockCategories = [
-        { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active', item_count: 0 },
-        { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active', item_count: 0 },
-        { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active', item_count: 0 },
-        { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active', item_count: 0 },
-        { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active', item_count: 0 }
+        { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', item_count: 0 },
+        { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', item_count: 0 },
+        { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', item_count: 0 },
+        { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', item_count: 0 },
+        { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', item_count: 0 }
       ];
       return res.json(mockCategories);
     }
@@ -7058,14 +7058,12 @@ app.get('/api/categories', async (req, res) => {
         c.id,
         c.category_name,
         c.description,
-        c.status,
         c.created_at,
         c.updated_at,
         COUNT(DISTINCT im.id) as item_count
       FROM categories c
       LEFT JOIN item_masters im ON c.id = im.category_id
-      WHERE c.status = 'Active'
-      GROUP BY c.id, c.category_name, c.description, c.status, c.created_at, c.updated_at
+      GROUP BY c.id, c.category_name, c.description, c.created_at, c.updated_at
       ORDER BY c.category_name
     `);
     console.log('✅ Categories fetched:', result.recordset.length);
@@ -7253,19 +7251,18 @@ app.post('/api/categories', async (req, res) => {
     const categoryId = uuidv4();
     const now = new Date().toISOString();
 
-    console.log('🔧 Creating category with data:', { category_name, description, status: 'Active' });
+    console.log('🔧 Creating category with data:', { category_name, description });
 
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, categoryId)
       .input('category_name', sql.NVarChar, category_name)
       .input('description', sql.NVarChar, description || null)
-      .input('status', sql.NVarChar, 'Active')
       .input('created_at', sql.DateTime2, now)
       .input('updated_at', sql.DateTime2, now)
       .query(`
-        INSERT INTO categories (id, category_name, description, status, created_at, updated_at)
+        INSERT INTO categories (id, category_name, description, created_at, updated_at)
         OUTPUT INSERTED.*
-        VALUES (@id, @category_name, @description, @status, @created_at, @updated_at)
+        VALUES (@id, @category_name, @description, @created_at, @updated_at)
       `);
 
     console.log('✅ Category created:', result.recordset[0]);
