@@ -32,10 +32,13 @@ export const CategoryItemsManager: React.FC = () => {
   const [showAddItemDialog, setShowAddItemDialog] = useState(false);
   const [showEditItemDialog, setShowEditItemDialog] = useState(false);
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
+  const [showAddCategoryDialog, setShowAddCategoryDialog] = useState(false);
 
   // Form states
   const [newItemName, setNewItemName] = useState('');
   const [newItemCode, setNewItemCode] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryCode, setNewCategoryCode] = useState('');
   const [editingItem, setEditingItem] = useState<ItemWithCategory | null>(null);
   const [deleteItem, setDeleteItem] = useState<ItemWithCategory | null>(null);
 
@@ -183,6 +186,38 @@ export const CategoryItemsManager: React.FC = () => {
     setShowEditItemDialog(true);
   };
 
+  const handleAddCategory = async () => {
+    if (!newCategoryName) {
+      alert('Please enter a category name');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category_name: newCategoryName,
+          category_code: newCategoryCode || newCategoryName.toUpperCase().replace(/\s+/g, '_'),
+          description: `Category for ${newCategoryName}`
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create category');
+      }
+
+      await loadAllItems();
+      setShowAddCategoryDialog(false);
+      setNewCategoryName('');
+      setNewCategoryCode('');
+      alert('✅ Category added successfully!');
+    } catch (error) {
+      console.error('Error adding category:', error);
+      alert('Failed to add category');
+    }
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto p-6">
       <div className="mb-6">
@@ -198,7 +233,59 @@ export const CategoryItemsManager: React.FC = () => {
           <div className="lg:col-span-1">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Categories</CardTitle>
+                <div className="flex justify-between items-center gap-2">
+                  <CardTitle className="text-lg">Categories</CardTitle>
+                  <Dialog open={showAddCategoryDialog} onOpenChange={setShowAddCategoryDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="gap-1 p-2 h-auto">
+                        <Plus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Add</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Category</DialogTitle>
+                        <DialogDescription>
+                          Create a new category for organizing items
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium">Category Name *</label>
+                          <Input
+                            placeholder="e.g., Office Equipment"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Category Code (Optional)</label>
+                          <Input
+                            placeholder="e.g., OFFICE_EQ (auto-generated if blank)"
+                            value={newCategoryCode}
+                            onChange={(e) => setNewCategoryCode(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowAddCategoryDialog(false);
+                              setNewCategoryName('');
+                              setNewCategoryCode('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onClick={handleAddCategory} className="gap-2">
+                            <Check className="w-4 h-4" />
+                            Create Category
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
