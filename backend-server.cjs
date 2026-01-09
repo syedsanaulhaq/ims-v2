@@ -6895,11 +6895,11 @@ app.post('/api/item-masters', async (req, res) => {
       .input('id', sql.UniqueIdentifier, itemId)
       .input('nomenclature', sql.NVarChar, nomenclature)
       .input('item_code', sql.NVarChar, item_code)
-      .input('unit', sql.NVarChar, unit)
+      .input('unit', sql.NVarChar, unit || null)
       .input('category_id', sql.UniqueIdentifier, category_id)
-      .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
-      .input('specifications', sql.NVarChar, specifications)
-      .input('description', sql.NVarChar, description)
+      .input('sub_category_id', sql.UniqueIdentifier, sub_category_id || null)
+      .input('specifications', sql.NVarChar, specifications || null)
+      .input('description', sql.NVarChar, description || null)
       .input('minimum_stock_level', sql.Int, minimum_stock_level || 0)
       .input('reorder_point', sql.Int, reorder_point || 0)
       .input('maximum_stock_level', sql.Int, maximum_stock_level || 0)
@@ -6917,12 +6917,13 @@ app.post('/api/item-masters', async (req, res) => {
           @maximum_stock_level, @status, @created_at, @updated_at
         )
       `);
+    
     res.json({ 
-      success: true, 
-      id: itemId, 
+      id: itemId,
       nomenclature: nomenclature,
       item_code: item_code,
-      message: 'Item master created successfully'
+      category_id: category_id,
+      status: status
     });
 
   } catch (error) {
@@ -7250,25 +7251,32 @@ app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
 // POST - Create new category
 app.post('/api/categories', async (req, res) => {
   try {
-    const { category_name, description, item_type, status } = req.body;
+    const { category_name, category_code, description, item_type, status } = req.body;
     
     if (!category_name) {
       return res.status(400).json({ error: 'Category name is required' });
     }
 
+    const categoryId = uuidv4();
+    const now = new Date().toISOString();
+
     const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, categoryId)
       .input('category_name', sql.NVarChar, category_name)
+      .input('category_code', sql.NVarChar, category_code || category_name)
       .input('description', sql.NVarChar, description || null)
       .input('item_type', sql.NVarChar, item_type || 'Dispensable')
       .input('status', sql.NVarChar, status || 'Active')
+      .input('created_at', sql.DateTime2, now)
+      .input('updated_at', sql.DateTime2, now)
       .query(`
-        INSERT INTO categories (category_name, description, item_type, status, created_at, updated_at)
+        INSERT INTO categories (id, category_name, category_code, description, item_type, status, created_at, updated_at)
         OUTPUT INSERTED.*
-        VALUES (@category_name, @description, @item_type, @status, GETDATE(), GETDATE())
+        VALUES (@id, @category_name, @category_code, @description, @item_type, @status, @created_at, @updated_at)
       `);
 
     console.log('✅ Category created:', result.recordset[0]);
-    res.json({ message: 'Category created successfully', data: result.recordset[0] });
+    res.json(result.recordset[0]);
   } catch (error) {
     console.error('❌ Error creating category:', error);
     res.status(500).json({ error: 'Failed to create category', details: error.message });
