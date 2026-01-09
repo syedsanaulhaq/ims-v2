@@ -627,5 +627,3 @@ export const VendorAssignmentManager: React.FC = () => {
 };
 
 export default VendorAssignmentManager;
-
-export default VendorAssignmentManager;
