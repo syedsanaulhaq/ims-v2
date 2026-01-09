@@ -212,6 +212,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/annual-tenders", permission: 'procurement.manage' },
       { title: "Item Groups", icon: Boxes, path: "/dashboard/item-groups", permission: 'procurement.manage' },
+      { title: "Manage Category Items", icon: Boxes, path: "/dashboard/category-items", permission: 'procurement.manage' },
       { title: "Vendor Assignment", icon: Users, path: "/dashboard/vendor-assignment", permission: 'procurement.manage' },
       { title: "Vendor Proposals", icon: ShoppingCart, path: "/dashboard/vendor-proposals", permission: 'procurement.manage' },
     ]

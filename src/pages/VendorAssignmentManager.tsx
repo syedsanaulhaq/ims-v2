@@ -60,7 +60,10 @@ export const VendorAssignmentManager: React.FC = () => {
   const [newCategoryItems, setNewCategoryItems] = useState<{ nomenclature: string; item_code: string }[]>([
     { nomenclature: '', item_code: '' }
   ]);
-  const [loading, setLoading] = useState(true);
+  // Quick add item states
+  const [showQuickAddItemDialog, setShowQuickAddItemDialog] = useState(false);
+  const [quickAddItemName, setQuickAddItemName] = useState('');
+  const [quickAddItemCode, setQuickAddItemCode] = useState('');
 
   // Load initial data
   useEffect(() => {
@@ -217,6 +220,40 @@ export const VendorAssignmentManager: React.FC = () => {
     } catch (error) {
       console.error('Error assigning vendors:', error);
       alert('Failed to assign vendors');
+    }
+  };
+
+  const handleQuickAddItem = async () => {
+    if (!quickAddItemName || !quickAddItemCode || !selectedCategory) {
+      alert('Please enter both item name and code');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/item-masters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nomenclature: quickAddItemName,
+          item_code: quickAddItemCode,
+          category_id: selectedCategory.id,
+          description: `Item for ${selectedCategory.category_name}`
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create item');
+      }
+
+      // Reload items and close dialog
+      await loadCategoryItems(selectedCategory.id);
+      setShowQuickAddItemDialog(false);
+      setQuickAddItemName('');
+      setQuickAddItemCode('');
+      alert('✅ Item added successfully!');
+    } catch (error) {
+      console.error('Error adding item:', error);
+      alert('Failed to add item');
     }
   };
 
@@ -392,7 +429,55 @@ export const VendorAssignmentManager: React.FC = () => {
                   {/* Step 3: Select Items */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">Step 3: Select Items from {selectedCategory.category_name}</CardTitle>
+                      <div className="flex justify-between items-center">
+                        <CardTitle className="text-lg">Step 3: Select Items from {selectedCategory.category_name}</CardTitle>
+                        <Dialog open={showQuickAddItemDialog} onOpenChange={setShowQuickAddItemDialog}>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="gap-2">
+                              <Plus className="w-4 h-4" />
+                              Add Item
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Add Item to {selectedCategory.category_name}</DialogTitle>
+                              <DialogDescription>
+                                Quickly add a new item to this category
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm font-medium">Item Name *</label>
+                                <Input
+                                  placeholder="e.g., Office Chair"
+                                  value={quickAddItemName}
+                                  onChange={(e) => setQuickAddItemName(e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Item Code *</label>
+                                <Input
+                                  placeholder="e.g., CHAIR-001"
+                                  value={quickAddItemCode}
+                                  onChange={(e) => setQuickAddItemCode(e.target.value)}
+                                />
+                              </div>
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setShowQuickAddItemDialog(false)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleQuickAddItem} className="gap-2">
+                                  <Plus className="w-4 h-4" />
+                                  Add Item
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 max-h-64 overflow-y-auto">
