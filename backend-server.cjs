@@ -7043,43 +7043,34 @@ app.get('/api/categories', async (req, res) => {
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockCategories = [
-        { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active', item_count: 0 },
-        { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active', item_count: 0 },
-        { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active', item_count: 0 },
-        { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active', item_count: 0 },
-        { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active', item_count: 0 }
+        { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', item_count: 0 },
+        { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', item_count: 0 },
+        { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', item_count: 0 },
+        { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', item_count: 0 },
+        { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', item_count: 0 }
       ];
       return res.json(mockCategories);
     }
 
+    console.log('🔍 Fetching categories from database...');
     const result = await pool.request().query(`
       SELECT 
         c.id,
         c.category_name,
         c.description,
-        c.item_type,
-        c.status,
         c.created_at,
         c.updated_at,
         COUNT(DISTINCT im.id) as item_count
       FROM categories c
       LEFT JOIN item_masters im ON c.id = im.category_id
-      WHERE c.status != 'Deleted'
-      GROUP BY c.id, c.category_name, c.description, c.item_type, c.status, c.created_at, c.updated_at
+      GROUP BY c.id, c.category_name, c.description, c.created_at, c.updated_at
       ORDER BY c.category_name
     `);
+    console.log('✅ Categories fetched:', result.recordset.length);
     res.json(result.recordset);
   } catch (error) {
-    console.error('Error fetching categories:', error);
-    // Fallback to mock data on any error
-    const mockCategories = [
-      { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active', item_count: 0 },
-      { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active', item_count: 0 },
-      { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active', item_count: 0 },
-      { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active', item_count: 0 },
-      { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active', item_count: 0 }
-    ];
-    res.json(mockCategories);
+    console.error('❌ Error fetching categories:', error);
+    res.status(500).json({ error: 'Failed to fetch categories', details: error.message });
   }
 });
 
