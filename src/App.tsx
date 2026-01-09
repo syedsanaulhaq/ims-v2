@@ -99,7 +99,6 @@ import PersonalIMS from "./pages/PersonalIMS";
 import SSOLogin from "./pages/SSOLogin";
 import AnnualTenderManagement from "./pages/AnnualTenderManagement";
 import ItemGroupsManager from "./pages/ItemGroupsManager";
-import CategoryItemsManager from "./pages/CategoryItemsManager";
 import VendorAssignmentManager from "./pages/VendorAssignmentManager";
 import VendorProposalsGrid from "./pages/VendorProposalsGrid";
 import { useParams } from "react-router-dom";
@@ -282,9 +281,7 @@ function App() {
                   {/* Annual Tender Management */}
                   <Route path="annual-tenders" element={<AnnualTenderManagement />} />
                   <Route path="item-groups" element={<ItemGroupsManager />} />
-                  <Route path="category-items" element={<CategoryItemsManager />} />
                   <Route path="vendor-assignment" element={<VendorAssignmentManager />} />
-                  <Route path="vendor-proposals" element={<VendorProposalsGrid />} />
                 </Route>
 
                 {/* Stock Acquisition - Protected */}
