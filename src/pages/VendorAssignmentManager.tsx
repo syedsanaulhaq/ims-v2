@@ -60,6 +60,8 @@ export const VendorAssignmentManager: React.FC = () => {
   const [newCategoryItems, setNewCategoryItems] = useState<{ nomenclature: string; item_code: string }[]>([
     { nomenclature: '', item_code: '' }
   ]);
+  const [loading, setLoading] = useState(true);
+  
   // Quick add item states
   const [showQuickAddItemDialog, setShowQuickAddItemDialog] = useState(false);
   const [quickAddItemName, setQuickAddItemName] = useState('');
@@ -623,6 +625,7 @@ export const VendorAssignmentManager: React.FC = () => {
     </div>
   );
 };
-};
+
+export default VendorAssignmentManager;
 
 export default VendorAssignmentManager;
