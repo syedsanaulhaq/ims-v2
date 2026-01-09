@@ -7117,6 +7117,43 @@ app.get('/api/categories/:id', async (req, res) => {
   }
 });
 
+// GET items in a category
+app.get('/api/categories/:categoryId/items', async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    console.log(`📦 Fetching items for category ${categoryId}...`);
+    
+    if (!pool) {
+      // Return mock data when SQL Server is not connected
+      const mockItems = [
+        { id: '1', nomenclature: 'Desktop Computer', item_code: 'COMP-001' },
+        { id: '2', nomenclature: 'Laptop', item_code: 'COMP-002' },
+        { id: '3', nomenclature: 'Monitor', item_code: 'COMP-003' }
+      ];
+      return res.json(mockItems);
+    }
+
+    const result = await pool.request()
+      .input('categoryId', sql.UniqueIdentifier, categoryId)
+      .query(`
+        SELECT 
+          id,
+          nomenclature,
+          item_code,
+          description
+        FROM item_masters
+        WHERE category_id = @categoryId
+        AND is_deleted = 0
+        ORDER BY nomenclature
+      `);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching category items:', error);
+    res.status(500).json({ error: 'Failed to fetch category items', details: error.message });
+  }
+});
+
 // =============================================================================
 // SUB-CATEGORIES ENDPOINTS
 // =============================================================================
@@ -18000,6 +18037,39 @@ app.get('/api/annual-tenders/:tenderId/groups/:groupId/vendors', async (req, res
   } catch (error) {
     console.error('❌ Error fetching group vendors:', error);
     res.status(500).json({ error: 'Failed to fetch group vendors' });
+  }
+});
+
+// GET vendors for a specific category in a tender
+app.get('/api/annual-tenders/:tenderId/categories/:categoryId/vendors', async (req, res) => {
+  try {
+    const { tenderId, categoryId } = req.params;
+
+    const result = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('categoryId', sql.UniqueIdentifier, categoryId)
+      .query(`
+        SELECT 
+          atv.id,
+          atv.vendor_id,
+          v.vendor_name,
+          v.vendor_code,
+          v.contact_person,
+          v.email,
+          v.phone,
+          atv.status
+        FROM annual_tender_vendors atv
+        INNER JOIN vendors v ON atv.vendor_id = v.id
+        WHERE atv.annual_tender_id = @tenderId 
+          AND atv.category_id = @categoryId
+          AND atv.status = 'Active'
+        ORDER BY v.vendor_name
+      `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching category vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch category vendors' });
   }
 });
 

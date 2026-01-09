@@ -20,9 +20,10 @@ interface AnnualTender {
 }
 
 interface Category {
-  category_id: string;
+  id: string;
   category_name: string;
-  category_code: string;
+  category_code?: string;
+  description?: string;
 }
 
 interface Vendor {
@@ -129,13 +130,13 @@ export const VendorAssignmentManager: React.FC = () => {
     try {
       for (const category of categories) {
         const response = await fetch(
-          `http://localhost:3001/api/annual-tenders/${tenderId}/categories/${category.category_id}/vendors`
+          `http://localhost:3001/api/annual-tenders/${tenderId}/categories/${category.id}/vendors`
         );
         if (response.ok) {
           const data = await response.json();
           setCategoryVendors(prev => ({
             ...prev,
-            [category.category_id]: data
+            [category.id]: data
           }));
         }
       }
@@ -163,7 +164,7 @@ export const VendorAssignmentManager: React.FC = () => {
           body: JSON.stringify({
             assignments: [
               {
-                categoryId: selectedCategory.category_id,
+                categoryId: selectedCategory.id,
                 vendorIds: vendorIds,
                 itemIds: itemIds
               }
@@ -265,23 +266,23 @@ export const VendorAssignmentManager: React.FC = () => {
       ) : selectedTender ? (
         <div className="grid gap-6">
           {categories.map(category => {
-            const assignedVendors = categoryVendors[category.category_id] || [];
+            const assignedVendors = categoryVendors[category.id] || [];
             
             return (
-              <Card key={category.category_id}>
+              <Card key={category.id}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="text-lg">{category.category_name}</CardTitle>
                       <p className="text-sm text-gray-600">{category.category_code}</p>
                     </div>
-                    <Dialog open={showAssignDialog && selectedCategory?.category_id === category.category_id} onOpenChange={setShowAssignDialog}>
+                    <Dialog open={showAssignDialog && selectedCategory?.id === category.id} onOpenChange={setShowAssignDialog}>
                       <DialogTrigger asChild>
                         <Button
                           size="sm"
                           onClick={() => {
                             setSelectedCategory(category);
-                            loadCategoryItems(category.category_id);
+                            loadCategoryItems(category.id);
                             setSelectedItems([]);
                             setSelectedVendors([]);
                           }}
@@ -425,7 +426,7 @@ export const VendorAssignmentManager: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeVendorFromCategory(category.category_id, vendor.vendor_id)}
+                            onClick={() => removeVendorFromCategory(category.id, vendor.vendor_id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <X className="w-4 h-4" />
