@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Check, X } from 'lucide-react';
+import { Plus, Check } from 'lucide-react';
 
 interface AnnualTender {
   id: string;
@@ -20,11 +19,11 @@ interface AnnualTender {
   status: string;
 }
 
-interface Category {
+interface ItemWithCategory {
   id: string;
+  nomenclature: string;
+  item_code: string;
   category_name: string;
-  category_code?: string;
-  description?: string;
 }
 
 interface Vendor {
@@ -33,50 +32,48 @@ interface Vendor {
   vendor_code: string;
 }
 
-interface ItemMaster {
-  id: string;
-  nomenclature: string;
-  item_code: string;
-}
-
 export const VendorAssignmentManager: React.FC = () => {
   // Main states
   const [tenders, setTenders] = useState<AnnualTender[]>([]);
   const [selectedTender, setSelectedTender] = useState<AnnualTender | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [categoryItems, setCategoryItems] = useState<ItemMaster[]>([]);
-  const [selectedItems, setSelectedItems] = useState<ItemMaster[]>([]);
+  
+  // Categories - extracted from items view
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
+  // Items from view
+  const [allItems, setAllItems] = useState<ItemWithCategory[]>([]);
+  const [categoryItems, setCategoryItems] = useState<ItemWithCategory[]>([]);
+  const [selectedItems, setSelectedItems] = useState<ItemWithCategory[]>([]);
+  
+  // Vendors
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedVendors, setSelectedVendors] = useState<Vendor[]>([]);
 
-  // Dialog states
-  const [showCreateCategoryDialog, setShowCreateCategoryDialog] = useState(false);
+  // Dialog and loading states
   const [showAssignVendorsDialog, setShowAssignVendorsDialog] = useState(false);
-  
-  // Create category form states
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryCode, setNewCategoryCode] = useState('');
-  const [newCategoryItems, setNewCategoryItems] = useState<{ nomenclature: string; item_code: string }[]>([
-    { nomenclature: '', item_code: '' }
-  ]);
   const [loading, setLoading] = useState(true);
-  
-  // Quick add item states
-  const [showQuickAddItemDialog, setShowQuickAddItemDialog] = useState(false);
-  const [quickAddItemName, setQuickAddItemName] = useState('');
-  const [quickAddItemCode, setQuickAddItemCode] = useState('');
 
-  // Load initial data
+  // Load initial data from view-backed endpoints
   useEffect(() => {
-    loadTenders();
-    loadVendors();
-    loadCategories();
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([
+          loadTenders(),
+          loadVendors(),
+          loadItems()
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInitialData();
   }, []);
 
+  // Load tenders from database
   const loadTenders = async () => {
     try {
-      setLoading(true);
       const response = await fetch('http://localhost:3001/api/annual-tenders');
       const data = await response.json();
       setTenders(data);
@@ -85,11 +82,10 @@ export const VendorAssignmentManager: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading tenders:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
+  // Load vendors from database
   const loadVendors = async () => {
     try {
       const response = await fetch('http://localhost:3001/api/vendors');
@@ -101,89 +97,36 @@ export const VendorAssignmentManager: React.FC = () => {
     }
   };
 
-  const loadCategories = async () => {
+  // Load items from vw_item_masters_with_categories view via API
+  const loadItems = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/categories');
+      const response = await fetch('http://localhost:3001/api/item-masters');
       const data = await response.json();
-      setCategories(data);
+      const itemsArray = Array.isArray(data) ? data : (data.data || data.items || []);
+      
+      // Store all items
+      setAllItems(itemsArray);
+      
+      // Extract unique categories from items
+      const uniqueCategories = Array.from(
+        new Set(itemsArray.map((item: ItemWithCategory) => item.category_name))
+      ).filter((name): name is string => Boolean(name)).sort();
+      
+      setCategories(uniqueCategories);
     } catch (error) {
-      console.error('Error loading categories:', error);
+      console.error('Error loading items:', error);
     }
   };
 
-  const loadCategoryItems = async (categoryId: string) => {
-    try {
-      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}/items`);
-      if (response.ok) {
-        const data = await response.json();
-        setCategoryItems(data);
-        setSelectedItems([]);
-      }
-    } catch (error) {
-      console.error('Error loading category items:', error);
-    }
+  // Filter items when category is selected
+  const handleSelectCategory = (categoryName: string) => {
+    setSelectedCategory(categoryName);
+    const filtered = allItems.filter(item => item.category_name === categoryName);
+    setCategoryItems(filtered);
+    setSelectedItems([]);  // Reset item selection when category changes
   };
 
-  const handleSelectCategory = (category: Category) => {
-    setSelectedCategory(category);
-    loadCategoryItems(category.id);
-  };
-
-  const handleCreateCategory = async () => {
-    if (!newCategoryName || newCategoryItems.some(item => !item.nomenclature || !item.item_code)) {
-      alert('Please fill in all category and item fields');
-      return;
-    }
-
-    try {
-      // Create category
-      const categoryResponse = await fetch('http://localhost:3001/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category_name: newCategoryName,
-          category_code: newCategoryCode || newCategoryName,
-          description: `Auto-created category for tender procurement`
-        })
-      });
-
-      if (!categoryResponse.ok) {
-        throw new Error('Failed to create category');
-      }
-
-      const newCategory = await categoryResponse.json();
-
-      // Create items for this category
-      for (const item of newCategoryItems) {
-        await fetch('http://localhost:3001/api/item-masters', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nomenclature: item.nomenclature,
-            item_code: item.item_code,
-            category_id: newCategory.id,
-            description: `Item for ${newCategoryName}`
-          })
-        });
-      }
-
-      // Refresh categories and select the new one
-      await loadCategories();
-      setSelectedCategory(newCategory);
-      await loadCategoryItems(newCategory.id);
-
-      // Reset form
-      setNewCategoryName('');
-      setNewCategoryCode('');
-      setNewCategoryItems([{ nomenclature: '', item_code: '' }]);
-      setShowCreateCategoryDialog(false);
-      alert('✅ Category and items created successfully!');
-    } catch (error) {
-      console.error('Error creating category:', error);
-      alert('Failed to create category');
-    }
-  };
-
+  // Assign selected vendors to selected items
   const handleAssignVendors = async () => {
     if (!selectedTender || !selectedCategory || selectedItems.length === 0 || selectedVendors.length === 0) {
       alert('Please complete all steps: Tender → Category → Items → Vendors');
@@ -202,7 +145,6 @@ export const VendorAssignmentManager: React.FC = () => {
           body: JSON.stringify({
             assignments: [
               {
-                categoryId: selectedCategory.id,
                 vendorIds: vendorIds,
                 itemIds: itemIds
               }
@@ -222,40 +164,6 @@ export const VendorAssignmentManager: React.FC = () => {
     } catch (error) {
       console.error('Error assigning vendors:', error);
       alert('Failed to assign vendors');
-    }
-  };
-
-  const handleQuickAddItem = async () => {
-    if (!quickAddItemName || !quickAddItemCode || !selectedCategory) {
-      alert('Please enter both item name and code');
-      return;
-    }
-
-    try {
-      const response = await fetch('http://localhost:3001/api/item-masters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nomenclature: quickAddItemName,
-          item_code: quickAddItemCode,
-          category_id: selectedCategory.id,
-          description: `Item for ${selectedCategory.category_name}`
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create item');
-      }
-
-      // Reload items and close dialog
-      await loadCategoryItems(selectedCategory.id);
-      setShowQuickAddItemDialog(false);
-      setQuickAddItemName('');
-      setQuickAddItemCode('');
-      alert('✅ Item added successfully!');
-    } catch (error) {
-      console.error('Error adding item:', error);
-      alert('Failed to add item');
     }
   };
 
@@ -293,136 +201,31 @@ export const VendorAssignmentManager: React.FC = () => {
 
           {selectedTender && (
             <>
-              {/* Step 2: Select or Create Category */}
+              {/* Step 2: Select Category from vw_item_masters_with_categories */}
               <Card>
                 <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">Step 2: Select or Create Category</CardTitle>
-                    <Dialog open={showCreateCategoryDialog} onOpenChange={setShowCreateCategoryDialog}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" className="gap-2">
-                          <Plus className="w-4 h-4" />
-                          Create New Category
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Create New Category with Items</DialogTitle>
-                          <DialogDescription>
-                            Define category details and add items to it
-                          </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="space-y-4">
-                          {/* Category Details */}
-                          <div className="space-y-3 p-4 bg-blue-50 rounded">
-                            <h3 className="font-semibold text-sm">Category Information</h3>
-                            <div className="space-y-2">
-                              <div>
-                                <label className="text-sm font-medium">Category Name *</label>
-                                <Input
-                                  placeholder="e.g., Furniture"
-                                  value={newCategoryName}
-                                  onChange={(e) => setNewCategoryName(e.target.value)}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium">Category Code (Optional)</label>
-                                <Input
-                                  placeholder="e.g., FURN"
-                                  value={newCategoryCode}
-                                  onChange={(e) => setNewCategoryCode(e.target.value)}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Items Section */}
-                          <div className="space-y-3 p-4 bg-yellow-50 rounded">
-                            <div className="flex justify-between items-center">
-                              <h3 className="font-semibold text-sm">Items in Category</h3>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setNewCategoryItems([...newCategoryItems, { nomenclature: '', item_code: '' }])}
-                              >
-                                <Plus className="w-3 h-3 mr-1" />
-                                Add Item
-                              </Button>
-                            </div>
-
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {newCategoryItems.map((item, idx) => (
-                                <div key={idx} className="flex gap-2">
-                                  <Input
-                                    placeholder="Item name (e.g., Office Chair)"
-                                    value={item.nomenclature}
-                                    onChange={(e) => {
-                                      const updated = [...newCategoryItems];
-                                      updated[idx].nomenclature = e.target.value;
-                                      setNewCategoryItems(updated);
-                                    }}
-                                    className="flex-1"
-                                  />
-                                  <Input
-                                    placeholder="Item code (e.g., CHAIR-001)"
-                                    value={item.item_code}
-                                    onChange={(e) => {
-                                      const updated = [...newCategoryItems];
-                                      updated[idx].item_code = e.target.value;
-                                      setNewCategoryItems(updated);
-                                    }}
-                                    className="flex-1"
-                                  />
-                                  {newCategoryItems.length > 1 && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setNewCategoryItems(newCategoryItems.filter((_, i) => i !== idx))}
-                                    >
-                                      <Trash2 className="w-4 h-4 text-red-600" />
-                                    </Button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex gap-2 justify-end">
-                            <Button
-                              variant="outline"
-                              onClick={() => setShowCreateCategoryDialog(false)}
-                            >
-                              Cancel
-                            </Button>
-                            <Button onClick={handleCreateCategory} className="gap-2">
-                              <Check className="w-4 h-4" />
-                              Create Category & Items
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
+                  <CardTitle className="text-lg">Step 2: Select Category</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {categories.map(category => (
-                      <button
-                        key={category.id}
-                        onClick={() => handleSelectCategory(category)}
-                        className={`p-4 rounded-lg border-2 text-left transition-all ${
-                          selectedCategory?.id === category.id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <p className="font-semibold">{category.category_name}</p>
-                        {category.category_code && <p className="text-xs text-gray-600">{category.category_code}</p>}
-                      </button>
-                    ))}
-                  </div>
+                  {categories.length === 0 ? (
+                    <p className="text-gray-500">No categories found. Please create items first.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {categories.map(categoryName => (
+                        <button
+                          key={categoryName}
+                          onClick={() => handleSelectCategory(categoryName)}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                            selectedCategory === categoryName
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <p className="font-semibold">{categoryName}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -431,55 +234,7 @@ export const VendorAssignmentManager: React.FC = () => {
                   {/* Step 3: Select Items */}
                   <Card>
                     <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <CardTitle className="text-lg">Step 3: Select Items from {selectedCategory.category_name}</CardTitle>
-                        <Dialog open={showQuickAddItemDialog} onOpenChange={setShowQuickAddItemDialog}>
-                          <DialogTrigger asChild>
-                            <Button size="sm" variant="outline" className="gap-2">
-                              <Plus className="w-4 h-4" />
-                              Add Item
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Add Item to {selectedCategory.category_name}</DialogTitle>
-                              <DialogDescription>
-                                Quickly add a new item to this category
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div>
-                                <label className="text-sm font-medium">Item Name *</label>
-                                <Input
-                                  placeholder="e.g., Office Chair"
-                                  value={quickAddItemName}
-                                  onChange={(e) => setQuickAddItemName(e.target.value)}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium">Item Code *</label>
-                                <Input
-                                  placeholder="e.g., CHAIR-001"
-                                  value={quickAddItemCode}
-                                  onChange={(e) => setQuickAddItemCode(e.target.value)}
-                                />
-                              </div>
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  variant="outline"
-                                  onClick={() => setShowQuickAddItemDialog(false)}
-                                >
-                                  Cancel
-                                </Button>
-                                <Button onClick={handleQuickAddItem} className="gap-2">
-                                  <Plus className="w-4 h-4" />
-                                  Add Item
-                                </Button>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
+                      <CardTitle className="text-lg">Step 3: Select Items from {selectedCategory}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 max-h-64 overflow-y-auto">

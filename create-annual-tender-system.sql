@@ -1,5 +1,6 @@
 -- Annual Tender System Tables
--- Create all tables needed for Annual Tenders, Item Groups, Vendor Proposals, and Purchase Orders
+-- Create all tables needed for Annual Tenders, Item Categories, Vendor Proposals, and Purchase Orders
+-- NOTE: Uses 'category' from item_master instead of separate item_groups table to eliminate redundancy
 
 PRINT '🔄 Creating Annual Tender System Tables...';
 
