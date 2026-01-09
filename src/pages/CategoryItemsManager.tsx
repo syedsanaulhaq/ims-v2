@@ -198,7 +198,6 @@ export const CategoryItemsManager: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category_name: newCategoryName,
-          category_code: newCategoryCode || newCategoryName.toUpperCase().replace(/\s+/g, '_'),
           description: `Category for ${newCategoryName}`
         })
       });

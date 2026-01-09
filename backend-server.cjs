@@ -7251,7 +7251,7 @@ app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
 // POST - Create new category
 app.post('/api/categories', async (req, res) => {
   try {
-    const { category_name, category_code, description } = req.body;
+    const { category_name, description } = req.body;
     
     if (!category_name) {
       return res.status(400).json({ error: 'Category name is required' });
@@ -7260,19 +7260,18 @@ app.post('/api/categories', async (req, res) => {
     const categoryId = uuidv4();
     const now = new Date().toISOString();
 
-    console.log('🔧 Creating category with data:', { category_name, category_code, description });
+    console.log('🔧 Creating category with data:', { category_name, description });
 
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, categoryId)
       .input('category_name', sql.NVarChar, category_name)
-      .input('category_code', sql.NVarChar, category_code || category_name)
       .input('description', sql.NVarChar, description || null)
       .input('created_at', sql.DateTime2, now)
       .input('updated_at', sql.DateTime2, now)
       .query(`
-        INSERT INTO categories (id, category_name, category_code, description, created_at, updated_at)
+        INSERT INTO categories (id, category_name, description, created_at, updated_at)
         OUTPUT INSERTED.*
-        VALUES (@id, @category_name, @category_code, @description, @created_at, @updated_at)
+        VALUES (@id, @category_name, @description, @created_at, @updated_at)
       `);
 
     console.log('✅ Category created:', result.recordset[0]);
