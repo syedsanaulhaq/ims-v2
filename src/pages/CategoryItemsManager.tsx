@@ -49,23 +49,59 @@ export const CategoryItemsManager: React.FC = () => {
   const loadAllItems = async () => {
     try {
       setLoading(true);
-      // Load from vw_item_masters_with_categories view
-      const response = await fetch('http://localhost:3001/api/item-masters');
-      const data = await response.json();
-      const itemsArray = Array.isArray(data) ? data : (data.data || data.items || []);
+      
+      // Load items from vw_item_masters_with_categories view
+      const itemsResponse = await fetch('http://localhost:3001/api/item-masters');
+      const itemsData = await itemsResponse.json();
+      const itemsArray = Array.isArray(itemsData) ? itemsData : (itemsData.data || itemsData.items || []);
       
       setItems(itemsArray);
       
-      // Extract unique categories
-      const uniqueCategories = Array.from(
-        new Set(itemsArray.map((item: ItemWithCategory) => item.category_name))
-      ).filter((name): name is string => Boolean(name)).sort();
-      
-      setCategories(uniqueCategories);
-      
-      if (uniqueCategories.length > 0) {
-        setSelectedCategory(uniqueCategories[0]);
-        filterItemsByCategory(uniqueCategories[0], itemsArray);
+      // Load categories directly from API (not just from items)
+      try {
+        const categoriesResponse = await fetch('http://localhost:3001/api/categories');
+        if (categoriesResponse.ok) {
+          const categoriesData = await categoriesResponse.json();
+          const categoriesArray = Array.isArray(categoriesData) ? categoriesData : (categoriesData.data || []);
+          
+          // Extract category names from API response
+          const uniqueCategories = categoriesArray
+            .map((cat: any) => cat.category_name)
+            .filter((name): name is string => Boolean(name))
+            .sort();
+          
+          setCategories(uniqueCategories);
+          
+          if (uniqueCategories.length > 0) {
+            setSelectedCategory(uniqueCategories[0]);
+            filterItemsByCategory(uniqueCategories[0], itemsArray);
+          }
+        } else {
+          // Fallback: extract from items if API fails
+          const uniqueCategories = Array.from(
+            new Set(itemsArray.map((item: ItemWithCategory) => item.category_name))
+          ).filter((name): name is string => Boolean(name)).sort();
+          
+          setCategories(uniqueCategories);
+          
+          if (uniqueCategories.length > 0) {
+            setSelectedCategory(uniqueCategories[0]);
+            filterItemsByCategory(uniqueCategories[0], itemsArray);
+          }
+        }
+      } catch (error) {
+        // Fallback: extract from items if API call fails
+        console.error('Error fetching categories from API, using items fallback:', error);
+        const uniqueCategories = Array.from(
+          new Set(itemsArray.map((item: ItemWithCategory) => item.category_name))
+        ).filter((name): name is string => Boolean(name)).sort();
+        
+        setCategories(uniqueCategories);
+        
+        if (uniqueCategories.length > 0) {
+          setSelectedCategory(uniqueCategories[0]);
+          filterItemsByCategory(uniqueCategories[0], itemsArray);
+        }
       }
     } catch (error) {
       console.error('Error loading items:', error);
