@@ -7799,27 +7799,41 @@ app.post('/api/annual-tenders', async (req, res) => {
     }
 
     const now = new Date();
+    // Use provided id or let database generate one
+    const tenderId = id || require('uuid').v4();
 
-    // Insert tender
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
+    // Insert tender - let the database handle the primary key with DEFAULT NEWID() if not provided
+    const insertTenderQuery = id 
+      ? `INSERT INTO AnnualTenders (id, code, name, date, created_at, updated_at) VALUES (@id, @code, @name, @date, @created_at, @updated_at)`
+      : `INSERT INTO AnnualTenders (code, name, date, created_at, updated_at) VALUES (@code, @name, @date, @created_at, @updated_at)`;
+    
+    const request = pool.request()
       .input('code', sql.NVarChar(50), code)
       .input('name', sql.NVarChar(255), name)
       .input('date', sql.DateTime2, new Date(date))
       .input('created_at', sql.DateTime2, now)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        INSERT INTO AnnualTenders (id, code, name, date, created_at, updated_at)
-        VALUES (@id, @code, @name, @date, @created_at, @updated_at)
-      `);
+      .input('updated_at', sql.DateTime2, now);
+    
+    if (id) {
+      request.input('id', sql.UniqueIdentifier, id);
+    }
+
+    const result = await request.query(insertTenderQuery);
+    
+    // Get the inserted tender's ID
+    const getTenderId = await pool.request()
+      .input('code', sql.NVarChar(50), code)
+      .query(`SELECT TOP 1 id FROM AnnualTenders WHERE code = @code ORDER BY created_at DESC`);
+    
+    const finalTenderId = getTenderId.recordset[0]?.id || id || tenderId;
 
     // Insert vendors
     if (vendors && vendors.length > 0) {
       console.log('📋 Inserting', vendors.length, 'vendors');
       for (const vendor of vendors) {
         await pool.request()
-          .input('tender_id', sql.UniqueIdentifier, id)
-          .input('vendor_id', sql.UniqueIdentifier, vendor.id)
+          .input('tender_id', sql.UniqueIdentifier, finalTenderId)
+          .input('vendor_id', sql.UniqueIdentifier, vendor)
           .input('created_at', sql.DateTime2, now)
           .query(`
             INSERT INTO TenderVendors (tender_id, vendor_id, created_at)
@@ -7835,7 +7849,7 @@ app.post('/api/annual-tenders', async (req, res) => {
       for (const item of items) {
         console.log('  - Item:', item.id, 'Quantity:', item.quantity);
         await pool.request()
-          .input('tender_id', sql.UniqueIdentifier, id)
+          .input('tender_id', sql.UniqueIdentifier, finalTenderId)
           .input('item_id', sql.UniqueIdentifier, item.id)
           .input('quantity', sql.Int, item.quantity)
           .input('created_at', sql.DateTime2, now)
@@ -7851,7 +7865,7 @@ app.post('/api/annual-tenders', async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Tender created successfully',
-      id: id
+      id: finalTenderId
     });
   } catch (error) {
     console.error('❌ Error in /api/annual-tenders POST:', error.message);
@@ -7897,9 +7911,11 @@ app.put('/api/annual-tenders/:id', async (req, res) => {
     // Insert new vendors
     if (vendors && vendors.length > 0) {
       for (const vendor of vendors) {
+        // Handle both vendor objects with .id and plain vendor ID strings
+        const vendorId = typeof vendor === 'object' ? vendor.id : vendor;
         await pool.request()
           .input('tender_id', sql.UniqueIdentifier, id)
-          .input('vendor_id', sql.UniqueIdentifier, vendor.id)
+          .input('vendor_id', sql.UniqueIdentifier, vendorId)
           .input('created_at', sql.DateTime2, now)
           .query(`
             INSERT INTO TenderVendors (tender_id, vendor_id, created_at)

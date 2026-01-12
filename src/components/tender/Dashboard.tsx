@@ -113,73 +113,45 @@ const TenderDashboard: React.FC = () => {
 
   const handleWizardComplete = async (data: any) => {
     try {
-      const tenderId = editingId || generateUUID();
-      const payload = {
-        id: tenderId,
-        code: data.tender.code,
-        name: data.tender.name,
-        date: data.tender.date,
-        vendors: data.vendors,
-        items: data.items
-      };
+      const tenderId = data.id || editingId || generateUUID();
+      console.log('🔄 handleWizardComplete - tenderId:', tenderId, 'editingId:', editingId);
+      console.log('📦 Complete data:', data);
 
       if (editingId) {
         // Update existing tender
         console.log('📝 Updating tender:', tenderId);
-        const response = await fetch(`http://localhost:3001/api/annual-tenders/${tenderId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (response.ok) {
-          console.log('✅ Tender updated in DB');
-          setTenders(tenders.map(t => 
-            t.id === editingId
-              ? {
-                  ...t,
-                  code: data.tender.code,
-                  name: data.tender.name,
-                  date: data.tender.date,
-                  totalVendors: data.vendors.length,
-                  totalItems: data.items.length
-                }
-              : t
-          ));
-        }
+        setTenders(tenders.map(t => 
+          t.id === tenderId
+            ? {
+                ...t,
+                code: data.tender.code,
+                name: data.tender.name,
+                date: data.tender.date,
+                totalVendors: data.vendors?.length || 0,
+                totalItems: data.items?.length || 0
+              }
+            : t
+        ));
+        setEditingId(undefined);
       } else {
-        // Add new tender
-        console.log('📝 Creating new tender:', tenderId);
-        console.log('📦 Payload:', payload);
-        const response = await fetch('http://localhost:3001/api/annual-tenders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const responseData = await response.json();
-        if (response.ok) {
-          console.log('✅ Tender created in DB:', responseData);
-          const newTender: Tender = {
-            id: tenderId,
-            code: data.tender.code,
-            name: data.tender.name,
-            date: data.tender.date,
-            totalVendors: data.vendors.length,
-            totalItems: data.items.length,
-            vendors: data.vendors,
-            items: data.items
-          };
-          setTenders([...tenders, newTender]);
-        } else {
-          console.error('❌ Failed to create tender:', responseData);
-          alert(`Error: ${responseData.error}\n\n${responseData.details}`);
-        }
+        // Add new tender to the list
+        console.log('📝 Adding new tender to list');
+        const newTender: Tender = {
+          id: tenderId,
+          code: data.tender.code,
+          name: data.tender.name,
+          date: data.tender.date,
+          totalVendors: data.vendors?.length || 0,
+          totalItems: data.items?.length || 0
+        };
+        setTenders([...tenders, newTender]);
       }
+
       setShowWizard(false);
+      alert('Tender saved successfully!');
     } catch (error) {
       console.error('❌ Error saving tender:', error);
-      alert(`Error saving tender: ${error}`);
+      alert(`Failed to save tender: ${error}`);
     }
   };
 

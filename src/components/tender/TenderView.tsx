@@ -53,16 +53,27 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
+        console.log('🔄 Fetching categories for mapping...');
         const response = await fetch('http://localhost:3001/api/categories');
         const categories = await response.json();
         
+        console.log('📦 Raw categories response:', categories);
+        console.log('📦 First category structure:', categories[0]);
+        
         // Create a map of category_id -> category_name
         const map: { [key: string]: string } = {};
-        categories.forEach((cat: any) => {
-          map[cat.id] = cat.name;
+        
+        // Handle both array and wrapped response
+        const catArray = Array.isArray(categories) ? categories : (categories.categories || []);
+        
+        catArray.forEach((cat: any) => {
+          // Try multiple possible property names for the category name
+          const categoryName = cat.name || cat.category_name || cat.nomenclature || 'Unknown';
+          map[cat.id] = categoryName;
+          console.log(`  📌 Mapped Category: ${cat.id} -> "${categoryName}" (properties: ${Object.keys(cat).join(', ')})`);
         });
         
-        console.log('📋 Category Map:', map);
+        console.log('✅ Category Map Complete:', map);
         setCategoryMap(map);
       } catch (error) {
         console.error('❌ Failed to fetch categories:', error);
@@ -206,7 +217,10 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
           </h2>
 
           {Object.entries(groupedItems).length > 0 ? (
-            Object.entries(groupedItems).map(([categoryId, items]: [string, any[]]) => (
+            Object.entries(groupedItems).map(([categoryId, items]: [string, any[]]) => {
+              console.log(`📍 Rendering category: ${categoryId} -> "${getCategoryName(categoryId)}" with ${items.length} items`);
+              console.log(`   Category map at render time:`, categoryMap);
+              return (
               <Card key={categoryId}>
                 <CardHeader>
                   <CardTitle className="text-lg">{getCategoryName(categoryId)}</CardTitle>
@@ -238,7 +252,8 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
                   </div>
                 </CardContent>
               </Card>
-            ))
+            );
+            })
           ) : (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
