@@ -18,12 +18,38 @@ interface ItemWithCategory {
   item_code: string;
   category_id: string;
   category_name: string;
+  unit?: string;
+  specifications?: string;
+  description?: string;
   status?: string;
+  manufacturer?: string;
+  minimum_stock_level?: number;
+  maximum_stock_level?: number;
+  reorder_point?: number;
+  sub_category_id?: string;
+}
+
+interface ItemForm {
+  nomenclature: string;
+  item_code: string;
+  unit: string;
+  specifications: string;
+  description: string;
+  status: string;
+  minimum_stock_level: number;
+  maximum_stock_level: number;
+  reorder_point: number;
+  manufacturer: string;
+}
+
+interface Category {
+  id: string;
+  category_name: string;
 }
 
 export const CategoryItemsManager: React.FC = () => {
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [items, setItems] = useState<ItemWithCategory[]>([]);
   const [categoryItems, setCategoryItems] = useState<ItemWithCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,8 +61,19 @@ export const CategoryItemsManager: React.FC = () => {
   const [showAddCategoryDialog, setShowAddCategoryDialog] = useState(false);
 
   // Form states
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemCode, setNewItemCode] = useState('');
+  const [itemForm, setItemForm] = useState<ItemForm>({
+    nomenclature: '',
+    item_code: '',
+    unit: 'Pieces',
+    specifications: '',
+    description: '',
+    status: 'Active',
+    minimum_stock_level: 0,
+    maximum_stock_level: 0,
+    reorder_point: 0,
+    manufacturer: '',
+  });
+
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryCode, setNewCategoryCode] = useState('');
   const [editingItem, setEditingItem] = useState<ItemWithCategory | null>(null);
@@ -64,43 +101,60 @@ export const CategoryItemsManager: React.FC = () => {
           const categoriesData = await categoriesResponse.json();
           const categoriesArray = Array.isArray(categoriesData) ? categoriesData : (categoriesData.data || []);
           
-          // Extract category names from API response
-          const uniqueCategories = categoriesArray
-            .map((cat: any) => cat.category_name)
-            .filter((name): name is string => Boolean(name))
-            .sort();
+          // Keep full category objects with id and category_name
+          const categoryObjects: Category[] = categoriesArray
+            .filter((cat: any) => cat.id && cat.category_name)
+            .map((cat: any) => ({
+              id: cat.id,
+              category_name: cat.category_name
+            }))
+            .sort((a, b) => a.category_name.localeCompare(b.category_name));
           
-          setCategories(uniqueCategories);
+          setCategories(categoryObjects);
           
-          if (uniqueCategories.length > 0) {
-            setSelectedCategory(uniqueCategories[0]);
-            filterItemsByCategory(uniqueCategories[0], itemsArray);
+          if (categoryObjects.length > 0) {
+            setSelectedCategory(categoryObjects[0]);
+            filterItemsByCategory(categoryObjects[0].category_name, itemsArray);
           }
         } else {
           // Fallback: extract from items if API fails
-          const uniqueCategories = Array.from(
-            new Set(itemsArray.map((item: ItemWithCategory) => item.category_name))
-          ).filter((name): name is string => Boolean(name)).sort();
+          const uniqueCategoryMap = new Map<string, string>();
+          itemsArray.forEach((item: ItemWithCategory) => {
+            if (item.category_name && item.category_id) {
+              uniqueCategoryMap.set(item.category_name, item.category_id);
+            }
+          });
           
-          setCategories(uniqueCategories);
+          const categoryObjects: Category[] = Array.from(uniqueCategoryMap.entries())
+            .map(([name, id]) => ({ id, category_name: name }))
+            .sort((a, b) => a.category_name.localeCompare(b.category_name));
           
-          if (uniqueCategories.length > 0) {
-            setSelectedCategory(uniqueCategories[0]);
-            filterItemsByCategory(uniqueCategories[0], itemsArray);
+          setCategories(categoryObjects);
+          
+          if (categoryObjects.length > 0) {
+            setSelectedCategory(categoryObjects[0]);
+            filterItemsByCategory(categoryObjects[0].category_name, itemsArray);
           }
         }
       } catch (error) {
         // Fallback: extract from items if API call fails
         console.error('Error fetching categories from API, using items fallback:', error);
-        const uniqueCategories = Array.from(
-          new Set(itemsArray.map((item: ItemWithCategory) => item.category_name))
-        ).filter((name): name is string => Boolean(name)).sort();
+        const uniqueCategoryMap = new Map<string, string>();
+        itemsArray.forEach((item: ItemWithCategory) => {
+          if (item.category_name && item.category_id) {
+            uniqueCategoryMap.set(item.category_name, item.category_id);
+          }
+        });
         
-        setCategories(uniqueCategories);
+        const categoryObjects: Category[] = Array.from(uniqueCategoryMap.entries())
+          .map(([name, id]) => ({ id, category_name: name }))
+          .sort((a, b) => a.category_name.localeCompare(b.category_name));
         
-        if (uniqueCategories.length > 0) {
-          setSelectedCategory(uniqueCategories[0]);
-          filterItemsByCategory(uniqueCategories[0], itemsArray);
+        setCategories(categoryObjects);
+        
+        if (categoryObjects.length > 0) {
+          setSelectedCategory(categoryObjects[0]);
+          filterItemsByCategory(categoryObjects[0].category_name, itemsArray);
         }
       }
     } catch (error) {
@@ -115,22 +169,20 @@ export const CategoryItemsManager: React.FC = () => {
     setCategoryItems(filtered);
   };
 
-  const handleSelectCategory = (categoryName: string) => {
-    setSelectedCategory(categoryName);
-    filterItemsByCategory(categoryName, items);
+  const handleSelectCategory = (category: Category) => {
+    setSelectedCategory(category);
+    filterItemsByCategory(category.category_name, items);
   };
 
   const handleAddItem = async () => {
-    if (!newItemName || !newItemCode || !selectedCategory) {
-      alert('Please fill in all fields');
+    if (!itemForm.nomenclature || !itemForm.item_code || !selectedCategory) {
+      alert('Please fill in item name and code');
       return;
     }
 
     try {
-      // Find a category_id for the selected category name
-      const categoryItem = items.find(item => item.category_name === selectedCategory);
-      if (!categoryItem) {
-        alert('Category not found');
+      if (!selectedCategory) {
+        alert('Please select a category');
         return;
       }
 
@@ -138,10 +190,17 @@ export const CategoryItemsManager: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nomenclature: newItemName,
-          item_code: newItemCode,
-          category_id: categoryItem.category_id,
-          description: `Item for ${selectedCategory}`
+          nomenclature: itemForm.nomenclature,
+          item_code: itemForm.item_code,
+          category_id: selectedCategory.id,
+          unit: itemForm.unit || 'Pieces',
+          specifications: itemForm.specifications || null,
+          description: itemForm.description || null,
+          status: itemForm.status || 'Active',
+          minimum_stock_level: itemForm.minimum_stock_level || 0,
+          maximum_stock_level: itemForm.maximum_stock_level || 0,
+          reorder_point: itemForm.reorder_point || 0,
+          manufacturer: itemForm.manufacturer || null,
         })
       });
 
@@ -149,10 +208,33 @@ export const CategoryItemsManager: React.FC = () => {
         throw new Error('Failed to create item');
       }
 
-      await loadAllItems();
+      // Save current category ID before reloading
+      const currentCategoryId = selectedCategory.id;
+      const currentCategoryName = selectedCategory.category_name;
+      
+      // Reload items from API
+      const itemsResponse = await fetch('http://localhost:3001/api/item-masters');
+      const itemsData = await itemsResponse.json();
+      const newItemsArray = Array.isArray(itemsData) ? itemsData : (itemsData.data || itemsData.items || []);
+      setItems(newItemsArray);
+      
+      // Filter items for the current category
+      const filteredItems = newItemsArray.filter((item: ItemWithCategory) => item.category_id === currentCategoryId);
+      setCategoryItems(filteredItems);
+      
       setShowAddItemDialog(false);
-      setNewItemName('');
-      setNewItemCode('');
+      setItemForm({
+        nomenclature: '',
+        item_code: '',
+        unit: 'Pieces',
+        specifications: '',
+        description: '',
+        status: 'Active',
+        minimum_stock_level: 0,
+        maximum_stock_level: 0,
+        reorder_point: 0,
+        manufacturer: '',
+      });
       alert('✅ Item added successfully!');
     } catch (error) {
       console.error('Error adding item:', error);
@@ -161,7 +243,7 @@ export const CategoryItemsManager: React.FC = () => {
   };
 
   const handleEditItem = async () => {
-    if (!editingItem || !newItemName || !newItemCode) {
+    if (!editingItem || !itemForm.nomenclature || !itemForm.item_code) {
       alert('Please fill in all fields');
       return;
     }
@@ -171,9 +253,17 @@ export const CategoryItemsManager: React.FC = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nomenclature: newItemName,
-          item_code: newItemCode,
-          category_id: editingItem.category_id
+          nomenclature: itemForm.nomenclature,
+          item_code: itemForm.item_code,
+          category_id: editingItem.category_id,
+          unit: itemForm.unit || 'Pieces',
+          specifications: itemForm.specifications || null,
+          description: itemForm.description || null,
+          status: itemForm.status || 'Active',
+          minimum_stock_level: itemForm.minimum_stock_level || 0,
+          maximum_stock_level: itemForm.maximum_stock_level || 0,
+          reorder_point: itemForm.reorder_point || 0,
+          manufacturer: itemForm.manufacturer || null,
         })
       });
 
@@ -181,11 +271,37 @@ export const CategoryItemsManager: React.FC = () => {
         throw new Error('Failed to update item');
       }
 
+      // Save current category before reloading
+      const currentCategoryId = selectedCategory?.id;
+      const currentCategoryName = selectedCategory?.category_name;
+
       await loadAllItems();
+
+      // Restore the selected category
+      if (currentCategoryId && currentCategoryName) {
+        setSelectedCategory({
+          id: currentCategoryId,
+          category_name: currentCategoryName
+        });
+        // Filter items for the current category
+        const updatedItems = items.filter((item: ItemWithCategory) => item.category_id === currentCategoryId);
+        setCategoryItems(updatedItems);
+      }
+
       setShowEditItemDialog(false);
       setEditingItem(null);
-      setNewItemName('');
-      setNewItemCode('');
+      setItemForm({
+        nomenclature: '',
+        item_code: '',
+        unit: 'Pieces',
+        specifications: '',
+        description: '',
+        status: 'Active',
+        minimum_stock_level: 0,
+        maximum_stock_level: 0,
+        reorder_point: 0,
+        manufacturer: '',
+      });
       alert('✅ Item updated successfully!');
     } catch (error) {
       console.error('Error updating item:', error);
@@ -217,8 +333,18 @@ export const CategoryItemsManager: React.FC = () => {
 
   const openEditDialog = (item: ItemWithCategory) => {
     setEditingItem(item);
-    setNewItemName(item.nomenclature);
-    setNewItemCode(item.item_code);
+    setItemForm({
+      nomenclature: item.nomenclature,
+      item_code: item.item_code,
+      unit: item.unit || 'Pieces',
+      specifications: item.specifications || '',
+      description: item.description || '',
+      status: item.status || 'Active',
+      minimum_stock_level: item.minimum_stock_level || 0,
+      maximum_stock_level: item.maximum_stock_level || 0,
+      reorder_point: item.reorder_point || 0,
+      manufacturer: item.manufacturer || '',
+    });
     setShowEditItemDialog(true);
   };
 
@@ -327,17 +453,17 @@ export const CategoryItemsManager: React.FC = () => {
                   {categories.length === 0 ? (
                     <p className="text-sm text-gray-500 text-center py-4">No categories</p>
                   ) : (
-                    categories.map(categoryName => (
+                    categories.map(category => (
                       <button
-                        key={categoryName}
-                        onClick={() => handleSelectCategory(categoryName)}
+                        key={category.id}
+                        onClick={() => handleSelectCategory(category)}
                         className={`w-full p-3 text-left rounded-lg border-2 transition-all text-sm ${
-                          selectedCategory === categoryName
+                          selectedCategory?.id === category.id
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <p className="font-semibold">{categoryName}</p>
+                        <p className="font-semibold">{category.category_name}</p>
                       </button>
                     ))
                   )}
@@ -353,7 +479,7 @@ export const CategoryItemsManager: React.FC = () => {
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <div>
-                      <CardTitle className="text-lg">{selectedCategory}</CardTitle>
+                      <CardTitle className="text-lg">{selectedCategory.category_name}</CardTitle>
                       <p className="text-sm text-gray-600">{categoryItems.length} item(s)</p>
                     </div>
                     <Dialog open={showAddItemDialog} onOpenChange={setShowAddItemDialog}>
@@ -367,30 +493,111 @@ export const CategoryItemsManager: React.FC = () => {
                         <DialogHeader>
                           <DialogTitle>Add New Item</DialogTitle>
                           <DialogDescription>
-                            Add a new item to {selectedCategory}
+                            Add a new item to {selectedCategory.category_name}
                           </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4">
+                        <div className="space-y-4 max-h-96 overflow-y-auto">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-sm font-medium">Item Code *</label>
+                              <Input
+                                placeholder="e.g., CHAIR-001"
+                                value={itemForm.item_code}
+                                onChange={(e) => setItemForm({...itemForm, item_code: e.target.value})}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Item Name *</label>
+                              <Input
+                                placeholder="e.g., Office Chair"
+                                value={itemForm.nomenclature}
+                                onChange={(e) => setItemForm({...itemForm, nomenclature: e.target.value})}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-sm font-medium">Unit</label>
+                              <Input
+                                placeholder="e.g., Pieces"
+                                value={itemForm.unit}
+                                onChange={(e) => setItemForm({...itemForm, unit: e.target.value})}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Manufacturer</label>
+                              <Input
+                                placeholder="e.g., Sony"
+                                value={itemForm.manufacturer}
+                                onChange={(e) => setItemForm({...itemForm, manufacturer: e.target.value})}
+                              />
+                            </div>
+                          </div>
+
                           <div>
-                            <label className="text-sm font-medium">Item Name *</label>
+                            <label className="text-sm font-medium">Specifications</label>
                             <Input
-                              placeholder="e.g., Office Chair"
-                              value={newItemName}
-                              onChange={(e) => setNewItemName(e.target.value)}
+                              placeholder="e.g., 4GB RAM, 256GB SSD"
+                              value={itemForm.specifications}
+                              onChange={(e) => setItemForm({...itemForm, specifications: e.target.value})}
                             />
                           </div>
+
                           <div>
-                            <label className="text-sm font-medium">Item Code *</label>
+                            <label className="text-sm font-medium">Description</label>
                             <Input
-                              placeholder="e.g., CHAIR-001"
-                              value={newItemCode}
-                              onChange={(e) => setNewItemCode(e.target.value)}
+                              placeholder="Item description"
+                              value={itemForm.description}
+                              onChange={(e) => setItemForm({...itemForm, description: e.target.value})}
                             />
                           </div>
-                          <div className="flex gap-2 justify-end">
+
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-sm font-medium">Min Stock</label>
+                              <Input
+                                type="number"
+                                value={itemForm.minimum_stock_level}
+                                onChange={(e) => setItemForm({...itemForm, minimum_stock_level: parseInt(e.target.value) || 0})}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Max Stock</label>
+                              <Input
+                                type="number"
+                                value={itemForm.maximum_stock_level}
+                                onChange={(e) => setItemForm({...itemForm, maximum_stock_level: parseInt(e.target.value) || 0})}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Reorder Point</label>
+                              <Input
+                                type="number"
+                                value={itemForm.reorder_point}
+                                onChange={(e) => setItemForm({...itemForm, reorder_point: parseInt(e.target.value) || 0})}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 justify-end pt-4">
                             <Button
                               variant="outline"
-                              onClick={() => setShowAddItemDialog(false)}
+                              onClick={() => {
+                                setShowAddItemDialog(false);
+                                setItemForm({
+                                  nomenclature: '',
+                                  item_code: '',
+                                  unit: 'Pieces',
+                                  specifications: '',
+                                  description: '',
+                                  status: 'Active',
+                                  minimum_stock_level: 0,
+                                  maximum_stock_level: 0,
+                                  reorder_point: 0,
+                                  manufacturer: '',
+                                });
+                              }}
                             >
                               Cancel
                             </Button>
@@ -420,6 +627,9 @@ export const CategoryItemsManager: React.FC = () => {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.nomenclature}</p>
                             <p className="text-xs text-gray-600">Code: {item.item_code}</p>
+                            {item.manufacturer && (
+                              <p className="text-xs text-gray-600">Manufacturer: {item.manufacturer}</p>
+                            )}
                           </div>
                           <div className="flex gap-2">
                             <Dialog open={showEditItemDialog && editingItem?.id === item.id} onOpenChange={setShowEditItemDialog}>
@@ -440,24 +650,91 @@ export const CategoryItemsManager: React.FC = () => {
                                     Update item details
                                   </DialogDescription>
                                 </DialogHeader>
-                                <div className="space-y-4">
+                                <div className="space-y-4 max-h-96 overflow-y-auto">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-sm font-medium">Item Code *</label>
+                                      <Input
+                                        placeholder="e.g., CHAIR-001"
+                                        value={itemForm.item_code}
+                                        onChange={(e) => setItemForm({...itemForm, item_code: e.target.value})}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium">Item Name *</label>
+                                      <Input
+                                        placeholder="e.g., Office Chair"
+                                        value={itemForm.nomenclature}
+                                        onChange={(e) => setItemForm({...itemForm, nomenclature: e.target.value})}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-sm font-medium">Unit</label>
+                                      <Input
+                                        placeholder="e.g., Pieces"
+                                        value={itemForm.unit}
+                                        onChange={(e) => setItemForm({...itemForm, unit: e.target.value})}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium">Manufacturer</label>
+                                      <Input
+                                        placeholder="e.g., Sony"
+                                        value={itemForm.manufacturer}
+                                        onChange={(e) => setItemForm({...itemForm, manufacturer: e.target.value})}
+                                      />
+                                    </div>
+                                  </div>
+
                                   <div>
-                                    <label className="text-sm font-medium">Item Name *</label>
+                                    <label className="text-sm font-medium">Specifications</label>
                                     <Input
-                                      placeholder="e.g., Office Chair"
-                                      value={newItemName}
-                                      onChange={(e) => setNewItemName(e.target.value)}
+                                      placeholder="e.g., 4GB RAM, 256GB SSD"
+                                      value={itemForm.specifications}
+                                      onChange={(e) => setItemForm({...itemForm, specifications: e.target.value})}
                                     />
                                   </div>
+
                                   <div>
-                                    <label className="text-sm font-medium">Item Code *</label>
+                                    <label className="text-sm font-medium">Description</label>
                                     <Input
-                                      placeholder="e.g., CHAIR-001"
-                                      value={newItemCode}
-                                      onChange={(e) => setNewItemCode(e.target.value)}
+                                      placeholder="Item description"
+                                      value={itemForm.description}
+                                      onChange={(e) => setItemForm({...itemForm, description: e.target.value})}
                                     />
                                   </div>
-                                  <div className="flex gap-2 justify-end">
+
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="text-sm font-medium">Min Stock</label>
+                                      <Input
+                                        type="number"
+                                        value={itemForm.minimum_stock_level}
+                                        onChange={(e) => setItemForm({...itemForm, minimum_stock_level: parseInt(e.target.value) || 0})}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium">Max Stock</label>
+                                      <Input
+                                        type="number"
+                                        value={itemForm.maximum_stock_level}
+                                        onChange={(e) => setItemForm({...itemForm, maximum_stock_level: parseInt(e.target.value) || 0})}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium">Reorder Point</label>
+                                      <Input
+                                        type="number"
+                                        value={itemForm.reorder_point}
+                                        onChange={(e) => setItemForm({...itemForm, reorder_point: parseInt(e.target.value) || 0})}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-2 justify-end pt-4">
                                     <Button
                                       variant="outline"
                                       onClick={() => setShowEditItemDialog(false)}

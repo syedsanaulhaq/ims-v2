@@ -1,0 +1,628 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+interface TenderData {
+  code: string;
+  name: string;
+  date: string;
+}
+
+interface VendorData {
+  id: string;
+  name: string;
+  contact: string;
+  email: string;
+}
+
+interface ItemData {
+  itemId: string;
+  category: string;
+  name: string;
+  quantity: number;
+  unit: string;
+}
+
+interface TenderWizardProps {
+  onComplete: (data: any) => void;
+  onCancel: () => void;
+  editingId?: string;
+}
+
+const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editingId }) => {
+  const [step, setStep] = useState(1);
+  
+  // Loaded data from DB
+  const [vendors, setVendors] = useState<VendorData[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [itemsByCategory, setItemsByCategory] = useState<{ [key: string]: any[] }>({});
+  const [loading, setLoading] = useState(true);
+  
+  // Step 1: Tender Details
+  const [tender, setTender] = useState<TenderData>({
+    code: '',
+    name: '',
+    date: ''
+  });
+
+  // Step 2: Vendors (selected from list)
+  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+
+  // Step 3: Items
+  const [items, setItems] = useState<ItemData[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+
+  // Reset wizard state when wizard opens
+  useEffect(() => {
+    console.log('🔄 Wizard opened - resetting state, editingId:', editingId);
+    setStep(1);
+    setTender({ code: '', name: '', date: '' });
+    setSelectedVendorIds([]);
+    setItems([]);
+    setSelectedItemIds([]);
+    setSelectedCategory('');
+    
+    // If editing, fetch the tender data
+    if (editingId) {
+      const fetchTenderData = async () => {
+        try {
+          console.log('📝 Fetching tender data for editing:', editingId);
+          const response = await fetch(`http://localhost:3001/api/annual-tenders/${editingId}`);
+          if (response.ok) {
+            const tenderData = await response.json();
+            console.log('✅ Loaded tender for editing:', tenderData);
+            
+            // Populate form
+            setTender({
+              code: tenderData.code,
+              name: tenderData.name,
+              date: tenderData.date
+            });
+            
+            // Set selected vendors
+            if (tenderData.vendors && tenderData.vendors.length > 0) {
+              setSelectedVendorIds(tenderData.vendors.map((v: any) => v.id));
+            }
+            
+            // Set selected items
+            if (tenderData.items && tenderData.items.length > 0) {
+              setItems(tenderData.items.map((item: any) => ({
+                itemId: item.id,
+                category: item.category,
+                name: item.name,
+                quantity: item.quantity,
+                unit: item.unit
+              })));
+              setSelectedItemIds(tenderData.items.map((item: any) => item.id));
+            }
+          } else {
+            console.error('❌ Failed to fetch tender for editing');
+          }
+        } catch (error) {
+          console.error('❌ Error fetching tender:', error);
+        }
+      };
+      
+      fetchTenderData();
+    }
+    console.log('✅ Wizard state reset complete');
+  }, [editingId]); // Re-run when editingId changes (new wizard opened)
+
+  // Load vendors and categories from DB
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch vendors
+        const vendorUrl = 'http://localhost:3001/api/vendors';
+        console.log('🔄 Fetching vendors from:', vendorUrl);
+        const vendorsRes = await fetch(vendorUrl);
+        console.log('Vendors response status:', vendorsRes.status);
+        
+        const vendorsText = await vendorsRes.text();
+        
+        if (vendorsRes.ok) {
+          try {
+            const vendorsData = JSON.parse(vendorsText);
+            console.log('📦 Full vendors response:', vendorsData);
+            
+            // Handle both { vendors: [...] } and direct array responses
+            const vendorsList = vendorsData.vendors || vendorsData;
+            console.log('Vendors list:', vendorsList);
+            
+            if (Array.isArray(vendorsList) && vendorsList.length > 0) {
+              // Log first vendor to see structure
+              console.log('First vendor raw data:', vendorsList[0]);
+              
+              const mappedVendors = vendorsList.map((v: any) => {
+                const mapped = {
+                  id: v.id,
+                  name: v.vendor_name || v.name || 'Unknown',
+                  contact: (v.contact_person || v.contact || '').trim() || 'N/A',
+                  email: (v.email || '').trim() || 'N/A'
+                };
+                console.log('Mapped vendor:', mapped);
+                return mapped;
+              });
+              console.log('✅ All mapped vendors:', mappedVendors);
+              setVendors(mappedVendors);
+            } else {
+              console.log('⚠️ No vendors in response');
+              setVendors([]);
+            }
+          } catch (parseError) {
+            console.error('❌ JSON parse error:', parseError);
+          }
+        } else {
+          console.error('❌ Vendors fetch failed:', vendorsRes.status);
+        }
+
+        // Fetch categories and items
+        console.log('🔄 Fetching categories...');
+        const catsRes = await fetch('http://localhost:3001/api/categories');
+        if (catsRes.ok) {
+          const catsData = await catsRes.json();
+          console.log('📦 Raw categories data:', catsData);
+          
+          // Map category_name to name if needed
+          const mappedCats = catsData.map((cat: any) => ({
+            id: cat.id.toString(),
+            name: cat.name || cat.category_name,
+            category_name: cat.category_name
+          }));
+          console.log('✅ Mapped categories:', mappedCats);
+          
+          const sortedCats = mappedCats.sort((a: any, b: any) => 
+            (a.name || '').localeCompare(b.name || '')
+          );
+          setCategories(sortedCats);
+          console.log('✅ Categories set:', sortedCats);
+          
+          // Set first category as default
+          if (sortedCats.length > 0) {
+            const defaultCat = sortedCats[0];
+            console.log('Setting default category:', defaultCat);
+            setSelectedCategory(defaultCat.id);
+            
+            // Fetch items for first category immediately
+            console.log(`🔄 Fetching items for category ${defaultCat.id}...`);
+            const itemsRes = await fetch(`http://localhost:3001/api/items-master?category_id=${defaultCat.id}`);
+            console.log('Items response status:', itemsRes.status);
+            if (itemsRes.ok) {
+              const itemsData = await itemsRes.json();
+              console.log(`📦 Items for category ${defaultCat.id}:`, itemsData);
+              const itemsMap: { [key: string]: any[] } = {};
+              itemsMap[defaultCat.id] = itemsData.items || itemsData || [];
+              setItemsByCategory(itemsMap);
+            } else {
+              console.error('❌ Failed to fetch items for default category');
+            }
+          }
+
+          // Fetch items for remaining categories
+          const itemsMap: { [key: string]: any[] } = {};
+          for (const cat of sortedCats.slice(1)) {
+            try {
+              console.log(`🔄 Fetching items for category ${cat.id}...`);
+              const itemsRes = await fetch(`http://localhost:3001/api/items-master?category_id=${cat.id}`);
+              console.log(`Items response for ${cat.id}:`, itemsRes.status);
+              if (itemsRes.ok) {
+                const itemsData = await itemsRes.json();
+                console.log(`📦 Items for category ${cat.id}:`, itemsData);
+                itemsMap[cat.id] = itemsData.items || itemsData || [];
+              }
+            } catch (error) {
+              console.error(`❌ Error fetching items for category ${cat.id}:`, error);
+            }
+          }
+          setItemsByCategory(prev => ({ ...prev, ...itemsMap }));
+        } else {
+          console.error('❌ Categories fetch failed');
+        }
+      } catch (error) {
+        console.error('❌ Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const handleVendorToggle = (vendorId: string) => {
+    setSelectedVendorIds(prev =>
+      prev.includes(vendorId)
+        ? prev.filter(id => id !== vendorId)
+        : [...prev, vendorId]
+    );
+  };
+
+  const handleItemToggle = (itemId: string, itemName: string, unit: string) => {
+    if (selectedItemIds.includes(itemId)) {
+      setSelectedItemIds(prev => prev.filter(id => id !== itemId));
+      setItems(prev => prev.filter(item => item.itemId !== itemId));
+    } else {
+      setSelectedItemIds(prev => [...prev, itemId]);
+      setItems(prev => [...prev, {
+        itemId,
+        category: selectedCategory,
+        name: itemName,
+        quantity: 1,
+        unit
+      }]);
+    }
+  };
+
+  const updateItemQuantity = (itemId: string, quantity: number) => {
+    setItems(prev => 
+      prev.map(item => 
+        item.itemId === itemId ? { ...item, quantity } : item
+      )
+    );
+  };
+
+  const getSelectedItemsCount = () => items.length;
+
+  const handleNext = () => {
+    if (step < 3) {
+      setStep(step + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
+
+  const handleSubmit = async () => {
+    // Validate form
+    if (!tender.code || !tender.name || !tender.date) {
+      alert('Please fill in all tender details');
+      return;
+    }
+    
+    if (selectedVendorIds.length === 0) {
+      alert('Please select at least one vendor');
+      return;
+    }
+    
+    if (selectedItemIds.length === 0) {
+      alert('Please select at least one item');
+      return;
+    }
+
+    // Map items with correct structure
+    const mappedItems = items
+      .filter((item) => selectedItemIds.includes(item.itemId))
+      .map((item) => ({
+        id: item.itemId,
+        quantity: item.quantity,
+      }));
+
+    const formData = {
+      code: tender.code,
+      name: tender.name,
+      date: tender.date,
+      vendors: selectedVendorIds,
+      items: mappedItems,
+    };
+
+    console.log('📦 Form data:', formData);
+
+    try {
+      let url = 'http://localhost:3001/api/annual-tenders';
+      let method = 'POST';
+      
+      // If editing, use PUT method
+      if (editingId && editingId !== 'new') {
+        url = `http://localhost:3001/api/annual-tenders/${editingId}`;
+        method = 'PUT';
+        console.log('✏️ Updating existing tender');
+      } else {
+        console.log('📝 Creating new tender');
+      }
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Tender submitted successfully:', result);
+      onComplete(result);
+    } catch (error) {
+      console.error('❌ Error submitting tender:', error);
+      alert(`Failed to submit tender: ${error}`);
+    }
+  };
+
+  const getSelectedVendorsCount = () => selectedVendorIds.length;
+
+  return (
+    <Dialog open={true} onOpenChange={onCancel}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {editingId ? 'Edit Annual Tender' : 'Create New Annual Tender'} - Step {step} of 3
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Step 1: Tender Details */}
+        {step === 1 && (
+          <div className="space-y-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="code">Tender Code *</Label>
+              <Input
+                id="code"
+                placeholder="e.g., TEND-001"
+                value={tender.code}
+                onChange={(e) => setTender({ ...tender, code: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Tender Name *</Label>
+              <Input
+                id="name"
+                placeholder="e.g., Annual Medical Supplies"
+                value={tender.name}
+                onChange={(e) => setTender({ ...tender, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="date">Tender Date *</Label>
+              <Input
+                id="date"
+                type="date"
+                value={tender.date}
+                onChange={(e) => setTender({ ...tender, date: e.target.value })}
+              />
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
+              <strong>Step 1 of 3:</strong> Enter the basic tender information
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Select Vendors */}
+        {step === 2 && (
+          <div className="space-y-6 py-4">
+            <div>
+              <h3 className="font-semibold text-lg mb-2">Select Vendors</h3>
+              <p className="text-sm text-gray-600 mb-4">Choose vendors who will participate in this tender</p>
+            </div>
+
+            {loading ? (
+              <div className="text-center text-gray-500 py-8">Loading vendors from database...</div>
+            ) : (
+              <>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  {vendors.length === 0 ? (
+                    <p className="text-sm text-gray-500">No vendors found in database</p>
+                  ) : (
+                    vendors.map((vendor) => {
+                      const showContact = vendor.contact && vendor.contact !== 'N/A';
+                      const showEmail = vendor.email && vendor.email !== 'N/A';
+                      return (
+                        <div key={vendor.id} className="flex items-start gap-3 p-3 bg-white rounded border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer" onClick={() => handleVendorToggle(vendor.id)}>
+                          <Checkbox
+                            checked={selectedVendorIds.includes(vendor.id)}
+                            onCheckedChange={() => handleVendorToggle(vendor.id)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{vendor.name}</div>
+                            {(showContact || showEmail) && (
+                              <div className="text-sm text-gray-600">
+                                {showContact && <span>{vendor.contact}</span>}
+                                {showContact && showEmail && <span> • </span>}
+                                {showEmail && <span className="text-blue-600">{vendor.email}</span>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {getSelectedVendorsCount() > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded p-3 text-sm text-green-700">
+                    <strong>{getSelectedVendorsCount()} vendor(s) selected</strong>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
+              <strong>Step 2 of 3:</strong> Select vendors who will participate in this tender
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Items */}
+        {step === 3 && (
+          <div className="space-y-6 py-4">
+            <h3 className="font-semibold text-lg">Select Items by Category</h3>
+
+            {loading ? (
+              <div className="text-center text-gray-500 py-8">Loading categories and items from database...</div>
+            ) : (
+              <>
+                {/* Category Selector */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Select Category</Label>
+                  <Select value={selectedCategory} onValueChange={async (value) => {
+                    console.log('🔄 Category changed to:', value);
+                    setSelectedCategory(value);
+                    setSelectedItemIds([]);
+                    
+                    // Fetch items for selected category
+                    try {
+                      console.log(`🔄 Fetching items for category ${value}...`);
+                      const itemsRes = await fetch(`http://localhost:3001/api/items-master?category_id=${value}`);
+                      console.log('Items response status:', itemsRes.status);
+                      if (itemsRes.ok) {
+                        const itemsData = await itemsRes.json();
+                        console.log(`✅ Loaded ${itemsData.items?.length || 0} items for category ${value}:`, itemsData.items);
+                        setItemsByCategory(prev => ({
+                          ...prev,
+                          [value]: itemsData.items || []
+                        }));
+                      } else {
+                        console.error('❌ Failed to fetch items');
+                      }
+                    } catch (error) {
+                      console.error('❌ Error fetching items:', error);
+                    }
+                  }}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.length === 0 ? (
+                        <div className="p-2 text-sm text-gray-500">No categories found</div>
+                      ) : (
+                        categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Available Items for Selected Category */}
+                {selectedCategory && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">Available items in <strong>{categories.find(c => c.id === selectedCategory)?.name}</strong>:</p>
+                    <div className="space-y-2 max-h-[250px] overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                      {(() => {
+                        const items = itemsByCategory[selectedCategory] || [];
+                        console.log(`📍 Rendering items for category ${selectedCategory}:`, items);
+                        console.log(`   itemsByCategory state:`, itemsByCategory);
+                        
+                        if (items.length === 0) {
+                          return <p className="text-sm text-gray-500">No items available in this category</p>;
+                        }
+                        
+                        return items.map((item: any) => (
+                          <div 
+                            key={item.id} 
+                            className="flex items-center gap-3 p-2 rounded hover:bg-white cursor-pointer transition-colors"
+                            onClick={() => handleItemToggle(item.id, item.name || item.nomenclature, item.unit || 'Units')}
+                          >
+                            <Checkbox 
+                              checked={selectedItemIds.includes(item.id)}
+                              onCheckedChange={() => handleItemToggle(item.id, item.name || item.nomenclature, item.unit || 'Units')}
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-700">{item.name || item.nomenclature}</p>
+                              <p className="text-xs text-gray-500">Unit: {item.unit || 'Units'}</p>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Selected Items with Quantities */}
+                {items.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-700">Selected Items ({getSelectedItemsCount()}):</p>
+                    <div className="space-y-2">
+                      {items.map((item) => (
+                        <Card key={item.itemId} className="p-3">
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                              <p className="text-xs text-gray-500">{categories.find(c => c.id === item.category)?.name} - {item.unit}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs whitespace-nowrap">Qty:</Label>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => updateItemQuantity(item.itemId, parseInt(e.target.value) || 1)}
+                                className="h-8 w-16 text-sm"
+                              />
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {items.length === 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-700">
+                    Select items from the category to add them to the tender
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
+              <strong>Step 3 of 3:</strong> Select items from categories - check items you want to include in this tender
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex gap-3 justify-between pt-4 border-t">
+          <div className="flex gap-2">
+            {step > 1 && (
+              <Button onClick={handlePrevious} variant="outline" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Previous
+              </Button>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <Button onClick={onCancel} variant="ghost">
+              Cancel
+            </Button>
+            
+            {step < 3 ? (
+              <Button onClick={handleNext} className="gap-2">
+                Next
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
+                {editingId ? 'Update Tender' : 'Create Tender'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default TenderWizard;

@@ -95,51 +95,34 @@ const upload = multer({
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// GET /api/items-master - Return all active items from ItemMaster (for procurement request page)
-app.get('/api/items-master', async (req, res) => {
+// Serve HTML files from root directory (for session setter page)
+app.use(express.static(__dirname));
+
+// GET /items-master - Return all active items from ItemMaster (for procurement request page)
+app.get('/items-master', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
 
-    const categoryId = req.query.category_id;
-    console.log(`🔄 /items-master called with category_id:`, categoryId, 'Type:', typeof categoryId);
-
-    let request = pool.request();
-    
-    let query = `
+    const query = `
       SELECT 
-        im.id,
-        im.item_code,
-        im.nomenclature,
-        im.unit,
-        im.specifications,
-        im.category_id,
-        im.sub_category_id,
-        c.category_name,
-        im.status,
-        im.created_at
-      FROM item_masters im
-      LEFT JOIN categories c ON im.category_id = c.id
-      WHERE im.status = 'Active'
+        id,
+        item_code,
+        nomenclature,
+        unit,
+        specifications,
+        sub_category_id,
+        status,
+        created_at
+      FROM item_masters
+      WHERE status = 'Active'
+      ORDER BY nomenclature
     `;
 
-    if (categoryId) {
-      console.log(`📌 Filtering by category_id: ${categoryId}`);
-      // Handle both numeric and string/UUID format
-      query += ` AND (im.category_id = @categoryId OR CAST(im.category_id AS VARCHAR(MAX)) = @categoryId)`;
-      request = request.input('categoryId', sql.VarChar, categoryId);
-    }
-    
-    query += ` ORDER BY im.nomenclature`;
-
-    console.log('📋 Executing query:', query);
-    const result = await request.query(query);
+    const result = await pool.request().query(query);
     const items = result.recordset;
 
-    console.log(`✅ Found ${items.length} items${categoryId ? ` for category ${categoryId}` : ''}`);
-    console.log(`📦 First item sample:`, items[0]);
-    
     res.json({
       success: true,
       items: items,
@@ -6772,6 +6755,7 @@ app.get('/api/item-masters', async (req, res) => {
         minimum_stock_level,
         maximum_stock_level,
         reorder_point,
+        manufacturer,
         created_at,
         updated_at,
         category_name,
@@ -6902,6 +6886,7 @@ app.post('/api/item-masters', async (req, res) => {
       minimum_stock_level,
       reorder_point,
       maximum_stock_level,
+      manufacturer,
       status = 'Active'
     } = req.body;
 
@@ -6920,6 +6905,7 @@ app.post('/api/item-masters', async (req, res) => {
       .input('minimum_stock_level', sql.Int, minimum_stock_level || 0)
       .input('reorder_point', sql.Int, reorder_point || 0)
       .input('maximum_stock_level', sql.Int, maximum_stock_level || 0)
+      .input('manufacturer', sql.NVarChar, manufacturer || null)
       .input('status', sql.NVarChar, status)
       .input('created_at', sql.DateTime2, now)
       .input('updated_at', sql.DateTime2, now)
@@ -6927,11 +6913,11 @@ app.post('/api/item-masters', async (req, res) => {
         INSERT INTO item_masters (
           id, nomenclature, item_code, unit, category_id, sub_category_id,
           specifications, description, minimum_stock_level, reorder_point,
-          maximum_stock_level, status, created_at, updated_at
+          maximum_stock_level, manufacturer, status, created_at, updated_at
         ) VALUES (
           @id, @nomenclature, @item_code, @unit, @category_id, @sub_category_id,
           @specifications, @description, @minimum_stock_level, @reorder_point,
-          @maximum_stock_level, @status, @created_at, @updated_at
+          @maximum_stock_level, @manufacturer, @status, @created_at, @updated_at
         )
       `);
     
@@ -6940,6 +6926,7 @@ app.post('/api/item-masters', async (req, res) => {
       nomenclature: nomenclature,
       item_code: item_code,
       category_id: category_id,
+      manufacturer: manufacturer,
       status: status
     });
 
@@ -6963,6 +6950,7 @@ app.put('/api/item-masters/:id', async (req, res) => {
       minimum_stock_level,
       reorder_point,
       maximum_stock_level,
+      manufacturer,
       status
     } = req.body;
 
@@ -6984,6 +6972,7 @@ app.put('/api/item-masters/:id', async (req, res) => {
       .input('minimum_stock_level', sql.Int, minimum_stock_level)
       .input('reorder_point', sql.Int, reorder_point)
       .input('maximum_stock_level', sql.Int, maximum_stock_level)
+      .input('manufacturer', sql.NVarChar, manufacturer || null)
       .input('status', sql.NVarChar, status)
       .input('updated_at', sql.DateTime2, now)
       .query(`
@@ -6998,6 +6987,7 @@ app.put('/api/item-masters/:id', async (req, res) => {
           minimum_stock_level = @minimum_stock_level,
           reorder_point = @reorder_point,
           maximum_stock_level = @maximum_stock_level,
+          manufacturer = @manufacturer,
           status = @status,
           updated_at = @updated_at
         WHERE id = @id
@@ -7057,10 +7047,7 @@ app.delete('/api/item-masters/:id', async (req, res) => {
 // GET all categories
 app.get('/api/categories', async (req, res) => {
   try {
-    console.log('📋 /api/categories endpoint called');
-    
     if (!pool) {
-      console.log('⚠️ No pool connection, returning mock categories');
       // Return mock data when SQL Server is not connected
       const mockCategories = [
         { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active', item_type: 'Dispensable', item_count: 0 },
@@ -7069,7 +7056,6 @@ app.get('/api/categories', async (req, res) => {
         { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active', item_type: 'Indispensable', item_count: 0 },
         { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active', item_type: 'Dispensable', item_count: 0 }
       ];
-      console.log('✅ Returning mock categories:', mockCategories.length);
       return res.json(mockCategories);
     }
 
@@ -7090,8 +7076,7 @@ app.get('/api/categories', async (req, res) => {
       GROUP BY c.id, c.category_name, c.description, c.status, c.item_type, c.created_at, c.updated_at
       ORDER BY c.category_name
     `);
-    console.log('✅ Categories fetched from database:', result.recordset.length);
-    console.log('📋 First category:', result.recordset[0]);
+    console.log('✅ Categories fetched:', result.recordset.length);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching categories:', error);
@@ -7459,10 +7444,7 @@ app.delete('/api/sub-categories/:id', async (req, res) => {
 // GET all vendors
 app.get('/api/vendors', async (req, res) => {
   try {
-    console.log('📋 /api/vendors endpoint called');
-    
     if (!pool) {
-      console.log('⚠️ No pool connection, returning mock vendors');
       // Return mock data when SQL Server is not connected
       const mockVendors = [
         { id: '1', vendor_code: 'VEN001', vendor_name: 'ABC Suppliers Ltd', contact_person: 'John Smith', email: 'john@abc.com', phone: '021-1234567', status: 'Active' },
@@ -7477,8 +7459,8 @@ app.get('/api/vendors', async (req, res) => {
         id,
         vendor_code,
         vendor_name,
-        ISNULL(contact_person, 'Not Provided') as contact_person,
-        ISNULL(email, 'Not Provided') as email,
+        contact_person,
+        email,
         phone,
         address,
         city,
@@ -7491,11 +7473,8 @@ app.get('/api/vendors', async (req, res) => {
       WHERE status != 'Deleted'
       ORDER BY vendor_name
     `);
-    console.log(`✅ Found ${result.recordset.length} vendors from database`);
-    console.log('📋 First vendor sample:', result.recordset[0]);
     res.json({ vendors: result.recordset });
   } catch (error) {
-    console.error('❌ Error in /api/vendors:', error.message);
     // Fallback to mock data on any error
     const mockVendors = [
       { id: '1', vendor_code: 'VEN001', vendor_name: 'ABC Suppliers Ltd', contact_person: 'John Smith', email: 'john@abc.com', phone: '021-1234567', status: 'Active' },
@@ -7685,282 +7664,6 @@ app.delete('/api/vendors/:id', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete vendor', details: error.message });
-  }
-});
-
-// ==================== ANNUAL TENDERS ENDPOINTS ====================
-
-// GET all tenders
-app.get('/api/annual-tenders', async (req, res) => {
-  try {
-    console.log('📋 /api/annual-tenders GET called');
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const result = await pool.request().query(`
-      SELECT 
-        at.id,
-        at.code,
-        at.name,
-        at.date,
-        COUNT(DISTINCT tv.vendor_id) as vendor_count,
-        COUNT(DISTINCT ti.item_id) as item_count
-      FROM AnnualTenders at
-      LEFT JOIN TenderVendors tv ON at.id = tv.tender_id
-      LEFT JOIN TenderItems ti ON at.id = ti.tender_id
-      GROUP BY at.id, at.code, at.name, at.date
-      ORDER BY at.date DESC
-    `);
-
-    console.log('✅ Fetched tenders:', result.recordset.length);
-    res.json(result.recordset);
-  } catch (error) {
-    console.error('❌ Error in /api/annual-tenders GET:', error.message);
-    res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
-  }
-});
-
-// GET single tender with details
-app.get('/api/annual-tenders/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('📋 /api/annual-tenders/:id GET called for:', id);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    // Get tender info
-    const tenderResult = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT id, code, name, date FROM AnnualTenders WHERE id = @id
-      `);
-
-    if (tenderResult.recordset.length === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-
-    const tender = tenderResult.recordset[0];
-
-    // Get vendors
-    const vendorsResult = await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT v.* FROM vendors v
-        INNER JOIN TenderVendors tv ON v.id = tv.vendor_id
-        WHERE tv.tender_id = @tender_id
-      `);
-
-    // Get items with category info
-    const itemsResult = await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, id)
-      .query(`
-        SELECT 
-          im.id,
-          im.nomenclature as name,
-          im.category_id as category,
-          im.unit,
-          ti.quantity
-        FROM item_masters im
-        INNER JOIN TenderItems ti ON im.id = ti.item_id
-        WHERE ti.tender_id = @tender_id
-      `);
-
-    console.log('✅ Fetched tender details:', tender.code);
-    console.log('📦 Vendors found:', vendorsResult.recordset.length);
-    console.log('📦 Items found:', itemsResult.recordset.length);
-    console.log('📦 Items data:', itemsResult.recordset);
-    
-    res.json({
-      ...tender,
-      totalVendors: vendorsResult.recordset.length,
-      totalItems: itemsResult.recordset.length,
-      vendors: vendorsResult.recordset,
-      items: itemsResult.recordset
-    });
-  } catch (error) {
-    console.error('❌ Error in /api/annual-tenders/:id GET:', error.message);
-    res.status(500).json({ error: 'Failed to fetch tender', details: error.message });
-  }
-});
-
-// CREATE new tender
-app.post('/api/annual-tenders', async (req, res) => {
-  try {
-    const { id, code, name, date, vendors, items } = req.body;
-    console.log('📝 Creating new tender:', code);
-    console.log('📦 Received data:', { id, code, name, date, vendors: vendors?.length, items: items?.length });
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const now = new Date();
-
-    // Insert tender
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('code', sql.NVarChar(50), code)
-      .input('name', sql.NVarChar(255), name)
-      .input('date', sql.DateTime2, new Date(date))
-      .input('created_at', sql.DateTime2, now)
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        INSERT INTO AnnualTenders (id, code, name, date, created_at, updated_at)
-        VALUES (@id, @code, @name, @date, @created_at, @updated_at)
-      `);
-
-    // Insert vendors
-    if (vendors && vendors.length > 0) {
-      console.log('📋 Inserting', vendors.length, 'vendors');
-      for (const vendor of vendors) {
-        await pool.request()
-          .input('tender_id', sql.UniqueIdentifier, id)
-          .input('vendor_id', sql.UniqueIdentifier, vendor.id)
-          .input('created_at', sql.DateTime2, now)
-          .query(`
-            INSERT INTO TenderVendors (tender_id, vendor_id, created_at)
-            VALUES (@tender_id, @vendor_id, @created_at)
-          `);
-      }
-      console.log('✅ Vendors inserted');
-    }
-
-    // Insert items
-    if (items && items.length > 0) {
-      console.log('📦 Inserting', items.length, 'items');
-      for (const item of items) {
-        console.log('  - Item:', item.id, 'Quantity:', item.quantity);
-        await pool.request()
-          .input('tender_id', sql.UniqueIdentifier, id)
-          .input('item_id', sql.UniqueIdentifier, item.id)
-          .input('quantity', sql.Int, item.quantity)
-          .input('created_at', sql.DateTime2, now)
-          .query(`
-            INSERT INTO TenderItems (tender_id, item_id, quantity, created_at)
-            VALUES (@tender_id, @item_id, @quantity, @created_at)
-          `);
-      }
-      console.log('✅ Items inserted');
-    }
-
-    console.log('✅ Tender created:', code);
-    res.json({ 
-      success: true, 
-      message: 'Tender created successfully',
-      id: id
-    });
-  } catch (error) {
-    console.error('❌ Error in /api/annual-tenders POST:', error.message);
-    res.status(500).json({ error: 'Failed to create tender', details: error.message });
-  }
-});
-
-// UPDATE tender
-app.put('/api/annual-tenders/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { code, name, date, vendors, items } = req.body;
-    console.log('📝 Updating tender:', id);
-    console.log('📦 Received data:', { code, name, date, vendors: vendors?.length, items: items?.length });
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    const now = new Date();
-
-    // Update tender
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('code', sql.NVarChar(50), code)
-      .input('name', sql.NVarChar(255), name)
-      .input('date', sql.DateTime2, new Date(date))
-      .input('updated_at', sql.DateTime2, now)
-      .query(`
-        UPDATE AnnualTenders SET code = @code, name = @name, date = @date, updated_at = @updated_at
-        WHERE id = @id
-      `);
-
-    // Delete old vendors and items
-    await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM TenderVendors WHERE tender_id = @tender_id');
-    
-    await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM TenderItems WHERE tender_id = @tender_id');
-
-    // Insert new vendors
-    if (vendors && vendors.length > 0) {
-      for (const vendor of vendors) {
-        await pool.request()
-          .input('tender_id', sql.UniqueIdentifier, id)
-          .input('vendor_id', sql.UniqueIdentifier, vendor.id)
-          .input('created_at', sql.DateTime2, now)
-          .query(`
-            INSERT INTO TenderVendors (tender_id, vendor_id, created_at)
-            VALUES (@tender_id, @vendor_id, @created_at)
-          `);
-      }
-    }
-
-    // Insert new items
-    if (items && items.length > 0) {
-      for (const item of items) {
-        await pool.request()
-          .input('tender_id', sql.UniqueIdentifier, id)
-          .input('item_id', sql.UniqueIdentifier, item.id)
-          .input('quantity', sql.Int, item.quantity)
-          .input('created_at', sql.DateTime2, now)
-          .query(`
-            INSERT INTO TenderItems (tender_id, item_id, quantity, created_at)
-            VALUES (@tender_id, @item_id, @quantity, @created_at)
-          `);
-      }
-    }
-
-    console.log('✅ Tender updated:', id);
-    res.json({ 
-      success: true, 
-      message: 'Tender updated successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error in /api/annual-tenders PUT:', error.message);
-    res.status(500).json({ error: 'Failed to update tender', details: error.message });
-  }
-});
-
-// DELETE tender
-app.delete('/api/annual-tenders/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('🗑️ Deleting tender:', id);
-    
-    if (!pool) {
-      return res.status(500).json({ error: 'Database connection not available' });
-    }
-
-    // Cascade delete handled by foreign keys, just delete the tender
-    const result = await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM AnnualTenders WHERE id = @id');
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-
-    console.log('✅ Tender deleted:', id);
-    res.json({ 
-      success: true, 
-      message: 'Tender deleted successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error in /api/annual-tenders DELETE:', error.message);
-    res.status(500).json({ error: 'Failed to delete tender', details: error.message });
   }
 });
 
@@ -10055,9 +9758,6 @@ async function startServer() {
   try {
     await initializeDatabase();
     console.log('Database connection initialized');
-    
-    // Serve HTML files from root directory (for session setter page) - MUST be after all API routes
-    app.use(express.static(__dirname));
     
     app.listen(PORT, () => {
       console.log(`✅ Server running on http://localhost:${PORT}`);
@@ -18049,17 +17749,17 @@ app.get('/api/annual-tenders/:id', async (req, res) => {
         SELECT DISTINCT
           atv.id,
           atv.vendor_id,
-          atv.group_id,
-          ig.group_name,
+          atv.category_id,
+          c.category_name,
           v.vendor_name,
           v.vendor_code,
           v.contact_person,
           atv.status
         FROM annual_tender_vendors atv
-        INNER JOIN item_groups ig ON atv.group_id = ig.id
+        INNER JOIN categories c ON atv.category_id = c.id
         INNER JOIN vendors v ON atv.vendor_id = v.id
         WHERE atv.annual_tender_id = @tenderId AND atv.status = 'Active'
-        ORDER BY ig.group_name, v.vendor_name
+        ORDER BY c.category_name, v.vendor_name
       `);
 
     res.json({
@@ -18277,43 +17977,96 @@ app.delete('/api/item-groups/:groupId', async (req, res) => {
   }
 });
 
-// 9. ASSIGN VENDORS TO GROUPS IN TENDER
+// 9. ASSIGN VENDORS TO CATEGORIES IN TENDER
 app.post('/api/annual-tenders/:tenderId/assign-vendors', async (req, res) => {
   try {
     const { tenderId } = req.params;
-    const { assignments, created_by } = req.body;
+    const { categoryId, vendorIds, created_by } = req.body;
 
-    if (!Array.isArray(assignments)) {
-      return res.status(400).json({ error: 'Assignments must be an array' });
+    console.log('📥 Assign vendors request received:');
+    console.log('  tenderId:', tenderId);
+    console.log('  categoryId:', categoryId);
+    console.log('  vendorIds:', vendorIds);
+
+    // Validation
+    if (!tenderId || !categoryId || !vendorIds || !Array.isArray(vendorIds)) {
+      console.log('❌ Validation failed - missing required fields');
+      return res.status(400).json({ error: 'Missing required fields: tenderId, categoryId, vendorIds' });
     }
 
-    // Delete existing assignments
+    if (vendorIds.length === 0) {
+      return res.status(400).json({ error: 'Must select at least one vendor' });
+    }
+
+    console.log('✅ Validation passed');
+
+    // Delete existing vendor assignments for this tender-category combination
+    console.log('🗑️ Deleting existing assignments for tender:', tenderId, 'category:', categoryId);
     await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
-      .query(`DELETE FROM annual_tender_vendors WHERE annual_tender_id = @tenderId`);
+      .input('categoryId', sql.UniqueIdentifier, categoryId)
+      .query(`
+        DELETE FROM annual_tender_vendors 
+        WHERE annual_tender_id = @tenderId AND category_id = @categoryId
+      `);
 
-    // Add new assignments
-    for (const assignment of assignments) {
-      const { groupId, vendorIds } = assignment;
-      for (const vendorId of vendorIds) {
-        const id = uuidv4();
-        await pool.request()
-          .input('id', sql.UniqueIdentifier, id)
-          .input('tenderId', sql.UniqueIdentifier, tenderId)
-          .input('groupId', sql.UniqueIdentifier, groupId)
-          .input('vendorId', sql.UniqueIdentifier, vendorId)
-          .input('created_by', sql.NVarChar(450), created_by)
-          .query(`
-            INSERT INTO annual_tender_vendors (id, annual_tender_id, group_id, vendor_id, assignment_date, status, created_by, created_at)
-            VALUES (@id, @tenderId, @groupId, @vendorId, GETDATE(), 'Active', @created_by, GETDATE())
-          `);
-      }
+    console.log('✅ Deleted existing assignments');
+
+    // Insert new vendor assignments
+    console.log('📝 Inserting', vendorIds.length, 'vendor assignments...');
+    for (const vendorId of vendorIds) {
+      const assignmentId = uuidv4();
+      
+      console.log('  → Assigning vendor:', vendorId);
+      
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, assignmentId)
+        .input('tenderId', sql.UniqueIdentifier, tenderId)
+        .input('categoryId', sql.UniqueIdentifier, categoryId)
+        .input('vendorId', sql.UniqueIdentifier, vendorId)
+        .input('createdBy', sql.NVarChar(450), created_by || 'System')
+        .query(`
+          INSERT INTO annual_tender_vendors (
+            id, 
+            annual_tender_id, 
+            category_id, 
+            vendor_id, 
+            assignment_date, 
+            status, 
+            created_by, 
+            created_at
+          )
+          VALUES (
+            @id,
+            @tenderId,
+            @categoryId,
+            @vendorId,
+            GETDATE(),
+            'Active',
+            @createdBy,
+            GETDATE()
+          )
+        `);
     }
 
-    res.json({ success: true, message: 'Vendors assigned successfully' });
+    console.log('✅ All vendors assigned successfully');
+    res.json({ 
+      success: true, 
+      message: `Successfully assigned ${vendorIds.length} vendor(s) to category`,
+      data: {
+        tenderId: tenderId,
+        categoryId: categoryId,
+        vendorsAssigned: vendorIds.length
+      }
+    });
+
   } catch (error) {
-    console.error('❌ Error assigning vendors:', error);
-    res.status(500).json({ error: 'Failed to assign vendors', details: error.message });
+    console.error('❌ Error assigning vendors:', error.message);
+    console.error('Error details:', error);
+    res.status(500).json({ 
+      error: 'Failed to assign vendors', 
+      details: error.message 
+    });
   }
 });
 
@@ -18324,7 +18077,7 @@ app.get('/api/annual-tenders/:tenderId/groups/:groupId/vendors', async (req, res
 
     const result = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
-      .input('groupId', sql.UniqueIdentifier, groupId)
+      .input('categoryId', sql.UniqueIdentifier, groupId)
       .query(`
         SELECT 
           atv.id,
@@ -18338,7 +18091,7 @@ app.get('/api/annual-tenders/:tenderId/groups/:groupId/vendors', async (req, res
         FROM annual_tender_vendors atv
         INNER JOIN vendors v ON atv.vendor_id = v.id
         WHERE atv.annual_tender_id = @tenderId 
-          AND atv.group_id = @groupId
+          AND atv.category_id = @categoryId
           AND atv.status = 'Active'
         ORDER BY v.vendor_name
       `);
@@ -18347,6 +18100,40 @@ app.get('/api/annual-tenders/:tenderId/groups/:groupId/vendors', async (req, res
   } catch (error) {
     console.error('❌ Error fetching group vendors:', error);
     res.status(500).json({ error: 'Failed to fetch group vendors' });
+  }
+});
+
+// 10. GET ASSIGNED VENDORS FOR A TENDER-CATEGORY
+app.get('/api/annual-tenders/:tenderId/category/:categoryId/assigned-vendors', async (req, res) => {
+  try {
+    const { tenderId, categoryId } = req.params;
+
+    const result = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('categoryId', sql.UniqueIdentifier, categoryId)
+      .query(`
+        SELECT 
+          atv.id,
+          atv.vendor_id,
+          v.vendor_name,
+          v.vendor_code,
+          v.contact_person,
+          v.email,
+          v.phone,
+          atv.status,
+          atv.created_at,
+          atv.assignment_date
+        FROM annual_tender_vendors atv
+        INNER JOIN vendors v ON atv.vendor_id = v.id
+        WHERE atv.annual_tender_id = @tenderId 
+          AND atv.category_id = @categoryId
+        ORDER BY atv.created_at DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching assigned vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch assigned vendors' });
   }
 });
 
@@ -18473,6 +18260,98 @@ app.get('/api/annual-tenders/:tenderId/vendor-proposals', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching proposals:', error);
     res.status(500).json({ error: 'Failed to fetch proposals' });
+  }
+});
+
+// 11. GET ALL TENDERS WITH VENDOR ASSIGNMENTS - DASHBOARD
+app.get('/api/tenders-vendor-assignments', async (req, res) => {
+  try {
+    const result = await pool.request()
+      .query(`
+        SELECT 
+          at.id,
+          at.tender_number,
+          at.title,
+          at.status,
+          atv.id as assignment_id,
+          atv.vendor_id,
+          atv.category_id,
+          c.category_name,
+          atv.status as assignment_status,
+          atv.assignment_date,
+          atv.created_at,
+          v.vendor_name,
+          v.vendor_code,
+          v.contact_person,
+          v.email,
+          v.phone
+        FROM annual_tenders at
+        LEFT JOIN annual_tender_vendors atv ON at.id = atv.annual_tender_id
+        LEFT JOIN vendors v ON atv.vendor_id = v.id
+        LEFT JOIN categories c ON atv.category_id = c.id
+        ORDER BY at.created_at DESC, v.vendor_name
+      `);
+
+    // Group data by tender
+    const tendersMap = new Map();
+    
+    result.recordset.forEach(row => {
+      if (!tendersMap.has(row.id)) {
+        tendersMap.set(row.id, {
+          id: row.id,
+          tender_number: row.tender_number,
+          title: row.title,
+          status: row.status,
+          vendors: []
+        });
+      }
+
+      if (row.assignment_id) {
+        const tender = tendersMap.get(row.id);
+        tender.vendors.push({
+          id: row.assignment_id,
+          vendor_id: row.vendor_id,
+          category_id: row.category_id,
+          category_name: row.category_name,
+          status: row.assignment_status,
+          assignment_date: row.assignment_date,
+          created_at: row.created_at,
+          vendor: {
+            id: row.vendor_id,
+            vendor_name: row.vendor_name,
+            vendor_code: row.vendor_code,
+            contact_person: row.contact_person,
+            email: row.email,
+            phone: row.phone
+          }
+        });
+      }
+    });
+
+    const tenders = Array.from(tendersMap.values());
+    res.json(tenders);
+  } catch (error) {
+    console.error('❌ Error fetching tenders with vendor assignments:', error);
+    res.status(500).json({ error: 'Failed to fetch tenders with vendor assignments' });
+  }
+});
+
+// 12. DELETE VENDOR ASSIGNMENT
+app.delete('/api/vendor-assignments/:assignmentId', async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, assignmentId)
+      .query(`
+        DELETE FROM annual_tender_vendors 
+        WHERE id = @id
+      `);
+
+    res.json({ success: true, message: 'Assignment deleted' });
+  } catch (error) {
+    console.error('❌ Error deleting vendor assignment:', error);
+    res.status(500).json({ error: 'Failed to delete assignment' });
   }
 });
 

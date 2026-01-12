@@ -23,6 +23,7 @@ interface ItemWithCategory {
   id: string;
   nomenclature: string;
   item_code: string;
+  category_id: string;
   category_name: string;
 }
 
@@ -38,8 +39,8 @@ export const VendorAssignmentManager: React.FC = () => {
   const [selectedTender, setSelectedTender] = useState<AnnualTender | null>(null);
   
   // Categories - extracted from items view
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null);
   
   // Items from view
   const [allItems, setAllItems] = useState<ItemWithCategory[]>([]);
@@ -49,10 +50,14 @@ export const VendorAssignmentManager: React.FC = () => {
   // Vendors
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedVendors, setSelectedVendors] = useState<Vendor[]>([]);
+  
+  // Assigned vendors
+  const [assignedVendors, setAssignedVendors] = useState<Array<{ id: string; vendor_name: string; status: string; created_at: string }>>([]);
 
   // Dialog and loading states
   const [showAssignVendorsDialog, setShowAssignVendorsDialog] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Load initial data from view-backed endpoints
   useEffect(() => {
@@ -64,6 +69,8 @@ export const VendorAssignmentManager: React.FC = () => {
           loadVendors(),
           loadItems()
         ]);
+      } catch (error) {
+        console.error('Error loading initial data:', error);
       } finally {
         setLoading(false);
       }
@@ -90,10 +97,12 @@ export const VendorAssignmentManager: React.FC = () => {
     try {
       const response = await fetch('http://localhost:3001/api/vendors');
       const data = await response.json();
-      const vendorsArray = Array.isArray(data) ? data : (data.data || data.vendors || []);
+      // Handle both array and { vendors: [...] } response formats
+      const vendorsArray = Array.isArray(data) ? data : (data.vendors || data.data || []);
       setVendors(vendorsArray);
     } catch (error) {
       console.error('Error loading vendors:', error);
+      setVendors([]);
     }
   };
 
@@ -104,26 +113,61 @@ export const VendorAssignmentManager: React.FC = () => {
       const data = await response.json();
       const itemsArray = Array.isArray(data) ? data : (data.data || data.items || []);
       
-      // Store all items
-      setAllItems(itemsArray);
+      // Limit items to prevent memory issues (up to 10000 items max)
+      const limitedItems = itemsArray.slice(0, 10000);
       
-      // Extract unique categories from items
-      const uniqueCategories = Array.from(
-        new Set(itemsArray.map((item: ItemWithCategory) => item.category_name))
-      ).filter((name): name is string => Boolean(name)).sort();
+      // Store all items
+      setAllItems(limitedItems);
+      
+      // Extract unique categories with their IDs
+      const categoryMap = new Map<string, string>();
+      limitedItems.forEach((item: ItemWithCategory) => {
+        if (item.category_name && item.category_id) {
+          categoryMap.set(item.category_name, item.category_id);
+        }
+      });
+      
+      const uniqueCategories = Array.from(categoryMap.entries())
+        .map(([name, id]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
       
       setCategories(uniqueCategories);
     } catch (error) {
       console.error('Error loading items:', error);
+      setAllItems([]);
+      setCategories([]);
+    }
+  };
+
+  // Load assigned vendors for a tender-category combination
+  const loadAssignedVendors = async (tenderId: string, categoryId: string) => {
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/annual-tenders/${tenderId}/category/${categoryId}/assigned-vendors`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setAssignedVendors(data);
+      } else {
+        setAssignedVendors([]);
+      }
+    } catch (error) {
+      console.error('Error loading assigned vendors:', error);
+      setAssignedVendors([]);
     }
   };
 
   // Filter items when category is selected
-  const handleSelectCategory = (categoryName: string) => {
-    setSelectedCategory(categoryName);
-    const filtered = allItems.filter(item => item.category_name === categoryName);
+  const handleSelectCategory = (category: { id: string; name: string }) => {
+    setSelectedCategory(category);
+    const filtered = allItems.filter(item => item.category_id === category.id);
     setCategoryItems(filtered);
     setSelectedItems([]);  // Reset item selection when category changes
+    
+    // Load assigned vendors for this tender-category combo
+    if (selectedTender) {
+      loadAssignedVendors(selectedTender.id, category.id);
+    }
   };
 
   // Assign selected vendors to selected items
@@ -133,37 +177,59 @@ export const VendorAssignmentManager: React.FC = () => {
       return;
     }
 
+    setIsAssigning(true);
     try {
-      const itemIds = selectedItems.map(item => item.id);
       const vendorIds = selectedVendors.map(vendor => vendor.id);
+      
+      const payload = {
+        categoryId: selectedCategory.id,
+        vendorIds: vendorIds
+      };
+      
+      console.log('📤 Sending vendor assignment request:', {
+        tenderId: selectedTender.id,
+        categoryId: selectedCategory.id,
+        vendorIds: vendorIds,
+        vendorCount: vendorIds.length,
+        payload
+      });
 
       const response = await fetch(
         `http://localhost:3001/api/annual-tenders/${selectedTender.id}/assign-vendors`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            assignments: [
-              {
-                vendorIds: vendorIds,
-                itemIds: itemIds
-              }
-            ]
-          })
+          body: JSON.stringify(payload)
         }
       );
 
+      const responseData = await response.json();
+      console.log('📥 Response from server:', { 
+        status: response.status, 
+        statusText: response.statusText,
+        data: responseData 
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to assign vendors');
+        const errorMsg = responseData.error || responseData.message || 'Failed to assign vendors';
+        throw new Error(errorMsg);
       }
 
       alert('✅ Vendors assigned successfully!');
+      
+      // Reload assigned vendors for this tender-category combo
+      if (selectedTender && selectedCategory) {
+        await loadAssignedVendors(selectedTender.id, selectedCategory.id);
+      }
+      
       setShowAssignVendorsDialog(false);
       setSelectedItems([]);
       setSelectedVendors([]);
     } catch (error) {
-      console.error('Error assigning vendors:', error);
-      alert('Failed to assign vendors');
+      console.error('❌ Error assigning vendors:', error);
+      alert('Failed to assign vendors: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -211,17 +277,17 @@ export const VendorAssignmentManager: React.FC = () => {
                     <p className="text-gray-500">No categories found. Please create items first.</p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {categories.map(categoryName => (
+                      {categories.map(category => (
                         <button
-                          key={categoryName}
-                          onClick={() => handleSelectCategory(categoryName)}
+                          key={category.id}
+                          onClick={() => handleSelectCategory(category)}
                           className={`p-4 rounded-lg border-2 text-left transition-all ${
-                            selectedCategory === categoryName
+                            selectedCategory?.id === category.id
                               ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                         >
-                          <p className="font-semibold">{categoryName}</p>
+                          <p className="font-semibold">{category.name}</p>
                         </button>
                       ))}
                     </div>
@@ -234,7 +300,7 @@ export const VendorAssignmentManager: React.FC = () => {
                   {/* Step 3: Select Items */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">Step 3: Select Items from {selectedCategory}</CardTitle>
+                      <CardTitle className="text-lg">Step 3: Select Items from {selectedCategory?.name}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -347,16 +413,26 @@ export const VendorAssignmentManager: React.FC = () => {
                                   <Button
                                     variant="outline"
                                     onClick={() => setShowAssignVendorsDialog(false)}
+                                    disabled={isAssigning}
                                   >
                                     Cancel
                                   </Button>
                                   <Button
                                     onClick={handleAssignVendors}
-                                    disabled={selectedVendors.length === 0}
+                                    disabled={selectedVendors.length === 0 || isAssigning}
                                     className="gap-2"
                                   >
-                                    <Check className="w-4 h-4" />
-                                    Confirm Assignment
+                                    {isAssigning ? (
+                                      <>
+                                        <span className="animate-spin">⏳</span>
+                                        Saving...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check className="w-4 h-4" />
+                                        Save & Assign Vendors
+                                      </>
+                                    )}
                                   </Button>
                                 </div>
                               </DialogContent>
@@ -369,6 +445,33 @@ export const VendorAssignmentManager: React.FC = () => {
                           </p>
                         </CardContent>
                       </Card>
+
+                      {/* Display Assigned Vendors */}
+                      {assignedVendors.length > 0 && (
+                        <Card className="border-green-200 bg-green-50">
+                          <CardHeader>
+                            <CardTitle className="text-lg text-green-800">✓ Assigned Vendors</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3">
+                              {assignedVendors.map(vendor => (
+                                <div key={vendor.id} className="p-3 bg-white rounded border border-green-200">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <p className="font-medium">{vendor.vendor_name}</p>
+                                      <p className="text-xs text-gray-600">ID: {vendor.id.substring(0, 8)}...</p>
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Assigned: {new Date(vendor.created_at).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                    <Badge variant="default" className="bg-green-600">{vendor.status}</Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
                     </>
                   )}
                 </>

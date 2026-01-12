@@ -22,6 +22,9 @@ export default defineConfig(({ mode }) => {
     // Optimize for better performance when losing focus
     hmr: {
       overlay: false,
+      protocol: 'ws',
+      host: 'localhost',
+      port: 8081, // Match the actual port being used
     },
     watch: {
       // Reduce file watching overhead

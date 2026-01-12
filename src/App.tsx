@@ -26,6 +26,7 @@ import EditTender from "./pages/EditTender";
 import TenderDetails from "./pages/TenderDetails";
 import TenderFormFresh2 from './components/tenders/TenderFormFresh2';
 import EnhancedTenderDashboard from './components/tenders/EnhancedTenderDashboard';
+import TenderDashboard from './components/tender/Dashboard';
 
 import ItemMaster from "./pages/ItemMaster";
 import VendorInfo from "./pages/VendorInfo";
@@ -100,7 +101,7 @@ import SSOLogin from "./pages/SSOLogin";
 import AnnualTenderManagement from "./pages/AnnualTenderManagement";
 import ItemGroupsManager from "./pages/ItemGroupsManager";
 import CategoryItemsManager from "./pages/CategoryItemsManager";
-import VendorAssignmentManager from "./pages/VendorAssignmentManager";
+import TenderVendorManagement from "./pages/TenderVendorManagement";
 import VendorProposalsGrid from "./pages/VendorProposalsGrid";
 import { useParams } from "react-router-dom";
 
@@ -261,6 +262,7 @@ function App() {
                   <Route path="transaction-manager" element={<TransactionManager />} />
                   <Route path="transaction-manager/:tenderId" element={<TransactionManager />} />
                   <Route path="issuances" element={<StockIssuances />} />
+                  <Route path="tender-management" element={<TenderDashboard />} />
                   <Route path="contract-tender" element={<ContractTender />} />
                   <Route path="create-tender" element={<CreateTender />} />
                   <Route path="tender-details/:id" element={<TenderDetails />} />
@@ -280,10 +282,10 @@ function App() {
                   <Route path="item-master" element={<ItemMaster />} />
                   
                   {/* Annual Tender Management */}
-                  <Route path="annual-tenders" element={<AnnualTenderManagement />} />
+                  <Route path="annual-tenders" element={<TenderDashboard />} />
                   <Route path="item-groups" element={<ItemGroupsManager />} />
                   <Route path="category-items" element={<CategoryItemsManager />} />
-                  <Route path="vendor-assignment" element={<VendorAssignmentManager />} />
+                  <Route path="tender-vendor-management" element={<TenderVendorManagement />} />
                 </Route>
 
                 {/* Stock Acquisition - Protected */}

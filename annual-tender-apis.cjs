@@ -311,33 +311,41 @@ app.get('/api/item-groups/:groupId/items', async (req, res) => {
 app.post('/api/annual-tenders/:tenderId/assign-vendors', async (req, res) => {
   try {
     const { tenderId } = req.params;
-    const { assignments, created_by } = req.body; // assignments = [{groupId, vendorIds: []}]
+    const { categoryId, vendorIds, created_by } = req.body; // NEW FORMAT: categoryId, vendorIds array
 
-    if (!Array.isArray(assignments)) {
-      return res.status(400).json({ error: 'Assignments must be an array' });
+    console.log('📥 Assign vendors request received:');
+    console.log('  tenderId:', tenderId);
+    console.log('  categoryId:', categoryId);
+    console.log('  vendorIds:', vendorIds);
+    console.log('  Full body:', req.body);
+
+    if (!tenderId || !categoryId || !vendorIds || !Array.isArray(vendorIds)) {
+      console.log('❌ Validation failed');
+      return res.status(400).json({ error: 'Missing required fields: tenderId, categoryId, vendorIds' });
     }
 
-    // Delete existing assignments
+    console.log('✅ Validation passed');
+
+    // Delete existing assignments for this tender and category
     await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
-      .query(`DELETE FROM annual_tender_vendors WHERE annual_tender_id = @tenderId`);
+      .input('categoryId', sql.UniqueIdentifier, categoryId)
+      .query(`DELETE FROM annual_tender_vendors 
+              WHERE annual_tender_id = @tenderId AND category_id = @categoryId`);
 
     // Add new assignments
-    for (const assignment of assignments) {
-      const { groupId, vendorIds } = assignment;
-      for (const vendorId of vendorIds) {
-        const id = require('uuid').v4();
-        await pool.request()
-          .input('id', sql.UniqueIdentifier, id)
-          .input('tenderId', sql.UniqueIdentifier, tenderId)
-          .input('groupId', sql.UniqueIdentifier, groupId)
-          .input('vendorId', sql.UniqueIdentifier, vendorId)
-          .input('created_by', sql.NVarChar(450), created_by)
-          .query(`
-            INSERT INTO annual_tender_vendors (id, annual_tender_id, group_id, vendor_id, assignment_date, status, created_by, created_at)
-            VALUES (@id, @tenderId, @groupId, @vendorId, GETDATE(), 'Active', @created_by, GETDATE())
-          `);
-      }
+    for (const vendorId of vendorIds) {
+      const id = require('uuid').v4();
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('tenderId', sql.UniqueIdentifier, tenderId)
+        .input('categoryId', sql.UniqueIdentifier, categoryId)
+        .input('vendorId', sql.UniqueIdentifier, vendorId)
+        .input('created_by', sql.NVarChar(450), created_by || 'System')
+        .query(`
+          INSERT INTO annual_tender_vendors (id, annual_tender_id, category_id, vendor_id, assignment_date, status, created_by, created_at)
+          VALUES (@id, @tenderId, @categoryId, @vendorId, GETDATE(), 'Active', @created_by, GETDATE())
+        `);
     }
 
     res.json({ success: true, message: 'Vendors assigned successfully' });
