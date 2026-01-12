@@ -3,21 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowRight, ArrowLeft } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-
-interface TenderData {
-  code: string;
-  name: string;
-  date: string;
-}
+import { ArrowRight, ArrowLeft, Trash2, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface VendorData {
   id: string;
@@ -27,9 +15,17 @@ interface VendorData {
 }
 
 interface ItemData {
+  id: string;
+  nomenclature: string;
+  category_id: string;
+  unit: string;
+}
+
+interface SelectedItem {
   itemId: string;
-  category: string;
   name: string;
+  category: string;
+  categoryName: string;
   quantity: number;
   unit: string;
 }
@@ -41,197 +37,71 @@ interface TenderWizardProps {
 }
 
 const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editingId }) => {
+  // Current step tracking
   const [step, setStep] = useState(1);
-  
-  // Loaded data from DB
+
+  // Tender details (Step 1)
+  const [tender, setTender] = useState({ code: '', name: '', date: '' });
+
+  // Data loaded from DB
   const [vendors, setVendors] = useState<VendorData[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [itemsByCategory, setItemsByCategory] = useState<{ [key: string]: any[] }>({});
+  const [allItems, setAllItems] = useState<ItemData[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Step 1: Tender Details
-  const [tender, setTender] = useState<TenderData>({
-    code: '',
-    name: '',
-    date: ''
-  });
 
-  // Step 2: Vendors (selected from list)
-  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+  // Step 2: Selected vendors
+  const [selectedVendors, setSelectedVendors] = useState<VendorData[]>([]);
 
-  // Step 3: Items
-  const [items, setItems] = useState<ItemData[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  // Step 3+: Items per vendor
+  const [vendorItems, setVendorItems] = useState<{ [vendorId: string]: SelectedItem[] }>({});
 
-  // Reset wizard state when wizard opens
-  useEffect(() => {
-    console.log('🔄 Wizard opened - resetting state, editingId:', editingId);
-    setStep(1);
-    setTender({ code: '', name: '', date: '' });
-    setSelectedVendorIds([]);
-    setItems([]);
-    setSelectedItemIds([]);
-    setSelectedCategory('');
-    
-    // If editing, fetch the tender data
-    if (editingId) {
-      const fetchTenderData = async () => {
-        try {
-          console.log('📝 Fetching tender data for editing:', editingId);
-          const response = await fetch(`http://localhost:3001/api/annual-tenders/${editingId}`);
-          if (response.ok) {
-            const tenderData = await response.json();
-            console.log('✅ Loaded tender for editing:', tenderData);
-            
-            // Populate form
-            setTender({
-              code: tenderData.code,
-              name: tenderData.name,
-              date: tenderData.date
-            });
-            
-            // Set selected vendors
-            if (tenderData.vendors && tenderData.vendors.length > 0) {
-              setSelectedVendorIds(tenderData.vendors.map((v: any) => v.id));
-            }
-            
-            // Set selected items
-            if (tenderData.items && tenderData.items.length > 0) {
-              setItems(tenderData.items.map((item: any) => ({
-                itemId: item.id,
-                category: item.category,
-                name: item.name,
-                quantity: item.quantity,
-                unit: item.unit
-              })));
-              setSelectedItemIds(tenderData.items.map((item: any) => item.id));
-            }
-          } else {
-            console.error('❌ Failed to fetch tender for editing');
-          }
-        } catch (error) {
-          console.error('❌ Error fetching tender:', error);
-        }
-      };
-      
-      fetchTenderData();
-    }
-    console.log('✅ Wizard state reset complete');
-  }, [editingId]); // Re-run when editingId changes (new wizard opened)
-
-  // Load vendors and categories from DB
+  // Load data from database
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        
+        console.log('🔄 Loading vendors, categories, and items...');
+
         // Fetch vendors
-        const vendorUrl = 'http://localhost:3001/api/vendors';
-        console.log('🔄 Fetching vendors from:', vendorUrl);
-        const vendorsRes = await fetch(vendorUrl);
-        console.log('Vendors response status:', vendorsRes.status);
-        
-        const vendorsText = await vendorsRes.text();
-        
-        if (vendorsRes.ok) {
-          try {
-            const vendorsData = JSON.parse(vendorsText);
-            console.log('📦 Full vendors response:', vendorsData);
-            
-            // Handle both { vendors: [...] } and direct array responses
-            const vendorsList = vendorsData.vendors || vendorsData;
-            console.log('Vendors list:', vendorsList);
-            
-            if (Array.isArray(vendorsList) && vendorsList.length > 0) {
-              // Log first vendor to see structure
-              console.log('First vendor raw data:', vendorsList[0]);
-              
-              const mappedVendors = vendorsList.map((v: any) => {
-                const mapped = {
-                  id: v.id,
-                  name: v.vendor_name || v.name || 'Unknown',
-                  contact: (v.contact_person || v.contact || '').trim() || 'N/A',
-                  email: (v.email || '').trim() || 'N/A'
-                };
-                console.log('Mapped vendor:', mapped);
-                return mapped;
-              });
-              console.log('✅ All mapped vendors:', mappedVendors);
-              setVendors(mappedVendors);
-            } else {
-              console.log('⚠️ No vendors in response');
-              setVendors([]);
-            }
-          } catch (parseError) {
-            console.error('❌ JSON parse error:', parseError);
-          }
-        } else {
-          console.error('❌ Vendors fetch failed:', vendorsRes.status);
-        }
+        const vendorsRes = await fetch('http://localhost:3001/api/vendors');
+        const vendorsData = await vendorsRes.json();
+        const vendorsList = (vendorsData.vendors || vendorsData || []).map((v: any) => ({
+          id: v.id,
+          name: v.vendor_name || v.name || 'Unknown',
+          contact: (v.contact_person || v.contact || '').trim() || 'N/A',
+          email: (v.email || '').trim() || 'N/A'
+        }));
+        setVendors(vendorsList);
+        console.log('✅ Vendors loaded:', vendorsList.length);
 
-        // Fetch categories and items
-        console.log('🔄 Fetching categories...');
+        // Fetch categories
         const catsRes = await fetch('http://localhost:3001/api/categories');
-        if (catsRes.ok) {
-          const catsData = await catsRes.json();
-          console.log('📦 Raw categories data:', catsData);
-          
-          // Map category_name to name if needed
-          const mappedCats = catsData.map((cat: any) => ({
-            id: cat.id.toString(),
-            name: cat.name || cat.category_name,
-            category_name: cat.category_name
-          }));
-          console.log('✅ Mapped categories:', mappedCats);
-          
-          const sortedCats = mappedCats.sort((a: any, b: any) => 
-            (a.name || '').localeCompare(b.name || '')
-          );
-          setCategories(sortedCats);
-          console.log('✅ Categories set:', sortedCats);
-          
-          // Set first category as default
-          if (sortedCats.length > 0) {
-            const defaultCat = sortedCats[0];
-            console.log('Setting default category:', defaultCat);
-            setSelectedCategory(defaultCat.id);
-            
-            // Fetch items for first category immediately
-            console.log(`🔄 Fetching items for category ${defaultCat.id}...`);
-            const itemsRes = await fetch(`http://localhost:3001/api/items-master?category_id=${defaultCat.id}`);
-            console.log('Items response status:', itemsRes.status);
-            if (itemsRes.ok) {
-              const itemsData = await itemsRes.json();
-              console.log(`📦 Items for category ${defaultCat.id}:`, itemsData);
-              const itemsMap: { [key: string]: any[] } = {};
-              itemsMap[defaultCat.id] = itemsData.items || itemsData || [];
-              setItemsByCategory(itemsMap);
-            } else {
-              console.error('❌ Failed to fetch items for default category');
-            }
-          }
+        const catsData = await catsRes.json();
+        const catsList = (Array.isArray(catsData) ? catsData : catsData.categories || []).sort((a: any, b: any) =>
+          (a.name || '').localeCompare(b.name || '')
+        );
+        setCategories(catsList);
+        console.log('✅ Categories loaded:', catsList.length);
 
-          // Fetch items for remaining categories
-          const itemsMap: { [key: string]: any[] } = {};
-          for (const cat of sortedCats.slice(1)) {
-            try {
-              console.log(`🔄 Fetching items for category ${cat.id}...`);
-              const itemsRes = await fetch(`http://localhost:3001/api/items-master?category_id=${cat.id}`);
-              console.log(`Items response for ${cat.id}:`, itemsRes.status);
-              if (itemsRes.ok) {
-                const itemsData = await itemsRes.json();
-                console.log(`📦 Items for category ${cat.id}:`, itemsData);
-                itemsMap[cat.id] = itemsData.items || itemsData || [];
-              }
-            } catch (error) {
-              console.error(`❌ Error fetching items for category ${cat.id}:`, error);
-            }
+        // Fetch all items
+        const allItemsList: ItemData[] = [];
+        for (const cat of catsList) {
+          const itemsRes = await fetch(`http://localhost:3001/api/items-master?category_id=${cat.id}`);
+          if (itemsRes.ok) {
+            const itemsData = await itemsRes.json();
+            const items = itemsData.items || itemsData || [];
+            items.forEach((item: any) => {
+              allItemsList.push({
+                id: item.id,
+                nomenclature: item.nomenclature,
+                category_id: cat.id,
+                unit: item.unit || 'Pieces'
+              });
+            });
           }
-          setItemsByCategory(prev => ({ ...prev, ...itemsMap }));
-        } else {
-          console.error('❌ Categories fetch failed');
         }
+        setAllItems(allItemsList);
+        console.log('✅ All items loaded:', allItemsList.length);
       } catch (error) {
         console.error('❌ Error loading data:', error);
       } finally {
@@ -242,178 +112,228 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
     loadData();
   }, []);
 
-  const handleVendorToggle = (vendorId: string) => {
-    setSelectedVendorIds(prev =>
-      prev.includes(vendorId)
-        ? prev.filter(id => id !== vendorId)
-        : [...prev, vendorId]
-    );
-  };
+  // Handle editing - fetch existing tender data
+  useEffect(() => {
+    if (editingId && editingId !== 'new') {
+      const fetchTender = async () => {
+        try {
+          console.log('📝 Loading tender for editing:', editingId);
+          const res = await fetch(`http://localhost:3001/api/annual-tenders/${editingId}`);
+          if (res.ok) {
+            const data = await res.json();
+            console.log('✅ Tender data loaded:', data);
 
-  const handleItemToggle = (itemId: string, itemName: string, unit: string) => {
-    if (selectedItemIds.includes(itemId)) {
-      setSelectedItemIds(prev => prev.filter(id => id !== itemId));
-      setItems(prev => prev.filter(item => item.itemId !== itemId));
-    } else {
-      setSelectedItemIds(prev => [...prev, itemId]);
-      setItems(prev => [...prev, {
-        itemId,
-        category: selectedCategory,
-        name: itemName,
-        quantity: 1,
-        unit
-      }]);
+            setTender({ code: data.code, name: data.name, date: data.date });
+
+            // Map vendors
+            if (data.vendors) {
+              setSelectedVendors(data.vendors.map((v: any) => ({
+                id: v.id,
+                name: v.vendor_name || v.name,
+                contact: v.contact_person || v.contact,
+                email: v.email
+              })));
+            }
+
+            // Map items by vendor
+            if (data.items) {
+              const itemsByVendor: { [vendorId: string]: SelectedItem[] } = {};
+              data.items.forEach((item: any) => {
+                const vendorId = item.vendor_id;
+                if (!itemsByVendor[vendorId]) itemsByVendor[vendorId] = [];
+                itemsByVendor[vendorId].push({
+                  itemId: item.id,
+                  name: item.name,
+                  category: item.category,
+                  categoryName: categories.find(c => c.id === item.category)?.name || item.category,
+                  quantity: item.quantity,
+                  unit: item.unit
+                });
+              });
+              setVendorItems(itemsByVendor);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error loading tender:', error);
+        }
+      };
+
+      fetchTender();
     }
+  }, [editingId, categories]);
+
+  const handleVendorToggle = (vendor: VendorData) => {
+    setSelectedVendors(prev => {
+      const exists = prev.find(v => v.id === vendor.id);
+      if (exists) {
+        const newVendors = prev.filter(v => v.id !== vendor.id);
+        const newVendorItems = { ...vendorItems };
+        delete newVendorItems[vendor.id];
+        setVendorItems(newVendorItems);
+        return newVendors;
+      } else {
+        setVendorItems(prev => ({ ...prev, [vendor.id]: [] }));
+        return [...prev, vendor];
+      }
+    });
   };
 
-  const updateItemQuantity = (itemId: string, quantity: number) => {
-    setItems(prev => 
-      prev.map(item => 
+  const toggleItemForVendor = (vendorId: string, item: ItemData) => {
+    setVendorItems(prev => {
+      const vendorItemList = prev[vendorId] || [];
+      const exists = vendorItemList.find(i => i.itemId === item.id);
+
+      if (exists) {
+        return { ...prev, [vendorId]: vendorItemList.filter(i => i.itemId !== item.id) };
+      } else {
+        const catName = categories.find(c => c.id === item.category_id)?.name || item.category_id;
+        const newItem: SelectedItem = {
+          itemId: item.id,
+          name: item.nomenclature,
+          category: item.category_id,
+          categoryName: catName,
+          quantity: 1,
+          unit: item.unit
+        };
+        return { ...prev, [vendorId]: [...vendorItemList, newItem] };
+      }
+    });
+  };
+
+  const updateQuantity = (vendorId: string, itemId: string, quantity: number) => {
+    setVendorItems(prev => ({
+      ...prev,
+      [vendorId]: prev[vendorId].map(item =>
         item.itemId === itemId ? { ...item, quantity } : item
       )
-    );
+    }));
   };
 
-  const getSelectedItemsCount = () => items.length;
-
-  const handleNext = () => {
-    if (step < 3) {
-      setStep(step + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
+  const removeItem = (vendorId: string, itemId: string) => {
+    setVendorItems(prev => ({
+      ...prev,
+      [vendorId]: prev[vendorId].filter(item => item.itemId !== itemId)
+    }));
   };
 
   const handleSubmit = async () => {
-    // Validate form
+    // Validate
     if (!tender.code || !tender.name || !tender.date) {
-      alert('Please fill in all tender details');
+      alert('Please fill all tender details');
       return;
     }
-    
-    if (selectedVendorIds.length === 0) {
+    if (selectedVendors.length === 0) {
       alert('Please select at least one vendor');
       return;
     }
-    
-    if (selectedItemIds.length === 0) {
-      alert('Please select at least one item');
-      return;
+    for (const vendor of selectedVendors) {
+      if (!vendorItems[vendor.id]?.length) {
+        alert(`Please assign items to ${vendor.name}`);
+        return;
+      }
     }
 
-    // Map items with correct structure
-    const mappedItems = items
-      .filter((item) => selectedItemIds.includes(item.itemId))
-      .map((item) => ({
+    // Build submission
+    const items = Object.entries(vendorItems).flatMap(([vendorId, vendorItemList]) =>
+      vendorItemList.map(item => ({
         id: item.itemId,
         quantity: item.quantity,
-      }));
+        vendor_id: vendorId
+      }))
+    );
 
     const formData = {
       code: tender.code,
       name: tender.name,
       date: tender.date,
-      vendors: selectedVendorIds,
-      items: mappedItems,
+      vendors: selectedVendors.map(v => v.id),
+      items
     };
 
-    console.log('📦 Form data:', formData);
+    console.log('📦 Submitting:', formData);
 
     try {
-      let url = 'http://localhost:3001/api/annual-tenders';
-      let method = 'POST';
-      
-      // If editing, use PUT method
-      if (editingId && editingId !== 'new') {
-        url = `http://localhost:3001/api/annual-tenders/${editingId}`;
-        method = 'PUT';
-        console.log('✏️ Updating existing tender');
-      } else {
-        console.log('📝 Creating new tender');
-      }
+      const url = editingId && editingId !== 'new'
+        ? `http://localhost:3001/api/annual-tenders/${editingId}`
+        : 'http://localhost:3001/api/annual-tenders';
 
       const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        method: editingId && editingId !== 'new' ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
 
       const result = await response.json();
-      console.log('✅ Tender submitted successfully:', result);
-      
-      // Pass both form data and API response to parent
+      console.log('✅ Tender saved:', result);
+
       onComplete({
         ...result,
-        tender: {
-          code: tender.code,
-          name: tender.name,
-          date: tender.date
-        },
-        vendors: selectedVendorIds,
-        items: mappedItems
+        tender,
+        vendors: selectedVendors,
+        items
       });
     } catch (error) {
-      console.error('❌ Error submitting tender:', error);
-      alert(`Failed to submit tender: ${error}`);
+      console.error('❌ Error:', error);
+      alert(`Error: ${error}`);
     }
   };
 
-  const getSelectedVendorsCount = () => selectedVendorIds.length;
+  const totalSteps = 2 + selectedVendors.length;
+  const currentVendorIdx = step - 3;
+  const currentVendor = currentVendorIdx >= 0 ? selectedVendors[currentVendorIdx] : null;
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {editingId ? 'Edit Annual Tender' : 'Create New Annual Tender'} - Step {step} of 3
+            {editingId ? 'Edit' : 'Create'} Annual Tender - Step {step} of {totalSteps}
           </DialogTitle>
         </DialogHeader>
 
         {/* Step 1: Tender Details */}
         {step === 1 && (
           <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="code">Tender Code *</Label>
+            <div>
+              <Label>Tender Code *</Label>
               <Input
-                id="code"
                 placeholder="e.g., TEND-001"
                 value={tender.code}
                 onChange={(e) => setTender({ ...tender, code: e.target.value })}
+                className="mt-1"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Tender Name *</Label>
+            <div>
+              <Label>Tender Name *</Label>
               <Input
-                id="name"
                 placeholder="e.g., Annual Medical Supplies"
                 value={tender.name}
                 onChange={(e) => setTender({ ...tender, name: e.target.value })}
+                className="mt-1"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="date">Tender Date *</Label>
+            <div>
+              <Label>Tender Date *</Label>
               <Input
-                id="date"
                 type="date"
                 value={tender.date}
                 onChange={(e) => setTender({ ...tender, date: e.target.value })}
+                className="mt-1"
               />
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
-              <strong>Step 1 of 3:</strong> Enter the basic tender information
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="outline" onClick={onCancel}>Cancel</Button>
+              <Button
+                onClick={() => setStep(2)}
+                disabled={!tender.code || !tender.name || !tender.date}
+              >
+                Next <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
             </div>
           </div>
         )}
@@ -422,215 +342,145 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
         {step === 2 && (
           <div className="space-y-6 py-4">
             <div>
-              <h3 className="font-semibold text-lg mb-2">Select Vendors</h3>
-              <p className="text-sm text-gray-600 mb-4">Choose vendors who will participate in this tender</p>
+              <h3 className="font-semibold mb-4">Select Vendors</h3>
+              <p className="text-sm text-gray-600 mb-4">Choose vendors for this tender. You'll assign items to each vendor in the next steps.</p>
             </div>
 
             {loading ? (
-              <div className="text-center text-gray-500 py-8">Loading vendors from database...</div>
+              <p className="text-center text-gray-500 py-8">Loading vendors...</p>
             ) : (
-              <>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  {vendors.length === 0 ? (
-                    <p className="text-sm text-gray-500">No vendors found in database</p>
-                  ) : (
-                    vendors.map((vendor) => {
-                      const showContact = vendor.contact && vendor.contact !== 'N/A';
-                      const showEmail = vendor.email && vendor.email !== 'N/A';
-                      return (
-                        <div key={vendor.id} className="flex items-start gap-3 p-3 bg-white rounded border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer" onClick={() => handleVendorToggle(vendor.id)}>
-                          <Checkbox
-                            checked={selectedVendorIds.includes(vendor.id)}
-                            onCheckedChange={() => handleVendorToggle(vendor.id)}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{vendor.name}</div>
-                            {(showContact || showEmail) && (
-                              <div className="text-sm text-gray-600">
-                                {showContact && <span>{vendor.contact}</span>}
-                                {showContact && showEmail && <span> • </span>}
-                                {showEmail && <span className="text-blue-600">{vendor.email}</span>}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {getSelectedVendorsCount() > 0 && (
-                  <div className="bg-green-50 border border-green-200 rounded p-3 text-sm text-green-700">
-                    <strong>{getSelectedVendorsCount()} vendor(s) selected</strong>
+              <div className="space-y-2 max-h-96 overflow-y-auto border rounded p-4 bg-gray-50">
+                {vendors.map(vendor => (
+                  <div
+                    key={vendor.id}
+                    className="flex items-start gap-3 p-3 bg-white rounded border hover:bg-blue-50 cursor-pointer"
+                    onClick={() => handleVendorToggle(vendor)}
+                  >
+                    <Checkbox checked={selectedVendors.some(v => v.id === vendor.id)} />
+                    <div className="flex-1">
+                      <p className="font-medium">{vendor.name}</p>
+                      <p className="text-xs text-gray-600">{vendor.contact} • {vendor.email}</p>
+                    </div>
                   </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
-              <strong>Step 2 of 3:</strong> Select vendors who will participate in this tender
+            {selectedVendors.length > 0 && (
+              <div className="bg-green-50 p-3 rounded text-sm text-green-700">
+                ✅ {selectedVendors.length} vendor(s) selected
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="outline" onClick={() => setStep(1)}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <Button onClick={() => setStep(3)} disabled={selectedVendors.length === 0}>
+                Next <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Items */}
-        {step === 3 && (
+        {/* Steps 3+: Per-Vendor Items */}
+        {step > 2 && currentVendor && (
           <div className="space-y-6 py-4">
-            <h3 className="font-semibold text-lg">Select Items by Category</h3>
+            <div className="bg-blue-50 p-4 rounded">
+              <h3 className="font-semibold text-blue-900">{currentVendor.name}</h3>
+              <p className="text-sm text-blue-700">{currentVendor.contact} • {currentVendor.email}</p>
+              <p className="text-xs text-blue-600 mt-2">Step {step} of {totalSteps} - Assign items to this vendor</p>
+            </div>
 
             {loading ? (
-              <div className="text-center text-gray-500 py-8">Loading categories and items from database...</div>
+              <p className="text-center py-8">Loading items...</p>
             ) : (
-              <>
-                {/* Category Selector */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Select Category</Label>
-                  <Select value={selectedCategory} onValueChange={async (value) => {
-                    console.log('🔄 Category changed to:', value);
-                    setSelectedCategory(value);
-                    setSelectedItemIds([]);
-                    
-                    // Fetch items for selected category
-                    try {
-                      console.log(`🔄 Fetching items for category ${value}...`);
-                      const itemsRes = await fetch(`http://localhost:3001/api/items-master?category_id=${value}`);
-                      console.log('Items response status:', itemsRes.status);
-                      if (itemsRes.ok) {
-                        const itemsData = await itemsRes.json();
-                        console.log(`✅ Loaded ${itemsData.items?.length || 0} items for category ${value}:`, itemsData.items);
-                        setItemsByCategory(prev => ({
-                          ...prev,
-                          [value]: itemsData.items || []
-                        }));
-                      } else {
-                        console.error('❌ Failed to fetch items');
-                      }
-                    } catch (error) {
-                      console.error('❌ Error fetching items:', error);
-                    }
-                  }}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.length === 0 ? (
-                        <div className="p-2 text-sm text-gray-500">No categories found</div>
-                      ) : (
-                        categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-4">
+                {categories.map(category => {
+                  const catItems = allItems.filter(i => i.category_id === category.id);
+                  const vendorItemList = vendorItems[currentVendor.id] || [];
+                  const selectedCatItems = vendorItemList.filter(i => i.category === category.id);
 
-                {/* Available Items for Selected Category */}
-                {selectedCategory && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-gray-600">Available items in <strong>{categories.find(c => c.id === selectedCategory)?.name}</strong>:</p>
-                    <div className="space-y-2 max-h-[250px] overflow-y-auto border rounded-lg p-3 bg-gray-50">
-                      {(() => {
-                        const items = itemsByCategory[selectedCategory] || [];
-                        console.log(`📍 Rendering items for category ${selectedCategory}:`, items);
-                        console.log(`   itemsByCategory state:`, itemsByCategory);
-                        
-                        if (items.length === 0) {
-                          return <p className="text-sm text-gray-500">No items available in this category</p>;
-                        }
-                        
-                        return items.map((item: any) => (
-                          <div 
-                            key={item.id} 
-                            className="flex items-center gap-3 p-2 rounded hover:bg-white cursor-pointer transition-colors"
-                            onClick={() => handleItemToggle(item.id, item.name || item.nomenclature, item.unit || 'Units')}
-                          >
-                            <Checkbox 
-                              checked={selectedItemIds.includes(item.id)}
-                              onCheckedChange={() => handleItemToggle(item.id, item.name || item.nomenclature, item.unit || 'Units')}
-                            />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-700">{item.name || item.nomenclature}</p>
-                              <p className="text-xs text-gray-500">Unit: {item.unit || 'Units'}</p>
-                            </div>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                )}
-
-                {/* Selected Items with Quantities */}
-                {items.length > 0 && (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium text-gray-700">Selected Items ({getSelectedItemsCount()}):</p>
-                    <div className="space-y-2">
-                      {items.map((item) => (
-                        <Card key={item.itemId} className="p-3">
-                          <div className="flex justify-between items-start gap-3">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                              <p className="text-xs text-gray-500">{categories.find(c => c.id === item.category)?.name} - {item.unit}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Label className="text-xs whitespace-nowrap">Qty:</Label>
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => updateItemQuantity(item.itemId, parseInt(e.target.value) || 1)}
-                                className="h-8 w-16 text-sm"
+                  return (
+                    <Card key={category.id}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">{category.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 max-h-48 overflow-y-auto">
+                        {catItems.map(item => {
+                          const isSelected = vendorItemList.find(i => i.itemId === item.id);
+                          return (
+                            <div key={item.id} className="flex items-center gap-2 p-2 rounded hover:bg-gray-50">
+                              <Checkbox
+                                checked={!!isSelected}
+                                onCheckedChange={() => toggleItemForVendor(currentVendor.id, item)}
                               />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{item.nomenclature}</p>
+                                <p className="text-xs text-gray-600">{item.unit}</p>
+                              </div>
+                              {isSelected && (
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={isSelected.quantity}
+                                    onChange={(e) =>
+                                      updateQuantity(currentVendor.id, item.id, parseInt(e.target.value) || 1)
+                                    }
+                                    className="w-16 h-8 text-xs"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => removeItem(currentVendor.id, item.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {items.length === 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-700">
-                    Select items from the category to add them to the tender
-                  </div>
-                )}
-              </>
+                          );
+                        })}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
-              <strong>Step 3 of 3:</strong> Select items from categories - check items you want to include in this tender
+            {(vendorItems[currentVendor.id]?.length || 0) > 0 && (
+              <div className="bg-green-50 p-3 rounded text-sm text-green-700">
+                ✅ {vendorItems[currentVendor.id].length} item(s) assigned
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="outline" onClick={() => setStep(step - 1)}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <div className="flex gap-2">
+                {step < totalSteps && (
+                  <Button
+                    onClick={() => setStep(step + 1)}
+                    disabled={(vendorItems[currentVendor.id]?.length || 0) === 0}
+                  >
+                    Next <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
+                {step === totalSteps && (
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={(vendorItems[currentVendor.id]?.length || 0) === 0}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {editingId ? 'Update' : 'Create'} Tender
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}
-
-        {/* Navigation Buttons */}
-        <div className="flex gap-3 justify-between pt-4 border-t">
-          <div className="flex gap-2">
-            {step > 1 && (
-              <Button onClick={handlePrevious} variant="outline" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Previous
-              </Button>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <Button onClick={onCancel} variant="ghost">
-              Cancel
-            </Button>
-            
-            {step < 3 ? (
-              <Button onClick={handleNext} className="gap-2">
-                Next
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
-                {editingId ? 'Update Tender' : 'Create Tender'}
-              </Button>
-            )}
-          </div>
-        </div>
       </DialogContent>
     </Dialog>
   );

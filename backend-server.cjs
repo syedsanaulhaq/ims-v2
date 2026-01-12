@@ -7754,7 +7754,7 @@ app.get('/api/annual-tenders/:id', async (req, res) => {
         WHERE tv.tender_id = @tender_id
       `);
 
-    // Get items with category info
+    // Get items with category info and vendor_id
     const itemsResult = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, id)
       .query(`
@@ -7763,7 +7763,8 @@ app.get('/api/annual-tenders/:id', async (req, res) => {
           im.nomenclature as name,
           im.category_id as category,
           im.unit,
-          ti.quantity
+          ti.quantity,
+          ti.vendor_id
         FROM item_masters im
         INNER JOIN TenderItems ti ON im.id = ti.item_id
         WHERE ti.tender_id = @tender_id
@@ -7847,15 +7848,16 @@ app.post('/api/annual-tenders', async (req, res) => {
     if (items && items.length > 0) {
       console.log('📦 Inserting', items.length, 'items');
       for (const item of items) {
-        console.log('  - Item:', item.id, 'Quantity:', item.quantity);
+        console.log('  - Item:', item.id, 'Vendor:', item.vendor_id, 'Quantity:', item.quantity);
         await pool.request()
           .input('tender_id', sql.UniqueIdentifier, finalTenderId)
           .input('item_id', sql.UniqueIdentifier, item.id)
+          .input('vendor_id', sql.UniqueIdentifier, item.vendor_id)
           .input('quantity', sql.Int, item.quantity)
           .input('created_at', sql.DateTime2, now)
           .query(`
-            INSERT INTO TenderItems (tender_id, item_id, quantity, created_at)
-            VALUES (@tender_id, @item_id, @quantity, @created_at)
+            INSERT INTO TenderItems (tender_id, item_id, vendor_id, quantity, created_at)
+            VALUES (@tender_id, @item_id, @vendor_id, @quantity, @created_at)
           `);
       }
       console.log('✅ Items inserted');
@@ -7930,11 +7932,12 @@ app.put('/api/annual-tenders/:id', async (req, res) => {
         await pool.request()
           .input('tender_id', sql.UniqueIdentifier, id)
           .input('item_id', sql.UniqueIdentifier, item.id)
+          .input('vendor_id', sql.UniqueIdentifier, item.vendor_id)
           .input('quantity', sql.Int, item.quantity)
           .input('created_at', sql.DateTime2, now)
           .query(`
-            INSERT INTO TenderItems (tender_id, item_id, quantity, created_at)
-            VALUES (@tender_id, @item_id, @quantity, @created_at)
+            INSERT INTO TenderItems (tender_id, item_id, vendor_id, quantity, created_at)
+            VALUES (@tender_id, @item_id, @vendor_id, @quantity, @created_at)
           `);
       }
     }

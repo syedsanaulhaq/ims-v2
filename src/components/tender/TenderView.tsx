@@ -83,16 +83,13 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
     fetchCategories();
   }, []);
 
-  // Group items by category using reduce for broader compatibility
-  const groupedItems = fullTender.items ? 
-    fullTender.items.reduce((acc: Record<string, any[]>, item: any) => {
-      if (!acc[item.category]) {
-        acc[item.category] = [];
-      }
-      acc[item.category].push(item);
-      return acc;
-    }, {})
-    : {};
+  // Group items by vendor, then by category
+  const groupedByVendor = fullTender.vendors ? 
+    fullTender.vendors.map(vendor => ({
+      ...vendor,
+      items: fullTender.items?.filter((item: any) => item.vendor_id === vendor.id) || []
+    })) || []
+    : [];
 
   // Get category name from ID, fallback to ID if not found
   const getCategoryName = (categoryId: string) => {
@@ -209,55 +206,75 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
           </CardContent>
         </Card>
 
-        {/* Items by Category */}
+        {/* Items by Vendor */}
         <div className="space-y-4">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Package className="h-6 w-6" />
             Items ({fullTender.totalItems})
           </h2>
 
-          {Object.entries(groupedItems).length > 0 ? (
-            Object.entries(groupedItems).map(([categoryId, items]: [string, any[]]) => {
-              console.log(`📍 Rendering category: ${categoryId} -> "${getCategoryName(categoryId)}" with ${items.length} items`);
-              console.log(`   Category map at render time:`, categoryMap);
-              return (
-              <Card key={categoryId}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{getCategoryName(categoryId)}</CardTitle>
+          {groupedByVendor.length > 0 ? (
+            groupedByVendor.map(vendor => (
+              <Card key={vendor.id}>
+                <CardHeader className="bg-blue-50">
+                  <CardTitle className="text-lg text-blue-900">{vendor.vendor_name || vendor.name}</CardTitle>
+                  <p className="text-sm text-blue-700 mt-1">{vendor.items?.length || 0} item(s)</p>
                 </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-gray-50">
-                          <th className="text-left py-2 px-3 font-semibold">Item Name</th>
-                          <th className="text-center py-2 px-3 font-semibold">Quantity</th>
-                          <th className="text-center py-2 px-3 font-semibold">Unit</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((item, index) => (
-                          <tr key={index} className="border-b hover:bg-gray-50">
-                            <td className="py-2 px-3">{item.name}</td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">
-                                {item.quantity}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-center text-gray-600">{item.unit}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                <CardContent className="pt-4">
+                  {vendor.items && vendor.items.length > 0 ? (
+                    <div className="space-y-3">
+                      {(() => {
+                        // Group items by category for this vendor
+                        const itemsByCategory: { [key: string]: any[] } = {};
+                        vendor.items.forEach((item: any) => {
+                          if (!itemsByCategory[item.category]) {
+                            itemsByCategory[item.category] = [];
+                          }
+                          itemsByCategory[item.category].push(item);
+                        });
+
+                        return Object.entries(itemsByCategory).map(([categoryId, items]: [string, any[]]) => (
+                          <div key={categoryId}>
+                            <p className="font-semibold text-sm text-gray-700 mb-2">{getCategoryName(categoryId)}</p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b bg-gray-50">
+                                    <th className="text-left py-2 px-3 font-semibold">Item Name</th>
+                                    <th className="text-center py-2 px-3 font-semibold">Quantity</th>
+                                    <th className="text-center py-2 px-3 font-semibold">Unit</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {items.map((item, idx) => (
+                                    <tr key={idx} className="border-b hover:bg-gray-50">
+                                      <td className="py-2 px-3">{item.name}</td>
+                                      <td className="py-2 px-3 text-center">
+                                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">
+                                          {item.quantity}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 text-center text-gray-600">{item.unit}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-sm">No items assigned</p>
+                  )}
                 </CardContent>
               </Card>
-            );
-            })
+            ))
           ) : (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
-                </CardContent>
+                No vendors or items in this tender
+              </CardContent>
             </Card>
           )}
         </div>
