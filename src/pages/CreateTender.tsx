@@ -860,25 +860,43 @@ const CreateTender: React.FC = () => {
               {tenderData.tender_type === 'contract' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <label className="text-sm font-medium">Contract Document</label>
+                    <label className="text-sm font-medium">RFP</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, contract_file: file }));
+                        setFileUploads(prev => ({ ...prev, rfp_file: file }));
                       }}
                       className="mt-1"
                     />
-                    {fileUploads.contract_file && (
+                    {fileUploads.rfp_file && (
                       <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.contract_file.name}
+                        Selected: {fileUploads.rfp_file.name}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">LOI (Letter of Intent)</label>
+                    <label className="text-sm font-medium">Tender Docs</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, tender_docs_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.tender_docs_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.tender_docs_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">LOI</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
@@ -896,37 +914,19 @@ const CreateTender: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">PO (Purchase Order)</label>
+                    <label className="text-sm font-medium">Contract Awarded Letter</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, po_file: file }));
+                        setFileUploads(prev => ({ ...prev, contract_awarded_letter_file: file }));
                       }}
                       className="mt-1"
                     />
-                    {fileUploads.po_file && (
+                    {fileUploads.contract_awarded_letter_file && (
                       <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.po_file.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">RFP (Request for Proposal)</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, rfp_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.rfp_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.rfp_file.name}
+                        Selected: {fileUploads.contract_awarded_letter_file.name}
                       </p>
                     )}
                   </div>
@@ -1104,7 +1104,7 @@ const CreateTender: React.FC = () => {
                 </p>
                 {tenderData.tender_type === 'contract' && (
                   <p className="text-xs text-blue-600 mt-1">
-                    <strong>Contract Tender:</strong> Contract Doc, LOI, PO, RFP documents
+                    <strong>Contract Tender:</strong> RFP, Tender Docs, LOI, Contract Awarded Letter
                   </p>
                 )}
                 {tenderData.tender_type === 'spot-purchase' && (
