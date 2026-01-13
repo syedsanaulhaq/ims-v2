@@ -115,13 +115,20 @@ const EditTender: React.FC = () => {
     procedure_adopted: ''
   });
 
-  // File uploads state (currently disabled for edit)
+  // File uploads state
   const [fileUploads, setFileUploads] = useState({
     contract_file: null as File | null,
     loi_file: null as File | null,
-    noting_file: null as File | null,
     po_file: null as File | null,
-    rfp_file: null as File | null
+    rfp_file: null as File | null,
+    rfq_file: null as File | null,
+    quotation_file: null as File | null,
+    comparison_file: null as File | null,
+    tender_notice_file: null as File | null,
+    standing_arrangement_file: null as File | null,
+    vendor_list_file: null as File | null,
+    schedule_file: null as File | null,
+    evaluation_report_file: null as File | null
   });
 
   // Tender items
@@ -744,25 +751,236 @@ const EditTender: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-center py-8 text-gray-500">
-              <Upload className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">Document Updates Not Available</p>
-              <p className="text-sm text-gray-600 mb-4">
-                File uploads are currently not supported in edit mode. You can update all other tender information and items.
-              </p>
-              <div className="text-xs text-gray-500">
-                To update documents, please create a new tender or contact administrator.
+            {/* Contract Tender Documents */}
+            {tenderData.tender_type === 'contract' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Contract Document</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, contract_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.contract_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.contract_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">LOI (Letter of Intent)</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, loi_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.loi_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.loi_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">PO (Purchase Order)</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, po_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.po_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.po_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">RFP (Request for Proposal)</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, rfp_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.rfp_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.rfp_file.name}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-              <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> Only tender information and items can be updated in edit mode.
-              </p>
-              <p className="text-xs text-yellow-600 mt-1">
-                Document file updates will be available in a future version.
-              </p>
-            </div>
+            )}
+
+            {/* Spot Purchase Documents */}
+            {tenderData.tender_type === 'spot-purchase' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium">RFQ (Request for Quotation)</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, rfq_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.rfq_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.rfq_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Quotation Response</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, quotation_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.quotation_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.quotation_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Comparison Sheet</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, comparison_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.comparison_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.comparison_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">PO (Purchase Order)</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, po_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.po_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.po_file.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Annual Tender Documents */}
+            {tenderData.tender_type === 'annual-tender' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Tender Notice</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, tender_notice_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.tender_notice_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.tender_notice_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Standing Arrangement</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, standing_arrangement_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.standing_arrangement_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.standing_arrangement_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Vendor List</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, vendor_list_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.vendor_list_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.vendor_list_file.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Schedule of Requirements</label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setFileUploads(prev => ({ ...prev, schedule_file: file }));
+                    }}
+                    className="mt-1"
+                  />
+                  {fileUploads.schedule_file && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Selected: {fileUploads.schedule_file.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -984,7 +1202,7 @@ const EditTender: React.FC = () => {
               </div>
 
               {/* Add Button at the bottom */}
-              <Button type="button" onClick={handleAddItem} className="w-full">
+              <Button type="button" onClick={addItem} className="w-full">
                 <Plus className="h-4 w-4 mr-1" />
                 Add Item
               </Button>
