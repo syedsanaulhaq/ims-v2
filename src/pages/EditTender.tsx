@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, Trash2, Save, FileText, Upload, Package } from 'lucide-react';
@@ -126,6 +126,8 @@ const EditTender: React.FC = () => {
 
   // Tender items
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [bidders, setBidders] = useState<any[]>([]);
   const [newItem, setNewItem] = useState<TenderItem>({
     item_master_id: '',
     nomenclature: '',
@@ -173,6 +175,17 @@ const EditTender: React.FC = () => {
         // Set tender items from the tender response
         if (tender.items && Array.isArray(tender.items)) {
           setTenderItems(tender.items);
+        }
+
+        // Fetch bidders for this tender
+        try {
+          const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
+          if (biddersResponse.ok) {
+            const biddersData = await biddersResponse.json();
+            setBidders(Array.isArray(biddersData) ? biddersData : biddersData.vendors || []);
+          }
+        } catch (bidderErr) {
+          console.error('Error loading bidders:', bidderErr);
         }
       }
 
@@ -389,8 +402,14 @@ const EditTender: React.FC = () => {
       const result = await response.json();
       console.log('✅ Success response:', result);
 
-      alert(`${tenderData.tender_type === 'spot-purchase' ? 'Spot purchase' : 'Contract tender'} updated successfully!`);
-      navigate(tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender');
+      alert(`${tenderData.tender_type === 'spot-purchase' ? 'Spot purchase' : tenderData.tender_type === 'annual-tender' ? 'Annual tender' : 'Contract tender'} updated successfully!`);
+      if (tenderData.tender_type === 'spot-purchase') {
+        navigate('/dashboard/spot-purchases');
+      } else if (tenderData.tender_type === 'annual-tender') {
+        navigate('/dashboard/contract-tender?type=annual-tender');
+      } else {
+        navigate('/dashboard/contract-tender');
+      }
     } catch (err) {
       console.error('Error updating tender:', err);
       setError(err instanceof Error ? err.message : 'Failed to update tender');
@@ -430,17 +449,23 @@ const EditTender: React.FC = () => {
           <Button 
             type="button" 
             variant="ghost" 
-            onClick={() => navigate(
-              tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
-            )}
+            onClick={() => {
+              if (tenderData.tender_type === 'spot-purchase') {
+                navigate('/dashboard/spot-purchases');
+              } else if (tenderData.tender_type === 'annual-tender') {
+                navigate('/dashboard/contract-tender?type=annual-tender');
+              } else {
+                navigate('/dashboard/contract-tender');
+              }
+            }}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchases' : 'Contract Tenders'}
+            Back to {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchases' : tenderData.tender_type === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              {tenderData.tender_type === 'spot-purchase' ? 'Edit Spot Purchase' : 'Edit Contract'}
+              {tenderData.tender_type === 'spot-purchase' ? 'Edit Spot Purchase' : tenderData.tender_type === 'annual-tender' ? 'Edit Annual Tender' : 'Edit Contract'}
             </h1>
             <p className="text-muted-foreground">
               {tenderData.tender_type === 'spot-purchase' 
@@ -484,6 +509,7 @@ const EditTender: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="contract">Contract Tender</SelectItem>
                   <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
+                  <SelectItem value="annual-tender">Annual Tender</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -760,57 +786,183 @@ const EditTender: React.FC = () => {
             <div className="border border-dashed border-gray-300 rounded-lg p-4 space-y-4">
               <h4 className="font-medium">Add New Item</h4>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Category and Item Select - First Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Category Select */}
                 <div>
-                  <label className="text-sm font-medium">Item Master</label>
+                  <label className="text-sm font-medium">Category</label>
                   <Select 
-                    value={newItem.item_master_id} 
-                    onValueChange={handleItemMasterSelect}
+                    value={selectedCategory} 
+                    onValueChange={(value) => {
+                      setSelectedCategory(value);
+                      setNewItem(prev => ({
+                        ...prev,
+                        item_master_id: ''
+                      }));
+                    }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select item" />
+                      <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {itemMasters.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.nomenclature}
+                      {Array.from(new Set(itemMasters
+                        .filter(item => item.category_name)
+                        .map(item => item.category_name)))
+                        .sort()
+                        .map(category => (
+                        <SelectItem key={category} value={category}>
+                          {category}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
+                {/* Item Master Select - filtered by category */}
                 <div>
-                  <label className="text-sm font-medium">Quantity</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={newItem.quantity}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                    placeholder="Enter quantity"
-                  />
+                  <label className="text-sm font-medium">Item Master</label>
+                  <Select 
+                    value={newItem.item_master_id} 
+                    onValueChange={handleItemMasterSelect}
+                    disabled={!selectedCategory}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={selectedCategory ? "Select item" : "Select category first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {itemMasters
+                        .filter(item => item.category_name === selectedCategory)
+                        .map(item => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.nomenclature}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium">Unit Price (PKR)</label>
+                  <label className="text-sm font-medium">Nomenclature</label>
                   <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={newItem.estimated_unit_price || ''}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, estimated_unit_price: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Enter unit price"
+                    value={newItem.nomenclature}
+                    onChange={(e) => setNewItem(prev => ({ ...prev, nomenclature: e.target.value }))}
+                    placeholder="Item description"
                   />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Total Amount</label>
-                  <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm">
-                    {formatCurrency(newItem.total_amount || 0)}
-                  </div>
                 </div>
               </div>
 
+              {/* Second Row - Vendor/Quantity and Price */}
+              {tenderData.tender_type === 'annual-tender' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Vendor Multi-Select Dropdown for Annual Tender */}
+                  <div>
+                    <label className="text-sm font-medium">Vendors (Multi-select)</label>
+                    <div className="border rounded-lg bg-white overflow-hidden">
+                      <details className="w-full cursor-pointer group">
+                        <summary className="flex items-center justify-between px-3 py-2 list-none hover:bg-gray-50">
+                          <span className="text-sm text-gray-600">
+                            {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                              ? `${newItem.vendor_ids.length} vendor(s) selected`
+                              : 'Select vendors'}
+                          </span>
+                          <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                        </summary>
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 max-h-48 overflow-y-auto">
+                          {bidders.filter(bidder => bidder.is_successful).length > 0 ? (
+                            bidders
+                              .filter(bidder => bidder.is_successful)
+                              .map(bidder => {
+                                const vendor = vendors.find(v => v.id === bidder.vendor_id);
+                                if (!vendor) return null;
+                                
+                                const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
+                                const isSelected = vendorIds.includes(vendor.id);
+                                
+                                return (
+                                  <label key={vendor.id} className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-gray-50 rounded">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setNewItem(prev => ({
+                                            ...prev,
+                                            vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                          }));
+                                        } else {
+                                          setNewItem(prev => ({
+                                            ...prev,
+                                            vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                          }));
+                                        }
+                                      }}
+                                      className="w-4 h-4"
+                                    />
+                                    <span>{vendor.vendor_name}</span>
+                                  </label>
+                                );
+                              })
+                          ) : (
+                            <p className="text-sm text-gray-500 p-2">No successful bidders available</p>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+
+                  {/* Unit Price for Annual Tender */}
+                  <div>
+                    <label className="text-sm font-medium">Unit Price</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newItem.estimated_unit_price || ''}
+                      onChange={(e) => setNewItem(prev => ({ ...prev, estimated_unit_price: parseFloat(e.target.value) || 0 }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Quantity for Normal Tender */}
+                  <div>
+                    <label className="text-sm font-medium">Quantity</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={newItem.quantity}
+                      onChange={(e) => setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                      placeholder="Enter quantity"
+                    />
+                  </div>
+
+                  {/* Unit Price for Normal Tender */}
+                  <div>
+                    <label className="text-sm font-medium">Unit Price</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newItem.estimated_unit_price || ''}
+                      onChange={(e) => setNewItem(prev => ({ ...prev, estimated_unit_price: parseFloat(e.target.value) || 0 }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  {/* Total for Normal Tender */}
+                  <div>
+                    <label className="text-sm font-medium">Total</label>
+                    <Input
+                      className="bg-gray-100"
+                      value={(newItem.quantity || 1) * (newItem.estimated_unit_price || 0)}
+                      disabled
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Specifications and Remarks */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Specifications</label>
@@ -831,9 +983,10 @@ const EditTender: React.FC = () => {
                 </div>
               </div>
 
-              <Button type="button" onClick={addItem} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item to Tender
+              {/* Add Button at the bottom */}
+              <Button type="button" onClick={handleAddItem} className="w-full">
+                <Plus className="h-4 w-4 mr-1" />
+                Add Item
               </Button>
             </div>
 
@@ -844,9 +997,18 @@ const EditTender: React.FC = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Item</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit Price</TableHead>
-                      <TableHead>Total</TableHead>
+                      {tenderData.tender_type === 'annual-tender' ? (
+                        <>
+                          <TableHead>Vendor</TableHead>
+                          <TableHead>Price</TableHead>
+                        </>
+                      ) : (
+                        <>
+                          <TableHead>Quantity</TableHead>
+                          <TableHead>Unit Price</TableHead>
+                          <TableHead>Total</TableHead>
+                        </>
+                      )}
                       <TableHead>Specifications</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -860,9 +1022,34 @@ const EditTender: React.FC = () => {
                             <div className="text-sm text-muted-foreground">ID: {item.item_master_id}</div>
                           </div>
                         </TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
-                        <TableCell className="font-medium">{formatCurrency(item.total_amount || 0)}</TableCell>
+                        {tenderData.tender_type === 'annual-tender' ? (
+                          <>
+                            <TableCell>
+                              {Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {item.vendor_ids.map(vendorId => (
+                                    <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                      {vendors.find(v => v.id === vendorId)?.vendor_name || vendorId}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                item.vendor_id ? (
+                                  <span>{vendors.find(v => v.id === item.vendor_id)?.vendor_name || item.vendor_id}</span>
+                                ) : (
+                                  'No vendors'
+                                )
+                              )}
+                            </TableCell>
+                            <TableCell className="font-medium">{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell>{item.quantity}</TableCell>
+                            <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
+                            <TableCell className="font-medium">{formatCurrency(item.total_amount || 0)}</TableCell>
+                          </>
+                        )}
                         <TableCell>
                           <div className="max-w-xs">
                             <div className="text-sm">{item.specifications || 'N/A'}</div>
@@ -918,9 +1105,15 @@ const EditTender: React.FC = () => {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => navigate(
-                    tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
-                  )}
+                  onClick={() => {
+                    if (tenderData.tender_type === 'spot-purchase') {
+                      navigate('/dashboard/spot-purchases');
+                    } else if (tenderData.tender_type === 'annual-tender') {
+                      navigate('/dashboard/contract-tender?type=annual-tender');
+                    } else {
+                      navigate('/dashboard/contract-tender');
+                    }
+                  }}
                 >
                   Cancel
                 </Button>

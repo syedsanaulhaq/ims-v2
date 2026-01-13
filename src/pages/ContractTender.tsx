@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,11 +76,12 @@ interface Tender {
 }
 
 interface ContractTenderProps {
-  initialType?: 'Contract/Tender' | 'Spot Purchase';
+  initialType?: 'Contract/Tender' | 'Spot Purchase' | 'Annual Tender';
 }
 
 const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -89,8 +90,20 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
   const [finalizingTender, setFinalizingTender] = useState<string | null>(null);
 
-  const isSpotPurchase = initialType === 'Spot Purchase';
-  const dashboardTitle = isSpotPurchase ? 'Spot Purchase Management' : 'Contract/Tender Management';
+  // Determine tender type from prop or query param
+  const queryType = searchParams.get('type');
+  let effectiveType = initialType;
+  if (queryType === 'annual-tender') {
+    effectiveType = 'Annual Tender';
+  } else if (queryType === 'spot-purchase') {
+    effectiveType = 'Spot Purchase';
+  } else if (queryType === 'contract') {
+    effectiveType = 'Contract/Tender';
+  }
+
+  const isSpotPurchase = effectiveType === 'Spot Purchase';
+  const isAnnualTender = effectiveType === 'Annual Tender';
+  const dashboardTitle = isSpotPurchase ? 'Spot Purchase Management' : isAnnualTender ? 'Annual Tender Management' : 'Contract/Tender Management';
   
   // Separate tenders into finalized and non-finalized
   const nonFinalizedTenders = tenders.filter(tender => !tender.is_finalized);
@@ -110,9 +123,14 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       console.log('✅ Fetched tenders:', data);
       
       // Filter by tender type if needed
-      const filteredTenders = isSpotPurchase 
-        ? data.filter((t: Tender) => t.tender_type === 'spot-purchase')
-        : data.filter((t: Tender) => t.tender_type === 'contract');
+      let filteredTenders;
+      if (isSpotPurchase) {
+        filteredTenders = data.filter((t: Tender) => t.tender_type === 'spot-purchase');
+      } else if (isAnnualTender) {
+        filteredTenders = data.filter((t: Tender) => t.tender_type === 'annual-tender');
+      } else {
+        filteredTenders = data.filter((t: Tender) => t.tender_type === 'contract');
+      }
         
       setTenders(filteredTenders || []);
     } catch (error) {
@@ -125,7 +143,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
 
   useEffect(() => {
     fetchTenders();
-  }, [isSpotPurchase]);
+  }, [isSpotPurchase, isAnnualTender, effectiveType]);
 
   const handleFinalizeTender = async (tenderId: string) => {
     if (!window.confirm('Are you sure you want to finalize this tender? This action cannot be undone.')) {
@@ -170,7 +188,12 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   };
 
   const handleCreateNew = () => {
-    const path = isSpotPurchase ? '/dashboard/create-tender?type=spot-purchase' : '/dashboard/create-tender?type=contract';
+    let path = '/dashboard/create-tender?type=contract';
+    if (isSpotPurchase) {
+      path = '/dashboard/create-tender?type=spot-purchase';
+    } else if (isAnnualTender) {
+      path = '/dashboard/create-tender?type=annual-tender';
+    }
     navigate(path);
   };
 

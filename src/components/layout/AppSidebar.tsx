@@ -206,7 +206,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Building2,
     items: [
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
-      { title: "Annual Tenders", icon: FileText, path: "/dashboard/annual-tenders", permission: 'procurement.manage' },
+      { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Spot Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
       { title: "Stock Acquisition", icon: Warehouse, path: "/dashboard/stock-acquisition-dashboard", permission: 'procurement.view' },
       { title: "Review Requests", icon: CheckCircle, path: "/procurement/admin-review", permission: 'procurement.approve' },
@@ -364,11 +364,23 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const menuGroups = getVisibleMenuGroups();
 
   const isActive = (path: string) => {
-    return location.pathname === path;
+    // Handle paths with query parameters
+    if (path.includes('?')) {
+      const [pathname, query] = path.split('?');
+      return location.pathname === pathname && location.search === '?' + query;
+    }
+    // Only check pathname if no query params
+    return location.pathname === path && !location.search;
   };
 
   const isGroupActive = (items: MenuItem[]) => {
-    return items.some(item => location.pathname === item.path);
+    return items.some(item => {
+      if (item.path.includes('?')) {
+        const [pathname, query] = item.path.split('?');
+        return location.pathname === pathname && location.search === '?' + query;
+      }
+      return location.pathname === item.path;
+    });
   };
 
   // Handle accordion menu - close others when one opens

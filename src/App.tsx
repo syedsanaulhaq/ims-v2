@@ -98,7 +98,6 @@ import InitialSetupPage from "./pages/InitialSetupPage";
 import DigitalSystemLanding from "./pages/DigitalSystemLanding";
 import PersonalIMS from "./pages/PersonalIMS";
 import SSOLogin from "./pages/SSOLogin";
-import AnnualTenderManagement from "./pages/AnnualTenderManagement";
 import ItemGroupsManager from "./pages/ItemGroupsManager";
 import CategoryItemsManager from "./pages/CategoryItemsManager";
 import TenderVendorManagement from "./pages/TenderVendorManagement";
@@ -280,9 +279,6 @@ function App() {
                   <Route path="delivery-report/:id" element={<DeliveryReport />} />
                   <Route path="inventory/:id/report" element={<InventoryReportPage />} />
                   <Route path="item-master" element={<ItemMaster />} />
-                  
-                  {/* Annual Tender Management */}
-                  <Route path="annual-tenders" element={<TenderDashboard />} />
                   <Route path="item-groups" element={<ItemGroupsManager />} />
                   <Route path="category-items" element={<CategoryItemsManager />} />
                   <Route path="tender-vendor-management" element={<TenderVendorManagement />} />

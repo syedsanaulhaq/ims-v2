@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, Trash2, Save, FileText, Upload } from 'lucide-react';
@@ -80,6 +80,7 @@ const CreateTender: React.FC = () => {
     // Check referrer URL
     const referrer = document.referrer;
     if (referrer.includes('spot-purchases')) return 'spot-purchase';
+    if (referrer.includes('type=annual-tender')) return 'annual-tender';
     if (referrer.includes('contract-tender')) return 'contract';
     
     return 'contract'; // default
@@ -129,6 +130,8 @@ const CreateTender: React.FC = () => {
 
   // Tender items
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [bidders, setBidders] = useState<any[]>([]);
   const [newItem, setNewItem] = useState<TenderItem>({
     item_master_id: '',
     nomenclature: '',
@@ -137,9 +140,6 @@ const CreateTender: React.FC = () => {
     specifications: '',
     remarks: ''
   });
-
-  // Store bidders/vendors to be saved after tender creation
-  const [bidders, setBidders] = useState<any[]>([]);
 
   // Fetch initial data (item masters, offices, and vendors)
   useEffect(() => {
@@ -531,14 +531,14 @@ const CreateTender: React.FC = () => {
                       ...prev,
                       tender_type: value
                     }))}
-                    disabled
                   >
-                    <SelectTrigger className="bg-gray-50">
+                    <SelectTrigger>
                       <SelectValue placeholder="Select tender type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="contract">Contract Tender</SelectItem>
                       <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
+                      <SelectItem value="annual-tender">Annual Tender</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1017,28 +1017,62 @@ const CreateTender: React.FC = () => {
               <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                 <h3 className="text-lg font-medium mb-4">Add New Item</h3>
                 
-                {/* All fields in one row */}
-                <div className="grid grid-cols-1 lg:grid-cols-8 gap-3 mb-4">
-                  <div className="lg:col-span-2">
-                    <label className="text-xs font-medium mb-1 block">Item Master *</label>
+                {/* Category and Item Select - First Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                  {/* Category Select */}
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Category *</label>
                     <Select 
-                      value={newItem.item_master_id} 
-                      onValueChange={handleItemMasterSelect}
+                      value={selectedCategory} 
+                      onValueChange={(value) => {
+                        setSelectedCategory(value);
+                        setNewItem(prev => ({
+                          ...prev,
+                          item_master_id: ''
+                        }));
+                      }}
                     >
                       <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Select item" />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {itemMasters.map(item => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.nomenclature} {item.category_name && `(${item.category_name})`}
+                        {Array.from(new Set(itemMasters
+                          .filter(item => item.category_name)
+                          .map(item => item.category_name)))
+                          .sort()
+                          .map(category => (
+                          <SelectItem key={category} value={category}>
+                            {category}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="lg:col-span-2">
+                  {/* Item Master Select - filtered by category */}
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Item Master *</label>
+                    <Select 
+                      value={newItem.item_master_id} 
+                      onValueChange={handleItemMasterSelect}
+                      disabled={!selectedCategory}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder={selectedCategory ? "Select item" : "Select category first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {itemMasters
+                          .filter(item => item.category_name === selectedCategory)
+                          .map(item => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nomenclature}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <label className="text-xs font-medium mb-1 block">Nomenclature *</label>
                     <Input
                       className="h-9"
@@ -1050,57 +1084,133 @@ const CreateTender: React.FC = () => {
                       placeholder="Item description"
                     />
                   </div>
-
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Quantity *</label>
-                    <Input
-                      className="h-9"
-                      type="number"
-                      min="1"
-                      value={newItem.quantity}
-                      onChange={(e) => setNewItem(prev => ({
-                        ...prev,
-                        quantity: parseInt(e.target.value) || 1
-                      }))}
-                      placeholder="1"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Unit Price</label>
-                    <Input
-                      className="h-9"
-                      type="number"
-                      step="0.01"
-                      value={newItem.estimated_unit_price || ''}
-                      onChange={(e) => setNewItem(prev => ({
-                        ...prev,
-                        estimated_unit_price: parseFloat(e.target.value) || 0
-                      }))}
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Total</label>
-                    <Input
-                      className="h-9 bg-gray-100"
-                      value={formatCurrency(newItem.total_amount || 0)}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Action</label>
-                    <Button type="button" onClick={handleAddItem} className="h-9 w-full">
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add
-                    </Button>
-                  </div>
                 </div>
 
+                {/* Second Row - Vendor/Quantity and Price */}
+                {tenderType === 'annual-tender' ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                    {/* Vendor Multi-Select Dropdown for Annual Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
+                      <div className="border rounded-lg h-9 bg-white overflow-hidden">
+                        <details className="w-full h-full cursor-pointer group">
+                          <summary className="flex items-center justify-between px-3 py-2 h-full list-none hover:bg-gray-50">
+                            <span className="text-xs text-gray-600">
+                              {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                                ? `${newItem.vendor_ids.length} vendor(s) selected`
+                                : 'Select vendors'}
+                            </span>
+                            <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
+                          </summary>
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 max-h-48 overflow-y-auto">
+                            {bidders.filter(bidder => bidder.is_successful).length > 0 ? (
+                              bidders
+                                .filter(bidder => bidder.is_successful)
+                                .map(bidder => {
+                                  const vendor = vendors.find(v => v.id === bidder.vendor_id);
+                                  if (!vendor) return null;
+                                  
+                                  const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
+                                  const isSelected = vendorIds.includes(vendor.id);
+                                  
+                                  return (
+                                    <label key={vendor.id} className="flex items-center gap-2 p-2 text-xs cursor-pointer hover:bg-gray-50 rounded">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setNewItem(prev => ({
+                                              ...prev,
+                                              vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                            }));
+                                          } else {
+                                            setNewItem(prev => ({
+                                              ...prev,
+                                              vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                            }));
+                                          }
+                                        }}
+                                        className="w-4 h-4"
+                                      />
+                                      <span>{vendor.vendor_name}</span>
+                                    </label>
+                                  );
+                                })
+                            ) : (
+                              <p className="text-xs text-gray-500 p-2">No successful bidders available</p>
+                            )}
+                          </div>
+                        </details>
+                      </div>
+                    </div>
+
+                    {/* Unit Price for Annual Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                      <Input
+                        className="h-9"
+                        type="number"
+                        step="0.01"
+                        value={newItem.estimated_unit_price || ''}
+                        onChange={(e) => setNewItem(prev => ({
+                          ...prev,
+                          estimated_unit_price: parseFloat(e.target.value) || 0
+                        }))}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                    {/* Quantity for Normal Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Quantity *</label>
+                      <Input
+                        className="h-9"
+                        type="number"
+                        min="1"
+                        value={newItem.quantity}
+                        onChange={(e) => setNewItem(prev => ({
+                          ...prev,
+                          quantity: parseInt(e.target.value) || 1
+                        }))}
+                        placeholder="1"
+                      />
+                    </div>
+
+                    {/* Unit Price for Normal Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                      <Input
+                        className="h-9"
+                        type="number"
+                        step="0.01"
+                        value={newItem.estimated_unit_price || ''}
+                        onChange={(e) => setNewItem(prev => ({
+                          ...prev,
+                          estimated_unit_price: parseFloat(e.target.value) || 0
+                        }))}
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    {/* Total for Normal Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Total</label>
+                      <Input
+                        className="h-9 bg-gray-100"
+                        value={formatCurrency(newItem.total_amount || 0)}
+                        disabled
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Text areas for longer content in one row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="text-xs font-medium mb-1 block">Specifications (Optional)</label>
                     <textarea
@@ -1129,22 +1239,37 @@ const CreateTender: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                {/* Add Button at the bottom */}
+                <Button type="button" onClick={handleAddItem} className="w-full">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Item
+                </Button>
               </div>
 
               {/* Items Table */}
               {tenderItems.length > 0 && (
                 <div>
                   <h3 className="text-lg font-medium mb-4">
-                    {tenderType === 'spot-purchase' ? 'Spot Purchase Items List' : 'Tender Items List'}
+                    {tenderType === 'spot-purchase' ? 'Spot Purchase Items List' : tenderType === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
                   </h3>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Item</TableHead>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead>Unit Price</TableHead>
-                          <TableHead>Total</TableHead>
+                          {tenderType === 'annual-tender' ? (
+                            <>
+                              <TableHead>Vendor</TableHead>
+                              <TableHead>Price</TableHead>
+                            </>
+                          ) : (
+                            <>
+                              <TableHead>Quantity</TableHead>
+                              <TableHead>Unit Price</TableHead>
+                              <TableHead>Total</TableHead>
+                            </>
+                          )}
                           <TableHead>Specifications</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -1158,11 +1283,38 @@ const CreateTender: React.FC = () => {
                                 <p className="text-xs text-gray-500">ID: {item.item_master_id}</p>
                               </div>
                             </TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
-                            <TableCell className="font-medium">
-                              {formatCurrency(item.total_amount || 0)}
-                            </TableCell>
+                            {tenderType === 'annual-tender' ? (
+                              <>
+                                <TableCell>
+                                  {Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {item.vendor_ids.map(vendorId => (
+                                        <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                          {vendors.find(v => v.id === vendorId)?.vendor_name || vendorId}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    item.vendor_id ? (
+                                      <span>{vendors.find(v => v.id === item.vendor_id)?.vendor_name || item.vendor_id}</span>
+                                    ) : (
+                                      'No vendors'
+                                    )
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {formatCurrency(item.estimated_unit_price || 0)}
+                                </TableCell>
+                              </>
+                            ) : (
+                              <>
+                                <TableCell>{item.quantity}</TableCell>
+                                <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
+                                <TableCell className="font-medium">
+                                  {formatCurrency(item.total_amount || 0)}
+                                </TableCell>
+                              </>
+                            )}
                             <TableCell>
                               <div className="max-w-xs">
                                 {item.specifications && (
@@ -1190,34 +1342,59 @@ const CreateTender: React.FC = () => {
 
                   {/* Summary */}
                   <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-600">Total Items</p>
-                        <p className="text-lg font-bold">{tenderItems.length}</p>
+                    {tenderType === 'annual-tender' ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Total Items</p>
+                          <p className="text-lg font-bold">{tenderItems.length}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Value</p>
+                          <p className="text-lg font-bold">
+                            {formatCurrency(totalTenderValue)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Avg Price</p>
+                          <p className="text-lg font-bold">
+                            {formatCurrency(
+                              tenderItems.length > 0 
+                                ? totalTenderValue / tenderItems.length
+                                : 0
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Total Quantity</p>
-                        <p className="text-lg font-bold">
-                          {tenderItems.reduce((sum, item) => sum + item.quantity, 0)}
-                        </p>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Total Items</p>
+                          <p className="text-lg font-bold">{tenderItems.length}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Quantity</p>
+                          <p className="text-lg font-bold">
+                            {tenderItems.reduce((sum, item) => sum + item.quantity, 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Value</p>
+                          <p className={`text-lg font-bold ${!spotPurchaseValidation.isValid ? 'text-red-600' : ''}`}>
+                            {formatCurrency(totalTenderValue)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Avg Unit Price</p>
+                          <p className="text-lg font-bold">
+                            {formatCurrency(
+                              tenderItems.length > 0 
+                                ? totalTenderValue / tenderItems.reduce((sum, item) => sum + item.quantity, 0)
+                                : 0
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Total Value</p>
-                        <p className={`text-lg font-bold ${!spotPurchaseValidation.isValid ? 'text-red-600' : ''}`}>
-                          {formatCurrency(totalTenderValue)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Avg Unit Price</p>
-                        <p className="text-lg font-bold">
-                          {formatCurrency(
-                            tenderItems.length > 0 
-                              ? totalTenderValue / tenderItems.reduce((sum, item) => sum + item.quantity, 0)
-                              : 0
-                          )}
-                        </p>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Spot Purchase Validation Alert */}
                     {tenderType === 'spot-purchase' && !spotPurchaseValidation.isValid && (

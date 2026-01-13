@@ -118,7 +118,7 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
       const fetchTender = async () => {
         try {
           console.log('📝 Loading tender for editing:', editingId);
-          const res = await fetch(`http://localhost:3001/api/annual-tenders/${editingId}`);
+          const res = await fetch(`http://localhost:3001/api/tenders/${editingId}`);
           if (res.ok) {
             const data = await res.json();
             console.log('✅ Tender data loaded:', data);
@@ -254,8 +254,8 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
 
     try {
       const url = editingId && editingId !== 'new'
-        ? `http://localhost:3001/api/annual-tenders/${editingId}`
-        : 'http://localhost:3001/api/annual-tenders';
+        ? `http://localhost:3001/api/tenders/${editingId}`
+        : 'http://localhost:3001/api/tenders';
 
       const response = await fetch(url, {
         method: editingId && editingId !== 'new' ? 'PUT' : 'POST',

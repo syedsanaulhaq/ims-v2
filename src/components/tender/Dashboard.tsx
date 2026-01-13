@@ -39,8 +39,8 @@ const TenderDashboard: React.FC = () => {
     const fetchTenders = async () => {
       try {
         setLoading(true);
-        console.log('🔄 Fetching tenders from http://localhost:3001/api/annual-tenders');
-        const response = await fetch('http://localhost:3001/api/annual-tenders');
+        console.log('🔄 Fetching tenders from http://localhost:3001/api/tenders?type=annual-tender');
+        const response = await fetch('http://localhost:3001/api/tenders?type=annual-tender');
         console.log('📊 Response status:', response.status);
         
         if (!response.ok) {
@@ -93,7 +93,7 @@ const TenderDashboard: React.FC = () => {
 
     try {
       console.log('🗑️ Deleting tender:', id);
-      const response = await fetch(`http://localhost:3001/api/annual-tenders/${id}`, {
+      const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
         method: 'DELETE'
       });
 

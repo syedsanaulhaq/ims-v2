@@ -5149,8 +5149,13 @@ app.post('/api/tenders', upload.fields([
 
     await tenderRequest.query(insertQuery);
 
-    // Insert into tender_items table
+    // Insert into tender_items table with vendor_id and pricing for all types
     if (items && Array.isArray(items) && items.length > 0) {
+      // For CONTRACT/SPOT_PURCHASE: Single vendor for all items
+      // For ANNUAL_TENDER: Different vendor per item
+      const tender_type = tenderData.tender_type || 'contract';
+      const awardedVendorId = tenderData.vendor_id || tenderData.awarded_vendor_id;
+
       for (const item of items) {
         const itemRequest = transaction.request();
         itemRequest.input('id', sql.NVarChar, uuidv4());
@@ -5158,8 +5163,29 @@ app.post('/api/tenders', upload.fields([
         itemRequest.input('created_at', sql.DateTime2, now);
         itemRequest.input('updated_at', sql.DateTime2, now);
 
+        // ✅ NEW: Set vendor_id based on tender type
+        let itemVendorId = null;
+        
+        if (tender_type === 'annual-tender') {
+          // Annual tender: Each item has specific vendor
+          itemVendorId = item.vendor_id;
+        } else if (['contract', 'spot-purchase'].includes(tender_type)) {
+          // Contract/Spot Purchase: All items from same vendor
+          itemVendorId = awardedVendorId || item.vendor_id;
+        }
+
+        if (itemVendorId) {
+          itemRequest.input('vendor_id', sql.NVarChar, itemVendorId);
+        }
+
         let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at';
         let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at';
+
+        // ✅ MODIFIED: Always include vendor_id, plus all pricing fields
+        if (itemVendorId) {
+          itemInsertQuery += ', vendor_id';
+          itemValuesQuery += ', @vendor_id';
+        }
 
         const itemFields = [
           'item_master_id', 'nomenclature', 'quantity', 'quantity_received', 

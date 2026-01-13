@@ -393,15 +393,11 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
   const handleMarkSuccessful = async (vendorId: string, isSuccessful: boolean) => {
     if (!tenderId) {
-      // For new tenders, just update local state
+      // For new tenders, just update local state (allow multiple successful bidders for annual tender)
       setTenderVendors(tenderVendors.map(tv => ({
         ...tv,
-        is_successful: tv.vendor_id === vendorId ? isSuccessful : false
+        is_successful: tv.vendor_id === vendorId ? isSuccessful : tv.is_successful
       })));
-      // Notify parent component of selected vendor
-      if (onSuccessfulVendorChange) {
-        onSuccessfulVendorChange(isSuccessful ? vendorId : null);
-      }
       return;
     }
 
@@ -416,15 +412,11 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       );
 
       if (response.ok) {
-        // Mark all vendors as not successful except the selected one
+        // Allow multiple vendors to be marked as successful for annual tenders
         setTenderVendors(tenderVendors.map(tv => ({
           ...tv,
-          is_successful: tv.vendor_id === vendorId ? isSuccessful : false
+          is_successful: tv.vendor_id === vendorId ? isSuccessful : tv.is_successful
         })));
-        // Notify parent component of selected vendor
-        if (onSuccessfulVendorChange) {
-          onSuccessfulVendorChange(isSuccessful ? vendorId : null);
-        }
       } else {
         throw new Error('Failed to mark bidder as successful');
       }

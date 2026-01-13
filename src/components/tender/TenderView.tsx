@@ -29,7 +29,7 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
     const fetchTenderDetails = async () => {
       try {
         console.log('🔄 Fetching full tender details for:', tender.id);
-        const response = await fetch(`http://localhost:3001/api/annual-tenders/${tender.id}`);
+        const response = await fetch(`http://localhost:3001/api/tenders/${tender.id}`);
         if (response.ok) {
           const data = await response.json();
           console.log('✅ Fetched tender details:', data);
