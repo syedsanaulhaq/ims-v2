@@ -123,9 +123,16 @@ const CreateTender: React.FC = () => {
   const [fileUploads, setFileUploads] = useState({
     contract_file: null as File | null,
     loi_file: null as File | null,
-    noting_file: null as File | null,
     po_file: null as File | null,
-    rfp_file: null as File | null
+    rfp_file: null as File | null,
+    rfq_file: null as File | null,
+    quotation_file: null as File | null,
+    comparison_file: null as File | null,
+    tender_notice_file: null as File | null,
+    standing_arrangement_file: null as File | null,
+    vendor_list_file: null as File | null,
+    schedule_file: null as File | null,
+    evaluation_report_file: null as File | null
   });
 
   // Tender items
@@ -914,21 +921,57 @@ const CreateTender: React.FC = () => {
 
               {/* Spot Purchase Documents */}
               {tenderData.tender_type === 'spot-purchase' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <label className="text-sm font-medium">Noting File</label>
+                    <label className="text-sm font-medium">RFQ (Request for Quotation)</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, noting_file: file }));
+                        setFileUploads(prev => ({ ...prev, rfq_file: file }));
                       }}
                       className="mt-1"
                     />
-                    {fileUploads.noting_file && (
+                    {fileUploads.rfq_file && (
                       <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.noting_file.name}
+                        Selected: {fileUploads.rfq_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Quotation Response</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, quotation_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.quotation_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.quotation_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Comparison Sheet</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, comparison_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.comparison_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.comparison_file.name}
                       </p>
                     )}
                   </div>
@@ -953,6 +996,83 @@ const CreateTender: React.FC = () => {
                 </div>
               )}
 
+              {/* Annual Tender Documents */}
+              {tenderData.tender_type === 'annual-tender' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Tender Notice</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, tender_notice_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.tender_notice_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.tender_notice_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Standing Arrangement</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, standing_arrangement_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.standing_arrangement_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.standing_arrangement_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Vendor List</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, vendor_list_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.vendor_list_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.vendor_list_file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Schedule of Requirements</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xlsx,.xls"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFileUploads(prev => ({ ...prev, schedule_file: file }));
+                      }}
+                      className="mt-1"
+                    />
+                    {fileUploads.schedule_file && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Selected: {fileUploads.schedule_file.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Default message when no tender type selected */}
               {!tenderData.tender_type && (
                 <div className="text-center py-8 text-gray-500">
@@ -970,12 +1090,17 @@ const CreateTender: React.FC = () => {
                 </p>
                 {tenderData.tender_type === 'contract' && (
                   <p className="text-xs text-blue-600 mt-1">
-                    <strong>Contract Tender:</strong> Contract, LOI, PO, RFP documents
+                    <strong>Contract Tender:</strong> Contract Doc, LOI, PO, RFP documents
                   </p>
                 )}
                 {tenderData.tender_type === 'spot-purchase' && (
                   <p className="text-xs text-blue-600 mt-1">
-                    <strong>Spot Purchase:</strong> Noting file and PO documents
+                    <strong>Spot Purchase:</strong> RFQ, Quotation Response, Comparison Sheet, and PO documents
+                  </p>
+                )}
+                {tenderData.tender_type === 'annual-tender' && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    <strong>Annual Tender:</strong> Tender Notice, Standing Arrangement, Vendor List, and Schedule documents
                   </p>
                 )}
               </div>
