@@ -287,6 +287,21 @@ const CreateTender: React.FC = () => {
       return;
     }
 
+    // Validate vendor selection based on tender type
+    if (tenderType === 'annual-tender') {
+      // Annual tender requires at least one vendor selected
+      if (!Array.isArray(newItem.vendor_ids) || newItem.vendor_ids.length === 0) {
+        alert('Please select at least one vendor for this item');
+        return;
+      }
+    } else {
+      // Contract and Spot Purchase tenders use single vendor_id from main form
+      if (!tenderData.vendor_id) {
+        alert('Please add vendors in the "Participating Bidders" section and mark one as selected');
+        return;
+      }
+    }
+
     const item: TenderItem = {
       ...newItem,
       id: `temp-${Date.now()}` // Temporary ID for frontend

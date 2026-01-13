@@ -302,6 +302,15 @@ const EditTender: React.FC = () => {
       return;
     }
 
+    // Validate vendor selection based on tender type
+    if (tenderData.tender_type === 'annual-tender') {
+      // Annual tender requires at least one vendor selected
+      if (!Array.isArray(newItem.vendor_ids) || newItem.vendor_ids.length === 0) {
+        alert('Please select at least one vendor for this item');
+        return;
+      }
+    }
+
     const itemWithTotal = {
       ...newItem,
       id: Date.now().toString(),
