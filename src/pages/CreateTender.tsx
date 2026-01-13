@@ -496,8 +496,16 @@ const CreateTender: React.FC = () => {
         }
       }
       
-      alert(`${tenderType === 'spot-purchase' ? 'Spot purchase' : 'Contract tender'} created successfully!`);
-      navigate(tenderType === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender');
+      const successMessage = tenderType === 'spot-purchase' ? 'Spot purchase' : tenderType === 'annual-tender' ? 'Annual tender' : 'Contract tender';
+      alert(`${successMessage} created successfully!`);
+      
+      let redirectPath = '/dashboard/contract-tender';
+      if (tenderType === 'spot-purchase') {
+        redirectPath = '/dashboard/spot-purchases';
+      } else if (tenderType === 'annual-tender') {
+        redirectPath = '/dashboard/annual-tender';
+      }
+      navigate(redirectPath);
     } catch (err) {
       console.error('Error creating tender:', err);
       setError(err instanceof Error ? err.message : 'Failed to create tender');
