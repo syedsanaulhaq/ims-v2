@@ -1014,67 +1014,67 @@ const CreateTender: React.FC = () => {
               {tenderData.tender_type === 'annual-tender' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <label className="text-sm font-medium">Tender Notice</label>
+                    <label className="text-sm font-medium">RFP</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, tender_notice_file: file }));
+                        setFileUploads(prev => ({ ...prev, rfp_file: file }));
                       }}
                       className="mt-1"
                     />
-                    {fileUploads.tender_notice_file && (
+                    {fileUploads.rfp_file && (
                       <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.tender_notice_file.name}
+                        Selected: {fileUploads.rfp_file.name}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Standing Arrangement</label>
+                    <label className="text-sm font-medium">Tender Docs</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, standing_arrangement_file: file }));
+                        setFileUploads(prev => ({ ...prev, tender_docs_file: file }));
                       }}
                       className="mt-1"
                     />
-                    {fileUploads.standing_arrangement_file && (
+                    {fileUploads.tender_docs_file && (
                       <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.standing_arrangement_file.name}
+                        Selected: {fileUploads.tender_docs_file.name}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Vendor List</label>
+                    <label className="text-sm font-medium">LOI</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, vendor_list_file: file }));
+                        setFileUploads(prev => ({ ...prev, loi_file: file }));
                       }}
                       className="mt-1"
                     />
-                    {fileUploads.vendor_list_file && (
+                    {fileUploads.loi_file && (
                       <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.vendor_list_file.name}
+                        Selected: {fileUploads.loi_file.name}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Schedule of Requirements</label>
+                    <label className="text-sm font-medium">Contract Awarded Letter</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, schedule_file: file }));
+                        setFileUploads(prev => ({ ...prev, contract_awarded_letter_file: file }));
                       }}
                       className="mt-1"
                     />
@@ -1114,7 +1114,7 @@ const CreateTender: React.FC = () => {
                 )}
                 {tenderData.tender_type === 'annual-tender' && (
                   <p className="text-xs text-blue-600 mt-1">
-                    <strong>Annual Tender:</strong> Tender Notice, Standing Arrangement, Vendor List, and Schedule documents
+                    <strong>Annual Tender:</strong> RFP, Tender Docs, LOI, Contract Awarded Letter
                   </p>
                 )}
               </div>
