@@ -759,6 +759,20 @@ const CreateTender: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Estimated Value *</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={tenderData.estimated_value}
+                    onChange={(e) => setTenderData(prev => ({
+                      ...prev,
+                      estimated_value: e.target.value
+                    }))}
+                    placeholder="Enter estimated value"
+                  />
+                </div>
+
                 {/* Hide publication dailies for spot purchase */}
                 {tenderType !== 'spot-purchase' && (
                   <div>

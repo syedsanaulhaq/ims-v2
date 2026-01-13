@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Eye, Edit2, Trash2 } from 'lucide-react';
-import { generateUUID } from '@/utils/uuid';
 import TenderWizard from './TenderWizard';
 import TenderView from './TenderView';
 
