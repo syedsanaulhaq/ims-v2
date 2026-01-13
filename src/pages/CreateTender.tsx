@@ -395,7 +395,9 @@ const CreateTender: React.FC = () => {
       return;
     }
 
-    if (!tenderData.vendor_id) {
+    // For contract and spot purchase tenders, vendor_id is required at tender level
+    // For annual tenders, vendors are selected per-item so no global vendor_id needed
+    if ((tenderType === 'contract' || tenderType === 'spot-purchase') && !tenderData.vendor_id) {
       alert('Please select a vendor');
       return;
     }
