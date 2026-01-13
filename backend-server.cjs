@@ -18523,4 +18523,328 @@ app.get('/api/annual-tenders/:tenderId/vendor-proposals', async (req, res) => {
 
 console.log('✅ Annual Tender System APIs loaded');
 
+// ============================================================================
+// PURCHASE ORDERS APIs
+// ============================================================================
+
+// GET /api/purchase-orders - Get all POs with filters
+app.get('/api/purchase-orders', async (req, res) => {
+  try {
+    const { tenderId, vendorId, status, startDate, endDate } = req.query;
+    
+    let query = `
+      SELECT 
+        po.id,
+        po.po_number,
+        po.tender_id,
+        po.vendor_id,
+        po.po_date,
+        po.total_amount,
+        po.status,
+        po.remarks,
+        po.created_at,
+        t.title as tender_title,
+        t.tender_type,
+        v.vendor_name,
+        (SELECT COUNT(*) FROM purchase_order_items WHERE po_id = po.id) as item_count
+      FROM purchase_orders po
+      INNER JOIN tenders t ON po.tender_id = t.id
+      INNER JOIN vendors v ON po.vendor_id = v.id
+      WHERE 1=1
+    `;
+
+    const request = pool.request();
+
+    if (tenderId) {
+      query += ' AND po.tender_id = @tenderId';
+      request.input('tenderId', sql.Int, tenderId);
+    }
+
+    if (vendorId) {
+      query += ' AND po.vendor_id = @vendorId';
+      request.input('vendorId', sql.Int, vendorId);
+    }
+
+    if (status) {
+      query += ' AND po.status = @status';
+      request.input('status', sql.NVarChar, status);
+    }
+
+    if (startDate) {
+      query += ' AND po.po_date >= @startDate';
+      request.input('startDate', sql.DateTime, new Date(startDate));
+    }
+
+    if (endDate) {
+      query += ' AND po.po_date <= @endDate';
+      request.input('endDate', sql.DateTime, new Date(endDate));
+    }
+
+    query += ' ORDER BY po.created_at DESC';
+
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching POs:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase orders' });
+  }
+});
+
+// GET /api/purchase-orders/:id - Get specific PO with items
+app.get('/api/purchase-orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get PO details
+    const poResult = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          po.id,
+          po.po_number,
+          po.tender_id,
+          po.vendor_id,
+          po.po_date,
+          po.total_amount,
+          po.status,
+          po.remarks,
+          po.created_at,
+          po.updated_at,
+          t.title as tender_title,
+          t.tender_type,
+          v.vendor_name,
+          v.vendor_code
+        FROM purchase_orders po
+        INNER JOIN tenders t ON po.tender_id = t.id
+        INNER JOIN vendors v ON po.vendor_id = v.id
+        WHERE po.id = @id
+      `);
+
+    if (poResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    const po = poResult.recordset[0];
+
+    // Get PO items
+    const itemsResult = await pool.request()
+      .input('poId', sql.Int, id)
+      .query(`
+        SELECT 
+          poi.id,
+          poi.po_id,
+          poi.item_master_id,
+          poi.quantity,
+          poi.unit_price,
+          poi.total_price,
+          poi.specifications,
+          im.nomenclature,
+          im.category_name,
+          im.unit,
+          im.subcategory_name
+        FROM purchase_order_items poi
+        INNER JOIN item_masters im ON poi.item_master_id = im.id
+        WHERE poi.po_id = @poId
+        ORDER BY im.category_name, im.nomenclature
+      `);
+
+    res.json({
+      ...po,
+      items: itemsResult.recordset
+    });
+  } catch (error) {
+    console.error('❌ Error fetching PO details:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase order details' });
+  }
+});
+
+// POST /api/purchase-orders - Create POs from tender items
+app.post('/api/purchase-orders', async (req, res) => {
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+
+    const { tenderId, selectedItems, poDate } = req.body;
+
+    if (!tenderId || !selectedItems || selectedItems.length === 0 || !poDate) {
+      return res.status(400).json({ error: 'Missing required fields: tenderId, selectedItems, poDate' });
+    }
+
+    // Get the latest PO number to generate new ones
+    const lastPoRequest = transaction.request();
+    const lastPoResult = await lastPoRequest.query(`
+      SELECT MAX(CAST(SUBSTRING(po_number, PATINDEX('%[0-9]%', po_number), LEN(po_number)) AS INT)) as max_number
+      FROM purchase_orders
+      WHERE po_number LIKE 'PO%'
+    `);
+
+    const lastNumber = lastPoResult.recordset[0]?.max_number || 0;
+    let poCounter = lastNumber + 1;
+
+    // Group items by vendor
+    const groupedByVendor = {};
+    
+    for (const itemId of selectedItems) {
+      // Get vendor info from tender_items
+      const itemVendorResult = await transaction.request()
+        .input('itemId', sql.Int, itemId)
+        .input('tenderId', sql.Int, tenderId)
+        .query(`
+          SELECT 
+            ti.vendor_id,
+            ti.estimated_unit_price,
+            ti.quantity,
+            ti.specifications,
+            im.id as item_master_id,
+            im.nomenclature,
+            im.category_name
+          FROM tender_items ti
+          INNER JOIN item_masters im ON ti.item_master_id = im.id
+          WHERE ti.id = @itemId AND ti.tender_id = @tenderId
+        `);
+
+      if (itemVendorResult.recordset.length > 0) {
+        const item = itemVendorResult.recordset[0];
+        const vendorId = item.vendor_id;
+
+        if (!groupedByVendor[vendorId]) {
+          groupedByVendor[vendorId] = [];
+        }
+
+        groupedByVendor[vendorId].push(item);
+      }
+    }
+
+    const createdPos = [];
+
+    // Create a PO for each vendor
+    for (const [vendorId, items] of Object.entries(groupedByVendor)) {
+      const poNumber = `PO${String(poCounter).padStart(6, '0')}`;
+      poCounter++;
+
+      // Calculate total amount
+      let totalAmount = 0;
+      items.forEach(item => {
+        totalAmount += (item.estimated_unit_price || 0) * (item.quantity || 1);
+      });
+
+      // Insert PO
+      const poInsert = transaction.request()
+        .input('po_number', sql.NVarChar, poNumber)
+        .input('tender_id', sql.Int, tenderId)
+        .input('vendor_id', sql.Int, parseInt(vendorId))
+        .input('po_date', sql.DateTime, new Date(poDate))
+        .input('total_amount', sql.Decimal(15, 2), totalAmount)
+        .input('status', sql.NVarChar, 'draft')
+        .input('created_at', sql.DateTime, new Date());
+
+      const poResult = await poInsert.query(`
+        INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, total_amount, status, created_at, updated_at)
+        OUTPUT INSERTED.id
+        VALUES (@po_number, @tender_id, @vendor_id, @po_date, @total_amount, @status, @created_at, GETDATE())
+      `);
+
+      const poId = poResult.recordset[0].id;
+
+      // Insert PO items
+      for (const item of items) {
+        const itemTotal = (item.estimated_unit_price || 0) * (item.quantity || 1);
+
+        await transaction.request()
+          .input('po_id', sql.Int, poId)
+          .input('item_master_id', sql.Int, item.item_master_id)
+          .input('quantity', sql.Decimal(10, 2), item.quantity || 1)
+          .input('unit_price', sql.Decimal(15, 2), item.estimated_unit_price || 0)
+          .input('total_price', sql.Decimal(15, 2), itemTotal)
+          .input('specifications', sql.NVarChar, item.specifications || null)
+          .input('created_at', sql.DateTime, new Date())
+          .query(`
+            INSERT INTO purchase_order_items (po_id, item_master_id, quantity, unit_price, total_price, specifications, created_at)
+            VALUES (@po_id, @item_master_id, @quantity, @unit_price, @total_price, @specifications, @created_at)
+          `);
+      }
+
+      createdPos.push({
+        id: poId,
+        po_number: poNumber,
+        vendor_id: parseInt(vendorId),
+        item_count: items.length,
+        total_amount: totalAmount
+      });
+    }
+
+    await transaction.commit();
+
+    res.json({
+      message: `✅ ${createdPos.length} Purchase Order(s) created successfully`,
+      pos: createdPos
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('❌ Error creating POs:', error);
+    res.status(500).json({ error: 'Failed to create purchase orders', details: error.message });
+  }
+});
+
+// PUT /api/purchase-orders/:id - Update PO status
+app.put('/api/purchase-orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('status', sql.NVarChar, status)
+      .input('remarks', sql.NVarChar, remarks || null)
+      .input('updated_at', sql.DateTime, new Date())
+      .query(`
+        UPDATE purchase_orders
+        SET status = @status,
+            remarks = @remarks,
+            updated_at = @updated_at
+        WHERE id = @id
+      `);
+
+    res.json({ message: '✅ Purchase order updated successfully' });
+  } catch (error) {
+    console.error('❌ Error updating PO:', error);
+    res.status(500).json({ error: 'Failed to update purchase order' });
+  }
+});
+
+// DELETE /api/purchase-orders/:id - Delete PO (only if draft)
+app.delete('/api/purchase-orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if PO is draft
+    const poCheck = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT status FROM purchase_orders WHERE id = @id');
+
+    if (poCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    if (poCheck.recordset[0].status !== 'draft') {
+      return res.status(400).json({ error: 'Can only delete draft purchase orders' });
+    }
+
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM purchase_orders WHERE id = @id');
+
+    res.json({ message: '✅ Purchase order deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting PO:', error);
+    res.status(500).json({ error: 'Failed to delete purchase order' });
+  }
+});
+
+console.log('✅ Purchase Orders APIs loaded');
+
 startServer().catch(err => process.exit(1));
