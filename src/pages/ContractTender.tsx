@@ -17,7 +17,8 @@ import {
   Clock, 
   AlertCircle,
   Shield,
-  ShieldCheck
+  ShieldCheck,
+  ShoppingCart
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -362,15 +363,27 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {isFinalized ? (
-                          // Show View Report button for finalized tenders
-                          <Button
-                            onClick={() => navigate(`/dashboard/tenders/${tender.id}/report`)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            size="sm"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View Report
-                          </Button>
+                          // Show Create PO and View Report buttons for finalized tenders
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/dashboard/create-po?tenderId=${tender.id}`)}
+                              className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                              title="Create Purchase Orders from this tender"
+                            >
+                              <ShoppingCart className="w-4 h-4 mr-1" />
+                              Create PO
+                            </Button>
+                            <Button
+                              onClick={() => navigate(`/dashboard/tenders/${tender.id}/report`)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              size="sm"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Report
+                            </Button>
+                          </>
                         ) : (
                           <>
                             <Button
