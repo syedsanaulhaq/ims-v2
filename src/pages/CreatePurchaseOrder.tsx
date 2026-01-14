@@ -57,7 +57,7 @@ export default function CreatePurchaseOrder() {
 
   useEffect(() => {
     if (selectedTenderId) {
-      fetchTenderItems(parseInt(selectedTenderId));
+      fetchTenderItems(selectedTenderId);
     }
   }, [selectedTenderId]);
 
@@ -77,7 +77,7 @@ export default function CreatePurchaseOrder() {
     }
   };
 
-  const fetchTenderItems = async (tenderId: number) => {
+  const fetchTenderItems = async (tenderId: string) => {
     try {
       setLoading(true);
       const response = await fetch(`http://localhost:3001/api/tender/${tenderId}/items`);
@@ -150,7 +150,7 @@ export default function CreatePurchaseOrder() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenderId: parseInt(selectedTenderId),
+          tenderId: selectedTenderId,
           selectedItems: Array.from(selectedItems),
           poDate
         })

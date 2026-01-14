@@ -18720,7 +18720,7 @@ app.post('/api/purchase-orders', async (req, res) => {
       // Get vendor info from tender_items
       const itemVendorResult = await transaction.request()
         .input('itemId', sql.Int, itemId)
-        .input('tenderId', sql.Int, tenderId)
+        .input('tenderId', sql.NVarChar, tenderId)
         .query(`
           SELECT 
             ti.vendor_id,
@@ -18763,7 +18763,7 @@ app.post('/api/purchase-orders', async (req, res) => {
       // Insert PO
       const poInsert = transaction.request()
         .input('po_number', sql.NVarChar, poNumber)
-        .input('tender_id', sql.Int, tenderId)
+        .input('tender_id', sql.NVarChar, tenderId)
         .input('vendor_id', sql.Int, parseInt(vendorId))
         .input('po_date', sql.DateTime, new Date(poDate))
         .input('total_amount', sql.Decimal(15, 2), totalAmount)
