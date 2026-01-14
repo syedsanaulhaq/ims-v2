@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -36,6 +36,7 @@ interface VendorGroup {
 
 export default function CreatePurchaseOrder() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [selectedTenderId, setSelectedTenderId] = useState<string>('');
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
@@ -47,7 +48,12 @@ export default function CreatePurchaseOrder() {
 
   useEffect(() => {
     fetchTenders();
-  }, []);
+    // Check if tenderId is provided in URL params
+    const tenderId = searchParams.get('tenderId');
+    if (tenderId) {
+      setSelectedTenderId(tenderId);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (selectedTenderId) {

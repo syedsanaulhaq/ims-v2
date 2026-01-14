@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Search, Plus, Eye, Edit, Trash2, FileText } from 'lucide-react';
+import { Calendar, Search, Plus, Eye, Edit, Trash2, FileText, ShoppingCart } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Table,
@@ -476,6 +476,16 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+                        {tender.is_finalized && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/dashboard/create-po?tenderId=${tender.id}`)}
+                            title="Create Purchase Orders from this tender"
+                          >
+                            <ShoppingCart className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
