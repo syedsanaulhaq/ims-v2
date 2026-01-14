@@ -17,21 +17,15 @@ interface Tender {
 
 interface TenderItem {
   id: number;
-  item_master_id: number;
-  nomenclature: string;
+  item_id: string;
+  nomenclature?: string;
   quantity: number;
-  estimated_unit_price: number;
-  vendor_id: number;
-  vendor_name: string;
-  category_name: string;
-  specifications?: string;
+  category_name?: string;
 }
 
-interface VendorGroup {
-  vendor_id: number;
-  vendor_name: string;
-  items: TenderItem[];
-  totalAmount: number;
+interface ItemPrice {
+  itemId: number;
+  unitPrice: number;
 }
 
 export default function CreatePurchaseOrder() {
@@ -41,10 +35,11 @@ export default function CreatePurchaseOrder() {
   const [selectedTenderId, setSelectedTenderId] = useState<string>('');
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [itemPrices, setItemPrices] = useState<{ [key: number]: number }>({});
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [vendorId, setVendorId] = useState<string>('1');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [vendorGroups, setVendorGroups] = useState<VendorGroup[]>([]);
 
   useEffect(() => {
     fetchTenders();
@@ -60,10 +55,6 @@ export default function CreatePurchaseOrder() {
       fetchTenderItems(selectedTenderId);
     }
   }, [selectedTenderId]);
-
-  useEffect(() => {
-    groupItemsByVendor();
-  }, [selectedItems, tenderItems]);
 
   const fetchTenders = async () => {
     try {
@@ -94,25 +85,16 @@ export default function CreatePurchaseOrder() {
   };
 
   const groupItemsByVendor = () => {
-    const groups: { [key: number]: VendorGroup } = {};
-
-    Array.from(selectedItems).forEach(itemId => {
-      const item = tenderItems.find(ti => ti.id === itemId);
-      if (item) {
-        if (!groups[item.vendor_id]) {
-          groups[item.vendor_id] = {
-            vendor_id: item.vendor_id,
-            vendor_name: item.vendor_name,
-            items: [],
-            totalAmount: 0
-          };
-        }
-        groups[item.vendor_id].items.push(item);
-        groups[item.vendor_id].totalAmount += (item.estimated_unit_price || 0) * item.quantity;
-      }
+    // No vendor grouping in simple version - just validate pricing is entered
+    const missingPrices = Array.from(selectedItems).filter(itemId => {
+      return !itemPrices[itemId] || itemPrices[itemId] <= 0;
     });
-
-    setVendorGroups(Object.values(groups));
+    
+    if (missingPrices.length > 0) {
+      setError(`Please enter valid unit price for ${missingPrices.length} item(s)`);
+      return false;
+    }
+    return true;
   };
 
   const handleItemToggle = (itemId: number) => {
@@ -135,24 +117,32 @@ export default function CreatePurchaseOrder() {
 
   const handleCreatePOs = async () => {
     if (selectedItems.size === 0) {
-      alert('Please select at least one item');
+      setError('Please select at least one item');
       return;
     }
 
     if (!poDate) {
-      alert('Please select a PO date');
+      setError('Please select a PO date');
+      return;
+    }
+
+    // Validate all selected items have prices
+    if (!groupItemsByVendor()) {
       return;
     }
 
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch('http://localhost:3001/api/purchase-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenderId: selectedTenderId,
           selectedItems: Array.from(selectedItems),
-          poDate
+          poDate,
+          vendorId: parseInt(vendorId),
+          itemPrices: itemPrices
         })
       });
 
@@ -162,11 +152,11 @@ export default function CreatePurchaseOrder() {
       }
 
       const result = await response.json();
-      alert(`✅ ${result.pos.length} PO(s) created successfully!`);
+      alert(`✅ PO created successfully!`);
       navigate('/dashboard/purchase-orders');
     } catch (err) {
       console.error('Error creating POs:', err);
-      alert(`Error: ${err instanceof Error ? err.message : 'Failed to create POs'}`);
+      setError(err instanceof Error ? err.message : 'Failed to create POs');
     } finally {
       setLoading(false);
     }
@@ -187,16 +177,19 @@ export default function CreatePurchaseOrder() {
 
   const totalSelectedAmount = Array.from(selectedItems).reduce((sum, itemId) => {
     const item = tenderItems.find(ti => ti.id === itemId);
-    return sum + ((item?.estimated_unit_price || 0) * (item?.quantity || 1));
-  }, 0);
+    return Array.from(selectedItems).reduce((sum, itemId) => {
+      const item = tenderItems.find(ti => ti.id === itemId);
+      const price = itemPrices[itemId] || 0;
+      return sum + (price * (item?.quantity || 1));
+    }, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Create Purchase Orders</h1>
-          <p className="text-slate-600">Select items from a tender to auto-generate POs grouped by vendor</p>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">Create Purchase Order</h1>
+          <p className="text-slate-600">Select items from a tender and enter pricing to create a PO</p>
         </div>
 
         {error && (
@@ -283,28 +276,33 @@ export default function CreatePurchaseOrder() {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-slate-900">{item.nomenclature}</p>
-                              <Badge variant="secondary">{item.category_name}</Badge>
+                              <p className="font-medium text-slate-900">{item.nomenclature || 'Item ' + item.item_id}</p>
+                              {item.category_name && <Badge variant="secondary">{item.category_name}</Badge>}
                             </div>
-                            {item.specifications && (
-                              <p className="text-xs text-slate-500 mt-1">{item.specifications}</p>
-                            )}
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <div className="flex items-center gap-2 justify-end">
-                              <span className="text-sm font-medium text-slate-700">
-                                Qty: {item.quantity}
-                              </span>
-                              <span className="text-sm font-medium text-slate-700">
-                                @ Rs {item.estimated_unit_price}
-                              </span>
+                            <div className="text-sm font-medium text-slate-700 mb-2">
+                              Qty: {item.quantity}
                             </div>
-                            <p className="text-sm font-bold text-blue-600">
-                              Rs {(item.estimated_unit_price * item.quantity).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-slate-500 mt-1">
-                              Vendor: {item.vendor_name}
-                            </p>
+                            {selectedItems.has(item.id) && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-slate-600">Price:</span>
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  min="0"
+                                  step="0.01"
+                                  value={itemPrices[item.id] || ''}
+                                  onChange={(e) => {
+                                    setItemPrices({
+                                      ...itemPrices,
+                                      [item.id]: parseFloat(e.target.value) || 0
+                                    });
+                                  }}
+                                  className="w-24 text-sm"
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -314,63 +312,64 @@ export default function CreatePurchaseOrder() {
               </CardContent>
             </Card>
 
-            {/* Step 3: PO Date */}
+            {/* Step 3: Vendor & PO Date */}
             <Card>
               <CardHeader>
-                <CardTitle>Step 3: Set PO Date</CardTitle>
-                <CardDescription>All generated POs will have this date</CardDescription>
+                <CardTitle>Step 3: Set Vendor & PO Date</CardTitle>
+                <CardDescription>Select the vendor and set the PO date</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Input
-                  type="date"
-                  value={poDate}
-                  onChange={(e) => setPoDate(e.target.value)}
-                  className="border-slate-300"
-                />
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Vendor ID</label>
+                  <Input
+                    type="number"
+                    value={vendorId}
+                    onChange={(e) => setVendorId(e.target.value)}
+                    className="border-slate-300"
+                    placeholder="Enter vendor ID"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">PO Date</label>
+                  <Input
+                    type="date"
+                    value={poDate}
+                    onChange={(e) => setPoDate(e.target.value)}
+                    className="border-slate-300"
+                  />
+                </div>
               </CardContent>
             </Card>
 
-            {/* Preview: POs by Vendor */}
+            {/* Summary */}
             {selectedItems.size > 0 && (
               <Card className="border-blue-200 bg-blue-50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Check className="w-5 h-5 text-green-600" />
-                    Preview: {vendorGroups.length} PO(s) will be created
+                    Summary
                   </CardTitle>
-                  <CardDescription>
-                    Items are grouped by vendor for separate purchase orders
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {vendorGroups.map((group, idx) => (
-                      <div key={group.vendor_id} className="border border-blue-300 rounded-lg p-4 bg-white">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="font-bold text-slate-900">
-                              Purchase Order #{idx + 1}
-                            </h3>
-                            <p className="text-sm text-slate-600">Vendor: {group.vendor_name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-slate-600">Total Value</p>
-                            <p className="text-lg font-bold text-green-600">
-                              Rs {group.totalAmount.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          {group.items.map((item, itemIdx) => (
-                            <div key={item.id} className="flex justify-between text-sm text-slate-700 ml-4">
-                              <span>{itemIdx + 1}. {item.nomenclature}</span>
-                              <span>Qty: {item.quantity} @ Rs {item.estimated_unit_price}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Selected Items:</span>
+                      <span className="font-medium">{selectedItems.size} item(s)</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Total Value:</span>
+                      <span className="font-bold text-green-600">
+                        Rs {totalSelectedAmount.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Vendor ID:</span>
+                      <span className="font-medium">{vendorId}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">PO Date:</span>
+                      <span className="font-medium">{poDate}</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -389,7 +388,7 @@ export default function CreatePurchaseOrder() {
                 disabled={loading || selectedItems.size === 0}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {loading ? 'Creating...' : `Create ${vendorGroups.length} PO(s)`}
+                {loading ? 'Creating...' : `Create PO`}
               </Button>
             </div>
           </>
