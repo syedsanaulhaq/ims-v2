@@ -36,8 +36,8 @@ export default function CreatePurchaseOrder() {
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [selectedTenderId, setSelectedTenderId] = useState<string>('');
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
-  const [itemPrices, setItemPrices] = useState<{ [key: number]: number }>({});
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [itemPrices, setItemPrices] = useState<{ [key: string]: number }>({});
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [vendorId, setVendorId] = useState<string>('1');
   const [loading, setLoading] = useState(false);
@@ -107,7 +107,7 @@ export default function CreatePurchaseOrder() {
     return true;
   };
 
-  const handleItemToggle = (itemId: number) => {
+  const handleItemToggle = (itemId: string) => {
     const newSelection = new Set(selectedItems);
     if (newSelection.has(itemId)) {
       newSelection.delete(itemId);
@@ -187,11 +187,9 @@ export default function CreatePurchaseOrder() {
 
   const totalSelectedAmount = Array.from(selectedItems).reduce((sum, itemId) => {
     const item = tenderItems.find(ti => ti.id === itemId);
-    return Array.from(selectedItems).reduce((sum, itemId) => {
-      const item = tenderItems.find(ti => ti.id === itemId);
-      const price = itemPrices[itemId] || 0;
-      return sum + (price * (item?.quantity || 1));
-    }, 0);
+    const price = itemPrices[itemId] || 0;
+    return sum + (price * (item?.quantity || 1));
+  }, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">

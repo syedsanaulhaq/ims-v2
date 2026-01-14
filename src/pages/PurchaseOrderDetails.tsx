@@ -194,7 +194,7 @@ export default function PurchaseOrderDetails() {
                 </p>
               </div>
               <div className="text-right">
-                <Badge className={getStatusColor(po.status)} className="text-lg px-4 py-2">
+                <Badge className={`${getStatusColor(po.status)} text-lg px-4 py-2`}>
                   {po.status.toUpperCase()}
                 </Badge>
               </div>
