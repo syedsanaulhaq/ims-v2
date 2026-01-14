@@ -5252,9 +5252,10 @@ app.get('/api/tenders', async (req, res) => {
 
 // GET /api/tender/:id/items - Get items for a tender (for Purchase Order creation)
 app.get('/api/tender/:id/items', async (req, res) => {
+  const { id } = req.params;
+  console.log(`📥 GET /api/tender/${id}/items - Fetching items for tender`);
+  
   try {
-    const { id } = req.params;
-    
     // Query TenderItems with item_masters join to get nomenclature
     const itemsResult = await pool.request()
       .input('tender_id', sql.NVarChar, id)
@@ -5273,18 +5274,21 @@ app.get('/api/tender/:id/items', async (req, res) => {
         ORDER BY ti.id
       `);
 
+    console.log(`✅ Found ${itemsResult.recordset.length} items for tender ${id}`);
     res.json(itemsResult.recordset);
   } catch (error) {
-    console.error('Failed to fetch tender items:', error);
+    console.error('❌ Failed to fetch tender items (main query):', error.message);
     // Fallback: return just the tender items with minimal data
     try {
+      console.log('   Trying fallback query...');
       const fallbackResult = await pool.request()
         .input('tender_id', sql.NVarChar, id)
         .query(`SELECT id, item_id, quantity FROM TenderItems WHERE tender_id = @tender_id ORDER BY id`);
       
+      console.log(`✅ Fallback found ${fallbackResult.recordset.length} items`);
       res.json(fallbackResult.recordset);
     } catch (fallbackError) {
-      console.error('Fallback also failed:', fallbackError);
+      console.error('❌ Fallback also failed:', fallbackError.message);
       res.status(500).json({ error: 'Failed to fetch tender items', details: fallbackError.message });
     }
   }
