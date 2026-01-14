@@ -67,7 +67,7 @@ export default function CreatePurchaseOrder() {
 
   const fetchTenders = async () => {
     try {
-      const response = await fetch('/api/tenders');
+      const response = await fetch('http://localhost:3001/api/tenders');
       if (!response.ok) throw new Error('Failed to fetch tenders');
       const data = await response.json();
       setTenders(data.filter((t: Tender) => t.id)); // Filter valid tenders
@@ -80,7 +80,7 @@ export default function CreatePurchaseOrder() {
   const fetchTenderItems = async (tenderId: number) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/tender/${tenderId}/items`);
+      const response = await fetch(`http://localhost:3001/api/tender/${tenderId}/items`);
       if (!response.ok) throw new Error('Failed to fetch tender items');
       const data = await response.json();
       setTenderItems(data);
@@ -146,7 +146,7 @@ export default function CreatePurchaseOrder() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/purchase-orders', {
+      const response = await fetch('http://localhost:3001/api/purchase-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -43,7 +43,7 @@ export default function PurchaseOrderDashboard() {
   const fetchPurchaseOrders = async () => {
     try {
       setLoading(true);
-      let query = '/api/purchase-orders';
+      let query = 'http://localhost:3001/api/purchase-orders';
       const params = new URLSearchParams();
 
       if (filters.status !== 'all') {
@@ -94,7 +94,7 @@ export default function PurchaseOrderDashboard() {
     }
 
     try {
-      const response = await fetch(`/api/purchase-orders/${id}`, {
+      const response = await fetch(`http://localhost:3001/api/purchase-orders/${id}`, {
         method: 'DELETE'
       });
 
