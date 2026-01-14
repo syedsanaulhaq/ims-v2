@@ -5256,19 +5256,20 @@ app.get('/api/tender/:id/items', async (req, res) => {
   console.log(`📥 GET /api/tender/${id}/items - Fetching items for tender`);
   
   try {
-    // Query TenderItems with item_masters join to get nomenclature
+    // Query tender_items with item_masters join to get nomenclature
     const itemsResult = await pool.request()
       .input('tender_id', sql.NVarChar, id)
       .query(`
         SELECT 
           ti.id,
-          ti.item_id,
+          ti.item_master_id,
           ti.quantity,
-          im.nomenclature,
+          ti.nomenclature,
+          ti.estimated_unit_price,
           im.category_id,
           cat.category_name
-        FROM TenderItems ti
-        LEFT JOIN item_masters im ON ti.item_id = im.id
+        FROM tender_items ti
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id
         LEFT JOIN categories cat ON im.category_id = cat.id
         WHERE ti.tender_id = @tender_id
         ORDER BY ti.id
@@ -5283,7 +5284,7 @@ app.get('/api/tender/:id/items', async (req, res) => {
       console.log('   Trying fallback query...');
       const fallbackResult = await pool.request()
         .input('tender_id', sql.NVarChar, id)
-        .query(`SELECT id, item_id, quantity FROM TenderItems WHERE tender_id = @tender_id ORDER BY id`);
+        .query(`SELECT id, item_master_id, quantity, nomenclature, estimated_unit_price FROM tender_items WHERE tender_id = @tender_id ORDER BY id`);
       
       console.log(`✅ Fallback found ${fallbackResult.recordset.length} items`);
       res.json(fallbackResult.recordset);
@@ -18725,31 +18726,31 @@ app.post('/api/purchase-orders', async (req, res) => {
     const lastNumber = lastPoResult.recordset[0]?.max_number || 0;
     let poCounter = lastNumber + 1;
 
-    // Get all items from TenderItems
+    // Get all items from tender_items
     let totalAmount = 0;
     const items = [];
     const itemPrices = req.body.itemPrices || {}; // Get prices from frontend
     
     for (const itemId of selectedItems) {
-      // Get item info from TenderItems
+      // Get item info from tender_items
       const itemResult = await transaction.request()
-        .input('itemId', sql.Int, itemId)
+        .input('itemId', sql.NVarChar, itemId)
         .input('tenderId', sql.NVarChar, tenderId)
         .query(`
           SELECT 
             ti.id,
-            ti.item_id,
+            ti.item_master_id,
             ti.quantity,
-            im.id as item_master_id,
-            im.nomenclature
-          FROM TenderItems ti
-          INNER JOIN item_masters im ON ti.item_id = im.id
+            ti.nomenclature,
+            im.id as item_master_id_lookup
+          FROM tender_items ti
+          LEFT JOIN item_masters im ON ti.item_master_id = im.id
           WHERE ti.id = @itemId AND ti.tender_id = @tenderId
         `);
 
       if (itemResult.recordset.length > 0) {
         const item = itemResult.recordset[0];
-        const unitPrice = itemPrices[itemId] || 0;
+        const unitPrice = itemPrices[itemId] || item.estimated_unit_price || 0;
         items.push({
           ...item,
           unit_price: unitPrice

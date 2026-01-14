@@ -16,10 +16,11 @@ interface Tender {
 }
 
 interface TenderItem {
-  id: number;
-  item_id: string;
+  id: string;
+  item_master_id: string;
   nomenclature?: string;
   quantity: number;
+  estimated_unit_price?: number;
   category_name?: string;
 }
 
@@ -276,7 +277,7 @@ export default function CreatePurchaseOrder() {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-slate-900">{item.nomenclature || 'Item ' + item.item_id}</p>
+                              <p className="font-medium text-slate-900">{item.nomenclature || 'Item'}</p>
                               {item.category_name && <Badge variant="secondary">{item.category_name}</Badge>}
                             </div>
                           </div>
