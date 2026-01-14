@@ -102,6 +102,9 @@ import ItemGroupsManager from "./pages/ItemGroupsManager";
 import CategoryItemsManager from "./pages/CategoryItemsManager";
 import TenderVendorManagement from "./pages/TenderVendorManagement";
 import VendorProposalsGrid from "./pages/VendorProposalsGrid";
+import CreatePurchaseOrder from "./pages/CreatePurchaseOrder";
+import PurchaseOrderDashboard from "./pages/PurchaseOrderDashboard";
+import PurchaseOrderDetails from "./pages/PurchaseOrderDetails";
 import { useParams } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -282,6 +285,9 @@ function App() {
                   <Route path="item-groups" element={<ItemGroupsManager />} />
                   <Route path="category-items" element={<CategoryItemsManager />} />
                   <Route path="tender-vendor-management" element={<TenderVendorManagement />} />
+                  <Route path="purchase-orders" element={<PurchaseOrderDashboard />} />
+                  <Route path="create-po" element={<CreatePurchaseOrder />} />
+                  <Route path="po/:id" element={<PurchaseOrderDetails />} />
                 </Route>
 
                 {/* Stock Acquisition - Protected */}
