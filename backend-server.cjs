@@ -18447,6 +18447,7 @@ app.get('/api/purchase-orders/:id', async (req, res) => {
 });
 
 // POST /api/purchase-orders - Create POs from tender items
+// ✅ ENHANCED: Handles multiple vendors in annual tenders
 app.post('/api/purchase-orders', async (req, res) => {
   const transaction = new sql.Transaction(pool);
   try {
@@ -18457,6 +18458,20 @@ app.post('/api/purchase-orders', async (req, res) => {
     if (!tenderId || !selectedItems || selectedItems.length === 0 || !poDate) {
       return res.status(400).json({ error: 'Missing required fields: tenderId, selectedItems, poDate' });
     }
+
+    // First, get tender info to know its type
+    const tenderRequest = await transaction.request()
+      .input('tenderId', sql.NVarChar, tenderId)
+      .query(`SELECT tender_type, vendor_id FROM tenders WHERE id = @tenderId`);
+
+    if (tenderRequest.recordset.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+
+    const tender = tenderRequest.recordset[0];
+    const isSingleVendorType = ['contract', 'spot-purchase']
+      .includes(tender.tender_type?.toLowerCase());
 
     // Get the latest PO number to generate new ones
     const lastPoRequest = transaction.request();
@@ -18469,13 +18484,12 @@ app.post('/api/purchase-orders', async (req, res) => {
     const lastNumber = lastPoResult.recordset[0]?.max_number || 0;
     let poCounter = lastNumber + 1;
 
-    // Get all items from tender_items
-    let totalAmount = 0;
-    const items = [];
-    const itemPrices = req.body.itemPrices || {}; // Get prices from frontend
+    // Get all items from tender_items WITH vendor_id
+    const allItems = [];
+    const itemPrices = req.body.itemPrices || {};
     
     for (const itemId of selectedItems) {
-      // Get item info from tender_items
+      // ✅ NEW: Get vendor_id from tender_items for annual-tender
       const itemResult = await transaction.request()
         .input('itemId', sql.NVarChar, itemId)
         .input('tenderId', sql.NVarChar, tenderId)
@@ -18485,6 +18499,8 @@ app.post('/api/purchase-orders', async (req, res) => {
             ti.item_master_id,
             ti.quantity,
             ti.nomenclature,
+            ti.vendor_id,
+            ti.estimated_unit_price,
             im.id as item_master_id_lookup
           FROM tender_items ti
           LEFT JOIN item_masters im ON ti.item_master_id = im.id
@@ -18494,73 +18510,105 @@ app.post('/api/purchase-orders', async (req, res) => {
       if (itemResult.recordset.length > 0) {
         const item = itemResult.recordset[0];
         const unitPrice = itemPrices[itemId] || item.estimated_unit_price || 0;
-        items.push({
+        
+        // ✅ Determine vendor_id based on tender type
+        let itemVendorId;
+        if (isSingleVendorType) {
+          // For contract/spot: use tender's vendor
+          itemVendorId = tender.vendor_id;
+        } else {
+          // For annual-tender: use item's vendor
+          itemVendorId = item.vendor_id;
+        }
+
+        allItems.push({
           ...item,
-          unit_price: unitPrice
+          unit_price: unitPrice,
+          vendor_id: itemVendorId
         });
-        totalAmount += unitPrice * (item.quantity || 1);
       }
     }
 
-    if (items.length === 0) {
+    if (allItems.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ error: 'No valid items found for the selected tender' });
     }
 
-    // Use a default vendor ID (or accept vendor_id from request)
-    const vendorId = req.body.vendorId || 1; // Default vendor ID
-
-    // Create a single PO with all items
-    const poNumber = `PO${String(poCounter).padStart(6, '0')}`;
-
-    // Insert PO
-    const poInsert = transaction.request()
-      .input('po_number', sql.NVarChar, poNumber)
-      .input('tender_id', sql.NVarChar, tenderId)
-      .input('vendor_id', sql.Int, vendorId)
-      .input('po_date', sql.DateTime, new Date(poDate))
-      .input('total_amount', sql.Decimal(15, 2), totalAmount)
-      .input('status', sql.NVarChar, 'draft')
-      .input('created_at', sql.DateTime, new Date());
-
-    const poResult = await poInsert.query(`
-      INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, total_amount, status, created_at, updated_at)
-      OUTPUT INSERTED.id
-      VALUES (@po_number, @tender_id, @vendor_id, @po_date, @total_amount, @status, @created_at, GETDATE())
-    `);
-
-    const poId = poResult.recordset[0].id;
-
-    // Insert PO items
-    for (const item of items) {
-      const itemTotal = (item.unit_price || 0) * (item.quantity || 1);
-
-      await transaction.request()
-        .input('po_id', sql.Int, poId)
-        .input('item_master_id', sql.Int, item.item_master_id)
-        .input('quantity', sql.Decimal(10, 2), item.quantity || 1)
-        .input('unit_price', sql.Decimal(15, 2), item.unit_price || 0)
-        .input('total_price', sql.Decimal(15, 2), itemTotal)
-        .input('specifications', sql.NVarChar, item.specifications || null)
-        .input('created_at', sql.DateTime, new Date())
-        .query(`
-          INSERT INTO purchase_order_items (po_id, item_master_id, quantity, unit_price, total_price, specifications, created_at)
-          VALUES (@po_id, @item_master_id, @quantity, @unit_price, @total_price, @specifications, @created_at)
-        `);
+    // ✅ GROUP ITEMS BY VENDOR_ID
+    const itemsByVendor = {};
+    for (const item of allItems) {
+      const vendorId = item.vendor_id;
+      if (!itemsByVendor[vendorId]) {
+        itemsByVendor[vendorId] = [];
+      }
+      itemsByVendor[vendorId].push(item);
     }
 
-    const createdPos = [{
-      id: poId,
-      po_number: poNumber,
-      vendor_id: vendorId,
-      item_count: items.length,
-      total_amount: totalAmount
-    }];
+    // ✅ CREATE SEPARATE PO FOR EACH VENDOR
+    const createdPos = [];
+
+    for (const vendorId in itemsByVendor) {
+      const vendorItems = itemsByVendor[vendorId];
+      let vendorTotal = 0;
+
+      for (const item of vendorItems) {
+        vendorTotal += (item.unit_price || 0) * (item.quantity || 1);
+      }
+
+      const poNumber = `PO${String(poCounter).padStart(6, '0')}`;
+      poCounter++;
+
+      // Insert PO
+      const poInsert = transaction.request()
+        .input('po_number', sql.NVarChar, poNumber)
+        .input('tender_id', sql.NVarChar, tenderId)
+        .input('vendor_id', sql.NVarChar, vendorId) // ✅ Now accepts NVARCHAR
+        .input('po_date', sql.DateTime, new Date(poDate))
+        .input('total_amount', sql.Decimal(15, 2), vendorTotal)
+        .input('status', sql.NVarChar, 'draft')
+        .input('created_at', sql.DateTime, new Date());
+
+      const poResult = await poInsert.query(`
+        INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, total_amount, status, created_at, updated_at)
+        OUTPUT INSERTED.id
+        VALUES (@po_number, @tender_id, @vendor_id, @po_date, @total_amount, @status, @created_at, GETDATE())
+      `);
+
+      const poId = poResult.recordset[0].id;
+
+      // Insert PO items for this vendor
+      for (const item of vendorItems) {
+        const itemTotal = (item.unit_price || 0) * (item.quantity || 1);
+
+        await transaction.request()
+          .input('po_id', sql.Int, poId)
+          .input('item_master_id', sql.NVarChar, item.item_master_id) // ✅ Changed to NVARCHAR
+          .input('quantity', sql.Decimal(10, 2), item.quantity || 1)
+          .input('unit_price', sql.Decimal(15, 2), item.unit_price || 0)
+          .input('total_price', sql.Decimal(15, 2), itemTotal)
+          .input('specifications', sql.NVarChar, item.specifications || null)
+          .input('created_at', sql.DateTime, new Date())
+          .query(`
+            INSERT INTO purchase_order_items (po_id, item_master_id, quantity, unit_price, total_price, specifications, created_at)
+            VALUES (@po_id, @item_master_id, @quantity, @unit_price, @total_price, @specifications, @created_at)
+          `);
+      }
+
+      createdPos.push({
+        id: poId,
+        po_number: poNumber,
+        vendor_id: vendorId,
+        item_count: vendorItems.length,
+        total_amount: vendorTotal
+      });
+
+      console.log(`✅ Created PO ${poNumber} for vendor ${vendorId} with ${vendorItems.length} items`);
+    }
 
     await transaction.commit();
 
     res.json({
-      message: `✅ ${createdPos.length} Purchase Order(s) created successfully`,
+      message: `✅ ${createdPos.length} Purchase Order(s) created successfully${createdPos.length > 1 ? ' (grouped by vendor)' : ''}`,
       pos: createdPos
     });
   } catch (error) {
