@@ -5250,6 +5250,38 @@ app.get('/api/tenders', async (req, res) => {
   }
 });
 
+// GET /api/tender/:id/items - Get items for a tender (for Purchase Order creation)
+app.get('/api/tender/:id/items', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const itemsResult = await pool.request()
+      .input('tender_id', sql.NVarChar, id)
+      .query(`
+        SELECT 
+          ti.id,
+          ti.item_master_id,
+          im.nomenclature,
+          ti.quantity,
+          ti.estimated_unit_price,
+          ti.vendor_id,
+          v.vendor_name,
+          cat.category_name,
+          ti.specifications
+        FROM tender_items ti
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id
+        LEFT JOIN vendors v ON ti.vendor_id = v.id
+        LEFT JOIN categories cat ON im.category_id = cat.id
+        WHERE ti.tender_id = @tender_id
+      `);
+
+    res.json(itemsResult.recordset);
+  } catch (error) {
+    console.error('Failed to fetch tender items:', error);
+    res.status(500).json({ error: 'Failed to fetch tender items', details: error.message });
+  }
+});
+
 // GET /api/tenders/:id - Get a single tender by ID
 app.get('/api/tenders/:id', async (req, res) => {
   try {
