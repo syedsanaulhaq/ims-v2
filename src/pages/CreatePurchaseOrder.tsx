@@ -21,6 +21,7 @@ interface TenderItem {
   nomenclature?: string;
   quantity: number;
   estimated_unit_price?: number;
+  vendor_id?: string;
   category_name?: string;
 }
 
@@ -77,6 +78,14 @@ export default function CreatePurchaseOrder() {
       const data = await response.json();
       setTenderItems(data);
       setSelectedItems(new Set()); // Reset selection
+      
+      // Auto-populate vendor ID from first item if all items have same vendor
+      if (data.length > 0 && data[0].vendor_id) {
+        const allSameVendor = data.every((item: TenderItem) => item.vendor_id === data[0].vendor_id);
+        if (allSameVendor) {
+          setVendorId(data[0].vendor_id);
+        }
+      }
     } catch (err) {
       console.error('Error fetching items:', err);
       setError('Failed to load tender items');

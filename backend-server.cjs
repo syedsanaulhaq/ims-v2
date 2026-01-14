@@ -5256,26 +5256,64 @@ app.get('/api/tender/:id/items', async (req, res) => {
   console.log(`📥 GET /api/tender/${id}/items - Fetching items for tender`);
   
   try {
-    // Query tender_items with item_masters join to get nomenclature
-    const itemsResult = await pool.request()
+    // First get the tender to know the type and vendor info
+    const tenderRequest = await pool.request()
       .input('tender_id', sql.NVarChar, id)
-      .query(`
-        SELECT 
-          ti.id,
-          ti.item_master_id,
-          ti.quantity,
-          ti.nomenclature,
-          ti.estimated_unit_price,
-          im.category_id,
-          cat.category_name
-        FROM tender_items ti
-        LEFT JOIN item_masters im ON ti.item_master_id = im.id
-        LEFT JOIN categories cat ON im.category_id = cat.id
-        WHERE ti.tender_id = @tender_id
-        ORDER BY ti.id
-      `);
+      .query(`SELECT id, tender_type, vendor_id FROM tenders WHERE id = @tender_id`);
+    
+    if (tenderRequest.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tender not found' });
+    }
 
-    console.log(`✅ Found ${itemsResult.recordset.length} items for tender ${id}`);
+    const tender = tenderRequest.recordset[0];
+    const isSingleVendorType = ['contract', 'spot-purchase'].includes(tender.tender_type?.toLowerCase());
+    const tenderVendorId = tender.vendor_id; // For contract/spot-purchase
+
+    // Query tender_items - vendor may or may not be in the table depending on tender type
+    let itemsResult;
+    if (isSingleVendorType) {
+      // For contract/spot-purchase: vendor_id is NULL in items, get from tender
+      itemsResult = await pool.request()
+        .input('tender_id', sql.NVarChar, id)
+        .query(`
+          SELECT 
+            ti.id,
+            ti.item_master_id,
+            ti.quantity,
+            ti.nomenclature,
+            ti.estimated_unit_price,
+            im.category_id,
+            cat.category_name,
+            '${tenderVendorId}' as vendor_id
+          FROM tender_items ti
+          LEFT JOIN item_masters im ON ti.item_master_id = im.id
+          LEFT JOIN categories cat ON im.category_id = cat.id
+          WHERE ti.tender_id = @tender_id
+          ORDER BY ti.id
+        `);
+    } else {
+      // For annual-tender: vendor_id may be in each item
+      itemsResult = await pool.request()
+        .input('tender_id', sql.NVarChar, id)
+        .query(`
+          SELECT 
+            ti.id,
+            ti.item_master_id,
+            ti.quantity,
+            ti.nomenclature,
+            ti.estimated_unit_price,
+            ti.vendor_id,
+            im.category_id,
+            cat.category_name
+          FROM tender_items ti
+          LEFT JOIN item_masters im ON ti.item_master_id = im.id
+          LEFT JOIN categories cat ON im.category_id = cat.id
+          WHERE ti.tender_id = @tender_id
+          ORDER BY ti.id
+        `);
+    }
+
+    console.log(`✅ Found ${itemsResult.recordset.length} items for tender ${id} (type: ${tender.tender_type})`);
     res.json(itemsResult.recordset);
   } catch (error) {
     console.error('❌ Failed to fetch tender items (main query):', error.message);
