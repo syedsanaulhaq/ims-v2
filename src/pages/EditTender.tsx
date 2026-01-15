@@ -1192,7 +1192,7 @@ const EditTender: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Category Select */}
                 <div>
-                  <label className="text-sm font-medium">Category</label>
+                  <label className="text-xs font-medium mb-1 block">Category</label>
                   <Select 
                     value={selectedCategory} 
                     onValueChange={(value) => {
@@ -1203,7 +1203,7 @@ const EditTender: React.FC = () => {
                       }));
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1222,13 +1222,13 @@ const EditTender: React.FC = () => {
 
                 {/* Item Master Select - filtered by category */}
                 <div>
-                  <label className="text-sm font-medium">Item Master</label>
+                  <label className="text-xs font-medium mb-1 block">Item Master</label>
                   <Select 
                     value={newItem.item_master_id} 
                     onValueChange={handleItemMasterSelect}
                     disabled={!selectedCategory}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder={selectedCategory ? "Select item" : "Select category first"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -1244,8 +1244,9 @@ const EditTender: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium">Nomenclature</label>
+                  <label className="text-xs font-medium mb-1 block">Nomenclature</label>
                   <Input
+                    className="h-9"
                     value={newItem.nomenclature}
                     onChange={(e) => setNewItem(prev => ({ ...prev, nomenclature: e.target.value }))}
                     placeholder="Item description"
@@ -1255,18 +1256,18 @@ const EditTender: React.FC = () => {
 
               {/* Second Row - Vendor/Quantity and Price */}
               {tenderData.tender_type === 'annual-tender' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Vendor Multi-Select for Annual Tender - Simple Checkboxes */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                  {/* Vendor Multi-Select for Annual Tender - Show all vendors */}
                   <div>
-                    <label className="text-sm font-medium">Vendors (Multi-select)</label>
-                    <div className="border rounded-lg bg-white p-3 space-y-2 max-h-48 overflow-y-auto">
+                    <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
+                    <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
                       {vendors && vendors.length > 0 ? (
                         vendors.map(vendor => {
                           const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
                           const isSelected = vendorIds.includes(vendor.id);
                           
                           return (
-                            <label key={vendor.id} className="flex items-center gap-2 p-2 text-sm hover:bg-gray-50 rounded cursor-pointer">
+                            <label key={vendor.id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -1313,8 +1314,9 @@ const EditTender: React.FC = () => {
 
                   {/* Unit Price for Annual Tender */}
                   <div>
-                    <label className="text-sm font-medium">Unit Price</label>
+                    <label className="text-xs font-medium mb-1 block">Unit Price</label>
                     <Input
+                      className="h-9"
                       type="number"
                       step="0.01"
                       value={newItem.estimated_unit_price || ''}
@@ -1324,11 +1326,12 @@ const EditTender: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
                   {/* Quantity for Normal Tender */}
                   <div>
-                    <label className="text-sm font-medium">Quantity</label>
+                    <label className="text-xs font-medium mb-1 block">Quantity *</label>
                     <Input
+                      className="h-9"
                       type="number"
                       min="1"
                       value={newItem.quantity}
@@ -1339,8 +1342,9 @@ const EditTender: React.FC = () => {
 
                   {/* Unit Price for Normal Tender */}
                   <div>
-                    <label className="text-sm font-medium">Unit Price</label>
+                    <label className="text-xs font-medium mb-1 block">Unit Price</label>
                     <Input
+                      className="h-9"
                       type="number"
                       step="0.01"
                       value={newItem.estimated_unit_price || ''}
@@ -1351,7 +1355,7 @@ const EditTender: React.FC = () => {
 
                   {/* Total for Normal Tender */}
                   <div>
-                    <label className="text-sm font-medium">Total</label>
+                    <label className="text-xs font-medium mb-1 block">Total</label>
                     <Input
                       className="bg-gray-100"
                       value={(newItem.quantity || 1) * (newItem.estimated_unit_price || 0)}
@@ -1364,7 +1368,7 @@ const EditTender: React.FC = () => {
               {/* Specifications and Remarks */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium">Specifications</label>
+                  <label className="text-xs font-medium mb-1 block">Specifications (Optional)</label>
                   <Input
                     value={newItem.specifications || ''}
                     onChange={(e) => setNewItem(prev => ({ ...prev, specifications: e.target.value }))}
@@ -1373,7 +1377,7 @@ const EditTender: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium">Remarks</label>
+                  <label className="text-xs font-medium mb-1 block">Remarks (Optional)</label>
                   <Input
                     value={newItem.remarks || ''}
                     onChange={(e) => setNewItem(prev => ({ ...prev, remarks: e.target.value }))}
