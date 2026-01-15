@@ -374,17 +374,17 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {isFinalized ? (
-                          // Show Create PO and View Report buttons for finalized tenders
+                          // Show Manage PO and View Report buttons for finalized tenders
                           <>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => navigate(`/dashboard/create-po?tenderId=${tender.id}`)}
+                              onClick={() => navigate(`/dashboard/po-management?tenderId=${tender.id}`)}
                               className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                              title="Create Purchase Orders from this tender"
+                              title="Manage Purchase Orders related to this tender"
                             >
                               <ShoppingCart className="w-4 h-4 mr-1" />
-                              Create PO
+                              Manage PO
                             </Button>
                             <Button
                               onClick={() => navigate(`/dashboard/tenders/${tender.id}/report`)}

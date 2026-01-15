@@ -48,6 +48,8 @@ interface TenderItem {
   status?: string;
   created_at?: string;
   updated_at?: string;
+  vendor_ids?: string | string[];
+  vendor_id?: string;
 }
 
 interface Tender {
@@ -416,7 +418,7 @@ const TenderDetails: React.FC = () => {
             <div>
               <label className="text-sm font-medium text-gray-500">Tender Type</label>
               <p className="text-lg mt-1">
-                {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : 'Contract/Tender'}
+                {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract/Tender'}
               </p>
             </div>
             {tender.tender_spot_type && (
@@ -437,6 +439,18 @@ const TenderDetails: React.FC = () => {
                 {formatCurrency(tender.estimated_value)}
               </p>
             </div>
+            {tender.publication_date && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Publication Date</label>
+                <p className="text-lg mt-1">{formatDate(tender.publication_date)}</p>
+              </div>
+            )}
+            {tender.procurement_method && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Procurement Method</label>
+                <p className="text-lg mt-1">{tender.procurement_method}</p>
+              </div>
+            )}
             {tender.individual_total !== null && tender.individual_total !== undefined && (
               <div>
                 <label className="text-sm font-medium text-gray-500">Individual Total</label>
@@ -760,12 +774,11 @@ const TenderDetails: React.FC = () => {
                 <TableHeader>
                   <TableRow className="bg-gray-50">
                     <TableHead className="w-12">#</TableHead>
-                    <TableHead>Nomenclature</TableHead>
-                    <TableHead>Quantity</TableHead>
+                    <TableHead>Item Name</TableHead>
                     <TableHead>Unit Price</TableHead>
-                    <TableHead>Total Amount</TableHead>
                     <TableHead>Specifications</TableHead>
                     <TableHead>Remarks</TableHead>
+                    {tender.tender_type === 'annual-tender' && <TableHead>Vendor</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -773,12 +786,8 @@ const TenderDetails: React.FC = () => {
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell className="font-semibold">{item.nomenclature}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
                       <TableCell>
                         {item.estimated_unit_price ? formatCurrency(item.estimated_unit_price) : '-'}
-                      </TableCell>
-                      <TableCell className="font-semibold text-green-600">
-                        {item.total_amount ? formatCurrency(item.total_amount) : '-'}
                       </TableCell>
                       <TableCell className="max-w-xs">
                         <div className="truncate" title={item.specifications || ''}>
@@ -790,6 +799,31 @@ const TenderDetails: React.FC = () => {
                           {item.remarks || '-'}
                         </div>
                       </TableCell>
+                      {tender.tender_type === 'annual-tender' && (
+                        <TableCell>
+                          {item.vendor_ids ? (
+                            Array.isArray(item.vendor_ids) ? (
+                              <div className="flex flex-wrap gap-1">
+                                {item.vendor_ids.map((vendorId: any, idx: number) => (
+                                  <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                    {vendorId}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {item.vendor_ids.split(',').map((vendorId: string, idx: number) => (
+                                  <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                    {vendorId.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            )
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
