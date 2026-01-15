@@ -5082,6 +5082,19 @@ app.post('/api/tenders', upload.fields([
       tenderData = tenderDataFromBody;
     }
 
+    console.log('✅ POST /api/tenders - Creating new tender');
+    console.log('📊 Tender type:', tenderData.tender_type);
+    console.log('📋 Total items to create:', items?.length || 0);
+    
+    if (items && items.length > 0) {
+      console.log('📦 Items received:');
+      items.forEach((item, idx) => {
+        console.log(`  Item ${idx}: ${item.nomenclature}`);
+        console.log(`    - vendor_ids (array):`, item.vendor_ids);
+        console.log(`    - vendor_id (single):`, item.vendor_id);
+      });
+    }
+
     // Handle file uploads
     if (req.files) {
       if (req.files.contract_file) {
@@ -5156,37 +5169,52 @@ app.post('/api/tenders', upload.fields([
       const tender_type = tenderData.tender_type || 'contract';
       const awardedVendorId = tenderData.vendor_id || tenderData.awarded_vendor_id;
 
+      console.log('📦 Processing items for tender type:', tender_type);
+      console.log('📋 Total items:', items.length);
+
       for (const item of items) {
+        console.log(`📝 Processing item: ${item.nomenclature}`);
+        console.log(`   - vendor_ids (array):`, item.vendor_ids);
+        console.log(`   - vendor_id (single):`, item.vendor_id);
+        
         const itemRequest = transaction.request();
         itemRequest.input('id', sql.NVarChar, uuidv4());
         itemRequest.input('tender_id', sql.NVarChar, tenderId);
         itemRequest.input('created_at', sql.DateTime2, now);
         itemRequest.input('updated_at', sql.DateTime2, now);
 
-        // ✅ NEW: Set vendor_id based on tender type
+        // ✅ NEW: Set vendor_id and vendor_ids based on tender type
         let itemVendorId = null;
+        let itemVendorIds = null;
         
         if (tender_type === 'annual-tender') {
-          // Annual tender: Each item has specific vendor
-          itemVendorId = item.vendor_id;
+          // Annual tender: Each item can have single or multiple vendors (comma-separated)
+          if (item.vendor_ids && Array.isArray(item.vendor_ids)) {
+            // If vendor_ids is an array, join them as comma-separated string
+            itemVendorIds = item.vendor_ids.filter((id) => id && id.trim()).join(',');
+            console.log(`   ✅ Converted vendor_ids array to string: ${itemVendorIds}`);
+          } else if (item.vendor_id) {
+            // Single vendor or already comma-separated string
+            itemVendorIds = item.vendor_id;
+            console.log(`   ✅ Using vendor_id as vendor_ids: ${itemVendorIds}`);
+          } else {
+            console.log(`   ⚠️  No vendor_ids found for this annual tender item!`);
+          }
         } else if (['contract', 'spot-purchase'].includes(tender_type)) {
           // Contract/Spot Purchase: All items from same vendor
           itemVendorId = awardedVendorId || item.vendor_id;
+          console.log(`   ✅ Using vendor_id for ${tender_type}: ${itemVendorId}`);
         }
 
-        if (itemVendorId) {
-          itemRequest.input('vendor_id', sql.NVarChar, itemVendorId);
-        }
+        console.log(`   💾 Saving: vendor_id=${itemVendorId}, vendor_ids=${itemVendorIds}`);
+        
+        itemRequest.input('vendor_id', sql.NVarChar, itemVendorId || null);
+        itemRequest.input('vendor_ids', sql.NVarChar, itemVendorIds || null);
 
-        let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at';
-        let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at';
+        let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at, vendor_id, vendor_ids';
+        let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at, @vendor_id, @vendor_ids';
 
-        // ✅ MODIFIED: Always include vendor_id, plus all pricing fields
-        if (itemVendorId) {
-          itemInsertQuery += ', vendor_id';
-          itemValuesQuery += ', @vendor_id';
-        }
-
+        // ✅ MODIFIED: Always include vendor_id in the query
         const itemFields = [
           'item_master_id', 'nomenclature', 'quantity', 'quantity_received', 
           'estimated_unit_price', 'actual_unit_price', 'total_amount', 
@@ -5218,6 +5246,18 @@ app.post('/api/tenders', upload.fields([
         }
         
         itemInsertQuery += ') ' + itemValuesQuery + ')';
+        console.log(`   📝 Final INSERT Query: ${itemInsertQuery}`);
+        console.log(`   📊 Query Parameters:`, {
+          id: uuidv4(),
+          tender_id: tenderId,
+          vendor_id: itemVendorId,
+          vendor_ids: itemVendorIds,
+          item_master_id: item.item_master_id,
+          nomenclature: item.nomenclature,
+          quantity: item.quantity,
+          estimated_unit_price: item.estimated_unit_price
+        });
+        
         await itemRequest.query(itemInsertQuery);
       }
     }
@@ -5346,12 +5386,68 @@ app.get('/api/tenders/:id', async (req, res) => {
       return res.status(404).json({ error: 'Tender not found' });
     }
 
+    const tender = tenderResult.recordset[0];
+    
+    // Fetch tender items
     const itemsResult = await pool.request()
       .input('tender_id', sql.NVarChar, id)
-      .query('SELECT * FROM tender_items WHERE tender_id = @tender_id');
+      .query(`
+        SELECT 
+          ti.id,
+          ti.tender_id,
+          ti.item_master_id,
+          ti.quantity,
+          ti.nomenclature,
+          ti.estimated_unit_price,
+          ti.vendor_id,
+          ti.vendor_ids,
+          ti.created_at,
+          ti.updated_at,
+          im.nomenclature as item_nomenclature
+        FROM tender_items ti
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id
+        WHERE ti.tender_id = @tender_id
+        ORDER BY ti.created_at
+      `);
 
-    const tender = tenderResult.recordset[0];
-    tender.items = itemsResult.recordset;
+    // For each item, if vendor_ids is not null (annual tender), try to fetch vendor details
+    const itemsWithVendors = await Promise.all(itemsResult.recordset.map(async (item) => {
+      // Check vendor_ids first (for annual tender), then vendor_id (for contract/spot purchase)
+      const vendorIdString = item.vendor_ids || item.vendor_id;
+      
+      if (vendorIdString) {
+        // vendor_ids might be a single UUID or comma-separated UUIDs
+        const vendorIds = vendorIdString.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
+        
+        if (vendorIds.length > 0) {
+          try {
+            // Fetch vendor details for the first vendor ID
+            const vendorResult = await pool.request()
+              .input('vendor_id', sql.NVarChar, vendorIds[0])
+              .query('SELECT vendor_code, vendor_name, contact_person, email, phone FROM vendors WHERE id = @vendor_id');
+            
+            if (vendorResult.recordset.length > 0) {
+              const vendor = vendorResult.recordset[0];
+              return {
+                ...item,
+                vendor_code: vendor.vendor_code,
+                vendor_name: vendor.vendor_name,
+                contact_person: vendor.contact_person,
+                email: vendor.email,
+                phone: vendor.phone
+              };
+            }
+          } catch (vendorErr) {
+            // Silently fail if vendor lookup fails
+            console.warn(`Warning: Could not fetch vendor details for ${vendorIds[0]}:`, vendorErr.message);
+          }
+        }
+      }
+      
+      return item;
+    }));
+
+    tender.items = itemsWithVendors;
 
     res.json(tender);
   } catch (error) {
@@ -5596,16 +5692,22 @@ app.put('/api/tenders/:id', async (req, res) => {
           itemRequest.input('actual_unit_price', sql.Decimal(15, 2), 0);
         }
         
+        // Handle vendor_id (comma-separated for annual tenders with multiple vendors)
+        if (item.vendor_id) {
+          console.log(`📝 Item ${i + 1} vendor_id from request:`, item.vendor_id);
+        }
+        itemRequest.input('vendor_id', sql.NVarChar, item.vendor_id || null);
+        
         const insertQuery = `
           INSERT INTO tender_items (
             id, tender_id, item_master_id, nomenclature, quantity,
             estimated_unit_price, actual_unit_price, total_amount,
-            specifications, remarks, status, created_at, updated_at
+            specifications, remarks, status, created_at, updated_at, vendor_id
           )
           VALUES (
             @id, @tender_id, @item_master_id, @nomenclature, @quantity,
             @estimated_unit_price, @actual_unit_price, @total_amount,
-            @specifications, @remarks, @status, @created_at, @updated_at
+            @specifications, @remarks, @status, @created_at, @updated_at, @vendor_id
           )
         `;
         
@@ -5798,25 +5900,66 @@ app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
   const { tenderId } = req.params;
   
   try {
-    const result = await pool.request()
-      .input('tender_id', sql.UniqueIdentifier, tenderId)
-      .query(`
-        SELECT 
-          tv.*,
-          v.vendor_code,
-          v.contact_person,
-          v.email,
-          v.phone,
-          v.address,
-          v.city,
-          v.country
-        FROM tender_vendors tv
-        LEFT JOIN vendors v ON tv.vendor_id = v.id
-        WHERE tv.tender_id = @tender_id
-        ORDER BY tv.created_at DESC
-      `);
+    // First check tender type
+    const tenderCheck = await pool.request()
+      .input('id', sql.UniqueIdentifier, tenderId)
+      .query('SELECT tender_type, vendor_id FROM tenders WHERE id = @id');
     
-    res.json(result.recordset);
+    if (tenderCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+    
+    const tender = tenderCheck.recordset[0];
+    const tenderType = tender.tender_type?.toLowerCase();
+    let vendors = [];
+    
+    // For annual tenders: get unique vendors from tender_items
+    if (tenderType === 'annual-tender' || tenderType === 'annual') {
+      const result = await pool.request()
+        .input('tender_id', sql.UniqueIdentifier, tenderId)
+        .query(`
+          SELECT DISTINCT
+            v.id,
+            v.vendor_code,
+            v.vendor_name,
+            v.contact_person,
+            v.email,
+            v.phone,
+            v.address,
+            v.city,
+            v.country,
+            COUNT(DISTINCT ti.id) as item_count
+          FROM vendors v
+          INNER JOIN tender_items ti ON v.id = ti.vendor_id
+          WHERE ti.tender_id = @tender_id
+          GROUP BY v.id, v.vendor_code, v.vendor_name, v.contact_person, v.email, v.phone, v.address, v.city, v.country
+          ORDER BY v.vendor_name
+        `);
+      vendors = result.recordset;
+    } else {
+      // For contract/spot-purchase: single vendor from tender.vendor_id
+      if (tender.vendor_id) {
+        const result = await pool.request()
+          .input('vendor_id', sql.UniqueIdentifier, tender.vendor_id)
+          .query(`
+            SELECT 
+              id,
+              vendor_code,
+              vendor_name,
+              contact_person,
+              email,
+              phone,
+              address,
+              city,
+              country
+            FROM vendors
+            WHERE id = @vendor_id
+          `);
+        vendors = result.recordset;
+      }
+    }
+    
+    res.json(vendors);
     
   } catch (error) {
     console.error('❌ Error fetching tender vendors:', error);
@@ -11417,31 +11560,6 @@ app.get('/api/inventory-stock', async (req, res) => {
 });
 
 // Get specific tender by ID
-app.get('/api/tenders/:id', async (req, res) => {
-  console.log(`🔍 API call to /api/tenders/${req.params.id}`);
-  
-  try {
-    const request = new sql.Request();
-    request.input('tenderId', sql.VarChar, req.params.id);
-    
-    const result = await request.query(`
-      SELECT * FROM tenders 
-      WHERE id = @tenderId
-    `);
-    
-    if (result.recordset.length === 0) {
-      console.log(`❌ Tender ${req.params.id} not found`);
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-    
-    console.log(`✅ Retrieved tender ${req.params.id}:`, result.recordset[0]);
-    res.json(result.recordset[0]);
-  } catch (error) {
-    console.error('❌ Error fetching tender:', error);
-    res.status(500).json({ error: 'Failed to fetch tender' });
-  }
-});
-
 // New endpoint for the SQL Server view: View_stock_transactions_clean
 app.get('/api/view-stock-transactions-clean', async (req, res) => {
   try {

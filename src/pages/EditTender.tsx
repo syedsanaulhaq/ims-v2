@@ -27,6 +27,15 @@ interface TenderItem {
   total_amount?: number;
   specifications?: string;
   remarks?: string;
+  vendor_id?: string;
+  vendor_ids?: string[];
+  vendor_code?: string;
+  vendor_name?: string;
+  contact_person?: string;
+  email?: string;
+  phone?: string;
+  category_name?: string;
+  sub_category_name?: string;
 }
 
 interface ItemMaster {
@@ -96,14 +105,17 @@ const EditTender: React.FC = () => {
 
   // Tender form data
   const [tenderData, setTenderData] = useState({
+    tender_number: '',
     reference_number: '',
     title: '',
     description: '',
-    estimated_value: '',
     publish_date: '',
+    publication_date: '',
+    submission_date: '',
     submission_deadline: '',
     opening_date: '',
     tender_type: '',
+    tender_spot_type: '',
     status: 'draft',
     vendor_id: '',
     office_ids: [] as string[],
@@ -111,8 +123,7 @@ const EditTender: React.FC = () => {
     dec_ids: [] as string[],
     // Additional fields
     publication_daily: '',
-    procurement_method: '',
-    procedure_adopted: ''
+    procurement_method: ''
   });
 
   // File uploads state
@@ -141,7 +152,8 @@ const EditTender: React.FC = () => {
     quantity: 1,
     estimated_unit_price: 0,
     specifications: '',
-    remarks: ''
+    remarks: '',
+    vendor_ids: []  // Initialize as empty array for vendor selection
   });
 
   // Load tender data for editing
@@ -156,37 +168,44 @@ const EditTender: React.FC = () => {
       setLoadingData(true);
       
       // Fetch tender details with items
-      const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const tenderResponse = await fetch(`/api/tenders/${tenderId}`);
       if (tenderResponse.ok) {
         const tender = await tenderResponse.json();
         
         setTenderData({
-          reference_number: tender.reference_number || '',
+          tender_number: tender.tender_number || '',
+          reference_number: tender.reference_number || tender.tender_number || '',
           title: tender.title || '',
           description: tender.description || '',
-          estimated_value: tender.estimated_value?.toString() || '',
           publish_date: tender.publish_date ? tender.publish_date.split('T')[0] : '',
+          publication_date: tender.publication_date ? tender.publication_date.split('T')[0] : '',
+          submission_date: tender.submission_date ? tender.submission_date.split('T')[0] : '',
           submission_deadline: tender.submission_deadline ? tender.submission_deadline.split('T')[0] : '',
           opening_date: tender.opening_date ? tender.opening_date.split('T')[0] : '',
           tender_type: tender.tender_type || 'contract',
+          tender_spot_type: tender.tender_spot_type || '',
           status: tender.status || 'draft',
           vendor_id: tender.vendor_id || '',
-          office_ids: tender.office_ids ? tender.office_ids.split(',') : [],
-          wing_ids: tender.wing_ids ? tender.wing_ids.split(',') : [],
-          dec_ids: tender.dec_ids ? tender.dec_ids.split(',') : [],
+          office_ids: tender.office_ids ? tender.office_ids.split(',').filter((id: string) => id.trim()) : [],
+          wing_ids: tender.wing_ids ? tender.wing_ids.split(',').filter((id: string) => id.trim()) : [],
+          dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter((id: string) => id.trim()) : [],
           publication_daily: tender.publication_daily || '',
-          procurement_method: tender.procurement_method || '',
-          procedure_adopted: tender.procedure_adopted || ''
+          procurement_method: tender.procurement_method || ''
         });
 
         // Set tender items from the tender response
         if (tender.items && Array.isArray(tender.items)) {
-          setTenderItems(tender.items);
+          // Transform items to split vendor_id string back into vendor_ids array for form display
+          const transformedItems = tender.items.map((item: any) => ({
+            ...item,
+            vendor_ids: item.vendor_id ? item.vendor_id.split(',').filter((id: string) => id.trim()) : []
+          }));
+          setTenderItems(transformedItems);
         }
 
         // Fetch bidders for this tender
         try {
-          const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
+          const biddersResponse = await fetch(`/api/tenders/${tenderId}/vendors`);
           if (biddersResponse.ok) {
             const biddersData = await biddersResponse.json();
             setBidders(Array.isArray(biddersData) ? biddersData : biddersData.vendors || []);
@@ -209,24 +228,29 @@ const EditTender: React.FC = () => {
     const fetchInitialData = async () => {
       try {
         // Fetch Item Masters
-        const itemMastersResponse = await fetch('http://localhost:3001/api/item-masters');
+        const itemMastersResponse = await fetch('/api/item-masters');
         if (itemMastersResponse.ok) {
           const itemMastersData = await itemMastersResponse.json();
           setItemMasters(Array.isArray(itemMastersData) ? itemMastersData : itemMastersData.data || []);
         }
 
         // Fetch Offices
-        const officesResponse = await fetch('http://localhost:3001/api/offices');
+        const officesResponse = await fetch('/api/offices');
         if (officesResponse.ok) {
           const officesData = await officesResponse.json();
           setOffices(Array.isArray(officesData) ? officesData : officesData.data || []);
         }
 
         // Fetch Vendors
-        const vendorsResponse = await fetch('http://localhost:3001/api/vendors');
+        const vendorsResponse = await fetch('/api/vendors');
         if (vendorsResponse.ok) {
           const vendorsData = await vendorsResponse.json();
-          setVendors(vendorsData.vendors || []);
+          const vendorsList = vendorsData.vendors || [];
+          setVendors(vendorsList);
+          console.log('✅ Loaded vendors:', vendorsList.length, 'vendors');
+          console.log('📋 Vendors:', vendorsList);
+        } else {
+          console.error('❌ Failed to fetch vendors:', vendorsResponse.status);
         }
 
       } catch (err) {
@@ -245,7 +269,7 @@ const EditTender: React.FC = () => {
         try {
           const allWings: Wing[] = [];
           for (const officeId of tenderData.office_ids) {
-            const response = await fetch(`http://localhost:3001/api/offices/${officeId}/wings`);
+            const response = await fetch(`/api/offices/${officeId}/wings`);
             if (response.ok) {
               const wingsData = await response.json();
               allWings.push(...(Array.isArray(wingsData) ? wingsData : wingsData.data || []));
@@ -271,7 +295,7 @@ const EditTender: React.FC = () => {
         try {
           const allDECs: DEC[] = [];
           for (const wingId of tenderData.wing_ids) {
-            const response = await fetch(`http://localhost:3001/api/wings/${wingId}/decs`);
+            const response = await fetch(`/api/wings/${wingId}/decs`);
             if (response.ok) {
               const decsData = await response.json();
               allDECs.push(...(Array.isArray(decsData) ? decsData : decsData.data || []));
@@ -297,6 +321,9 @@ const EditTender: React.FC = () => {
 
   // Add item to tender
   const addItem = () => {
+    console.log('🔍 addItem called with newItem:', newItem);
+    console.log('🔍 vendor_ids array:', newItem.vendor_ids);
+    
     if (!newItem.item_master_id || !newItem.nomenclature || newItem.quantity <= 0) {
       alert('Please fill in all required item fields');
       return;
@@ -316,6 +343,8 @@ const EditTender: React.FC = () => {
       id: Date.now().toString(),
       total_amount: (newItem.estimated_unit_price || 0) * newItem.quantity
     };
+    
+    console.log('✅ Adding item with vendor_ids:', itemWithTotal.vendor_ids);
 
     setTenderItems([...tenderItems, itemWithTotal]);
     setNewItem({
@@ -324,7 +353,8 @@ const EditTender: React.FC = () => {
       quantity: 1,
       estimated_unit_price: 0,
       specifications: '',
-      remarks: ''
+      remarks: '',
+      vendor_ids: []  // Reset vendor selection
     });
   };
 
@@ -395,13 +425,26 @@ const EditTender: React.FC = () => {
           estimated_unit_price: item.estimated_unit_price || 0,
           total_amount: item.total_amount || 0,
           specifications: item.specifications || '',
-          remarks: item.remarks || ''
+          remarks: item.remarks || '',
+          // For annual tender, send vendor_ids array; for others send vendor_id
+          ...(tenderData.tender_type === 'annual-tender' 
+            ? { vendor_ids: item.vendor_ids || [] }
+            : { vendor_id: item.vendor_id || null }
+          )
         }))
       };
 
       console.log('🔍 Submitting tender data:', JSON.stringify(tenderFormData, null, 2));
+      
+      // Log each item's vendor info specifically
+      console.log('📦 Items being submitted:');
+      tenderFormData.items.forEach((item, idx) => {
+        console.log(`  Item ${idx}: ${item.nomenclature}`);
+        console.log(`    - vendor_ids:`, item.vendor_ids);
+        console.log(`    - vendor_id:`, item.vendor_id);
+      });
 
-      const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
+      const response = await fetch(`/api/tenders/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -421,10 +464,12 @@ const EditTender: React.FC = () => {
       console.log('✅ Success response:', result);
 
       alert(`${tenderData.tender_type === 'spot-purchase' ? 'Spot purchase' : tenderData.tender_type === 'annual-tender' ? 'Annual tender' : 'Contract tender'} updated successfully!`);
+      
+      // Redirect to appropriate dashboard based on tender type
       if (tenderData.tender_type === 'spot-purchase') {
         navigate('/dashboard/spot-purchases');
       } else if (tenderData.tender_type === 'annual-tender') {
-        navigate('/dashboard/contract-tender?type=annual-tender');
+        navigate('/dashboard/annual-tenders');
       } else {
         navigate('/dashboard/contract-tender');
       }
@@ -471,7 +516,7 @@ const EditTender: React.FC = () => {
               if (tenderData.tender_type === 'spot-purchase') {
                 navigate('/dashboard/spot-purchases');
               } else if (tenderData.tender_type === 'annual-tender') {
-                navigate('/dashboard/contract-tender?type=annual-tender');
+                navigate('/dashboard/annual-tenders');
               } else {
                 navigate('/dashboard/contract-tender');
               }
@@ -544,6 +589,16 @@ const EditTender: React.FC = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
+                <label className="text-sm font-medium">Tender Number *</label>
+                <Input
+                  value={tenderData.tender_number}
+                  onChange={(e) => setTenderData(prev => ({ ...prev, tender_number: e.target.value }))}
+                  placeholder="Enter tender number"
+                  required
+                />
+              </div>
+              
+              <div>
                 <label className="text-sm font-medium">Reference Number</label>
                 <Input
                   value={tenderData.reference_number}
@@ -551,7 +606,9 @@ const EditTender: React.FC = () => {
                   placeholder="Enter reference number"
                 />
               </div>
-              
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Status</label>
                 <Select 
@@ -572,6 +629,17 @@ const EditTender: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {tenderData.tender_type === 'spot-purchase' && (
+                <div>
+                  <label className="text-sm font-medium">Spot Type</label>
+                  <Input
+                    value={tenderData.tender_spot_type}
+                    onChange={(e) => setTenderData(prev => ({ ...prev, tender_spot_type: e.target.value }))}
+                    placeholder="Enter spot purchase type"
+                  />
+                </div>
+              )}
             </div>
 
             <div>
@@ -593,13 +661,31 @@ const EditTender: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="text-sm font-medium">Publish Date</label>
                 <Input
                   type="date"
                   value={tenderData.publish_date}
                   onChange={(e) => setTenderData(prev => ({ ...prev, publish_date: e.target.value }))}
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium">Publication Date</label>
+                <Input
+                  type="date"
+                  value={tenderData.publication_date}
+                  onChange={(e) => setTenderData(prev => ({ ...prev, publication_date: e.target.value }))}
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium">Submission Date</label>
+                <Input
+                  type="date"
+                  value={tenderData.submission_date}
+                  onChange={(e) => setTenderData(prev => ({ ...prev, submission_date: e.target.value }))}
                 />
               </div>
               
@@ -725,30 +811,6 @@ const EditTender: React.FC = () => {
                 onChange={(e) => setTenderData(prev => ({ ...prev, procurement_method: e.target.value }))}
                 placeholder="Enter procurement method"
               />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Procedure Adopted</label>
-              <Input
-                value={tenderData.procedure_adopted}
-                onChange={(e) => setTenderData(prev => ({ ...prev, procedure_adopted: e.target.value }))}
-                placeholder="Enter procedure adopted"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Estimated Value</label>
-              <Input
-                type="number"
-                value={tenderData.estimated_value}
-                onChange={(e) => setTenderData(prev => ({ ...prev, estimated_value: e.target.value }))}
-                placeholder="Enter estimated value"
-              />
-              {totalTenderValue > 0 && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Calculated total from items: {formatCurrency(totalTenderValue)}
-                </p>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -1024,6 +1086,10 @@ const EditTender: React.FC = () => {
           tenderId={id}
           vendors={vendors}
           readOnly={false}
+          onVendorsChange={(updatedVendors) => {
+            console.log('Bidders updated in EditTender:', updatedVendors);
+            setBidders(updatedVendors);
+          }}
         />
 
         {/* Card 6: Tender Items */}
@@ -1107,61 +1173,58 @@ const EditTender: React.FC = () => {
               {/* Second Row - Vendor/Quantity and Price */}
               {tenderData.tender_type === 'annual-tender' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Vendor Multi-Select Dropdown for Annual Tender */}
+                  {/* Vendor Multi-Select for Annual Tender - Simple Checkboxes */}
                   <div>
                     <label className="text-sm font-medium">Vendors (Multi-select)</label>
-                    <div className="border rounded-lg bg-white overflow-hidden">
-                      <details className="w-full cursor-pointer group">
-                        <summary className="flex items-center justify-between px-3 py-2 list-none hover:bg-gray-50">
-                          <span className="text-sm text-gray-600">
-                            {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                              ? `${newItem.vendor_ids.length} vendor(s) selected`
-                              : 'Select vendors'}
-                          </span>
-                          <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                          </svg>
-                        </summary>
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 max-h-48 overflow-y-auto">
-                          {bidders.filter(bidder => bidder.is_successful).length > 0 ? (
-                            bidders
-                              .filter(bidder => bidder.is_successful)
-                              .map(bidder => {
-                                const vendor = vendors.find(v => v.id === bidder.vendor_id);
-                                if (!vendor) return null;
-                                
-                                const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                                const isSelected = vendorIds.includes(vendor.id);
-                                
-                                return (
-                                  <label key={vendor.id} className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-gray-50 rounded">
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setNewItem(prev => ({
-                                            ...prev,
-                                            vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
-                                          }));
-                                        } else {
-                                          setNewItem(prev => ({
-                                            ...prev,
-                                            vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
-                                          }));
-                                        }
-                                      }}
-                                      className="w-4 h-4"
-                                    />
-                                    <span>{vendor.vendor_name}</span>
-                                  </label>
-                                );
-                              })
-                          ) : (
-                            <p className="text-sm text-gray-500 p-2">No successful bidders available</p>
-                          )}
-                        </div>
-                      </details>
+                    <div className="border rounded-lg bg-white p-3 space-y-2 max-h-48 overflow-y-auto">
+                      {vendors && vendors.length > 0 ? (
+                        vendors.map(vendor => {
+                          const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
+                          const isSelected = vendorIds.includes(vendor.id);
+                          
+                          return (
+                            <label key={vendor.id} className="flex items-center gap-2 p-2 text-sm hover:bg-gray-50 rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.id}) - checked: ${e.target.checked}`);
+                                  if (e.target.checked) {
+                                    console.log(`➕ Adding vendor ${vendor.id} to vendor_ids`);
+                                    setNewItem(prev => {
+                                      const updated = {
+                                        ...prev,
+                                        vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                      };
+                                      console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
+                                      return updated;
+                                    });
+                                  } else {
+                                    console.log(`➖ Removing vendor ${vendor.id} from vendor_ids`);
+                                    setNewItem(prev => {
+                                      const updated = {
+                                        ...prev,
+                                        vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                      };
+                                      console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
+                                      return updated;
+                                    });
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <span>{vendor.vendor_name}</span>
+                            </label>
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm text-gray-500 p-2">No vendors available</p>
+                      )}
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                        ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
+                        : '⚠️ Select at least 1 vendor'}
                     </div>
                   </div>
 
@@ -1245,7 +1308,17 @@ const EditTender: React.FC = () => {
 
             {/* Items Table */}
             {tenderItems.length > 0 && (
-              <div className="border rounded-lg">
+              <div className="space-y-4">
+                {tenderData.tender_type === 'annual-tender' && tenderItems.some(item => !item.vendor_ids || item.vendor_ids.length === 0) && (
+                  <Alert className="border-red-200 bg-red-50">
+                    <AlertDescription className="text-red-800">
+                      <strong>⚠️ Annual Tender Items Missing Vendors:</strong> This annual tender has {tenderItems.filter(i => !i.vendor_ids || i.vendor_ids.length === 0).length} item(s) without assigned vendors. 
+                      Vendors must be assigned to each item for annual tenders. Please assign vendors or remove items without vendors.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                <div className="border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1278,20 +1351,21 @@ const EditTender: React.FC = () => {
                         {tenderData.tender_type === 'annual-tender' ? (
                           <>
                             <TableCell>
-                              {Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
+                              {item.vendor_ids && Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
-                                  {item.vendor_ids.map(vendorId => (
-                                    <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                      {vendors.find(v => v.id === vendorId)?.vendor_name || vendorId}
-                                    </span>
-                                  ))}
+                                  {item.vendor_ids.map(vendorId => {
+                                    const vendor = vendors.find(v => v.id === vendorId);
+                                    return (
+                                      <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        {vendor?.vendor_name || vendorId}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               ) : (
-                                item.vendor_id ? (
-                                  <span>{vendors.find(v => v.id === item.vendor_id)?.vendor_name || item.vendor_id}</span>
-                                ) : (
-                                  'No vendors'
-                                )
+                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded font-medium">
+                                  ⚠️ No vendors assigned
+                                </span>
                               )}
                             </TableCell>
                             <TableCell className="font-medium">{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
@@ -1341,6 +1415,7 @@ const EditTender: React.FC = () => {
                     Ready to update tender with {tenderItems.length} items
                   </div>
                 </div>
+                </div>
               </div>
             )}
           </CardContent>
@@ -1362,7 +1437,7 @@ const EditTender: React.FC = () => {
                     if (tenderData.tender_type === 'spot-purchase') {
                       navigate('/dashboard/spot-purchases');
                     } else if (tenderData.tender_type === 'annual-tender') {
-                      navigate('/dashboard/contract-tender?type=annual-tender');
+                      navigate('/dashboard/annual-tenders');
                     } else {
                       navigate('/dashboard/contract-tender');
                     }

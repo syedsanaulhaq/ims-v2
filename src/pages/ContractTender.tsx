@@ -65,6 +65,7 @@ interface Tender {
   reference_number: string;
   tender_type: string;
   submission_deadline: string;
+  publish_date?: string;
   estimated_value: number;
   status: string;
   is_finalized: boolean;
@@ -233,10 +234,20 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   };
 
   const formatDate = (dateString: string) => {
+    // Return '-' if date is null, empty, or the default 1970 date
+    if (!dateString) {
+      return '-';
+    }
+    
     try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
+      const date = new Date(dateString);
+      // Check if it's the default 1970 date (Jan 1, 1970)
+      if (date.getFullYear() === 1970 && date.getMonth() === 0 && date.getDate() === 1) {
+        return '-';
+      }
+      return format(date, 'MMM dd, yyyy');
     } catch {
-      return dateString;
+      return '-';
     }
   };
 
@@ -317,7 +328,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <TableHead>Type</TableHead>
                 <TableHead>Estimated Value</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Submission Deadline</TableHead>
+                <TableHead>{isAnnualTender ? 'Publish Date' : 'Submission Deadline'}</TableHead>
                 {isFinalized && <TableHead>Finalized</TableHead>}
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -346,12 +357,12 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : 'Contract'}
+                        {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract'}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatCurrency(tender.estimated_value)}</TableCell>
                     <TableCell>{getStatusBadge(tender.status, tender.is_finalized)}</TableCell>
-                    <TableCell>{formatDate(tender.submission_deadline)}</TableCell>
+                    <TableCell>{formatDate(isAnnualTender && tender.publish_date ? tender.publish_date : tender.submission_deadline)}</TableCell>
                     {isFinalized && (
                       <TableCell>
                         <div className="text-sm">

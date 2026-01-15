@@ -21,10 +21,14 @@ window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<R
   // Convert input to string if it's a Request or URL object
   let url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   
-  // Replace localhost:3001 with the configured base URL
-  if (url.includes('localhost:3001')) {
+  // If URL is relative (starts with /), prepend the base URL
+  if (typeof url === 'string' && url.startsWith('/')) {
+    url = BASE_URL + url;
+    console.log('🔄 Fetch URL rewritten (relative):', url);
+  } else if (url.includes('localhost:3001')) {
+    // Replace localhost:3001 with the configured base URL
     url = url.replace('http://localhost:3001', BASE_URL);
-    console.log('🔄 Fetch URL rewritten:', url);
+    console.log('🔄 Fetch URL rewritten (absolute):', url);
   }
   
   // Call original fetch with modified URL

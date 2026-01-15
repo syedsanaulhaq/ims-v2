@@ -27,6 +27,8 @@ interface TenderItem {
   total_amount?: number;
   specifications?: string;
   remarks?: string;
+  vendor_id?: string;
+  vendor_ids?: string[];
 }
 
 interface ItemMaster {
@@ -145,7 +147,8 @@ const CreateTender: React.FC = () => {
     quantity: 1,
     estimated_unit_price: 0,
     specifications: '',
-    remarks: ''
+    remarks: '',
+    vendor_ids: []
   });
 
   // Fetch initial data (item masters, offices, and vendors)
@@ -282,6 +285,9 @@ const CreateTender: React.FC = () => {
 
   // Handle adding new item to tender
   const handleAddItem = () => {
+    console.log('🔍 handleAddItem called with newItem:', newItem);
+    console.log('🔍 vendor_ids array:', newItem.vendor_ids);
+    
     if (!newItem.item_master_id || !newItem.nomenclature || newItem.quantity <= 0) {
       alert('Please fill in all required item fields');
       return;
@@ -307,6 +313,7 @@ const CreateTender: React.FC = () => {
       id: `temp-${Date.now()}` // Temporary ID for frontend
     };
 
+    console.log('✅ Adding item with vendor_ids:', item.vendor_ids);
     setTenderItems(prev => [...prev, item]);
     setNewItem({
       item_master_id: '',
@@ -314,7 +321,8 @@ const CreateTender: React.FC = () => {
       quantity: 1,
       estimated_unit_price: 0,
       specifications: '',
-      remarks: ''
+      remarks: '',
+      vendor_ids: []  // Reset vendor selection
     });
   };
 
@@ -433,9 +441,24 @@ const CreateTender: React.FC = () => {
           estimated_unit_price: item.estimated_unit_price || 0,
           total_amount: item.total_amount || 0,
           specifications: item.specifications || '',
-          remarks: item.remarks || ''
+          remarks: item.remarks || '',
+          // For annual tender, send vendor_ids array; for others send vendor_id
+          ...(tenderType === 'annual-tender' 
+            ? { vendor_ids: item.vendor_ids || [] }
+            : { vendor_id: item.vendor_id || null }
+          )
         }))
       };
+
+      console.log('🔍 Submitting tender data:', JSON.stringify(tenderFormData, null, 2));
+      
+      // Log each item's vendor info specifically
+      console.log('📦 Items being submitted:');
+      tenderFormData.items.forEach((item, idx) => {
+        console.log(`  Item ${idx}: ${item.nomenclature}`);
+        console.log(`    - vendor_ids:`, item.vendor_ids);
+        console.log(`    - vendor_id:`, item.vendor_id);
+      });
 
       // Add tender data as JSON string
       formData.append('tenderData', JSON.stringify(tenderFormData));
@@ -503,7 +526,7 @@ const CreateTender: React.FC = () => {
       if (tenderType === 'spot-purchase') {
         redirectPath = '/dashboard/spot-purchases';
       } else if (tenderType === 'annual-tender') {
-        redirectPath = '/dashboard/annual-tender';
+        redirectPath = '/dashboard/contract-tender?type=annual-tender';
       }
       navigate(redirectPath);
     } catch (err) {
@@ -1253,61 +1276,63 @@ const CreateTender: React.FC = () => {
                 {/* Second Row - Vendor/Quantity and Price */}
                 {tenderType === 'annual-tender' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                    {/* Vendor Multi-Select Dropdown for Annual Tender */}
+                    {/* Vendor Multi-Select for Annual Tender - Simple Checkboxes */}
                     <div>
                       <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
-                      <div className="border rounded-lg h-9 bg-white overflow-hidden">
-                        <details className="w-full h-full cursor-pointer group">
-                          <summary className="flex items-center justify-between px-3 py-2 h-full list-none hover:bg-gray-50">
-                            <span className="text-xs text-gray-600">
-                              {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                                ? `${newItem.vendor_ids.length} vendor(s) selected`
-                                : 'Select vendors'}
-                            </span>
-                            <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                            </svg>
-                          </summary>
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 max-h-48 overflow-y-auto">
-                            {bidders.filter(bidder => bidder.is_successful).length > 0 ? (
-                              bidders
-                                .filter(bidder => bidder.is_successful)
-                                .map(bidder => {
-                                  const vendor = vendors.find(v => v.id === bidder.vendor_id);
-                                  if (!vendor) return null;
-                                  
-                                  const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                                  const isSelected = vendorIds.includes(vendor.id);
-                                  
-                                  return (
-                                    <label key={vendor.id} className="flex items-center gap-2 p-2 text-xs cursor-pointer hover:bg-gray-50 rounded">
-                                      <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setNewItem(prev => ({
-                                              ...prev,
-                                              vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
-                                            }));
-                                          } else {
-                                            setNewItem(prev => ({
-                                              ...prev,
-                                              vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
-                                            }));
-                                          }
-                                        }}
-                                        className="w-4 h-4"
-                                      />
-                                      <span>{vendor.vendor_name}</span>
-                                    </label>
-                                  );
-                                })
-                            ) : (
-                              <p className="text-xs text-gray-500 p-2">No successful bidders available</p>
-                            )}
-                          </div>
-                        </details>
+                      <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
+                        {bidders.filter(bidder => bidder.is_successful).length > 0 ? (
+                          bidders
+                            .filter(bidder => bidder.is_successful)
+                            .map(bidder => {
+                              const vendor = vendors.find(v => v.id === bidder.vendor_id);
+                              if (!vendor) return null;
+                              
+                              const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
+                              const isSelected = vendorIds.includes(vendor.id);
+                              
+                              return (
+                                <label key={vendor.id} className="flex items-center gap-2 p-2 text-xs hover:bg-gray-50 rounded cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.id}) - checked: ${e.target.checked}`);
+                                      if (e.target.checked) {
+                                        console.log(`➕ Adding vendor ${vendor.id} to vendor_ids`);
+                                        setNewItem(prev => {
+                                          const updated = {
+                                            ...prev,
+                                            vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                          };
+                                          console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
+                                          return updated;
+                                        });
+                                      } else {
+                                        console.log(`➖ Removing vendor ${vendor.id} from vendor_ids`);
+                                        setNewItem(prev => {
+                                          const updated = {
+                                            ...prev,
+                                            vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                          };
+                                          console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
+                                          return updated;
+                                        });
+                                      }
+                                    }}
+                                    className="w-4 h-4"
+                                  />
+                                  <span>{vendor.vendor_name}</span>
+                                </label>
+                              );
+                            })
+                        ) : (
+                          <p className="text-xs text-gray-500 p-2">No successful bidders. Please add bidders and mark as successful.</p>
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600">
+                        {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                          ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
+                          : '⚠️ Select at least 1 vendor'}
                       </div>
                     </div>
 
@@ -1450,20 +1475,19 @@ const CreateTender: React.FC = () => {
                             {tenderType === 'annual-tender' ? (
                               <>
                                 <TableCell>
-                                  {Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
+                                  {item.vendor_ids && Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
                                     <div className="flex flex-wrap gap-1">
-                                      {item.vendor_ids.map(vendorId => (
-                                        <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                          {vendors.find(v => v.id === vendorId)?.vendor_name || vendorId}
-                                        </span>
-                                      ))}
+                                      {item.vendor_ids.map(vendorId => {
+                                        const vendor = vendors.find(v => v.id === vendorId);
+                                        return (
+                                          <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                            {vendor?.vendor_name || vendorId}
+                                          </span>
+                                        );
+                                      })}
                                     </div>
                                   ) : (
-                                    item.vendor_id ? (
-                                      <span>{vendors.find(v => v.id === item.vendor_id)?.vendor_name || item.vendor_id}</span>
-                                    ) : (
-                                      'No vendors'
-                                    )
+                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendors</span>
                                   )}
                                 </TableCell>
                                 <TableCell className="font-medium">
