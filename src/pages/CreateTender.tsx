@@ -504,7 +504,9 @@ const CreateTender: React.FC = () => {
                 vendor_id: bidder.vendor_id,
                 vendor_name: bidder.vendor_name,
                 quoted_amount: bidder.quoted_amount || null,
-                remarks: bidder.remarks || null
+                remarks: bidder.remarks || null,
+                is_selected: bidder.is_selected || 0,
+                is_successful: bidder.is_successful || 0
               })
             });
             

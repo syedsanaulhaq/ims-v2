@@ -5887,9 +5887,9 @@ const proposalUpload = multer({
 // POST - Add a vendor to a tender
 app.post('/api/tenders/:tenderId/vendors', async (req, res) => {
   const { tenderId } = req.params;
-  const { vendor_id, vendor_name, quoted_amount, remarks } = req.body;
+  const { vendor_id, vendor_name, quoted_amount, remarks, is_selected, is_successful } = req.body;
   
-  console.log('📦 Adding vendor to tender:', { tenderId, vendor_id, vendor_name });
+  console.log('📦 Adding vendor to tender:', { tenderId, vendor_id, vendor_name, is_selected, is_successful });
   
   try {
     // Check if vendor already exists for this tender
@@ -5909,14 +5909,16 @@ app.post('/api/tenders/:tenderId/vendors', async (req, res) => {
       .input('vendor_name', sql.NVarChar(200), vendor_name)
       .input('quoted_amount', sql.Decimal(15, 2), quoted_amount || null)
       .input('remarks', sql.NVarChar(500), remarks || null)
+      .input('is_selected', sql.Bit, is_selected ? 1 : 0)
+      .input('is_successful', sql.Bit, is_successful ? 1 : 0)
       .input('created_by', sql.NVarChar(100), req.session?.user?.username || 'System')
       .query(`
         INSERT INTO tender_vendors (
-          tender_id, vendor_id, vendor_name, quoted_amount, remarks, created_by
+          tender_id, vendor_id, vendor_name, quoted_amount, remarks, is_selected, is_successful, created_by
         )
         OUTPUT INSERTED.*
         VALUES (
-          @tender_id, @vendor_id, @vendor_name, @quoted_amount, @remarks, @created_by
+          @tender_id, @vendor_id, @vendor_name, @quoted_amount, @remarks, @is_selected, @is_successful, @created_by
         )
       `);
     
