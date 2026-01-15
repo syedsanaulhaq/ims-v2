@@ -1329,55 +1329,6 @@ const CreateTender: React.FC = () => {
                           : '⚠️ Select at least 1 vendor'}
                       </div>
                     </div>
-                              
-                              const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                              const isSelected = vendorIds.includes(vendor.id);
-                              
-                              return (
-                                <label key={vendor.id} className="flex items-center gap-2 p-2 text-xs hover:bg-gray-50 rounded cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.id}) - checked: ${e.target.checked}`);
-                                      if (e.target.checked) {
-                                        console.log(`➕ Adding vendor ${vendor.id} to vendor_ids`);
-                                        setNewItem(prev => {
-                                          const updated = {
-                                            ...prev,
-                                            vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
-                                          };
-                                          console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
-                                          return updated;
-                                        });
-                                      } else {
-                                        console.log(`➖ Removing vendor ${vendor.id} from vendor_ids`);
-                                        setNewItem(prev => {
-                                          const updated = {
-                                            ...prev,
-                                            vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
-                                          };
-                                          console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
-                                          return updated;
-                                        });
-                                      }
-                                    }}
-                                    className="w-4 h-4"
-                                  />
-                                  <span>{vendor.vendor_name}</span>
-                                </label>
-                              );
-                            })
-                          ) : (
-                            <p className="text-xs text-gray-500 p-2">No vendors available</p>
-                          )}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-600">
-                          {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                            ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
-                            : '⚠️ Select at least 1 vendor'}
-                        </div>
-                      </div>
 
                     {/* Unit Price for Annual Tender */}
                     <div>
