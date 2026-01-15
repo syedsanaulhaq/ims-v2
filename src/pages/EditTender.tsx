@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, Save, FileText, Upload, Package } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, FileText, Upload } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -29,13 +29,6 @@ interface TenderItem {
   remarks?: string;
   vendor_id?: string;
   vendor_ids?: string[];
-  vendor_code?: string;
-  vendor_name?: string;
-  contact_person?: string;
-  email?: string;
-  phone?: string;
-  category_name?: string;
-  sub_category_name?: string;
 }
 
 interface ItemMaster {
@@ -58,75 +51,58 @@ interface Wing {
   ShortName?: string;
   FocalPerson?: string;
   ContactNo?: string;
-  OfficeID?: number;
 }
 
-interface DEC {
+interface Dec {
   intAutoID: number;
-  strDECName: string;
-  strDECCode?: string;
-  intWingID?: number;
+  WingID: number;
+  DECName: string;
+  DECAcronym?: string;
+  DECAddress?: string;
+  Location?: string;
 }
 
 interface Vendor {
   id: string;
-  vendor_code: string;
   vendor_name: string;
+  vendor_code?: string;
   contact_person?: string;
-  contact_phone?: string;
-  contact_email?: string;
-  address?: string;
-  city?: string;
-  status?: string;
 }
 
 const EditTender: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   
-  // Get tender type from URL or default to contract
-  const getTenderType = () => {
-    // For edit mode, we'll determine type from loaded data
-    return 'contract'; // Default until data loads
-  };
-
-  const tenderType = getTenderType();
-
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Data states
   const [itemMasters, setItemMasters] = useState<ItemMaster[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [wings, setWings] = useState<Wing[]>([]);
-  const [decs, setDecs] = useState<DEC[]>([]);
+  const [decs, setDecs] = useState<Dec[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
-
-  // Store full tender object for accessing document paths
-  const [loadedTender, setLoadedTender] = useState<any>(null);
-
-  // Tender form data
+  const [filteredWings, setFilteredWings] = useState<Wing[]>([]);
+  const [filteredDecs, setFilteredDecs] = useState<Dec[]>([]);
+  
+  // Main tender form data
   const [tenderData, setTenderData] = useState({
-    tender_number: '',
     reference_number: '',
     title: '',
     description: '',
+    estimated_value: '',
     publish_date: '',
-    publication_date: '',
-    submission_date: '',
     submission_deadline: '',
     opening_date: '',
-    tender_type: '',
-    tender_spot_type: '',
+    tender_type: 'contract',
     status: 'draft',
     vendor_id: '',
     office_ids: [] as string[],
     wing_ids: [] as string[],
     dec_ids: [] as string[],
     // Additional fields
-    publication_daily: '',
-    procurement_method: ''
+    publication_dailies: '',
+    procurement_methods: '',
+    procedure_adopted: ''
   });
 
   // File uploads state
@@ -156,143 +132,90 @@ const EditTender: React.FC = () => {
     estimated_unit_price: 0,
     specifications: '',
     remarks: '',
-    vendor_ids: []  // Initialize as empty array for vendor selection
+    vendor_ids: []
   });
 
-  // Load tender data for editing
+  // Load tender data on mount
   useEffect(() => {
-    if (id) {
-      loadTenderData(id);
-    }
-  }, [id]);
-
-  const loadTenderData = async (tenderId: string) => {
-    try {
-      setLoadingData(true);
+    const loadTenderData = async () => {
+      if (!id) return;
       
-      // Fetch tender details with items
-      const tenderResponse = await fetch(`/api/tenders/${tenderId}`);
-      if (tenderResponse.ok) {
-        const tender = await tenderResponse.json();
-        
-        // Store full tender object
-        setLoadedTender(tender);
-        
+      try {
+        setLoadingData(true);
+        const response = await fetch(`http://localhost:3001/api/tenders/${id}`);
+        if (!response.ok) {
+          throw new Error('Failed to load tender');
+        }
+
+        const tender = await response.json();
+        console.log('📋 Loaded tender:', tender);
+
         setTenderData({
-          tender_number: tender.tender_number || '',
-          reference_number: tender.reference_number || tender.tender_number || '',
+          reference_number: tender.reference_number || '',
           title: tender.title || '',
           description: tender.description || '',
-          publish_date: tender.publish_date ? tender.publish_date.split('T')[0] : '',
-          publication_date: tender.publication_date ? tender.publication_date.split('T')[0] : '',
-          submission_date: tender.submission_date ? tender.submission_date.split('T')[0] : '',
-          submission_deadline: tender.submission_deadline ? tender.submission_deadline.split('T')[0] : '',
-          opening_date: tender.opening_date ? tender.opening_date.split('T')[0] : '',
+          estimated_value: tender.estimated_value?.toString() || '',
+          publish_date: tender.publish_date || '',
+          submission_deadline: tender.submission_deadline || '',
+          opening_date: tender.opening_date || '',
           tender_type: tender.tender_type || 'contract',
-          tender_spot_type: tender.tender_spot_type || '',
           status: tender.status || 'draft',
           vendor_id: tender.vendor_id || '',
-          office_ids: tender.office_ids ? tender.office_ids.split(',').filter((id: string) => id.trim()) : [],
-          wing_ids: tender.wing_ids ? tender.wing_ids.split(',').filter((id: string) => id.trim()) : [],
-          dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter((id: string) => id.trim()) : [],
-          publication_daily: tender.publication_daily || '',
-          procurement_method: tender.procurement_method || ''
-        });
-        console.log('📋 Tender data loaded:', {
-          publication_daily: tender.publication_daily,
-          procurement_method: tender.procurement_method
+          office_ids: tender.office_ids ? tender.office_ids.split(',').filter(id => id) : [],
+          wing_ids: tender.wing_ids ? tender.wing_ids.split(',').filter(id => id) : [],
+          dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter(id => id) : [],
+          publication_dailies: tender.publication_dailies || '',
+          procurement_methods: tender.procurement_methods || '',
+          procedure_adopted: tender.procedure_adopted || ''
         });
 
-        // Set tender items from the tender response
+        // Load tender items
         if (tender.items && Array.isArray(tender.items)) {
-          // Transform items to split vendor_id string back into vendor_ids array for form display
-          const transformedItems = tender.items.map((item: any) => {
-            // Handle both vendor_id and vendor_ids from backend
-            let vendorIdsList: string[] = [];
-            
-            if (item.vendor_ids) {
-              // If vendor_ids is a string, split it
-              if (typeof item.vendor_ids === 'string') {
-                vendorIdsList = item.vendor_ids.split(',').filter((id: string) => id.trim());
-              } else if (Array.isArray(item.vendor_ids)) {
-                vendorIdsList = item.vendor_ids;
-              }
-            } else if (item.vendor_id) {
-              // Fallback to vendor_id if vendor_ids doesn't exist
-              if (typeof item.vendor_id === 'string') {
-                vendorIdsList = item.vendor_id.split(',').filter((id: string) => id.trim());
-              } else if (Array.isArray(item.vendor_id)) {
-                vendorIdsList = item.vendor_id;
-              }
-            }
-            
-            console.log(`📦 Item: ${item.nomenclature} - vendor_ids:`, vendorIdsList);
-            
-            return {
-              ...item,
-              vendor_ids: vendorIdsList
-            };
-          });
-          setTenderItems(transformedItems);
+          setTenderItems(tender.items);
         }
-
-        // Fetch bidders for this tender
-        try {
-          const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
-          if (biddersResponse.ok) {
-            const biddersData = await biddersResponse.json();
-            const biddersList = Array.isArray(biddersData) ? biddersData : biddersData.vendors || [];
-            setBidders(biddersList);
-            console.log('✅ Loaded bidders:', biddersList.length, 'bidders', biddersList);
-          } else {
-            console.warn('⚠️ Bidders response not ok:', biddersResponse.status);
-          }
-        } catch (bidderErr) {
-          console.error('❌ Error loading bidders:', bidderErr);
-        }
+      } catch (err) {
+        console.error('Error loading tender:', err);
+        setError('Failed to load tender data');
+      } finally {
+        setLoadingData(false);
       }
+    };
 
-    } catch (err) {
-      console.error('Error loading tender data:', err);
-      setError('Failed to load tender data');
-    } finally {
-      setLoadingData(false);
-    }
-  };
+    loadTenderData();
+  }, [id]);
 
   // Fetch initial data (item masters, offices, and vendors)
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         // Fetch Item Masters
-        const itemMastersResponse = await fetch('/api/item-masters');
+        const itemMastersResponse = await fetch('http://localhost:3001/api/item-masters');
         if (itemMastersResponse.ok) {
           const itemMastersData = await itemMastersResponse.json();
           setItemMasters(Array.isArray(itemMastersData) ? itemMastersData : itemMastersData.data || []);
         }
 
         // Fetch Offices
-        const officesResponse = await fetch('/api/offices');
+        const officesResponse = await fetch('http://localhost:3001/api/offices');
         if (officesResponse.ok) {
           const officesData = await officesResponse.json();
-          setOffices(Array.isArray(officesData) ? officesData : officesData.data || []);
+          setOffices(Array.isArray(officesData) ? officesData : []);
         }
 
         // Fetch Vendors
-        const vendorsResponse = await fetch('/api/vendors');
+        const vendorsResponse = await fetch('http://localhost:3001/api/vendors');
         if (vendorsResponse.ok) {
           const vendorsData = await vendorsResponse.json();
-          const vendorsList = vendorsData.vendors || [];
-          setVendors(vendorsList);
-          console.log('✅ Loaded vendors:', vendorsList.length, 'vendors');
-          console.log('📋 Vendors:', vendorsList);
-        } else {
-          console.error('❌ Failed to fetch vendors:', vendorsResponse.status);
+          if (vendorsData.vendors && Array.isArray(vendorsData.vendors)) {
+            setVendors(vendorsData.vendors);
+          } else if (Array.isArray(vendorsData)) {
+            setVendors(vendorsData);
+          } else {
+            setVendors([]);
+          }
         }
-
       } catch (err) {
         console.error('Error fetching initial data:', err);
-        setError('Failed to load form data');
       }
     };
 
@@ -301,89 +224,118 @@ const EditTender: React.FC = () => {
 
   // Fetch wings when offices are selected
   useEffect(() => {
-    const fetchWings = async () => {
-      if (tenderData.office_ids.length > 0) {
-        try {
-          const allWings: Wing[] = [];
-          for (const officeId of tenderData.office_ids) {
-            const response = await fetch(`/api/offices/${officeId}/wings`);
-            if (response.ok) {
-              const wingsData = await response.json();
-              allWings.push(...(Array.isArray(wingsData) ? wingsData : wingsData.data || []));
-            }
+    const fetchWingsForOffices = async () => {
+      if (tenderData.office_ids.length === 0) {
+        setFilteredWings([]);
+        setFilteredDecs([]);
+        return;
+      }
+
+      try {
+        const allWings: Wing[] = [];
+        
+        for (const officeId of tenderData.office_ids) {
+          const response = await fetch(`http://localhost:3001/api/offices/${officeId}/wings`);
+          if (response.ok) {
+            const wingsData = await response.json();
+            const wings = Array.isArray(wingsData) ? wingsData : wingsData.data || [];
+            allWings.push(...wings);
           }
-          setWings(allWings);
-        } catch (err) {
-          console.error('Error fetching wings:', err);
         }
-      } else {
-        setWings([]);
-        setTenderData(prev => ({ ...prev, wing_ids: [], dec_ids: [] }));
+
+        setFilteredWings(allWings);
+        
+        // Clear wing and dec selections that are no longer valid
+        const validWingIds = allWings.map(w => w.Id.toString());
+        const filteredWingIds = tenderData.wing_ids.filter(id => validWingIds.includes(id));
+        
+        if (filteredWingIds.length !== tenderData.wing_ids.length) {
+          setTenderData(prev => ({ 
+            ...prev, 
+            wing_ids: filteredWingIds,
+            dec_ids: []
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching wings:', err);
       }
     };
 
-    fetchWings();
+    fetchWingsForOffices();
   }, [tenderData.office_ids]);
 
-  // Fetch DECs when wings are selected
+  // Fetch decs when wings are selected
   useEffect(() => {
-    const fetchDECs = async () => {
-      if (tenderData.wing_ids.length > 0) {
-        try {
-          const allDECs: DEC[] = [];
-          for (const wingId of tenderData.wing_ids) {
-            const response = await fetch(`/api/wings/${wingId}/decs`);
-            if (response.ok) {
-              const decsData = await response.json();
-              allDECs.push(...(Array.isArray(decsData) ? decsData : decsData.data || []));
-            }
-          }
-          setDecs(allDECs);
-        } catch (err) {
-          console.error('Error fetching DECs:', err);
-        }
-      } else {
-        setDecs([]);
+    const fetchDecsForWings = async () => {
+      if (tenderData.wing_ids.length === 0) {
+        setFilteredDecs([]);
         setTenderData(prev => ({ ...prev, dec_ids: [] }));
+        return;
+      }
+
+      try {
+        const allDecs: Dec[] = [];
+        
+        for (const wingId of tenderData.wing_ids) {
+          const response = await fetch(`http://localhost:3001/api/wings/${wingId}/decs`);
+          if (response.ok) {
+            const decsData = await response.json();
+            const decs = Array.isArray(decsData) ? decsData : decsData.data || [];
+            allDecs.push(...decs);
+          }
+        }
+
+        setFilteredDecs(allDecs);
+        
+        // Clear dec selections that are no longer valid
+        const validDecIds = allDecs.map(d => d.intAutoID.toString());
+        const filteredDecIds = tenderData.dec_ids.filter(id => validDecIds.includes(id));
+        
+        if (filteredDecIds.length !== tenderData.dec_ids.length) {
+          setTenderData(prev => ({ 
+            ...prev, 
+            dec_ids: filteredDecIds
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching decs:', err);
       }
     };
 
-    fetchDECs();
+    fetchDecsForWings();
   }, [tenderData.wing_ids]);
 
-  // Calculate total tender value
-  const totalTenderValue = tenderItems.reduce((sum, item) => {
-    return sum + (item.total_amount || 0);
-  }, 0);
+  // Calculate total amount when quantity or price changes
+  useEffect(() => {
+    const total = (newItem.quantity || 0) * (newItem.estimated_unit_price || 0);
+    setNewItem(prev => ({ ...prev, total_amount: total }));
+  }, [newItem.quantity, newItem.estimated_unit_price]);
 
-  // Add item to tender
-  const addItem = () => {
-    console.log('🔍 addItem called with newItem:', newItem);
-    console.log('🔍 vendor_ids array:', newItem.vendor_ids);
-    
+  // Handle adding new item to tender
+  const handleAddItem = () => {
     if (!newItem.item_master_id || !newItem.nomenclature || newItem.quantity <= 0) {
       alert('Please fill in all required item fields');
       return;
     }
 
-    // Validate vendor selection based on tender type
     if (tenderData.tender_type === 'annual-tender') {
-      // Annual tender requires at least one vendor selected
       if (!Array.isArray(newItem.vendor_ids) || newItem.vendor_ids.length === 0) {
         alert('Please select at least one vendor for this item');
         return;
       }
+    } else {
+      if (!tenderData.vendor_id) {
+        alert('Please add vendors in the "Participating Bidders" section and mark one as selected');
+        return;
+      }
     }
 
-    const itemWithTotal = {
+    const item: TenderItem = {
       ...newItem,
-      id: Date.now().toString(),
-      total_amount: (newItem.estimated_unit_price || 0) * newItem.quantity
+      id: `temp-${Date.now()}`
     };
-    
-    console.log('✅ Adding item with vendor_ids:', itemWithTotal.vendor_ids);
 
-    setTenderItems([...tenderItems, itemWithTotal]);
+    setTenderItems(prev => [...prev, item]);
     setNewItem({
       item_master_id: '',
       nomenclature: '',
@@ -391,13 +343,13 @@ const EditTender: React.FC = () => {
       estimated_unit_price: 0,
       specifications: '',
       remarks: '',
-      vendor_ids: []  // Reset vendor selection
+      vendor_ids: []
     });
   };
 
-  // Remove item from tender
-  const removeItem = (index: number) => {
-    setTenderItems(tenderItems.filter((_, i) => i !== index));
+  // Handle removing item from tender
+  const handleRemoveItem = (index: number) => {
+    setTenderItems(prev => prev.filter((_, i) => i !== index));
   };
 
   // Handle item master selection
@@ -412,25 +364,73 @@ const EditTender: React.FC = () => {
     }
   };
 
-  // Update total when price or quantity changes
-  useEffect(() => {
-    const total = (newItem.estimated_unit_price || 0) * newItem.quantity;
-    setNewItem(prev => ({ ...prev, total_amount: total }));
-  }, [newItem.estimated_unit_price, newItem.quantity]);
+  // Calculate total tender value
+  const totalTenderValue = tenderItems.reduce((sum, item) => sum + (item.total_amount || 0), 0);
 
-  // Submit form
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-PK', {
+      style: 'currency',
+      currency: 'PKR',
+    }).format(amount);
+  };
+
+  // Spot Purchase Amount Validation
+  const getSpotPurchaseValidation = () => {
+    if (tenderData.tender_type !== 'spot-purchase') return { isValid: true, message: '' };
+    
+    const procurementMethod = tenderData.procurement_methods;
+    
+    if (procurementMethod === 'single_quotation') {
+      if (totalTenderValue > 100000) {
+        return {
+          isValid: false,
+          message: `Single Quotation maximum limit is PKR 100,000. Current total: ${formatCurrency(totalTenderValue)}`
+        };
+      }
+    } else if (procurementMethod === 'multiple_quotation') {
+      if (totalTenderValue <= 100000) {
+        return {
+          isValid: false,
+          message: `Multiple Quotation minimum limit is PKR 100,001. Current total: ${formatCurrency(totalTenderValue)}`
+        };
+      }
+      if (totalTenderValue > 500000) {
+        return {
+          isValid: false,
+          message: `Multiple Quotation maximum limit is PKR 500,000. Please register a tender instead. Current total: ${formatCurrency(totalTenderValue)}`
+        };
+      }
+    }
+    
+    if (totalTenderValue > 500000) {
+      return {
+        isValid: false,
+        message: `Spot Purchase maximum limit is PKR 500,000. You must register a tender for amounts exceeding this limit. Current total: ${formatCurrency(totalTenderValue)}`
+      };
+    }
+    
+    return { isValid: true, message: '' };
+  };
+
+  const spotPurchaseValidation = getSpotPurchaseValidation();
+
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!tenderData.title) {
+    
+    if (!tenderData.title.trim()) {
       alert('Please enter a tender title');
       return;
     }
 
-    // For contract and spot purchase tenders, vendor_id is required at tender level
-    // For annual tenders, vendors are selected per-item so no global vendor_id needed
     if ((tenderData.tender_type === 'contract' || tenderData.tender_type === 'spot-purchase') && !tenderData.vendor_id) {
       alert('Please select a vendor');
+      return;
+    }
+
+    if (tenderData.tender_type === 'spot-purchase' && !spotPurchaseValidation.isValid) {
+      alert(spotPurchaseValidation.message);
       return;
     }
 
@@ -438,24 +438,18 @@ const EditTender: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Prepare tender data for JSON submission (only include valid database fields)
       const tenderFormData = {
-        reference_number: tenderData.reference_number,
-        title: tenderData.title,
-        description: tenderData.description,
-        status: tenderData.status || 'draft',
+        ...tenderData,
         estimated_value: totalTenderValue || (tenderData.estimated_value ? parseFloat(tenderData.estimated_value) : null),
         publish_date: tenderData.publish_date || null,
         submission_deadline: tenderData.submission_deadline || null,
         opening_date: tenderData.opening_date || null,
-        procurement_method: tenderData.procurement_method || null,
-        publication_daily: tenderData.publication_daily || null,
         vendor_id: tenderData.vendor_id || null,
         office_ids: tenderData.office_ids.length > 0 ? tenderData.office_ids.join(',') : null,
         wing_ids: tenderData.wing_ids.length > 0 ? tenderData.wing_ids.join(',') : null,
         dec_ids: tenderData.dec_ids.length > 0 ? tenderData.dec_ids.join(',') : null,
         items: tenderItems.map(item => ({
-          id: item.id,
+          ...(item.id && !item.id.startsWith('temp-') ? { id: item.id } : {}),
           item_master_id: item.item_master_id,
           nomenclature: item.nomenclature,
           quantity: item.quantity,
@@ -463,7 +457,6 @@ const EditTender: React.FC = () => {
           total_amount: item.total_amount || 0,
           specifications: item.specifications || '',
           remarks: item.remarks || '',
-          // For annual tender, send vendor_ids array; for others send vendor_id
           ...(tenderData.tender_type === 'annual-tender' 
             ? { vendor_ids: item.vendor_ids || [] }
             : { vendor_id: item.vendor_id || null }
@@ -472,16 +465,8 @@ const EditTender: React.FC = () => {
       };
 
       console.log('🔍 Submitting tender data:', JSON.stringify(tenderFormData, null, 2));
-      
-      // Log each item's vendor info specifically
-      console.log('📦 Items being submitted:');
-      tenderFormData.items.forEach((item, idx) => {
-        console.log(`  Item ${idx}: ${item.nomenclature}`);
-        console.log(`    - vendor_ids:`, item.vendor_ids);
-        console.log(`    - vendor_id:`, item.vendor_id);
-      });
 
-      const response = await fetch(`/api/tenders/${id}`, {
+      const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -489,11 +474,7 @@ const EditTender: React.FC = () => {
         body: JSON.stringify(tenderFormData),
       });
 
-      console.log('📡 Response status:', response.status);
-      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Error response:', errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -502,30 +483,19 @@ const EditTender: React.FC = () => {
 
       alert(`${tenderData.tender_type === 'spot-purchase' ? 'Spot purchase' : tenderData.tender_type === 'annual-tender' ? 'Annual tender' : 'Contract tender'} updated successfully!`);
       
-      // Redirect to appropriate dashboard based on tender type
+      let redirectPath = '/dashboard/contract-tender';
       if (tenderData.tender_type === 'spot-purchase') {
-        navigate('/dashboard/spot-purchases');
+        redirectPath = '/dashboard/spot-purchases';
       } else if (tenderData.tender_type === 'annual-tender') {
-        navigate('/dashboard/annual-tenders');
-      } else {
-        navigate('/dashboard/contract-tender');
+        redirectPath = '/dashboard/contract-tender?type=annual-tender';
       }
+      navigate(redirectPath);
     } catch (err) {
       console.error('Error updating tender:', err);
       setError(err instanceof Error ? err.message : 'Failed to update tender');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-PK', {
-      style: 'currency',
-      currency: 'PKR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
   };
 
   if (loadingData) {
@@ -542,26 +512,15 @@ const EditTender: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="min-h-screen bg-gray-50/50">
+      <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <Button 
-            type="button" 
-            variant="ghost" 
-            onClick={() => {
-              if (tenderData.tender_type === 'spot-purchase') {
-                navigate('/dashboard/spot-purchases');
-              } else if (tenderData.tender_type === 'annual-tender') {
-                navigate('/dashboard/annual-tenders');
-              } else {
-                navigate('/dashboard/contract-tender');
-              }
-            }}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchases' : tenderData.tender_type === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
+        <div className="flex items-center gap-4">
+          <Button variant="outline" onClick={() => navigate(
+            tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
+          )}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchases' : 'Contract Tenders'}
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
@@ -577,972 +536,794 @@ const EditTender: React.FC = () => {
         </div>
 
         {error && (
-          <Alert className="border-red-200 bg-red-50">
-            <AlertDescription className="text-red-800">
-              {error}
-            </AlertDescription>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {/* Rest of the form - same structure as CreateTender */}
-        {/* Card 1: Tender Type */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Tender Type
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div>
-              <label className="text-sm font-medium">Tender Type</label>
-              <Select 
-                value={tenderData.tender_type} 
-                onValueChange={(value) => setTenderData(prev => ({
-                  ...prev,
-                  tender_type: value
-                }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tender type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="contract">Contract Tender</SelectItem>
-                  <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
-                  <SelectItem value="annual-tender">Annual Tender</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Continue with same structure as CreateTender... */}
-        
-        {/* Card 2: Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium">Tender Number *</label>
-                <Input
-                  value={tenderData.tender_number}
-                  onChange={(e) => setTenderData(prev => ({ ...prev, tender_number: e.target.value }))}
-                  placeholder="Enter tender number"
-                  required
-                />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Tender Type Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Type
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Tender Type *</label>
+                  <Select 
+                    value={tenderData.tender_type} 
+                    onValueChange={(value) => setTenderData(prev => ({
+                      ...prev,
+                      tender_type: value
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select tender type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contract">Contract Tender</SelectItem>
+                      <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
+                      <SelectItem value="annual-tender">Annual Tender</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {tenderData.tender_type !== 'spot-purchase' && (
+                  <div>
+                    <label className="text-sm font-medium">Status</label>
+                    <Select 
+                      value={tenderData.status} 
+                      onValueChange={(value) => setTenderData(prev => ({
+                        ...prev,
+                        status: value
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="published">Published</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
-              
+            </CardContent>
+          </Card>
+
+          {/* Main Tender Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase Information' : 'Tender Information'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Reference Number</label>
                 <Input
                   value={tenderData.reference_number}
-                  onChange={(e) => setTenderData(prev => ({ ...prev, reference_number: e.target.value }))}
+                  onChange={(e) => setTenderData(prev => ({
+                    ...prev,
+                    reference_number: e.target.value
+                  }))}
                   placeholder="Enter reference number"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Status</label>
-                <Select 
-                  value={tenderData.status} 
-                  onValueChange={(value) => setTenderData(prev => ({
+                <label className="text-sm font-medium">Title *</label>
+                <Input
+                  required
+                  value={tenderData.title}
+                  onChange={(e) => setTenderData(prev => ({
                     ...prev,
-                    status: value
+                    title: e.target.value
                   }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                    <SelectItem value="awarded">Awarded</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {tenderData.tender_type === 'spot-purchase' && (
-                <div>
-                  <label className="text-sm font-medium">Spot Type</label>
-                  <Input
-                    value={tenderData.tender_spot_type}
-                    onChange={(e) => setTenderData(prev => ({ ...prev, tender_spot_type: e.target.value }))}
-                    placeholder="Enter spot purchase type"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Title *</label>
-              <Input
-                value={tenderData.title}
-                onChange={(e) => setTenderData(prev => ({ ...prev, title: e.target.value }))}
-                placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase title' : 'Enter tender title'}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Description</label>
-              <Input
-                value={tenderData.description}
-                onChange={(e) => setTenderData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase description' : 'Enter tender description'}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm font-medium">Publish Date</label>
-                <Input
-                  type="date"
-                  value={tenderData.publish_date}
-                  onChange={(e) => setTenderData(prev => ({ ...prev, publish_date: e.target.value }))}
+                  placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase title' : 'Enter tender title'}
                 />
               </div>
-              
-              <div>
-                <label className="text-sm font-medium">Publication Date</label>
-                <Input
-                  type="date"
-                  value={tenderData.publication_date}
-                  onChange={(e) => setTenderData(prev => ({ ...prev, publication_date: e.target.value }))}
-                />
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium">Submission Date</label>
-                <Input
-                  type="date"
-                  value={tenderData.submission_date}
-                  onChange={(e) => setTenderData(prev => ({ ...prev, submission_date: e.target.value }))}
-                />
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium">Submission Deadline</label>
-                <Input
-                  type="date"
-                  value={tenderData.submission_deadline}
-                  onChange={(e) => setTenderData(prev => ({ ...prev, submission_deadline: e.target.value }))}
-                />
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium">Opening Date</label>
-                <Input
-                  type="date"
-                  value={tenderData.opening_date}
-                  onChange={(e) => setTenderData(prev => ({ ...prev, opening_date: e.target.value }))}
-                />
-              </div>
-            </div>
 
-            <div>
-              <label className="text-sm font-medium">Vendor *</label>
-              <Select 
-                value={tenderData.vendor_id} 
-                onValueChange={(value) => setTenderData(prev => ({ ...prev, vendor_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendors.map((vendor) => (
-                    <SelectItem key={vendor.id} value={vendor.id}>
-                      {vendor.vendor_code} - {vendor.vendor_name} {vendor.contact_person && `(${vendor.contact_person})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Location Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Location Selection</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Offices *</label>
-              <MultiSelect
-                options={offices.map(office => ({
-                  label: `${office.strOfficeName} (${office.OfficeCode || 'No Code'})`,
-                  value: office.intOfficeID.toString()
-                }))}
-                onValueChange={(values) => setTenderData(prev => ({ ...prev, office_ids: values }))}
-                defaultValue={tenderData.office_ids}
-                placeholder="Select offices"
-                variant="inverted"
-                animation={2}
-                maxCount={3}
-              />
-            </div>
-
-            {wings.length > 0 && (
               <div>
-                <label className="text-sm font-medium">Wings *</label>
-                <MultiSelect
-                  options={wings.map(wing => ({
-                    label: `${wing.Name} ${wing.ShortName ? `(${wing.ShortName})` : ''}`,
-                    value: wing.Id.toString()
+                <label className="text-sm font-medium">Description</label>
+                <textarea
+                  className="w-full p-3 border border-input rounded-md resize-none"
+                  rows={4}
+                  value={tenderData.description}
+                  onChange={(e) => setTenderData(prev => ({
+                    ...prev,
+                    description: e.target.value
                   }))}
-                  onValueChange={(values) => setTenderData(prev => ({ ...prev, wing_ids: values }))}
-                  defaultValue={tenderData.wing_ids}
-                  placeholder="Select wings"
-                  variant="inverted"
-                  animation={2}
-                  maxCount={3}
+                  placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase description' : 'Enter tender description'}
                 />
               </div>
-            )}
 
-            {decs.length > 0 && (
-              <div>
-                <label className="text-sm font-medium">DECs</label>
-                <MultiSelect
-                  options={decs.map(dec => ({
-                    label: `${dec.strDECName} ${dec.strDECCode ? `(${dec.strDECCode})` : ''}`,
-                    value: dec.intAutoID.toString()
-                  }))}
-                  onValueChange={(values) => setTenderData(prev => ({ ...prev, dec_ids: values }))}
-                  defaultValue={tenderData.dec_ids}
-                  placeholder="Select DECs"
-                  variant="inverted"
-                  animation={2}
-                  maxCount={3}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Additional Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Additional Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Publication Daily</label>
-              <Input
-                value={tenderData.publication_daily}
-                onChange={(e) => setTenderData(prev => ({ ...prev, publication_daily: e.target.value }))}
-                placeholder="Enter publication daily"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Procurement Method</label>
-              <Input
-                value={tenderData.procurement_method}
-                onChange={(e) => setTenderData(prev => ({ ...prev, procurement_method: e.target.value }))}
-                placeholder="Enter procurement method"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 5: Document Uploads */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Document Uploads
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Contract Tender Documents */}
-            {tenderData.tender_type === 'contract' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                    <label className="text-sm font-medium">RFP</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, rfp_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.rfp_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.rfp_file.name}
-                      </p>
-                    )}
-                  </div>
-
+              {tenderData.tender_type !== 'spot-purchase' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="text-sm font-medium">Tender Docs</label>
+                    <label className="text-sm font-medium">Publish Date</label>
                     <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, tender_docs_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.tender_docs_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.tender_docs_file.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">LOI</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, loi_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.loi_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.loi_file.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Contract Awarded Letter</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, contract_awarded_letter_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.contract_awarded_letter_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.contract_awarded_letter_file.name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Spot Purchase Documents */}
-              {tenderData.tender_type === 'spot-purchase' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="text-sm font-medium">RFQ (Request for Quotation)</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setFileUploads(prev => ({ ...prev, rfq_file: file }));
-                    }}
-                    className="mt-1"
-                  />
-                  {fileUploads.rfq_file && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Selected: {fileUploads.rfq_file.name}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Quotation Response</label>
-                  <Input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xlsx,.xls"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setFileUploads(prev => ({ ...prev, quotation_file: file }));
-                    }}
-                    className="mt-1"
-                  />
-                  {fileUploads.quotation_file && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Selected: {fileUploads.quotation_file.name}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Comparison Sheet</label>
-                  <Input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xlsx,.xls"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setFileUploads(prev => ({ ...prev, comparison_file: file }));
-                    }}
-                    className="mt-1"
-                  />
-                  {fileUploads.comparison_file && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Selected: {fileUploads.comparison_file.name}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">PO (Purchase Order)</label>
-                  <Input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xlsx,.xls"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setFileUploads(prev => ({ ...prev, po_file: file }));
-                    }}
-                    className="mt-1"
-                  />
-                  {fileUploads.po_file && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Selected: {fileUploads.po_file.name}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Annual Tender Documents */}
-            {tenderData.tender_type === 'annual-tender' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                    <label className="text-sm font-medium">RFP</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, rfp_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.rfp_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.rfp_file.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Tender Docs</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, tender_docs_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.tender_docs_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.tender_docs_file.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">LOI</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, loi_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.loi_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.loi_file.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Contract Awarded Letter</label>
-                    <Input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xlsx,.xls"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFileUploads(prev => ({ ...prev, contract_awarded_letter_file: file }));
-                      }}
-                      className="mt-1"
-                    />
-                    {fileUploads.contract_awarded_letter_file && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Selected: {fileUploads.contract_awarded_letter_file.name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Accepted formats:</strong> PDF, DOC, DOCX, XLS, XLSX
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  Maximum file size: 10MB per file
-                </p>
-                {tenderData.tender_type === 'contract' && (
-                  <p className="text-xs text-blue-600 mt-1">
-                    <strong>Contract Tender:</strong> RFP, Tender Docs, LOI, Contract Awarded Letter
-                </p>
-              )}
-              {tenderData.tender_type === 'spot-purchase' && (
-                <p className="text-xs text-blue-600 mt-1">
-                  <strong>Spot Purchase:</strong> RFQ, Quotation Response, Comparison Sheet, and PO documents
-                </p>
-              )}
-              {tenderData.tender_type === 'annual-tender' && (
-                <p className="text-xs text-blue-600 mt-1">
-                  <strong>Annual Tender:</strong> RFP, Tender Docs, LOI, Contract Awarded Letter
-                </p>
-              )}
-            </div>
-
-            {/* Display Already Uploaded Documents */}
-            {loadedTender && (loadedTender.rfp_file_path || loadedTender.loi_file_path || loadedTender.noting_file_path || 
-              loadedTender.po_file_path || loadedTender.contract_file_path || loadedTender.document_path) && (
-              <div className="mt-6 pt-6 border-t">
-                <h3 className="font-medium mb-4">📎 Already Uploaded Documents</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {loadedTender.rfp_file_path && (
-                    <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm"><strong>RFP:</strong> {loadedTender.rfp_file_path}</span>
-                    </div>
-                  )}
-                  {loadedTender.contract_file_path && (
-                    <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <FileText className="w-4 h-4 text-green-600" />
-                      <span className="text-sm"><strong>Contract:</strong> {loadedTender.contract_file_path}</span>
-                    </div>
-                  )}
-                  {loadedTender.loi_file_path && (
-                    <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                      <FileText className="w-4 h-4 text-purple-600" />
-                      <span className="text-sm"><strong>LOI:</strong> {loadedTender.loi_file_path}</span>
-                    </div>
-                  )}
-                  {loadedTender.noting_file_path && (
-                    <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                      <FileText className="w-4 h-4 text-orange-600" />
-                      <span className="text-sm"><strong>Noting:</strong> {loadedTender.noting_file_path}</span>
-                    </div>
-                  )}
-                  {loadedTender.po_file_path && (
-                    <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <FileText className="w-4 h-4 text-yellow-600" />
-                      <span className="text-sm"><strong>PO:</strong> {loadedTender.po_file_path}</span>
-                    </div>
-                  )}
-                  {loadedTender.document_path && (
-                    <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg border border-gray-300">
-                      <FileText className="w-4 h-4 text-gray-600" />
-                      <span className="text-sm"><strong>Document:</strong> {loadedTender.document_path}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Card 5.5: Participating Bidders */}
-        <TenderVendorManagement
-          tenderId={id}
-          vendors={vendors}
-          readOnly={false}
-          onVendorsChange={(updatedVendors) => {
-            console.log('Bidders updated in EditTender:', updatedVendors);
-            setBidders(updatedVendors);
-          }}
-        />
-
-        {/* Card 6: Tender Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Tender Items
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Add New Item Form */}
-            <div className="border border-dashed border-gray-300 rounded-lg p-4 space-y-4">
-              <h4 className="font-medium">Add New Item</h4>
-              
-              {/* Category and Item Select - First Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Category Select */}
-                <div>
-                  <label className="text-xs font-medium mb-1 block">Category</label>
-                  <Select 
-                    value={selectedCategory} 
-                    onValueChange={(value) => {
-                      setSelectedCategory(value);
-                      setNewItem(prev => ({
+                      type="date"
+                      value={tenderData.publish_date}
+                      onChange={(e) => setTenderData(prev => ({
                         ...prev,
-                        item_master_id: ''
-                      }));
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from(new Set(itemMasters
-                        .filter(item => item.category_name)
-                        .map(item => item.category_name)))
-                        .sort()
-                        .map(category => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Item Master Select - filtered by category */}
-                <div>
-                  <label className="text-xs font-medium mb-1 block">Item Master</label>
-                  <Select 
-                    value={newItem.item_master_id} 
-                    onValueChange={handleItemMasterSelect}
-                    disabled={!selectedCategory}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder={selectedCategory ? "Select item" : "Select category first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {itemMasters
-                        .filter(item => item.category_name === selectedCategory)
-                        .map(item => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.nomenclature}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium mb-1 block">Nomenclature</label>
-                  <Input
-                    className="h-9"
-                    value={newItem.nomenclature}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, nomenclature: e.target.value }))}
-                    placeholder="Item description"
-                  />
-                </div>
-              </div>
-
-              {/* Second Row - Vendor/Quantity and Price */}
-              {tenderData.tender_type === 'annual-tender' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                  {/* Vendor Multi-Select for Annual Tender - Show all vendors */}
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
-                    <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
-                      {vendors && vendors.length > 0 ? (
-                        vendors.map(vendor => {
-                          const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                          const isSelected = vendorIds.includes(vendor.id);
-                          
-                          return (
-                            <label key={vendor.id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.id}) - checked: ${e.target.checked}`);
-                                  if (e.target.checked) {
-                                    console.log(`➕ Adding vendor ${vendor.id} to vendor_ids`);
-                                    setNewItem(prev => {
-                                      const updated = {
-                                        ...prev,
-                                        vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
-                                      };
-                                      console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
-                                      return updated;
-                                    });
-                                  } else {
-                                    console.log(`➖ Removing vendor ${vendor.id} from vendor_ids`);
-                                    setNewItem(prev => {
-                                      const updated = {
-                                        ...prev,
-                                        vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
-                                      };
-                                      console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
-                                      return updated;
-                                    });
-                                  }
-                                }}
-                                className="w-4 h-4"
-                              />
-                              <span>{vendor.vendor_name}</span>
-                            </label>
-                          );
-                        })
-                      ) : (
-                        <p className="text-sm text-gray-500 p-2">No vendors available</p>
-                      )}
-                    </div>
-                    <div className="mt-2 text-xs text-gray-600">
-                      {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                        ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
-                        : '⚠️ Select at least 1 vendor'}
-                    </div>
-                  </div>
-
-                  {/* Unit Price for Annual Tender */}
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Unit Price</label>
-                    <Input
-                      className="h-9"
-                      type="number"
-                      step="0.01"
-                      value={newItem.estimated_unit_price || ''}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, estimated_unit_price: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
+                        publish_date: e.target.value
+                      }))}
                     />
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-                  {/* Quantity for Normal Tender */}
+                  
                   <div>
-                    <label className="text-xs font-medium mb-1 block">Quantity *</label>
+                    <label className="text-sm font-medium">Submission Deadline</label>
                     <Input
-                      className="h-9"
-                      type="number"
-                      min="1"
-                      value={newItem.quantity}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                      placeholder="Enter quantity"
+                      type="date"
+                      value={tenderData.submission_deadline}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        submission_deadline: e.target.value
+                      }))}
                     />
                   </div>
-
-                  {/* Unit Price for Normal Tender */}
+                  
                   <div>
-                    <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                    <label className="text-sm font-medium">Opening Date</label>
                     <Input
-                      className="h-9"
-                      type="number"
-                      step="0.01"
-                      value={newItem.estimated_unit_price || ''}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, estimated_unit_price: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  {/* Total for Normal Tender */}
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Total</label>
-                    <Input
-                      className="bg-gray-100"
-                      value={(newItem.quantity || 1) * (newItem.estimated_unit_price || 0)}
-                      disabled
+                      type="date"
+                      value={tenderData.opening_date}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        opening_date: e.target.value
+                      }))}
                     />
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
 
-              {/* Specifications and Remarks */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Location Selection - Only for Contract Tenders */}
+          {tenderData.tender_type !== 'spot-purchase' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <FileText className="h-5 w-5 mr-2" />
+                  Tender Request Form
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Specifications (Optional)</label>
-                  <Input
-                    value={newItem.specifications || ''}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, specifications: e.target.value }))}
-                    placeholder="Enter specifications"
+                  <label className="text-sm font-medium">Offices *</label>
+                  <MultiSelect
+                    options={offices.map(office => ({
+                      label: `${office.strOfficeName}${office.OfficeCode ? ` (${office.OfficeCode})` : ''}`,
+                      value: office.intOfficeID.toString()
+                    }))}
+                    onValueChange={(values) => setTenderData(prev => ({
+                      ...prev,
+                      office_ids: values
+                    }))}
+                    defaultValue={tenderData.office_ids}
+                    placeholder="Select offices first"
+                    variant="inverted"
+                    animation={2}
+                    maxCount={3}
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select offices to load their wings
+                  </p>
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Remarks (Optional)</label>
-                  <Input
-                    value={newItem.remarks || ''}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, remarks: e.target.value }))}
-                    placeholder="Enter remarks"
+                  <label className="text-sm font-medium">Wings</label>
+                  <MultiSelect
+                    options={filteredWings.map(wing => ({
+                      label: `${wing.Name}${wing.ShortName ? ` (${wing.ShortName})` : ''}`,
+                      value: wing.Id.toString()
+                    }))}
+                    onValueChange={(values) => setTenderData(prev => ({
+                      ...prev,
+                      wing_ids: values
+                    }))}
+                    defaultValue={tenderData.wing_ids}
+                    placeholder={tenderData.office_ids.length === 0 ? "Select offices first" : "Select wings"}
+                    variant="inverted"
+                    animation={2}
+                    maxCount={3}
+                    disabled={tenderData.office_ids.length === 0}
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {filteredWings.length} wings available
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">DECs</label>
+                  <MultiSelect
+                    options={filteredDecs.map(dec => ({
+                      label: `${dec.DECName.trim()}${dec.DECAcronym ? ` (${dec.DECAcronym})` : ''}`,
+                      value: dec.intAutoID.toString()
+                    }))}
+                    onValueChange={(values) => setTenderData(prev => ({
+                      ...prev,
+                      dec_ids: values
+                    }))}
+                    defaultValue={tenderData.dec_ids}
+                    placeholder={tenderData.wing_ids.length === 0 ? "Select wings first" : "Select DECs"}
+                    variant="inverted"
+                    animation={2}
+                    maxCount={3}
+                    disabled={tenderData.wing_ids.length === 0}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {filteredDecs.length} DECs available
+                  </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+          )}
 
-              {/* Add Button at the bottom */}
-              <Button type="button" onClick={addItem} className="w-full">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Item
-              </Button>
-            </div>
+          {/* Additional Tender Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Additional Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Estimated Value *</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={tenderData.estimated_value}
+                    onChange={(e) => setTenderData(prev => ({
+                      ...prev,
+                      estimated_value: e.target.value
+                    }))}
+                    placeholder="Enter estimated value"
+                  />
+                </div>
 
-            {/* Items Table */}
-            {tenderItems.length > 0 && (
-              <div className="space-y-4">
-                {tenderData.tender_type === 'annual-tender' && tenderItems.some(item => !item.vendor_ids || item.vendor_ids.length === 0) && (
-                  <Alert className="border-red-200 bg-red-50">
-                    <AlertDescription className="text-red-800">
-                      <strong>⚠️ Annual Tender Items Missing Vendors:</strong> This annual tender has {tenderItems.filter(i => !i.vendor_ids || i.vendor_ids.length === 0).length} item(s) without assigned vendors. 
-                      Vendors must be assigned to each item for annual tenders. Please assign vendors or remove items without vendors.
-                    </AlertDescription>
-                  </Alert>
+                {tenderData.tender_type !== 'spot-purchase' && (
+                  <div>
+                    <label className="text-sm font-medium">Publication Dailies</label>
+                    <Input
+                      value={tenderData.publication_dailies}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        publication_dailies: e.target.value
+                      }))}
+                      placeholder="Enter publication dailies"
+                    />
+                  </div>
                 )}
                 
-                <div className="border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      {tenderData.tender_type === 'annual-tender' ? (
+                <div>
+                  <label className="text-sm font-medium">Procurement Methods</label>
+                  <Select 
+                    value={tenderData.procurement_methods} 
+                    onValueChange={(value) => setTenderData(prev => ({
+                      ...prev,
+                      procurement_methods: value
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select procurement method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenderData.tender_type === 'spot-purchase' ? (
                         <>
-                          <TableHead>Vendor</TableHead>
-                          <TableHead>Price</TableHead>
+                          <SelectItem value="single_quotation">Single Quotation</SelectItem>
+                          <SelectItem value="multiple_quotation">Multiple Quotation</SelectItem>
                         </>
                       ) : (
                         <>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead>Unit Price</TableHead>
-                          <TableHead>Total</TableHead>
+                          <SelectItem value="open_bidding">Open Bidding</SelectItem>
+                          <SelectItem value="limited_bidding">Limited Bidding</SelectItem>
+                          <SelectItem value="direct_contracting">Direct Contracting</SelectItem>
+                          <SelectItem value="framework_agreement">Framework Agreement</SelectItem>
+                          <SelectItem value="request_for_quotation">Request for Quotation</SelectItem>
                         </>
                       )}
-                      <TableHead>Specifications</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {tenderItems.map((item, index) => (
-                      <TableRow key={item.id || index}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{item.nomenclature}</div>
-                            <div className="text-sm text-muted-foreground">ID: {item.item_master_id}</div>
-                          </div>
-                        </TableCell>
-                        {tenderData.tender_type === 'annual-tender' ? (
-                          <>
-                            <TableCell>
-                              {item.vendor_ids && Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {item.vendor_ids.map((vendorId: string) => {
-                                    console.log(`🔍 Looking for vendor: ${vendorId}, total vendors: ${vendors.length}`);
-                                    const vendor = vendors.find(v => v.id === vendorId);
-                                    console.log(`  Found: ${vendor?.vendor_name || 'NOT FOUND'}`);
-                                    return (
-                                      <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                        {vendor?.vendor_name || vendorId}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded font-medium">
-                                  ⚠️ No vendors assigned
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="font-medium">{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
-                          </>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {tenderData.tender_type !== 'spot-purchase' && (
+                  <div>
+                    <label className="text-sm font-medium">Procedure Adopted</label>
+                    <Select 
+                      value={tenderData.procedure_adopted} 
+                      onValueChange={(value) => setTenderData(prev => ({
+                        ...prev,
+                        procedure_adopted: value
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select procedure" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single_stage">Single Stage</SelectItem>
+                        <SelectItem value="two_stage">Two Stage</SelectItem>
+                        <SelectItem value="pre_qualification">Pre-qualification</SelectItem>
+                        <SelectItem value="expression_of_interest">Expression of Interest</SelectItem>
+                        <SelectItem value="request_for_proposal">Request for Proposal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Participating Bidders Section */}
+          <TenderVendorManagement
+            tenderId={id}
+            vendors={vendors}
+            onVendorsChange={(updatedVendors) => {
+              console.log('Vendors updated:', updatedVendors);
+              setBidders(updatedVendors);
+            }}
+            onSuccessfulVendorChange={(vendorId) => {
+              console.log('Selected successful vendor:', vendorId);
+              setTenderData(prev => ({
+                ...prev,
+                vendor_id: vendorId || ''
+              }));
+            }}
+            maxVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+            minVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+            procurementMethod={tenderData.tender_type === 'spot-purchase' ? tenderData.procurement_methods : undefined}
+          />
+
+          {/* Tender Items Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Plus className="h-5 w-5 mr-2" />
+                {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase Items' : 'Tender Items'} ({tenderItems.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Add New Item Form */}
+              <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+                <h3 className="text-lg font-medium mb-4">Add New Item</h3>
+                
+                {/* Category and Item Select - First Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                  {/* Category Select */}
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Category *</label>
+                    <Select 
+                      value={selectedCategory} 
+                      onValueChange={(value) => {
+                        setSelectedCategory(value);
+                        setNewItem(prev => ({
+                          ...prev,
+                          item_master_id: ''
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from(new Set(itemMasters
+                          .filter(item => item.category_name)
+                          .map(item => item.category_name)))
+                          .sort()
+                          .map(category => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Item Master Select - filtered by category */}
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Item Master *</label>
+                    <Select 
+                      value={newItem.item_master_id} 
+                      onValueChange={handleItemMasterSelect}
+                      disabled={!selectedCategory}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder={selectedCategory ? "Select item" : "Select category first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {itemMasters
+                          .filter(item => item.category_name === selectedCategory)
+                          .map(item => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nomenclature}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Nomenclature *</label>
+                    <Input
+                      className="h-9"
+                      value={newItem.nomenclature}
+                      onChange={(e) => setNewItem(prev => ({
+                        ...prev,
+                        nomenclature: e.target.value
+                      }))}
+                      placeholder="Item description"
+                    />
+                  </div>
+                </div>
+
+                {/* Second Row - Vendor/Quantity and Price */}
+                {tenderData.tender_type === 'annual-tender' ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                    {/* Vendor Multi-Select for Annual Tender - Show all vendors */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
+                      <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
+                        {vendors.length > 0 ? (
+                          vendors.map(vendor => {
+                            const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
+                            const isSelected = vendorIds.includes(vendor.id);
+                            return (
+                              <label key={vendor.id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewItem(prev => {
+                                        const updated = {
+                                          ...prev,
+                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                        };
+                                        return updated;
+                                      });
+                                    } else {
+                                      setNewItem(prev => {
+                                        const updated = {
+                                          ...prev,
+                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                        };
+                                        return updated;
+                                      });
+                                    }
+                                  }}
+                                  className="w-4 h-4"
+                                />
+                                <span>{vendor.vendor_name}</span>
+                              </label>
+                            );
+                          })
                         ) : (
-                          <>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
-                            <TableCell className="font-medium">{formatCurrency(item.total_amount || 0)}</TableCell>
-                          </>
+                          <p className="text-xs text-gray-500 p-2">No vendors available</p>
                         )}
-                        <TableCell>
-                          <div className="max-w-xs">
-                            <div className="text-sm">{item.specifications || 'N/A'}</div>
-                            {item.remarks && (
-                              <div className="text-xs text-muted-foreground mt-1">{item.remarks}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600">
+                        {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                          ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
+                          : '⚠️ Select at least 1 vendor'}
+                      </div>
+                    </div>
+
+                    {/* Unit Price for Annual Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                      <Input
+                        className="h-9"
+                        type="number"
+                        step="0.01"
+                        value={newItem.estimated_unit_price || ''}
+                        onChange={(e) => setNewItem(prev => ({
+                          ...prev,
+                          estimated_unit_price: parseFloat(e.target.value) || 0
+                        }))}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                    {/* Quantity for Normal Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Quantity *</label>
+                      <Input
+                        className="h-9"
+                        type="number"
+                        min="1"
+                        value={newItem.quantity}
+                        onChange={(e) => setNewItem(prev => ({
+                          ...prev,
+                          quantity: parseInt(e.target.value) || 1
+                        }))}
+                        placeholder="1"
+                      />
+                    </div>
+
+                    {/* Unit Price for Normal Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                      <Input
+                        className="h-9"
+                        type="number"
+                        step="0.01"
+                        value={newItem.estimated_unit_price || ''}
+                        onChange={(e) => setNewItem(prev => ({
+                          ...prev,
+                          estimated_unit_price: parseFloat(e.target.value) || 0
+                        }))}
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    {/* Total for Normal Tender */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Total</label>
+                      <Input
+                        className="h-9 bg-gray-100"
+                        value={formatCurrency(newItem.total_amount || 0)}
+                        disabled
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Text areas for longer content in one row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Specifications (Optional)</label>
+                    <textarea
+                      className="w-full p-2 border border-input rounded-md resize-none text-sm"
+                      rows={2}
+                      value={newItem.specifications || ''}
+                      onChange={(e) => setNewItem(prev => ({
+                        ...prev,
+                        specifications: e.target.value
+                      }))}
+                      placeholder="Technical specifications"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Remarks (Optional)</label>
+                    <textarea
+                      className="w-full p-2 border border-input rounded-md resize-none text-sm"
+                      rows={2}
+                      value={newItem.remarks || ''}
+                      onChange={(e) => setNewItem(prev => ({
+                        ...prev,
+                        remarks: e.target.value
+                      }))}
+                      placeholder="Additional remarks"
+                    />
+                  </div>
+                </div>
+
+                {/* Add Button at the bottom */}
+                <Button type="button" onClick={handleAddItem} className="w-full">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Item
+                </Button>
+              </div>
+
+              {/* Items Table */}
+              {tenderItems.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium mb-4">
+                    {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase Items List' : tenderData.tender_type === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          {tenderData.tender_type === 'annual-tender' ? (
+                            <>
+                              <TableHead>Vendor</TableHead>
+                              <TableHead>Price</TableHead>
+                            </>
+                          ) : (
+                            <>
+                              <TableHead>Quantity</TableHead>
+                              <TableHead>Unit Price</TableHead>
+                              <TableHead>Total</TableHead>
+                            </>
+                          )}
+                          <TableHead>Specifications</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tenderItems.map((item, index) => (
+                          <TableRow key={item.id || index}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{item.nomenclature}</p>
+                                <p className="text-xs text-gray-500">ID: {item.item_master_id}</p>
+                              </div>
+                            </TableCell>
+                            {tenderData.tender_type === 'annual-tender' ? (
+                              <>
+                                <TableCell>
+                                  {item.vendor_ids && Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {item.vendor_ids.map(vendorId => {
+                                        const vendor = vendors.find(v => v.id === vendorId);
+                                        return (
+                                          <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                            {vendor?.vendor_name || vendorId}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendors</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {formatCurrency(item.estimated_unit_price || 0)}
+                                </TableCell>
+                              </>
+                            ) : (
+                              <>
+                                <TableCell>{item.quantity}</TableCell>
+                                <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
+                                <TableCell className="font-medium">
+                                  {formatCurrency(item.total_amount || 0)}
+                                </TableCell>
+                              </>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeItem(index)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {/* Summary */}
-                <div className="border-t bg-gray-50 p-4">
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm text-gray-600">
-                      Total Items: {tenderItems.length}
-                    </div>
-                    <div className="text-lg font-semibold">
-                      Total Value: {formatCurrency(totalTenderValue)}
-                    </div>
+                            <TableCell>
+                              <div className="max-w-xs">
+                                {item.specifications && (
+                                  <p className="text-xs truncate" title={item.specifications}>
+                                    {item.specifications}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleRemoveItem(index)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+
+                  {/* Summary */}
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    {tenderData.tender_type === 'annual-tender' ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Total Items</p>
+                          <p className="text-lg font-bold">{tenderItems.length}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Value</p>
+                          <p className="text-lg font-bold">
+                            {formatCurrency(totalTenderValue)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Avg Price</p>
+                          <p className="text-lg font-bold">
+                            {formatCurrency(
+                              tenderItems.length > 0 
+                                ? totalTenderValue / tenderItems.length
+                                : 0
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Total Items</p>
+                          <p className="text-lg font-bold">{tenderItems.length}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Quantity</p>
+                          <p className="text-lg font-bold">
+                            {tenderItems.reduce((sum, item) => sum + item.quantity, 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Value</p>
+                          <p className={`text-lg font-bold ${!spotPurchaseValidation.isValid ? 'text-red-600' : ''}`}>
+                            {formatCurrency(totalTenderValue)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Avg Unit Price</p>
+                          <p className="text-lg font-bold">
+                            {formatCurrency(
+                              tenderItems.length > 0 
+                                ? totalTenderValue / tenderItems.reduce((sum, item) => sum + item.quantity, 0)
+                                : 0
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {tenderData.tender_type === 'spot-purchase' && !spotPurchaseValidation.isValid && (
+                      <Alert variant="destructive" className="mt-4">
+                        <AlertDescription className="font-medium">
+                          {spotPurchaseValidation.message}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    {tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods && spotPurchaseValidation.isValid && (
+                      <Alert className="mt-4 bg-green-50 border-green-200">
+                        <AlertDescription className="text-green-800">
+                          {tenderData.procurement_methods === 'single_quotation' 
+                            ? `✓ Single Quotation: Amount within limit (Max: PKR 100,000)`
+                            : `✓ Multiple Quotation: Amount within limit (Min: PKR 100,001, Max: PKR 500,000)`
+                          }
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Submit Section */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm text-gray-600">
                     Ready to update tender with {tenderItems.length} items
-                  </div>
+                  </p>
+                  <p className="text-lg font-semibold">
+                    Total Value: {formatCurrency(totalTenderValue)}
+                  </p>
                 </div>
+                <div className="flex gap-3">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => navigate(
+                      tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
+                    )}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={loading || !tenderData.title}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {loading ? 'Updating...' : `Update ${tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase' : 'Contract'}`}
+                  </Button>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Submit Button */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-gray-600">
-                <p>Total Items: {tenderItems.length}</p>
-                <p>Total Value: {formatCurrency(totalTenderValue)}</p>
-              </div>
-              <div className="flex gap-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    if (tenderData.tender_type === 'spot-purchase') {
-                      navigate('/dashboard/spot-purchases');
-                    } else if (tenderData.tender_type === 'annual-tender') {
-                      navigate('/dashboard/annual-tenders');
-                    } else {
-                      navigate('/dashboard/contract-tender');
-                    }
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={loading || !tenderData.title}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {loading ? 'Updating...' : `Update ${tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase' : 'Contract'}`}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </form>
+            </CardContent>
+          </Card>
+        </form>
+      </div>
     </div>
   );
 };
