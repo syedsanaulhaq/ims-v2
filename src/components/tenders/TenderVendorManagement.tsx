@@ -112,6 +112,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
   // Load tender vendors if tender ID is provided (editing mode)
   useEffect(() => {
+    console.log('📍 TenderVendorManagement useEffect - tenderId:', tenderId, 'readOnly:', readOnly);
     if (tenderId) {
       loadTenderVendors();
     }
@@ -150,20 +151,27 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   };
 
   const loadTenderVendors = async () => {
-    if (!tenderId) return;
+    if (!tenderId) {
+      console.log('⚠️ No tenderId provided to TenderVendorManagement');
+      return;
+    }
     
     try {
       setLoading(true);
+      console.log(`📥 Loading vendors for tender: ${tenderId}`);
       const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
+      console.log(`📥 Response status: ${response.status}`);
+      
       if (response.ok) {
         const data = await response.json();
-        console.log('Loaded vendors:', data);
-        setTenderVendors(data);
+        console.log('✅ Loaded tender vendors:', data);
+        setTenderVendors(Array.isArray(data) ? data : data.vendors || data.data || []);
       } else {
-        throw new Error('Failed to load vendors');
+        console.warn(`⚠️ Response not ok: ${response.status}`, await response.text());
+        setError('Failed to load vendors');
       }
     } catch (err) {
-      console.error('Error loading tender vendors:', err);
+      console.error('❌ Error loading tender vendors:', err);
       setError(err instanceof Error ? err.message : 'Failed to load vendors');
     } finally {
       setLoading(false);
