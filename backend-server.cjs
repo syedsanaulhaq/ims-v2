@@ -5934,76 +5934,36 @@ app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
   const { tenderId } = req.params;
   
   try {
-    // First check tender type
-    const tenderCheck = await pool.request()
-      .input('id', sql.UniqueIdentifier, tenderId)
-      .query('SELECT tender_type, vendor_id FROM tenders WHERE id = @id');
+    console.log(`📥 Fetching vendors for tender ${tenderId}`);
     
-    if (tenderCheck.recordset.length === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
+    // Query tender_vendors table which stores all participating bidders
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .query(`
+        SELECT 
+          tv.id,
+          tv.tender_id,
+          tv.vendor_id,
+          tv.vendor_name,
+          tv.quoted_amount,
+          tv.remarks,
+          tv.created_by,
+          tv.created_at,
+          v.vendor_code,
+          v.contact_person,
+          v.email,
+          v.phone,
+          v.address,
+          v.city,
+          v.country
+        FROM tender_vendors tv
+        LEFT JOIN vendors v ON tv.vendor_id = v.id
+        WHERE tv.tender_id = @tender_id
+        ORDER BY tv.created_at DESC
+      `);
     
-    const tender = tenderCheck.recordset[0];
-    const tenderType = tender.tender_type?.toLowerCase();
-    let vendors = [];
-    
-    console.log(`📥 Fetching vendors for tender ${tenderId}, type: ${tenderType}`);
-    
-    // For annual tenders: get unique vendors from vendor_ids (comma-separated in tender_items)
-    if (tenderType === 'annual-tender' || tenderType === 'annual') {
-      console.log('📥 Annual tender detected - extracting vendor_ids from tender_items');
-      const result = await pool.request()
-        .input('tender_id', sql.UniqueIdentifier, tenderId)
-        .query(`
-          SELECT DISTINCT
-            v.id,
-            v.vendor_code,
-            v.vendor_name,
-            v.contact_person,
-            v.email,
-            v.phone,
-            v.address,
-            v.city,
-            v.country,
-            COUNT(DISTINCT ti.id) as item_count
-          FROM vendors v
-          INNER JOIN tender_items ti ON ti.tender_id = @tender_id 
-            AND ti.vendor_ids IS NOT NULL 
-            AND ti.vendor_ids != ''
-            AND (
-              CHARINDEX(CAST(v.id AS NVARCHAR(MAX)), ti.vendor_ids) > 0
-            )
-          GROUP BY v.id, v.vendor_code, v.vendor_name, v.contact_person, v.email, v.phone, v.address, v.city, v.country
-          ORDER BY v.vendor_name
-        `);
-      vendors = result.recordset;
-      console.log(`✅ Found ${vendors.length} unique vendors for annual tender`);
-    } else {
-      // For contract/spot-purchase: single vendor from tender.vendor_id
-      if (tender.vendor_id) {
-        console.log('📥 Contract/Spot-purchase tender detected - fetching single vendor');
-        const result = await pool.request()
-          .input('vendor_id', sql.UniqueIdentifier, tender.vendor_id)
-          .query(`
-            SELECT 
-              id,
-              vendor_code,
-              vendor_name,
-              contact_person,
-              email,
-              phone,
-              address,
-              city,
-              country
-            FROM vendors
-            WHERE id = @vendor_id
-          `);
-        vendors = result.recordset;
-        console.log(`✅ Found vendor for contract/spot tender`);
-      }
-    }
-    
-    res.json(vendors);
+    console.log(`✅ Found ${result.recordset.length} participating bidders for tender`);
+    res.json(result.recordset);
     
   } catch (error) {
     console.error('❌ Error fetching tender vendors:', error);
