@@ -5598,6 +5598,12 @@ app.put('/api/tenders/:id', async (req, res) => {
   try {
     await transaction.begin();
     console.log(`🔄 Starting tender update for ID: ${id}`);
+    console.log('📋 Received tender data:', {
+      title: tenderData.title,
+      publish_date: tenderData.publish_date,
+      submission_deadline: tenderData.submission_deadline,
+      opening_date: tenderData.opening_date
+    });
     
     const now = new Date();
 
@@ -5634,13 +5640,17 @@ app.put('/api/tenders/:id', async (req, res) => {
         
         let value = tenderData[field];
         
+        console.log(`📌 Processing field: ${field}, Original value: ${value}, Type: ${typeof value}`);
+        
         // Handle special data types
         if (field === 'estimated_value') {
           value = value ? parseFloat(value) : null;
         } else if (field === 'publish_date') {
           value = value ? new Date(value) : null;
+          console.log(`   ✅ Parsed publish_date: ${value}`);
         } else if (field === 'submission_deadline' || field === 'opening_date') {
           value = value ? new Date(value) : null;
+          console.log(`   ✅ Parsed ${field}: ${value}`);
         }
         
         tenderUpdateRequest.input(field, sqlType, value);
@@ -5649,6 +5659,7 @@ app.put('/api/tenders/:id', async (req, res) => {
     
     updateQuery += ' WHERE id = @id';
     
+    console.log('🔍 Executing update query:', updateQuery);
     await tenderUpdateRequest.query(updateQuery);
     console.log('✅ Tender basic information updated');
 
