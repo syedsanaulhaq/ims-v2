@@ -1368,16 +1368,16 @@ const CreateTender: React.FC = () => {
                                 </label>
                               );
                             })
-                        ) : (
-                          <p className="text-xs text-gray-500 p-2">No vendors available</p>
-                        )}
+                          ) : (
+                            <p className="text-xs text-gray-500 p-2">No vendors available</p>
+                          )}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600">
+                          {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                            ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
+                            : '⚠️ Select at least 1 vendor'}
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-gray-600">
-                        {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                          ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
-                          : '⚠️ Select at least 1 vendor'}
-                      </div>
-                    </div>
 
                     {/* Unit Price for Annual Tender */}
                     <div>
