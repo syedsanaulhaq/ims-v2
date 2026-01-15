@@ -5913,8 +5913,11 @@ app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
     const tenderType = tender.tender_type?.toLowerCase();
     let vendors = [];
     
-    // For annual tenders: get unique vendors from tender_items
+    console.log(`📥 Fetching vendors for tender ${tenderId}, type: ${tenderType}`);
+    
+    // For annual tenders: get unique vendors from vendor_ids (comma-separated in tender_items)
     if (tenderType === 'annual-tender' || tenderType === 'annual') {
+      console.log('📥 Annual tender detected - extracting vendor_ids from tender_items');
       const result = await pool.request()
         .input('tender_id', sql.UniqueIdentifier, tenderId)
         .query(`
@@ -5930,15 +5933,21 @@ app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
             v.country,
             COUNT(DISTINCT ti.id) as item_count
           FROM vendors v
-          INNER JOIN tender_items ti ON v.id = ti.vendor_id
-          WHERE ti.tender_id = @tender_id
+          INNER JOIN tender_items ti ON ti.tender_id = @tender_id 
+            AND ti.vendor_ids IS NOT NULL 
+            AND ti.vendor_ids != ''
+            AND (
+              CHARINDEX(CAST(v.id AS NVARCHAR(MAX)), ti.vendor_ids) > 0
+            )
           GROUP BY v.id, v.vendor_code, v.vendor_name, v.contact_person, v.email, v.phone, v.address, v.city, v.country
           ORDER BY v.vendor_name
         `);
       vendors = result.recordset;
+      console.log(`✅ Found ${vendors.length} unique vendors for annual tender`);
     } else {
       // For contract/spot-purchase: single vendor from tender.vendor_id
       if (tender.vendor_id) {
+        console.log('📥 Contract/Spot-purchase tender detected - fetching single vendor');
         const result = await pool.request()
           .input('vendor_id', sql.UniqueIdentifier, tender.vendor_id)
           .query(`
@@ -5956,6 +5965,7 @@ app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
             WHERE id = @vendor_id
           `);
         vendors = result.recordset;
+        console.log(`✅ Found vendor for contract/spot tender`);
       }
     }
     
