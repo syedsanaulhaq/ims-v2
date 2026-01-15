@@ -1169,27 +1169,29 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Participating Bidders Section */}
-          <TenderVendorManagement
-            tenderId={location.state?.tenderId}
-            vendors={vendors}
-            onVendorsChange={(updatedVendors) => {
-              console.log('Vendors updated:', updatedVendors);
-              // Store the bidders to be saved after tender creation
-              setBidders(updatedVendors);
-            }}
-            onSuccessfulVendorChange={(vendorId) => {
-              console.log('Selected successful vendor:', vendorId);
-              // When a vendor is marked as successful/selected, set it as the main vendor_id
-              setTenderData(prev => ({
-                ...prev,
-                vendor_id: vendorId || ''
-              }));
-            }}
-            maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
-            minVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
-            procurementMethod={tenderType === 'spot-purchase' ? tenderData.procurement_methods : undefined}
-          />
+          {/* Participating Bidders Section - Only for Contract & Spot-Purchase */}
+          {tenderType !== 'annual-tender' && (
+            <TenderVendorManagement
+              tenderId={location.state?.tenderId}
+              vendors={vendors}
+              onVendorsChange={(updatedVendors) => {
+                console.log('Vendors updated:', updatedVendors);
+                // Store the bidders to be saved after tender creation
+                setBidders(updatedVendors);
+              }}
+              onSuccessfulVendorChange={(vendorId) => {
+                console.log('Selected successful vendor:', vendorId);
+                // When a vendor is marked as successful/selected, set it as the main vendor_id
+                setTenderData(prev => ({
+                  ...prev,
+                  vendor_id: vendorId || ''
+                }));
+              }}
+              maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+              minVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+              procurementMethod={tenderType === 'spot-purchase' ? tenderData.procurement_methods : undefined}
+            />
+          )}
 
           {/* Tender Items Section */}
           <Card>
@@ -1280,12 +1282,8 @@ const CreateTender: React.FC = () => {
                     <div>
                       <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
                       <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
-                        {bidders.filter(bidder => bidder.is_successful).length > 0 ? (
-                          bidders
-                            .filter(bidder => bidder.is_successful)
-                            .map(bidder => {
-                              const vendor = vendors.find(v => v.id === bidder.vendor_id);
-                              if (!vendor) return null;
+                        {vendors.length > 0 ? (
+                          vendors.map(vendor => {
                               
                               const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
                               const isSelected = vendorIds.includes(vendor.id);
@@ -1326,7 +1324,7 @@ const CreateTender: React.FC = () => {
                               );
                             })
                         ) : (
-                          <p className="text-xs text-gray-500 p-2">No successful bidders. Please add bidders and mark as successful.</p>
+                          <p className="text-xs text-gray-500 p-2">No vendors available</p>
                         )}
                       </div>
                       <div className="mt-1 text-xs text-gray-600">
