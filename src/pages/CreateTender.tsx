@@ -1175,6 +1175,7 @@ const CreateTender: React.FC = () => {
           <TenderVendorManagement
             tenderId={location.state?.tenderId}
             vendors={vendors}
+            tenderItems={tenderItems}
             onVendorsChange={(updatedVendors) => {
               console.log('Vendors updated:', updatedVendors);
               // Store the bidders to be saved after tender creation
@@ -1278,37 +1279,37 @@ const CreateTender: React.FC = () => {
                 {/* Second Row - Vendor/Quantity and Price */}
                 {tenderType === 'annual-tender' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                    {/* Vendor Multi-Select for Annual Tender - Show all vendors */}
+                    {/* Vendor Multi-Select for Annual Tender - Show only participating bidders */}
                     <div>
                       <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
                       <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
-                        {vendors.length > 0 ? (
-                          vendors.map(vendor => {
+                        {bidders.length > 0 ? (
+                          bidders.map(vendor => {
                             const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                            const isSelected = vendorIds.includes(vendor.id);
+                            const isSelected = vendorIds.includes(vendor.vendor_id);
                             return (
-                              <label key={vendor.id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
+                              <label key={vendor.vendor_id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
                                   onChange={(e) => {
-                                    console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.id}) - checked: ${e.target.checked}`);
+                                    console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.vendor_id}) - checked: ${e.target.checked}`);
                                     if (e.target.checked) {
-                                      console.log(`➕ Adding vendor ${vendor.id} to vendor_ids`);
+                                      console.log(`➕ Adding vendor ${vendor.vendor_id} to vendor_ids`);
                                       setNewItem(prev => {
                                         const updated = {
                                           ...prev,
-                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.vendor_id]
                                         };
                                         console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
                                         return updated;
                                       });
                                     } else {
-                                      console.log(`➖ Removing vendor ${vendor.id} from vendor_ids`);
+                                      console.log(`➖ Removing vendor ${vendor.vendor_id} from vendor_ids`);
                                       setNewItem(prev => {
                                         const updated = {
                                           ...prev,
-                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.vendor_id)
                                         };
                                         console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
                                         return updated;
@@ -1322,7 +1323,7 @@ const CreateTender: React.FC = () => {
                             );
                           })
                         ) : (
-                          <p className="text-xs text-gray-500 p-2">No vendors available</p>
+                          <p className="text-xs text-gray-500 p-2">Add vendors in the 'Participating Bidders' section first</p>
                         )}
                       </div>
                       <div className="mt-1 text-xs text-gray-600">

@@ -76,6 +76,7 @@ interface TenderVendorManagementProps {
   maxVendors?: number; // Maximum number of vendors allowed (for spot purchase)
   minVendors?: number; // Minimum number of vendors required (for multiple quotation)
   procurementMethod?: string; // Procurement method for spot purchase
+  tenderItems?: any[]; // Optional - tender items to check vendor usage
 }
 
 const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
@@ -87,7 +88,8 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   readOnly = false,
   maxVendors,
   minVendors,
-  procurementMethod
+  procurementMethod,
+  tenderItems = []
 }) => {
   const [tenderVendors, setTenderVendors] = useState<TenderVendor[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -434,6 +436,25 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   };
 
   const handleRemoveVendor = async (vendorId: string) => {
+    // Check if vendor is used in any items
+    const vendorUsedInItems = tenderItems.some(item => {
+      if (!item.vendor_ids) return false;
+      
+      // Handle both string (comma-separated) and array formats
+      if (typeof item.vendor_ids === 'string') {
+        const vendorIds = item.vendor_ids.split(',').map(id => id.trim());
+        return vendorIds.includes(vendorId);
+      } else if (Array.isArray(item.vendor_ids)) {
+        return item.vendor_ids.includes(vendorId);
+      }
+      return false;
+    });
+
+    if (vendorUsedInItems) {
+      setError(`Cannot remove this vendor because it's already assigned to items. Please remove it from all items first.`);
+      return;
+    }
+
     if (!confirm('Are you sure you want to remove this bidder?')) return;
 
     if (tenderId) {
@@ -445,6 +466,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
         if (response.ok) {
           setTenderVendors(tenderVendors.filter(tv => tv.vendor_id !== vendorId));
+          setError(null); // Clear any previous errors
         } else {
           throw new Error('Failed to remove bidder');
         }
@@ -454,6 +476,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     } else {
       // Just remove from local state
       setTenderVendors(tenderVendors.filter(tv => tv.vendor_id !== vendorId));
+      setError(null); // Clear any previous errors
     }
   };
 

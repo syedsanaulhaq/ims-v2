@@ -881,6 +881,7 @@ const EditTender: React.FC = () => {
           <TenderVendorManagement
             tenderId={id}
             vendors={vendors}
+            tenderItems={tenderItems}
             onVendorsChange={(updatedVendors) => {
               console.log('Vendors updated:', updatedVendors);
               setBidders(updatedVendors);
@@ -982,16 +983,16 @@ const EditTender: React.FC = () => {
                 {/* Second Row - Vendor/Quantity and Price */}
                 {tenderData.tender_type === 'annual-tender' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                    {/* Vendor Multi-Select for Annual Tender - Show all vendors */}
+                    {/* Vendor Multi-Select for Annual Tender - Show only participating bidders */}
                     <div>
                       <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
                       <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
-                        {vendors.length > 0 ? (
-                          vendors.map(vendor => {
+                        {bidders.length > 0 ? (
+                          bidders.map(vendor => {
                             const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                            const isSelected = vendorIds.includes(vendor.id);
+                            const isSelected = vendorIds.includes(vendor.vendor_id);
                             return (
-                              <label key={vendor.id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
+                              <label key={vendor.vendor_id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
@@ -1000,7 +1001,7 @@ const EditTender: React.FC = () => {
                                       setNewItem(prev => {
                                         const updated = {
                                           ...prev,
-                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.vendor_id]
                                         };
                                         return updated;
                                       });
@@ -1008,7 +1009,7 @@ const EditTender: React.FC = () => {
                                       setNewItem(prev => {
                                         const updated = {
                                           ...prev,
-                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.vendor_id)
                                         };
                                         return updated;
                                       });
@@ -1021,7 +1022,7 @@ const EditTender: React.FC = () => {
                             );
                           })
                         ) : (
-                          <p className="text-xs text-gray-500 p-2">No vendors available</p>
+                          <p className="text-xs text-gray-500 p-2">Add vendors in the 'Participating Bidders' section first</p>
                         )}
                       </div>
                       <div className="mt-1 text-xs text-gray-600">
