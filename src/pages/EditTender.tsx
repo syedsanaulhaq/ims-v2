@@ -196,10 +196,33 @@ const EditTender: React.FC = () => {
         // Set tender items from the tender response
         if (tender.items && Array.isArray(tender.items)) {
           // Transform items to split vendor_id string back into vendor_ids array for form display
-          const transformedItems = tender.items.map((item: any) => ({
-            ...item,
-            vendor_ids: item.vendor_id ? item.vendor_id.split(',').filter((id: string) => id.trim()) : []
-          }));
+          const transformedItems = tender.items.map((item: any) => {
+            // Handle both vendor_id and vendor_ids from backend
+            let vendorIdsList: string[] = [];
+            
+            if (item.vendor_ids) {
+              // If vendor_ids is a string, split it
+              if (typeof item.vendor_ids === 'string') {
+                vendorIdsList = item.vendor_ids.split(',').filter((id: string) => id.trim());
+              } else if (Array.isArray(item.vendor_ids)) {
+                vendorIdsList = item.vendor_ids;
+              }
+            } else if (item.vendor_id) {
+              // Fallback to vendor_id if vendor_ids doesn't exist
+              if (typeof item.vendor_id === 'string') {
+                vendorIdsList = item.vendor_id.split(',').filter((id: string) => id.trim());
+              } else if (Array.isArray(item.vendor_id)) {
+                vendorIdsList = item.vendor_id;
+              }
+            }
+            
+            console.log(`📦 Item: ${item.nomenclature} - vendor_ids:`, vendorIdsList);
+            
+            return {
+              ...item,
+              vendor_ids: vendorIdsList
+            };
+          });
           setTenderItems(transformedItems);
         }
 
@@ -1353,8 +1376,10 @@ const EditTender: React.FC = () => {
                             <TableCell>
                               {item.vendor_ids && Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
-                                  {item.vendor_ids.map(vendorId => {
+                                  {item.vendor_ids.map((vendorId: string) => {
+                                    console.log(`🔍 Looking for vendor: ${vendorId}, total vendors: ${vendors.length}`);
                                     const vendor = vendors.find(v => v.id === vendorId);
+                                    console.log(`  Found: ${vendor?.vendor_name || 'NOT FOUND'}`);
                                     return (
                                       <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                                         {vendor?.vendor_name || vendorId}
