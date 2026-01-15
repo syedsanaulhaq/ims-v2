@@ -103,6 +103,9 @@ const EditTender: React.FC = () => {
   const [decs, setDecs] = useState<DEC[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
 
+  // Store full tender object for accessing document paths
+  const [loadedTender, setLoadedTender] = useState<any>(null);
+
   // Tender form data
   const [tenderData, setTenderData] = useState({
     tender_number: '',
@@ -172,6 +175,9 @@ const EditTender: React.FC = () => {
       if (tenderResponse.ok) {
         const tender = await tenderResponse.json();
         
+        // Store full tender object
+        setLoadedTender(tender);
+        
         setTenderData({
           tender_number: tender.tender_number || '',
           reference_number: tender.reference_number || tender.tender_number || '',
@@ -191,6 +197,10 @@ const EditTender: React.FC = () => {
           dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter((id: string) => id.trim()) : [],
           publication_daily: tender.publication_daily || '',
           procurement_method: tender.procurement_method || ''
+        });
+        console.log('📋 Tender data loaded:', {
+          publication_daily: tender.publication_daily,
+          procurement_method: tender.procurement_method
         });
 
         // Set tender items from the tender response
@@ -228,13 +238,17 @@ const EditTender: React.FC = () => {
 
         // Fetch bidders for this tender
         try {
-          const biddersResponse = await fetch(`/api/tenders/${tenderId}/vendors`);
+          const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
           if (biddersResponse.ok) {
             const biddersData = await biddersResponse.json();
-            setBidders(Array.isArray(biddersData) ? biddersData : biddersData.vendors || []);
+            const biddersList = Array.isArray(biddersData) ? biddersData : biddersData.vendors || [];
+            setBidders(biddersList);
+            console.log('✅ Loaded bidders:', biddersList.length, 'bidders', biddersList);
+          } else {
+            console.warn('⚠️ Bidders response not ok:', biddersResponse.status);
           }
         } catch (bidderErr) {
-          console.error('Error loading bidders:', bidderErr);
+          console.error('❌ Error loading bidders:', bidderErr);
         }
       }
 
@@ -1101,6 +1115,52 @@ const EditTender: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {/* Display Already Uploaded Documents */}
+            {loadedTender && (loadedTender.rfp_file_path || loadedTender.loi_file_path || loadedTender.noting_file_path || 
+              loadedTender.po_file_path || loadedTender.contract_file_path || loadedTender.document_path) && (
+              <div className="mt-6 pt-6 border-t">
+                <h3 className="font-medium mb-4">📎 Already Uploaded Documents</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {loadedTender.rfp_file_path && (
+                    <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm"><strong>RFP:</strong> {loadedTender.rfp_file_path}</span>
+                    </div>
+                  )}
+                  {loadedTender.contract_file_path && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <FileText className="w-4 h-4 text-green-600" />
+                      <span className="text-sm"><strong>Contract:</strong> {loadedTender.contract_file_path}</span>
+                    </div>
+                  )}
+                  {loadedTender.loi_file_path && (
+                    <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <FileText className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm"><strong>LOI:</strong> {loadedTender.loi_file_path}</span>
+                    </div>
+                  )}
+                  {loadedTender.noting_file_path && (
+                    <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <FileText className="w-4 h-4 text-orange-600" />
+                      <span className="text-sm"><strong>Noting:</strong> {loadedTender.noting_file_path}</span>
+                    </div>
+                  )}
+                  {loadedTender.po_file_path && (
+                    <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <FileText className="w-4 h-4 text-yellow-600" />
+                      <span className="text-sm"><strong>PO:</strong> {loadedTender.po_file_path}</span>
+                    </div>
+                  )}
+                  {loadedTender.document_path && (
+                    <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg border border-gray-300">
+                      <FileText className="w-4 h-4 text-gray-600" />
+                      <span className="text-sm"><strong>Document:</strong> {loadedTender.document_path}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
