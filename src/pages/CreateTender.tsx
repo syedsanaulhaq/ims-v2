@@ -344,7 +344,15 @@ const CreateTender: React.FC = () => {
   };
 
   // Calculate total tender value
-  const totalTenderValue = tenderItems.reduce((sum, item) => sum + (item.total_amount || 0), 0);
+  const totalTenderValue = tenderItems.reduce((sum, item) => {
+    if (tenderType === 'annual-tender') {
+      // For annual tenders, sum the unit prices (each represents value for that vendor)
+      return sum + (item.estimated_unit_price || 0);
+    } else {
+      // For contract/spot-purchase, sum the total amounts (quantity * unit price)
+      return sum + (item.total_amount || 0);
+    }
+  }, 0);
 
   // Format currency - Must be defined before validation functions
   const formatCurrency = (amount: number) => {
