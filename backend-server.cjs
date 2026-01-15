@@ -5947,8 +5947,15 @@ app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
           tv.vendor_name,
           tv.quoted_amount,
           tv.remarks,
+          tv.is_selected,
+          tv.is_successful,
+          tv.is_awarded,
+          tv.proposal_document_name,
+          tv.proposal_document_path,
+          tv.proposal_upload_date,
           tv.created_by,
           tv.created_at,
+          tv.updated_at,
           v.vendor_code,
           v.contact_person,
           v.email,
@@ -6240,6 +6247,52 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/successful', async (req, res) 
     await transaction.rollback();
     console.error('❌ Error marking vendor as successful:', error);
     res.status(500).json({ error: 'Failed to mark vendor as successful', details: error.message });
+  }
+});
+
+// PUT - Mark vendor as selected (only one selected vendor per tender)
+app.put('/api/tenders/:tenderId/vendors/:vendorId/selected', async (req, res) => {
+  const { tenderId, vendorId } = req.params;
+  const { is_selected } = req.body;
+  
+  try {
+    if (is_selected) {
+      // Unmark all vendors as selected for this tender
+      await pool.request()
+        .input('tender_id', sql.UniqueIdentifier, tenderId)
+        .query(`
+          UPDATE tender_vendors 
+          SET is_selected = 0, updated_at = GETDATE()
+          WHERE tender_id = @tender_id
+        `);
+    }
+    
+    // Mark the selected vendor as selected (or unmark if is_selected is false)
+    const result = await pool.request()
+      .input('tender_id', sql.UniqueIdentifier, tenderId)
+      .input('vendor_id', sql.UniqueIdentifier, vendorId)
+      .input('is_selected', sql.Bit, is_selected ? 1 : 0)
+      .query(`
+        UPDATE tender_vendors 
+        SET is_selected = @is_selected, updated_at = GETDATE()
+        OUTPUT INSERTED.*
+        WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Vendor not found for this tender' });
+    }
+    
+    console.log(`✅ Vendor ${is_selected ? 'marked' : 'unmarked'} as selected`);
+    res.json({
+      success: true,
+      message: `Vendor ${is_selected ? 'marked' : 'unmarked'} as selected`,
+      vendor: result.recordset[0]
+    });
+    
+  } catch (error) {
+    console.error('❌ Error marking vendor as selected:', error);
+    res.status(500).json({ error: 'Failed to mark vendor as selected', details: error.message });
   }
 });
 

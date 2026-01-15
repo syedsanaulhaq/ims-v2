@@ -399,6 +399,40 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     }
   };
 
+  const handleMarkSelected = async (vendorId: string, isSelected: boolean) => {
+    if (!tenderId) {
+      // For new tenders, just update local state (allow only one selected vendor per tender)
+      setTenderVendors(tenderVendors.map(tv => ({
+        ...tv,
+        is_selected: tv.vendor_id === vendorId ? isSelected : (isSelected ? false : tv.is_selected)
+      })));
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/selected`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_selected: isSelected })
+        }
+      );
+
+      if (response.ok) {
+        // Only allow one vendor to be selected per tender
+        setTenderVendors(tenderVendors.map(tv => ({
+          ...tv,
+          is_selected: tv.vendor_id === vendorId ? isSelected : (isSelected ? false : tv.is_selected)
+        })));
+      } else {
+        throw new Error('Failed to mark vendor as selected');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark vendor as selected');
+    }
+  };
+
   const handleMarkSuccessful = async (vendorId: string, isSuccessful: boolean) => {
     if (!tenderId) {
       // For new tenders, just update local state (allow multiple successful bidders for annual tender)
@@ -674,6 +708,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                   <TableHead>Bidder Code</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Proposal</TableHead>
+                  <TableHead>Selected Bidder</TableHead>
                   <TableHead>Successful Bidder</TableHead>
                   {!readOnly && <TableHead>Actions</TableHead>}
                 </TableRow>
@@ -789,6 +824,23 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                       {uploadingProposal === vendor.vendor_id && (
                         <span className="text-sm text-gray-500">Uploading...</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={vendor.is_selected || false}
+                          onChange={(e) => handleMarkSelected(vendor.vendor_id, e.target.checked)}
+                          disabled={readOnly}
+                          className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                        />
+                        {vendor.is_selected && (
+                          <Badge className="bg-purple-600 text-white">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Selected
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
