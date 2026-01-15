@@ -5656,6 +5656,14 @@ app.put('/api/tenders/:id', async (req, res) => {
     if (items && Array.isArray(items)) {
       console.log(`📋 Processing ${items.length} items...`);
       
+      // First, get the tender_type to determine how to handle vendors
+      const tenderCheckResult = await transaction.request()
+        .input('id', sql.NVarChar, id)
+        .query('SELECT tender_type FROM tenders WHERE id = @id');
+      
+      const tender_type = tenderCheckResult.recordset[0]?.tender_type || 'contract';
+      console.log(`📦 Processing items for tender type: ${tender_type}`);
+      
       // Delete all existing items
       console.log('🗑️ Removing existing items...');
       await transaction.request()
@@ -5692,22 +5700,48 @@ app.put('/api/tenders/:id', async (req, res) => {
           itemRequest.input('actual_unit_price', sql.Decimal(15, 2), 0);
         }
         
-        // Handle vendor_id (comma-separated for annual tenders with multiple vendors)
-        if (item.vendor_id) {
-          console.log(`📝 Item ${i + 1} vendor_id from request:`, item.vendor_id);
+        // ✅ NEW: Handle vendor_id and vendor_ids based on tender type
+        let itemVendorId = null;
+        let itemVendorIds = null;
+        
+        if (tender_type === 'annual-tender') {
+          // Annual tender: Each item can have multiple vendors (comma-separated)
+          if (item.vendor_ids && Array.isArray(item.vendor_ids)) {
+            // If vendor_ids is an array, join them as comma-separated string
+            itemVendorIds = item.vendor_ids.filter((id) => id && id.trim()).join(',');
+            console.log(`   ✅ Converted vendor_ids array to string: ${itemVendorIds}`);
+          } else if (item.vendor_ids && typeof item.vendor_ids === 'string') {
+            // Already a comma-separated string
+            itemVendorIds = item.vendor_ids;
+            console.log(`   ✅ Using vendor_ids as string: ${itemVendorIds}`);
+          } else if (item.vendor_id) {
+            // Single vendor or already comma-separated string
+            itemVendorIds = item.vendor_id;
+            console.log(`   ✅ Using vendor_id as vendor_ids: ${itemVendorIds}`);
+          } else {
+            console.log(`   ⚠️ No vendor_ids found for this annual tender item!`);
+          }
+        } else {
+          // Contract/Spot Purchase: Single vendor per item
+          itemVendorId = item.vendor_id || null;
+          console.log(`   ✅ Using vendor_id for ${tender_type}: ${itemVendorId}`);
         }
-        itemRequest.input('vendor_id', sql.NVarChar, item.vendor_id || null);
+        
+        itemRequest.input('vendor_id', sql.NVarChar, itemVendorId || null);
+        itemRequest.input('vendor_ids', sql.NVarChar, itemVendorIds || null);
+        
+        console.log(`   💾 Saving: vendor_id=${itemVendorId}, vendor_ids=${itemVendorIds}`);
         
         const insertQuery = `
           INSERT INTO tender_items (
             id, tender_id, item_master_id, nomenclature, quantity,
             estimated_unit_price, actual_unit_price, total_amount,
-            specifications, remarks, status, created_at, updated_at, vendor_id
+            specifications, remarks, status, created_at, updated_at, vendor_id, vendor_ids
           )
           VALUES (
             @id, @tender_id, @item_master_id, @nomenclature, @quantity,
             @estimated_unit_price, @actual_unit_price, @total_amount,
-            @specifications, @remarks, @status, @created_at, @updated_at, @vendor_id
+            @specifications, @remarks, @status, @created_at, @updated_at, @vendor_id, @vendor_ids
           )
         `;
         
