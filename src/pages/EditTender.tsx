@@ -171,7 +171,18 @@ const EditTender: React.FC = () => {
 
         // Load tender items
         if (tender.items && Array.isArray(tender.items)) {
-          setTenderItems(tender.items);
+          // Convert vendor_ids from string to array if needed for annual tenders
+          const processedItems = tender.items.map(item => {
+            if (tender.tender_type === 'annual-tender' && item.vendor_ids && typeof item.vendor_ids === 'string') {
+              // Convert comma-separated string to array
+              return {
+                ...item,
+                vendor_ids: item.vendor_ids.split(',').map(id => id.trim()).filter(id => id)
+              };
+            }
+            return item;
+          });
+          setTenderItems(processedItems);
         }
       } catch (err) {
         console.error('Error loading tender:', err);
@@ -1159,16 +1170,27 @@ const EditTender: React.FC = () => {
                             {tenderData.tender_type === 'annual-tender' ? (
                               <>
                                 <TableCell>
-                                  {item.vendor_ids && Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
+                                  {item.vendor_ids ? (
                                     <div className="flex flex-wrap gap-1">
-                                      {item.vendor_ids.map(vendorId => {
-                                        const vendor = vendors.find(v => v.id === vendorId);
-                                        return (
-                                          <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                            {vendor?.vendor_name || vendorId}
-                                          </span>
+                                      {(() => {
+                                        // Handle both string and array formats
+                                        const vendorIds = Array.isArray(item.vendor_ids) 
+                                          ? item.vendor_ids 
+                                          : String(item.vendor_ids).split(',').map(id => id.trim()).filter(id => id);
+                                        
+                                        return vendorIds.length > 0 ? (
+                                          vendorIds.map(vendorId => {
+                                            const vendor = vendors.find(v => v.id === vendorId);
+                                            return (
+                                              <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                                {vendor?.vendor_name || vendorId}
+                                              </span>
+                                            );
+                                          })
+                                        ) : (
+                                          <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendors</span>
                                         );
-                                      })}
+                                      })()}
                                     </div>
                                   ) : (
                                     <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendors</span>
