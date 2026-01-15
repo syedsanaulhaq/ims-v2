@@ -1164,36 +1164,16 @@ const EditTender: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Card 5.5: Participating Bidders - Only for Contract & Spot-Purchase */}
-        {tenderData.tender_type !== 'annual-tender' && (
-          <TenderVendorManagement
-            tenderId={id}
-            vendors={vendors}
-            readOnly={false}
-            onVendorsChange={(updatedVendors) => {
-              console.log('Bidders updated in EditTender:', updatedVendors);
-              setBidders(updatedVendors);
-            }}
-          />
-        )}
-
-        {/* Annual Tender Info */}
-        {tenderData.tender_type === 'annual-tender' && (
-          <Card className="bg-blue-50 border-blue-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-900">
-                <FileText className="h-5 w-5" />
-                Bidders for Annual Tender
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-blue-800">
-                For annual tenders, bidders are selected per item when adding tender items below. 
-                The list of all participating bidders will be automatically extracted from the items you add.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Card 5.5: Participating Bidders */}
+        <TenderVendorManagement
+          tenderId={id}
+          vendors={vendors}
+          readOnly={false}
+          onVendorsChange={(updatedVendors) => {
+            console.log('Bidders updated in EditTender:', updatedVendors);
+            setBidders(updatedVendors);
+          }}
+        />
 
         {/* Card 6: Tender Items */}
         <Card>

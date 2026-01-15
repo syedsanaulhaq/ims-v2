@@ -1169,29 +1169,27 @@ const CreateTender: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Participating Bidders Section - Only for Contract & Spot-Purchase */}
-          {tenderType !== 'annual-tender' && (
-            <TenderVendorManagement
-              tenderId={location.state?.tenderId}
-              vendors={vendors}
-              onVendorsChange={(updatedVendors) => {
-                console.log('Vendors updated:', updatedVendors);
-                // Store the bidders to be saved after tender creation
-                setBidders(updatedVendors);
-              }}
-              onSuccessfulVendorChange={(vendorId) => {
-                console.log('Selected successful vendor:', vendorId);
-                // When a vendor is marked as successful/selected, set it as the main vendor_id
-                setTenderData(prev => ({
-                  ...prev,
-                  vendor_id: vendorId || ''
-                }));
-              }}
-              maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
-              minVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
-              procurementMethod={tenderType === 'spot-purchase' ? tenderData.procurement_methods : undefined}
-            />
-          )}
+          {/* Participating Bidders Section */}
+          <TenderVendorManagement
+            tenderId={location.state?.tenderId}
+            vendors={vendors}
+            onVendorsChange={(updatedVendors) => {
+              console.log('Vendors updated:', updatedVendors);
+              // Store the bidders to be saved after tender creation
+              setBidders(updatedVendors);
+            }}
+            onSuccessfulVendorChange={(vendorId) => {
+              console.log('Selected successful vendor:', vendorId);
+              // When a vendor is marked as successful/selected, set it as the main vendor_id
+              setTenderData(prev => ({
+                ...prev,
+                vendor_id: vendorId || ''
+              }));
+            }}
+            maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+            minVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
+            procurementMethod={tenderType === 'spot-purchase' ? tenderData.procurement_methods : undefined}
+          />
 
           {/* Tender Items Section */}
           <Card>
@@ -1278,12 +1276,59 @@ const CreateTender: React.FC = () => {
                 {/* Second Row - Vendor/Quantity and Price */}
                 {tenderType === 'annual-tender' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                    {/* Vendor Multi-Select for Annual Tender - Simple Checkboxes */}
+                    {/* Vendor Multi-Select for Annual Tender - Show all vendors */}
                     <div>
                       <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
                       <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
                         {vendors.length > 0 ? (
                           vendors.map(vendor => {
+                            const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
+                            const isSelected = vendorIds.includes(vendor.id);
+                            return (
+                              <label key={vendor.id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.id}) - checked: ${e.target.checked}`);
+                                    if (e.target.checked) {
+                                      console.log(`➕ Adding vendor ${vendor.id} to vendor_ids`);
+                                      setNewItem(prev => {
+                                        const updated = {
+                                          ...prev,
+                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.id]
+                                        };
+                                        console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
+                                        return updated;
+                                      });
+                                    } else {
+                                      console.log(`➖ Removing vendor ${vendor.id} from vendor_ids`);
+                                      setNewItem(prev => {
+                                        const updated = {
+                                          ...prev,
+                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.id)
+                                        };
+                                        console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
+                                        return updated;
+                                      });
+                                    }
+                                  }}
+                                  className="w-4 h-4"
+                                />
+                                <span>{vendor.vendor_name}</span>
+                              </label>
+                            );
+                          })
+                        ) : (
+                          <p className="text-xs text-gray-500 p-2">No vendors available</p>
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600">
+                        {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                          ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
+                          : '⚠️ Select at least 1 vendor'}
+                      </div>
+                    </div>
                               
                               const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
                               const isSelected = vendorIds.includes(vendor.id);
