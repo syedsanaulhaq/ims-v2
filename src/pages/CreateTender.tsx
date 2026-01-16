@@ -552,11 +552,17 @@ const CreateTender: React.FC = () => {
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate(
-            tenderType === 'spot_purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
-          )}>
+          <Button variant="outline" onClick={() => {
+            let dashboardPath = '/dashboard/contract-tender';
+            if (tenderType === 'spot-purchase') {
+              dashboardPath = '/dashboard/spot-purchases';
+            } else if (tenderType === 'annual-tender') {
+              dashboardPath = '/dashboard/contract-tender?type=annual-tender';
+            }
+            navigate(dashboardPath);
+          }}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to {tenderType === 'spot_purchase' ? 'Spot Purchases' : 'Contract Tenders'}
+            Back to {tenderType === 'spot-purchase' ? 'Spot Purchases' : tenderType === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
@@ -596,6 +602,7 @@ const CreateTender: React.FC = () => {
                       ...prev,
                       tender_type: value
                     }))}
+                    disabled
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select tender type" />
@@ -1631,9 +1638,15 @@ const CreateTender: React.FC = () => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => navigate(
-                      tenderType === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
-                    )}
+                    onClick={() => {
+                      let dashboardPath = '/dashboard/contract-tender';
+                      if (tenderType === 'spot-purchase') {
+                        dashboardPath = '/dashboard/spot-purchases';
+                      } else if (tenderType === 'annual-tender') {
+                        dashboardPath = '/dashboard/contract-tender?type=annual-tender';
+                      }
+                      navigate(dashboardPath);
+                    }}
                   >
                     Cancel
                   </Button>

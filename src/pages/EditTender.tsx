@@ -538,11 +538,17 @@ const EditTender: React.FC = () => {
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate(
-            tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
-          )}>
+          <Button variant="outline" onClick={() => {
+            let dashboardPath = '/dashboard/contract-tender';
+            if (tenderData.tender_type === 'spot-purchase') {
+              dashboardPath = '/dashboard/spot-purchases';
+            } else if (tenderData.tender_type === 'annual-tender') {
+              dashboardPath = '/dashboard/contract-tender?type=annual-tender';
+            }
+            navigate(dashboardPath);
+          }}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchases' : 'Contract Tenders'}
+            Back to {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchases' : tenderData.tender_type === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
@@ -582,6 +588,7 @@ const EditTender: React.FC = () => {
                       ...prev,
                       tender_type: value
                     }))}
+                    disabled
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select tender type" />
@@ -1349,9 +1356,15 @@ const EditTender: React.FC = () => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => navigate(
-                      tenderData.tender_type === 'spot-purchase' ? '/dashboard/spot-purchases' : '/dashboard/contract-tender'
-                    )}
+                    onClick={() => {
+                      let dashboardPath = '/dashboard/contract-tender';
+                      if (tenderData.tender_type === 'spot-purchase') {
+                        dashboardPath = '/dashboard/spot-purchases';
+                      } else if (tenderData.tender_type === 'annual-tender') {
+                        dashboardPath = '/dashboard/contract-tender?type=annual-tender';
+                      }
+                      navigate(dashboardPath);
+                    }}
                   >
                     Cancel
                   </Button>

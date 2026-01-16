@@ -97,6 +97,7 @@ const TenderDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tender, setTender] = useState<Tender | null>(null);
+  const [bidders, setBidders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [officeNames, setOfficeNames] = useState<string[]>([]);
   const [wingNames, setWingNames] = useState<string[]>([]);
@@ -196,6 +197,18 @@ const TenderDetails: React.FC = () => {
       const data = await response.json();
       console.log('✅ Fetched tender details:', data);
       setTender(data);
+      
+      // Fetch bidders for this tender
+      try {
+        const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${id}/vendors`);
+        if (biddersResponse.ok) {
+          const biddersData = await biddersResponse.json();
+          console.log('✅ Fetched bidders:', biddersData);
+          setBidders(biddersData);
+        }
+      } catch (err) {
+        console.error('⚠️ Error fetching bidders:', err);
+      }
     } catch (error) {
       console.error('❌ Error fetching tender details:', error);
       alert('Failed to load tender details');
@@ -221,6 +234,11 @@ const TenderDetails: React.FC = () => {
     } catch {
       return dateString;
     }
+  };
+
+  const getVendorName = (vendorId: string): string => {
+    const bidder = bidders.find(b => b.vendor_id === vendorId);
+    return bidder ? bidder.vendor_name : vendorId;
   };
 
   const formatDateTime = (dateString: string | undefined | null) => {
@@ -451,7 +469,7 @@ const TenderDetails: React.FC = () => {
                 <p className="text-lg mt-1">{tender.procurement_method}</p>
               </div>
             )}
-            {tender.individual_total !== null && tender.individual_total !== undefined && (
+            {tender.individual_total !== null && tender.individual_total !== undefined && tender.tender_type !== 'annual-tender' && (
               <div>
                 <label className="text-sm font-medium text-gray-500">Individual Total</label>
                 <p className="text-lg font-semibold text-blue-600 mt-1">
@@ -459,7 +477,7 @@ const TenderDetails: React.FC = () => {
                 </p>
               </div>
             )}
-            {tender.actual_price_total !== null && tender.actual_price_total !== undefined && (
+            {tender.actual_price_total !== null && tender.actual_price_total !== undefined && tender.tender_type !== 'annual-tender' && (
               <div>
                 <label className="text-sm font-medium text-gray-500">Actual Price Total</label>
                 <p className="text-lg font-semibold text-purple-600 mt-1">
@@ -806,7 +824,7 @@ const TenderDetails: React.FC = () => {
                               <div className="flex flex-wrap gap-1">
                                 {item.vendor_ids.map((vendorId: any, idx: number) => (
                                   <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                    {vendorId}
+                                    {getVendorName(vendorId)}
                                   </span>
                                 ))}
                               </div>
@@ -814,7 +832,7 @@ const TenderDetails: React.FC = () => {
                               <div className="flex flex-wrap gap-1">
                                 {item.vendor_ids.split(',').map((vendorId: string, idx: number) => (
                                   <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                    {vendorId.trim()}
+                                    {getVendorName(vendorId.trim())}
                                   </span>
                                 ))}
                               </div>
@@ -832,7 +850,7 @@ const TenderDetails: React.FC = () => {
 
             {/* Items Summary */}
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div className={`grid gap-4 text-center ${tender.tender_type === 'annual-tender' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-3'}`}>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Items</p>
                   <p className="text-2xl font-bold text-blue-600">{tender.items.length}</p>
@@ -843,12 +861,14 @@ const TenderDetails: React.FC = () => {
                     {tender.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Value</p>
-                  <p className="text-2xl font-bold text-purple-600">
-                    {formatCurrency(tender.items.reduce((sum, item) => sum + (item.total_amount || 0), 0))}
-                  </p>
-                </div>
+                {tender.tender_type !== 'annual-tender' && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Value</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {formatCurrency(tender.items.reduce((sum, item) => sum + (item.total_amount || 0), 0))}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
