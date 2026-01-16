@@ -5591,7 +5591,11 @@ app.put('/api/tenders/:id/finalize-test', async (req, res) => {
 // PUT /api/tenders/:id - Update a tender and its items
 app.put('/api/tenders/:id', async (req, res) => {
   const { id } = req.params;
-  const { items, ...tenderData } = req.body;
+  const { items, bidders, ...tenderData } = req.body;
+  
+  console.log('🔥🔥🔥 PUT /api/tenders/:id RECEIVED 🔥🔥🔥');
+  console.log('Full request body:', JSON.stringify(req.body, null, 2));
+  console.log('TenderData object:', JSON.stringify(tenderData, null, 2));
   
   const transaction = new sql.Transaction(pool);
   
@@ -5653,13 +5657,18 @@ app.put('/api/tenders/:id', async (req, res) => {
           console.log(`   ✅ Parsed ${field}: ${value}`);
         }
         
+        console.log(`   📝 Adding to request: ${field} = ${value}`);
         tenderUpdateRequest.input(field, sqlType, value);
+        console.log(`   ✔️ Added successfully`);
+      } else {
+        console.log(`⏭️  Skipping field: ${field} (undefined in tenderData)`);
       }
     }
     
     updateQuery += ' WHERE id = @id';
     
     console.log('🔍 Executing update query:', updateQuery);
+    console.log('📊 Request inputs:', tenderUpdateRequest);
     await tenderUpdateRequest.query(updateQuery);
     console.log('✅ Tender basic information updated');
 
@@ -5765,6 +5774,58 @@ app.put('/api/tenders/:id', async (req, res) => {
       await transaction.request()
         .input('tender_id', sql.NVarChar, id)
         .query('DELETE FROM tender_items WHERE tender_id = @tender_id');
+    }
+
+    // Step 3: Handle vendor successful status changes
+    if (bidders && Array.isArray(bidders)) {
+      console.log(`📊 Processing ${bidders.length} bidders for successful status updates...`);
+      console.log('🔍 Bidders data received:', JSON.stringify(bidders, null, 2));
+      
+      for (const bidder of bidders) {
+        if (!bidder.vendor_id) continue;
+        
+        const currentStatus = bidder.is_successful ? 1 : 0;
+        console.log(`   📌 Updating vendor ${bidder.vendor_id} (${bidder.vendor_name}) - is_successful: ${currentStatus} (boolean: ${bidder.is_successful})`);
+        
+        // Check if vendor needs to be removed from items (if marked as unsuccessful)
+        if (!bidder.is_successful) {
+          // Get all items for this tender that have this vendor
+          const itemsResult = await transaction.request()
+            .input('tender_id', sql.NVarChar, id)
+            .query(`SELECT id, vendor_ids FROM tender_items WHERE tender_id = @tender_id`);
+          
+          console.log(`      Found ${itemsResult.recordset.length} items for this tender`);
+          
+          // Remove this vendor from their vendor_ids
+          for (const item of itemsResult.recordset) {
+            if (item.vendor_ids) {
+              const vendorIds = item.vendor_ids.split(',').map(vid => vid.trim());
+              const updatedVendorIds = vendorIds.filter(vid => vid !== bidder.vendor_id).join(',');
+              
+              console.log(`      🗑️ Removing vendor from item ${item.id}: "${item.vendor_ids}" → "${updatedVendorIds}"`);
+              
+              await transaction.request()
+                .input('item_id', sql.NVarChar, item.id)
+                .input('vendor_ids', sql.NVarChar, updatedVendorIds || null)
+                .query(`UPDATE tender_items SET vendor_ids = @vendor_ids WHERE id = @item_id`);
+            }
+          }
+        }
+        
+        // Update the vendor's successful status
+        console.log(`      🔄 Updating tender_vendors: tender_id=${id}, vendor_id=${bidder.vendor_id}, is_successful=${currentStatus}`);
+        const updateResult = await transaction.request()
+          .input('tender_id', sql.NVarChar, id)
+          .input('vendor_id', sql.NVarChar, bidder.vendor_id)
+          .input('is_successful', sql.Bit, currentStatus)
+          .query(`UPDATE tender_vendors SET is_successful = @is_successful, updated_at = GETDATE() WHERE tender_id = @tender_id AND vendor_id = @vendor_id`);
+        
+        console.log(`      ✅ Update completed for vendor ${bidder.vendor_id}`);
+      }
+      
+      console.log('✅ Vendor successful status updates completed');
+    } else {
+      console.log('⚠️ No bidders data provided in request body');
     }
 
     await transaction.commit();
@@ -6198,18 +6259,7 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/successful', async (req, res) 
   try {
     await transaction.begin();
     
-    if (is_successful) {
-      // Unmark all vendors as successful for this tender
-      await transaction.request()
-        .input('tender_id', sql.UniqueIdentifier, tenderId)
-        .query(`
-          UPDATE tender_vendors 
-          SET is_successful = 0, updated_at = GETDATE()
-          WHERE tender_id = @tender_id
-        `);
-    }
-    
-    // Mark the selected vendor as successful (or unmark if is_successful is false)
+    // Mark/unmark the selected vendor as successful (allow multiple successful bidders)
     const result = await transaction.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
       .input('vendor_id', sql.UniqueIdentifier, vendorId)
@@ -6226,33 +6276,39 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/successful', async (req, res) 
       return res.status(404).json({ error: 'Vendor not found for this tender' });
     }
     
-    // Update tender table with successful vendor_id
-    if (is_successful) {
-      await transaction.request()
+    // If unmarking vendor as successful, remove them from all items
+    if (!is_successful) {
+      console.log(`🗑️ Removing vendor ${vendorId} from all items since they're no longer successful`);
+      
+      // Get all items for this tender
+      const itemsResult = await transaction.request()
         .input('tender_id', sql.UniqueIdentifier, tenderId)
-        .input('vendor_id', sql.UniqueIdentifier, vendorId)
-        .query(`
-          UPDATE tenders 
-          SET vendor_id = @vendor_id, updated_at = GETDATE()
-          WHERE id = @tender_id
-        `);
-    } else {
-      // If unmarking, set vendor_id to NULL
-      await transaction.request()
-        .input('tender_id', sql.UniqueIdentifier, tenderId)
-        .query(`
-          UPDATE tenders 
-          SET vendor_id = NULL, updated_at = GETDATE()
-          WHERE id = @tender_id
-        `);
+        .query(`SELECT id, vendor_ids FROM tender_items WHERE tender_id = @tender_id`);
+      
+      // Update each item to remove this vendor from their vendor_ids
+      for (const item of itemsResult.recordset) {
+        if (item.vendor_ids) {
+          const vendorIds = item.vendor_ids.split(',').map(id => id.trim());
+          const updatedVendorIds = vendorIds.filter(id => id !== vendorId).join(',');
+          
+          console.log(`   📝 Updating item ${item.id}: vendor_ids "${item.vendor_ids}" → "${updatedVendorIds}"`);
+          
+          await transaction.request()
+            .input('item_id', sql.NVarChar, item.id)
+            .input('vendor_ids', sql.NVarChar, updatedVendorIds || null)
+            .query(`UPDATE tender_items SET vendor_ids = @vendor_ids WHERE id = @item_id`);
+        }
+      }
     }
+    
+    console.log(`📊 Vendor marked: is_successful = ${is_successful}, tender_id = ${tenderId}, vendor_id = ${vendorId}`);
     
     await transaction.commit();
     
     console.log(`✅ Vendor ${is_successful ? 'marked' : 'unmarked'} as successful`);
     res.json({
       success: true,
-      message: `Vendor ${is_successful ? 'marked' : 'unmarked'} as successful`,
+      message: `Vendor ${is_successful ? 'marked' : 'unmarked'} as successful (multiple successful bidders allowed)`,
       vendor: result.recordset[0]
     });
     

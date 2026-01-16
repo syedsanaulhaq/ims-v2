@@ -72,6 +72,7 @@ interface TenderVendorManagementProps {
   onVendorsChange?: (vendors: TenderVendor[]) => void; // Callback for parent component
   onSuccessfulVendorChange?: (vendorId: string | null) => void; // Callback when successful vendor is selected
   onPendingProposalsChange?: (hasPending: boolean) => void; // Callback when pending proposals change
+  onItemsChange?: (items: any[]) => void; // Callback when items are updated (e.g., vendor removed)
   readOnly?: boolean;
   maxVendors?: number; // Maximum number of vendors allowed (for spot purchase)
   minVendors?: number; // Minimum number of vendors required (for multiple quotation)
@@ -85,6 +86,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   onVendorsChange,
   onSuccessfulVendorChange,
   onPendingProposalsChange,
+  onItemsChange,
   readOnly = false,
   maxVendors,
   minVendors,
@@ -401,38 +403,36 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     }
   };
 
-  const handleMarkSuccessful = async (vendorId: string, isSuccessful: boolean) => {
-    if (!tenderId) {
-      // For new tenders, just update local state (allow multiple successful bidders for annual tender)
-      setTenderVendors(tenderVendors.map(tv => ({
-        ...tv,
-        is_successful: tv.vendor_id === vendorId ? isSuccessful : tv.is_successful
-      })));
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `http://localhost:3001/api/tenders/${tenderId}/vendors/${vendorId}/successful`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ is_successful: isSuccessful })
+  const handleMarkSuccessful = (vendorId: string, isSuccessful: boolean) => {
+    // If deselecting a vendor, check if they have items assigned and warn
+    if (!isSuccessful) {
+      const itemsWithVendor = tenderItems.filter(item => {
+        if (!item.vendor_ids) return false;
+        
+        // Handle both string (comma-separated) and array formats
+        if (typeof item.vendor_ids === 'string') {
+          const vendorIds = item.vendor_ids.split(',').map(id => id.trim());
+          return vendorIds.includes(vendorId);
+        } else if (Array.isArray(item.vendor_ids)) {
+          return item.vendor_ids.includes(vendorId);
         }
-      );
+        return false;
+      });
 
-      if (response.ok) {
-        // Allow multiple vendors to be marked as successful for annual tenders
-        setTenderVendors(tenderVendors.map(tv => ({
-          ...tv,
-          is_successful: tv.vendor_id === vendorId ? isSuccessful : tv.is_successful
-        })));
-      } else {
-        throw new Error('Failed to mark bidder as successful');
+      if (itemsWithVendor.length > 0) {
+        const itemCount = itemsWithVendor.length;
+        const confirmed = window.confirm(
+          `⚠️ Warning!\n\nThis vendor is assigned to ${itemCount} item${itemCount > 1 ? 's' : ''}.\n\nIf you deselect this vendor as a successful bidder, it will be removed from ${itemCount} item${itemCount > 1 ? 's' : ''} when you save the tender.\n\nAre you sure you want to proceed?`
+        );
+        if (!confirmed) return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark bidder as successful');
     }
+
+    // Only update frontend state - backend update will happen when tender is saved
+    setTenderVendors(tenderVendors.map(tv => ({
+      ...tv,
+      is_successful: tv.vendor_id === vendorId ? isSuccessful : tv.is_successful
+    })));
   };
 
   const handleRemoveVendor = async (vendorId: string) => {

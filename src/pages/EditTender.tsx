@@ -100,8 +100,8 @@ const EditTender: React.FC = () => {
     wing_ids: [] as string[],
     dec_ids: [] as string[],
     // Additional fields
-    publication_dailies: '',
-    procurement_methods: '',
+    publication_daily: '',
+    procurement_method: '',
     procedure_adopted: ''
   });
 
@@ -164,8 +164,8 @@ const EditTender: React.FC = () => {
           office_ids: tender.office_ids ? tender.office_ids.split(',').filter(id => id) : [],
           wing_ids: tender.wing_ids ? tender.wing_ids.split(',').filter(id => id) : [],
           dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter(id => id) : [],
-          publication_dailies: tender.publication_dailies || '',
-          procurement_methods: tender.procurement_methods || '',
+          publication_daily: tender.publication_daily || '',
+          procurement_method: tender.procurement_method || '',
           procedure_adopted: tender.procedure_adopted || ''
         });
 
@@ -398,7 +398,7 @@ const EditTender: React.FC = () => {
   const getSpotPurchaseValidation = () => {
     if (tenderData.tender_type !== 'spot-purchase') return { isValid: true, message: '' };
     
-    const procurementMethod = tenderData.procurement_methods;
+    const procurementMethod = tenderData.procurement_method;
     
     if (procurementMethod === 'single_quotation') {
       if (totalTenderValue > 100000) {
@@ -480,9 +480,12 @@ const EditTender: React.FC = () => {
             ? { vendor_ids: item.vendor_ids || [] }
             : { vendor_id: item.vendor_id || null }
           )
-        }))
+        })),
+        // Include bidders data so backend can update successful status
+        bidders: bidders
       };
 
+      console.log('🔍 Bidders being sent:', JSON.stringify(bidders, null, 2));
       console.log('🔍 Submitting tender data:', JSON.stringify(tenderFormData, null, 2));
 
       const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
@@ -815,14 +818,14 @@ const EditTender: React.FC = () => {
 
                 {tenderData.tender_type !== 'spot-purchase' && (
                   <div>
-                    <label className="text-sm font-medium">Publication Dailies</label>
+                    <label className="text-sm font-medium">Publication Daily</label>
                     <Input
-                      value={tenderData.publication_dailies}
+                      value={tenderData.publication_daily}
                       onChange={(e) => setTenderData(prev => ({
                         ...prev,
-                        publication_dailies: e.target.value
+                        publication_daily: e.target.value
                       }))}
-                      placeholder="Enter publication dailies"
+                      placeholder="Enter publication daily"
                     />
                   </div>
                 )}
@@ -830,10 +833,10 @@ const EditTender: React.FC = () => {
                 <div>
                   <label className="text-sm font-medium">Procurement Methods</label>
                   <Select 
-                    value={tenderData.procurement_methods} 
+                    value={tenderData.procurement_method} 
                     onValueChange={(value) => setTenderData(prev => ({
                       ...prev,
-                      procurement_methods: value
+                      procurement_method: value
                     }))}
                   >
                     <SelectTrigger>
@@ -901,9 +904,13 @@ const EditTender: React.FC = () => {
                 vendor_id: vendorId || ''
               }));
             }}
-            maxVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
-            minVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
-            procurementMethod={tenderData.tender_type === 'spot-purchase' ? tenderData.procurement_methods : undefined}
+            onItemsChange={(updatedItems) => {
+              console.log('Items updated from vendor deselection:', updatedItems);
+              setTenderItems(updatedItems);
+            }}
+            maxVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'single_quotation' ? 1 : tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'multiple_quotation' ? 3 : undefined}
+            minVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'multiple_quotation' ? 3 : undefined}
+            procurementMethod={tenderData.tender_type === 'spot-purchase' ? tenderData.procurement_method : undefined}
           />
 
           {/* Tender Items Section */}
@@ -996,7 +1003,10 @@ const EditTender: React.FC = () => {
                       <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
                       <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
                         {bidders.length > 0 ? (
-                          bidders.map(vendor => {
+                          // Only show successful bidders in the dropdown
+                          bidders
+                            .filter(vendor => vendor.is_successful)
+                            .map(vendor => {
                             const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
                             const isSelected = vendorIds.includes(vendor.vendor_id);
                             return (
@@ -1307,10 +1317,10 @@ const EditTender: React.FC = () => {
                       </Alert>
                     )}
                     
-                    {tenderData.tender_type === 'spot-purchase' && tenderData.procurement_methods && spotPurchaseValidation.isValid && (
+                    {tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method && spotPurchaseValidation.isValid && (
                       <Alert className="mt-4 bg-green-50 border-green-200">
                         <AlertDescription className="text-green-800">
-                          {tenderData.procurement_methods === 'single_quotation' 
+                          {tenderData.procurement_method === 'single_quotation' 
                             ? `✓ Single Quotation: Amount within limit (Max: PKR 100,000)`
                             : `✓ Multiple Quotation: Amount within limit (Min: PKR 100,001, Max: PKR 500,000)`
                           }
