@@ -38,15 +38,23 @@
    - Lines extracted: 300+
    - Endpoints: GET list, GET approvers, GET details, GET by office/wing, GET AspNet filtered
    - Status: ✅ Fully functional
+9. **Approvals Workflow** (server/routes/approvals.js)
+   - Lines extracted: 800+
+   - Endpoints: Supervisor/Admin approve/reject/forward, GET pending requests, GET history
+   - Features: Three-level approval workflow, transaction support, history logging
+   - Status: ✅ Fully functional
 
+10. **IMS Roles & Permissions** (server/routes/permissions.js)
+    - Lines extracted: 600+
+    - Endpoints: Check permission, Manage roles/permissions, Assign roles to users
+    - Features: Role creation, permission management, scope-based access control
+    - Status: ✅ Fully functional
 ### 📊 Extraction Progress:
-- **Total lines extracted**: ~2,280 lines
-- **Remaining in backend-server.cjs**: ~14,356 lines
-- **Progress**: 13.7% extracted
+- **Total lines extracted**: ~3,419 lines
+- **Remaining in backend-server.cjs**: ~13,217 lines
+- **Progress**: 20.5% extracted
 
 ### 🎯 Remaining Routes to Extract:
-- [ ] Approvals (workflow management) - ~1,500 lines
-- [ ] Permissions (role-based access) - ~800 lines
 - [ ] Inventory Verification - ~1,500 lines
 - [ ] Stock Issuance - ~800 lines
 - [ ] Reports - ~800 lines
@@ -74,7 +82,8 @@ server/
 │   ├── categories.js         # ✅ Categories & sub-categories (450+ lines)
 │   ├── auth.js               # ✅ Authentication & session (200+ lines)
 │   ├── users.js              # ✅ User management (300+ lines)
-│   ├── approvals.js          # ⏳ Pending
+│   ├── approvals.js          # ✅ Approvals workflow (800+ lines)
+│   ├── permissions.js        # ✅ Roles & permissions (600+ lines)
 │   ├── inventory.js          # ⏳ Pending
 │   └── others.js             # ⏳ Pending
 │   ├── stockIssuance.js      # ⏳ Pending
