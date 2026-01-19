@@ -48,6 +48,10 @@ const tenderRoutes = require('./routes/tenders');
 const vendorRoutes = require('./routes/vendors');
 const itemRoutes = require('./routes/items');
 const categoryRoutes = require('./routes/categories');
+const inventoryRoutes = require('./routes/inventory');
+const stockIssuanceRoutes = require('./routes/stockIssuance');
+const reportsRoutes = require('./routes/reports');
+const utilsRoutes = require('./routes/utils');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
@@ -59,6 +63,15 @@ app.use('/api/vendors', vendorRoutes);
 app.use('/api/items-master', itemRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/sub-categories', categoryRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/stock-issuance', stockIssuanceRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/disposals', utilsRoutes);
+app.use('/api/stores', utilsRoutes);
+app.use('/api/offices', utilsRoutes);
+app.use('/api/wings', utilsRoutes);
+app.use('/api/designations', utilsRoutes);
+app.use('/api/health', utilsRoutes);
 
 // ============================================================================
 // Error Handler (To be implemented)
