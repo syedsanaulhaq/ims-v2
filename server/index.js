@@ -39,12 +39,13 @@ app.use(requestLogger);
 // Routes (To be implemented from original backend-server.cjs)
 // ============================================================================
 // Import route modules here
+const purchaseOrderRoutes = require('./routes/purchaseOrders');
 // const tenderRoutes = require('./routes/tenders');
 // const vendorRoutes = require('./routes/vendors');
-// const purchaseOrderRoutes = require('./routes/purchaseOrders');
+
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 // app.use('/api/tenders', tenderRoutes);
 // app.use('/api/vendors', vendorRoutes);
-// app.use('/api/purchase-orders', purchaseOrderRoutes);
 
 // ============================================================================
 // Error Handler (To be implemented)
