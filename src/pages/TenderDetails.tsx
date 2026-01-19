@@ -285,8 +285,13 @@ const TenderDetails: React.FC = () => {
   };
 
   const handleBack = () => {
-    const tenderType = tender?.tender_type === 'spot-purchase' ? 'spot-purchases' : 'contract-tender';
-    navigate(`/dashboard/${tenderType}`);
+    let dashboardPath = '/dashboard/contract-tender';
+    if (tender?.tender_type === 'spot-purchase') {
+      dashboardPath = '/dashboard/spot-purchases';
+    } else if (tender?.tender_type === 'annual-tender') {
+      dashboardPath = '/dashboard/contract-tender?type=annual-tender';
+    }
+    navigate(dashboardPath);
   };
 
   const handlePrint = () => {
@@ -819,24 +824,10 @@ const TenderDetails: React.FC = () => {
                       </TableCell>
                       {tender.tender_type === 'annual-tender' && (
                         <TableCell>
-                          {item.vendor_ids ? (
-                            Array.isArray(item.vendor_ids) ? (
-                              <div className="flex flex-wrap gap-1">
-                                {item.vendor_ids.map((vendorId: any, idx: number) => (
-                                  <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                    {getVendorName(vendorId)}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="flex flex-wrap gap-1">
-                                {item.vendor_ids.split(',').map((vendorId: string, idx: number) => (
-                                  <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                    {getVendorName(vendorId.trim())}
-                                  </span>
-                                ))}
-                              </div>
-                            )
+                          {item.vendor_name ? (
+                            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                              {item.vendor_name}
+                            </span>
                           ) : (
                             '-'
                           )}

@@ -28,7 +28,6 @@ interface TenderItem {
   specifications?: string;
   remarks?: string;
   vendor_id?: string;
-  vendor_ids?: string[];
 }
 
 interface ItemMaster {
@@ -148,7 +147,7 @@ const CreateTender: React.FC = () => {
     estimated_unit_price: 0,
     specifications: '',
     remarks: '',
-    vendor_ids: []
+    vendor_id: ''
   });
 
   // Fetch initial data (item masters, offices, and vendors)
@@ -295,9 +294,9 @@ const CreateTender: React.FC = () => {
 
     // Validate vendor selection based on tender type
     if (tenderType === 'annual-tender') {
-      // Annual tender requires at least one vendor selected
-      if (!Array.isArray(newItem.vendor_ids) || newItem.vendor_ids.length === 0) {
-        alert('Please select at least one vendor for this item');
+      // Annual tender requires vendor_id for each item
+      if (!newItem.vendor_id) {
+        alert('Please select a vendor for this item');
         return;
       }
     } else {
@@ -322,7 +321,7 @@ const CreateTender: React.FC = () => {
       estimated_unit_price: 0,
       specifications: '',
       remarks: '',
-      vendor_ids: []  // Reset vendor selection
+      vendor_id: ''  // Reset vendor selection
     });
   };
 
@@ -450,11 +449,8 @@ const CreateTender: React.FC = () => {
           total_amount: item.total_amount || 0,
           specifications: item.specifications || '',
           remarks: item.remarks || '',
-          // For annual tender, send vendor_ids array; for others send vendor_id
-          ...(tenderType === 'annual-tender' 
-            ? { vendor_ids: item.vendor_ids || [] }
-            : { vendor_id: item.vendor_id || null }
-          )
+          // Send single vendor_id for all tender types
+          vendor_id: item.vendor_id || null
         }))
       };
 
@@ -464,7 +460,6 @@ const CreateTender: React.FC = () => {
       console.log('📦 Items being submitted:');
       tenderFormData.items.forEach((item, idx) => {
         console.log(`  Item ${idx}: ${item.nomenclature}`);
-        console.log(`    - vendor_ids:`, item.vendor_ids);
         console.log(`    - vendor_id:`, item.vendor_id);
       });
 
@@ -1294,57 +1289,41 @@ const CreateTender: React.FC = () => {
                 {/* Second Row - Vendor/Quantity and Price */}
                 {tenderType === 'annual-tender' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                    {/* Vendor Multi-Select for Annual Tender - Show only participating bidders */}
+                    {/* Vendor Single-Select for Annual Tender - Show only participating bidders */}
                     <div>
-                      <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
-                      <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
-                        {bidders.length > 0 ? (
-                          bidders.map(vendor => {
-                            const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                            const isSelected = vendorIds.includes(vendor.vendor_id);
-                            return (
-                              <label key={vendor.vendor_id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    console.log(`✅ Vendor checkbox: ${vendor.vendor_name} (${vendor.vendor_id}) - checked: ${e.target.checked}`);
-                                    if (e.target.checked) {
-                                      console.log(`➕ Adding vendor ${vendor.vendor_id} to vendor_ids`);
-                                      setNewItem(prev => {
-                                        const updated = {
-                                          ...prev,
-                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.vendor_id]
-                                        };
-                                        console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
-                                        return updated;
-                                      });
-                                    } else {
-                                      console.log(`➖ Removing vendor ${vendor.vendor_id} from vendor_ids`);
-                                      setNewItem(prev => {
-                                        const updated = {
-                                          ...prev,
-                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.vendor_id)
-                                        };
-                                        console.log(`📝 Updated vendor_ids:`, updated.vendor_ids);
-                                        return updated;
-                                      });
-                                    }
-                                  }}
-                                  className="w-4 h-4"
-                                />
-                                <span>{vendor.vendor_name}</span>
-                              </label>
-                            );
-                          })
-                        ) : (
-                          <p className="text-xs text-gray-500 p-2">Add vendors in the 'Participating Bidders' section first</p>
-                        )}
-                      </div>
+                      <label className="text-xs font-medium mb-1 block">Vendor (Select One)</label>
+                      <Select 
+                        value={Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0 ? newItem.vendor_ids[0] : ''}
+                        onValueChange={(selectedVendorId) => {
+                          // Single-select: store ONE vendor only
+                          // NOTE: Currently single-select. Easy to change to multi-select if needed in future
+                          console.log(`✅ Vendor selected: ${selectedVendorId}`);
+                          setNewItem(prev => ({
+                            ...prev,
+                            vendor_ids: [selectedVendorId]
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select vendor..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bidders.length > 0 ? (
+                            bidders
+                              .map(vendor => (
+                              <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
+                                {vendor.vendor_name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="p-2 text-xs text-gray-500">No vendors available</div>
+                          )}
+                        </SelectContent>
+                      </Select>
                       <div className="mt-1 text-xs text-gray-600">
                         {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                          ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
-                          : '⚠️ Select at least 1 vendor'}
+                          ? `✅ Vendor selected`
+                          : '⚠️ Select a vendor'}
                       </div>
                     </div>
 

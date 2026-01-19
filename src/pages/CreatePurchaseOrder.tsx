@@ -22,7 +22,14 @@ interface TenderItem {
   quantity: number;
   estimated_unit_price?: number;
   vendor_id?: string;
+  vendor_ids?: string; // For annual tenders with multiple vendors
   category_name?: string;
+  unit_price?: number; // For annual tenders
+}
+
+interface Vendor {
+  id: string;
+  vendor_name: string;
 }
 
 interface ItemPrice {
@@ -33,30 +40,97 @@ interface ItemPrice {
 export default function CreatePurchaseOrder() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const tenderIdFromUrl = searchParams.get('tenderId');
   const [tenders, setTenders] = useState<Tender[]>([]);
-  const [selectedTenderId, setSelectedTenderId] = useState<string>('');
+  const [selectedTenderId, setSelectedTenderId] = useState<string>(tenderIdFromUrl || '');
+  const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
+  const [vendors, setVendors] = useState<{ [key: string]: Vendor }>({});
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [itemPrices, setItemPrices] = useState<{ [key: string]: number }>({});
+  const [itemVendors, setItemVendors] = useState<{ [key: string]: string }>({});
+  const [itemQuantities, setItemQuantities] = useState<{ [key: string]: number }>({});
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [vendorId, setVendorId] = useState<string>('1');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTenders();
-    // Check if tenderId is provided in URL params
-    const tenderId = searchParams.get('tenderId');
-    if (tenderId) {
-      setSelectedTenderId(tenderId);
+    // If tenderId is provided in URL, auto-select it
+    if (tenderIdFromUrl) {
+      console.log('📌 tender ID from URL:', tenderIdFromUrl);
+      setSelectedTenderId(tenderIdFromUrl);
     }
-  }, [searchParams]);
+  }, [tenderIdFromUrl]);
 
   useEffect(() => {
     if (selectedTenderId) {
-      fetchTenderItems(selectedTenderId);
+      // Fetch vendors FIRST, then items (so vendors are available when items load)
+      fetchVendors().then(() => {
+        fetchTenderDetails(selectedTenderId);
+        fetchTenderItems(selectedTenderId);
+      });
     }
   }, [selectedTenderId]);
+
+  const fetchTenderDetails = async (tenderId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      if (!response.ok) throw new Error('Failed to fetch tender details');
+      const data = await response.json();
+      setSelectedTender(data);
+    } catch (err) {
+      console.error('Error fetching tender details:', err);
+    }
+  };
+
+  const fetchVendors = async () => {
+    return new Promise<void>((resolve) => {
+      (async () => {
+        try {
+          const response = await fetch('http://localhost:3001/api/vendors');
+          if (!response.ok) throw new Error('Failed to fetch vendors');
+          let data = await response.json();
+          
+          console.log('📋 Raw vendor API response:', data);
+          
+          // Extract vendors array from the response
+          let vendorsArray: Vendor[] = [];
+          if (data && typeof data === 'object') {
+            if ('vendors' in data && Array.isArray(data.vendors)) {
+              vendorsArray = data.vendors;
+            } else if (Array.isArray(data)) {
+              vendorsArray = data;
+            }
+          }
+          
+          // Create a map of vendor ID to vendor details (store both cases for matching)
+          const vendorMap: { [key: string]: Vendor } = {};
+          vendorsArray.forEach((v: any) => {
+            if (v && v.id) {
+              const vendorData = {
+                id: v.id,
+                vendor_name: v.vendor_name || v.name || 'Unknown Vendor'
+              };
+              // Store using BOTH original and lowercase keys for flexible matching
+              vendorMap[String(v.id)] = vendorData;
+              vendorMap[String(v.id).toLowerCase()] = vendorData;
+              console.log(`✅ Mapped vendor: ${v.id} => ${v.vendor_name}`);
+            }
+          });
+          
+          console.log('📊 Final vendor map:', vendorMap);
+          console.log('🔍 Total vendors loaded:', Object.keys(vendorMap).length);
+          setVendors(vendorMap);
+          resolve();
+        } catch (err) {
+          console.error('❌ Error fetching vendors:', err);
+          setVendors({});
+          resolve();
+        }
+      })();
+    });
+  };
 
   const fetchTenders = async () => {
     try {
@@ -76,16 +150,48 @@ export default function CreatePurchaseOrder() {
       const response = await fetch(`http://localhost:3001/api/tender/${tenderId}/items`);
       if (!response.ok) throw new Error('Failed to fetch tender items');
       const data = await response.json();
+      console.log('📦 Raw tender items from API:', data);
       setTenderItems(data);
       setSelectedItems(new Set()); // Reset selection
       
-      // Auto-populate vendor ID from first item if all items have same vendor
-      if (data.length > 0 && data[0].vendor_id) {
-        const allSameVendor = data.every((item: TenderItem) => item.vendor_id === data[0].vendor_id);
-        if (allSameVendor) {
-          setVendorId(data[0].vendor_id);
+      // Initialize quantities and prices from tender items
+      const initialQuantities: { [key: string]: number } = {};
+      const initialPrices: { [key: string]: number } = {};
+      const initialVendors: { [key: string]: string } = {};
+      
+      data.forEach((item: TenderItem) => {
+        console.log(`� Processing item ${item.id}:`, { 
+
+          vendor_id: item.vendor_id,
+          nomenclature: item.nomenclature
+        });
+        
+        initialQuantities[item.id] = item.quantity || 1;
+        // For annual tenders, use unit_price from item; otherwise use estimated_unit_price
+        initialPrices[item.id] = item.unit_price || item.estimated_unit_price || 0;
+        
+        // ✅ OPTION A: Use ONLY vendor_id field (single vendor per item)
+        let selectedVendorId = null;
+        
+        if (item.vendor_id) {
+          // Single vendor per item
+          selectedVendorId = item.vendor_id;
+          console.log(`📌 Using vendor_id for item ${item.id}: ${selectedVendorId}`);
         }
-      }
+        
+        if (selectedVendorId) {
+          initialVendors[item.id] = selectedVendorId;
+          console.log(`✅ Auto-selected vendor for item ${item.id}: ${selectedVendorId}`);
+        } else {
+          console.warn(`⚠️ No vendor found for item ${item.id}`);
+        }
+      });
+      
+      console.log('📦 Initialized vendors:', initialVendors);
+      console.log('📊 Current vendor map:', vendors);
+      setItemQuantities(initialQuantities);
+      setItemPrices(initialPrices);
+      setItemVendors(initialVendors);
     } catch (err) {
       console.error('Error fetching items:', err);
       setError('Failed to load tender items');
@@ -136,24 +242,42 @@ export default function CreatePurchaseOrder() {
       return;
     }
 
+    // For annual tenders, validate vendor selection for each item
+    if (selectedTender?.tender_type === 'annual-tender') {
+      const itemsWithoutVendor = Array.from(selectedItems).filter(itemId => !itemVendors[itemId]);
+      if (itemsWithoutVendor.length > 0) {
+        setError(`Please select vendor for ${itemsWithoutVendor.length} item(s)`);
+        return;
+      }
+    }
+
     // Validate all selected items have prices
-    if (!groupItemsByVendor()) {
+    const itemsWithoutPrice = Array.from(selectedItems).filter(itemId => {
+      return !itemPrices[itemId] || itemPrices[itemId] <= 0;
+    });
+    
+    if (itemsWithoutPrice.length > 0) {
+      setError(`Please enter valid unit price for ${itemsWithoutPrice.length} item(s)`);
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
+      const payload = {
+        tenderId: selectedTenderId,
+        tenderType: selectedTender?.tender_type,
+        selectedItems: Array.from(selectedItems),
+        poDate,
+        itemPrices: itemPrices,
+        itemVendors: itemVendors, // For annual tenders
+        itemQuantities: itemQuantities
+      };
+      console.log('🚀 SENDING PO CREATION REQUEST:', payload);
       const response = await fetch('http://localhost:3001/api/purchase-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenderId: selectedTenderId,
-          selectedItems: Array.from(selectedItems),
-          poDate,
-          vendorId: parseInt(vendorId),
-          itemPrices: itemPrices
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -162,7 +286,7 @@ export default function CreatePurchaseOrder() {
       }
 
       const result = await response.json();
-      alert(`✅ PO created successfully!`);
+      alert(`✅ PO(s) created successfully!`);
       navigate('/dashboard/purchase-orders');
     } catch (err) {
       console.error('Error creating POs:', err);
@@ -209,32 +333,55 @@ export default function CreatePurchaseOrder() {
           </Card>
         )}
 
-        {/* Step 1: Select Tender */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Step 1: Select Tender</CardTitle>
-            <CardDescription>Choose a tender to create POs from</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedTenderId} onValueChange={setSelectedTenderId}>
-              <SelectTrigger className="border-slate-300">
-                <SelectValue placeholder="Select a tender..." />
-              </SelectTrigger>
-              <SelectContent>
-                {tenders.map((tender) => (
-                  <SelectItem key={tender.id} value={tender.id.toString()}>
-                    <div className="flex items-center gap-2">
-                      <span>{tender.reference_number}: {tender.title}</span>
-                      <Badge className={getTenderTypeColor(tender.tender_type)}>
-                        {tender.tender_type}
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
+        {/* Step 1: Select Tender (only show if not pre-selected from URL) */}
+        {!tenderIdFromUrl && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 1: Select Tender</CardTitle>
+              <CardDescription>Choose a tender to create POs from</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Select value={selectedTenderId} onValueChange={setSelectedTenderId}>
+                <SelectTrigger className="border-slate-300">
+                  <SelectValue placeholder="Select a tender..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenders
+                    .filter((tender) => tender && tender.id) // Filter out invalid tenders
+                    .map((tender) => {
+                      const tenderId = String(tender.id);
+                      // Only render if tender ID is not empty
+                      if (!tenderId || tenderId.trim() === '') return null;
+                      return (
+                        <SelectItem key={tender.id} value={tenderId}>
+                          <div className="flex items-center gap-2">
+                            <span>{tender.reference_number}: {tender.title}</span>
+                            <Badge className={getTenderTypeColor(tender.tender_type)}>
+                              {tender.tender_type}
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        )}
+
+        {tenderIdFromUrl && selectedTender && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="pt-6 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Selected Tender</p>
+                <p className="font-bold text-slate-900">{selectedTender.reference_number}: {selectedTender.title}</p>
+              </div>
+              <Badge className={getTenderTypeColor(selectedTender.tender_type)}>
+                {selectedTender.tender_type}
+              </Badge>
+            </CardContent>
+          </Card>
+        )}
 
         {selectedTenderId && (
           <>
@@ -271,35 +418,89 @@ export default function CreatePurchaseOrder() {
                       </div>
                     </div>
 
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {tenderItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-start gap-4 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition"
-                        >
-                          <Checkbox
-                            checked={selectedItems.has(item.id)}
-                            onCheckedChange={() => handleItemToggle(item.id)}
-                            className="mt-1"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-slate-900">{item.nomenclature || 'Item'}</p>
-                              {item.category_name && <Badge variant="secondary">{item.category_name}</Badge>}
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <div className="text-sm font-medium text-slate-700 mb-2">
-                              Qty: {item.quantity}
-                            </div>
-                            {selectedItems.has(item.id) && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-slate-600">Price:</span>
+                    {/* Table Header */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-2 text-left"><input type="checkbox" onChange={(e) => handleSelectAll(e.target.checked)} /></th>
+                            <th className="px-3 py-2 text-left font-semibold text-slate-700">Item</th>
+                            <th className="px-3 py-2 text-left font-semibold text-slate-700">Vendor</th>
+                            <th className="px-3 py-2 text-center font-semibold text-slate-700">Qty</th>
+                            <th className="px-3 py-2 text-right font-semibold text-slate-700">Unit Price (Rs)</th>
+                            <th className="px-3 py-2 text-right font-semibold text-slate-700">Total (Rs)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {tenderItems.map((item) => (
+                            <tr key={item.id} className="hover:bg-slate-50 transition">
+                              {/* Checkbox */}
+                              <td className="px-3 py-3">
+                                <Checkbox
+                                  checked={selectedItems.has(item.id)}
+                                  onCheckedChange={() => handleItemToggle(item.id)}
+                                />
+                              </td>
+
+                              {/* Item Name */}
+                              <td className="px-3 py-3">
+                                <div>
+                                  <p className="font-medium text-slate-900">{item.nomenclature || 'Item'}</p>
+                                  <p className="text-xs text-slate-500">Tender Qty: {item.quantity}</p>
+                                </div>
+                              </td>
+
+                              {/* Vendor */}
+                              <td className="px-3 py-3">
+                                {selectedTender?.tender_type === 'annual-tender' ? (
+                                  <div className="text-sm">
+                                    {itemVendors[item.id] ? (
+                                      (() => {
+                                        const vendorId = itemVendors[item.id];
+                                        const vendor = vendors[vendorId];
+                                        
+                                        if (vendor?.vendor_name) {
+                                          return <span className="text-green-700 font-medium">✅ {vendor.vendor_name}</span>;
+                                        } else {
+                                          return <span className="text-orange-600 text-xs">⚠️ Not found</span>;
+                                        }
+                                      })()
+                                    ) : (
+                                      <span className="text-red-600 text-xs">❌ None</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500 text-xs">-</span>
+                                )}
+                              </td>
+
+                              {/* Quantity Input */}
+                              <td className="px-3 py-3 text-center">
+                                <Input
+                                  type="number"
+                                  placeholder="Qty"
+                                  min="1"
+                                  step="1"
+                                  disabled={!selectedItems.has(item.id)}
+                                  value={itemQuantities[item.id] || ''}
+                                  onChange={(e) => {
+                                    setItemQuantities({
+                                      ...itemQuantities,
+                                      [item.id]: parseInt(e.target.value) || 1
+                                    });
+                                  }}
+                                  className="h-8 text-xs w-20 text-center"
+                                />
+                              </td>
+
+                              {/* Unit Price */}
+                              <td className="px-3 py-3">
                                 <Input
                                   type="number"
                                   placeholder="0"
                                   min="0"
                                   step="0.01"
+                                  disabled={!selectedItems.has(item.id)}
                                   value={itemPrices[item.id] || ''}
                                   onChange={(e) => {
                                     setItemPrices({
@@ -307,13 +508,20 @@ export default function CreatePurchaseOrder() {
                                       [item.id]: parseFloat(e.target.value) || 0
                                     });
                                   }}
-                                  className="w-24 text-sm"
+                                  className="h-8 text-xs w-28 text-right"
                                 />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                              </td>
+
+                              {/* Total Price */}
+                              <td className="px-3 py-3 text-right">
+                                <p className="font-semibold text-slate-900">
+                                  Rs {((itemPrices[item.id] || 0) * (itemQuantities[item.id] || 1)).toLocaleString()}
+                                </p>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </>
                 )}
@@ -323,20 +531,44 @@ export default function CreatePurchaseOrder() {
             {/* Step 3: Vendor & PO Date */}
             <Card>
               <CardHeader>
-                <CardTitle>Step 3: Set Vendor & PO Date</CardTitle>
-                <CardDescription>Select the vendor and set the PO date</CardDescription>
+                <CardTitle>Step 3: PO Date{selectedTender?.tender_type !== 'annual-tender' && ' & Vendor'}</CardTitle>
+                <CardDescription>
+                  {selectedTender?.tender_type === 'annual-tender' 
+                    ? 'Set the PO date (Vendors selected per item)' 
+                    : 'Select the vendor and set the PO date'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Vendor ID</label>
-                  <Input
-                    type="number"
-                    value={vendorId}
-                    onChange={(e) => setVendorId(e.target.value)}
-                    className="border-slate-300"
-                    placeholder="Enter vendor ID"
-                  />
-                </div>
+                {/* Only show vendor selection for non-annual tenders */}
+                {selectedTender?.tender_type !== 'annual-tender' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Vendor</label>
+                    <Select
+                      value={Object.values(itemVendors)[0] || ''}
+                      onValueChange={(vendorId) => {
+                        // Set same vendor for all items (for non-annual tenders)
+                        const newVendors: { [key: string]: string } = {};
+                        Array.from(selectedItems).forEach(itemId => {
+                          newVendors[itemId] = vendorId;
+                        });
+                        setItemVendors(newVendors);
+                      }}
+                    >
+                      <SelectTrigger className="border-slate-300">
+                        <SelectValue placeholder="Select vendor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(vendors).length > 0 ? (
+                          Object.entries(vendors).map(([id, vendor]) => (
+                            <SelectItem key={id} value={id}>
+                              {vendor.vendor_name}
+                            </SelectItem>
+                          ))
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">PO Date</label>
                   <Input
@@ -351,33 +583,80 @@ export default function CreatePurchaseOrder() {
 
             {/* Summary */}
             {selectedItems.size > 0 && (
-              <Card className="border-blue-200 bg-blue-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Check className="w-5 h-5 text-green-600" />
-                    Summary
+              <Card className="border-green-200 bg-gradient-to-br from-green-50 to-blue-50">
+                <CardHeader className="border-b border-green-200">
+                  <CardTitle className="flex items-center gap-2 text-green-700">
+                    <Check className="w-5 h-5" />
+                    Purchase Order Summary
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Selected Items:</span>
-                      <span className="font-medium">{selectedItems.size} item(s)</span>
+                <CardContent className="pt-6">
+                  <div className="space-y-6">
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-white rounded-lg border border-slate-200 p-4">
+                        <p className="text-xs text-slate-600 mb-1">Selected Items</p>
+                        <p className="text-2xl font-bold text-blue-600">{selectedItems.size}</p>
+                      </div>
+                      <div className="bg-white rounded-lg border border-slate-200 p-4">
+                        <p className="text-xs text-slate-600 mb-1">Total Value</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          Rs {Array.from(selectedItems).reduce((sum, itemId) => {
+                            const price = itemPrices[itemId] || 0;
+                            const qty = itemQuantities[itemId] || 1;
+                            return sum + (price * qty);
+                          }, 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-white rounded-lg border border-slate-200 p-4">
+                        <p className="text-xs text-slate-600 mb-1">PO Date</p>
+                        <p className="text-xl font-bold text-slate-900">
+                          {new Date(poDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Total Value:</span>
-                      <span className="font-bold text-green-600">
-                        Rs {totalSelectedAmount.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Vendor ID:</span>
-                      <span className="font-medium">{vendorId}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">PO Date:</span>
-                      <span className="font-medium">{poDate}</span>
-                    </div>
+
+                    {/* For annual tenders, show items with vendors in table format */}
+                    {selectedTender?.tender_type === 'annual-tender' && (
+                      <div className="border-t border-green-200 pt-4">
+                        <h3 className="text-sm font-semibold text-slate-900 mb-3">Items by Vendor</h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs border-collapse">
+                            <thead className="bg-slate-100 border-b border-slate-200">
+                              <tr>
+                                <th className="text-left px-3 py-2 font-semibold text-slate-700">Item</th>
+                                <th className="text-left px-3 py-2 font-semibold text-slate-700">Vendor</th>
+                                <th className="text-center px-3 py-2 font-semibold text-slate-700">Qty</th>
+                                <th className="text-right px-3 py-2 font-semibold text-slate-700">Unit Price</th>
+                                <th className="text-right px-3 py-2 font-semibold text-slate-700">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Array.from(selectedItems).map((itemId, idx) => {
+                                const item = tenderItems.find(ti => ti.id === itemId);
+                                const vendorId = itemVendors[itemId];
+                                const qty = itemQuantities[itemId] || 1;
+                                const unitPrice = itemPrices[itemId] || 0;
+                                const total = qty * unitPrice;
+                                return (
+                                  <tr key={itemId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                    <td className="px-3 py-2 text-slate-900 font-medium">{item?.nomenclature}</td>
+                                    <td className="px-3 py-2 text-slate-700">
+                                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                        {vendors[vendorId]?.vendor_name || 'Unassigned'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-slate-700">{qty}</td>
+                                    <td className="px-3 py-2 text-right text-slate-700">Rs {unitPrice.toLocaleString()}</td>
+                                    <td className="px-3 py-2 text-right font-semibold text-slate-900">Rs {total.toLocaleString()}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

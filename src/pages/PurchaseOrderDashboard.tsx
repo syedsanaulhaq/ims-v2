@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Eye, Plus } from 'lucide-react';
+import { Trash2, Eye, Plus, ArrowLeft } from 'lucide-react';
 
 interface PurchaseOrder {
   id: number;
@@ -25,6 +25,8 @@ interface PurchaseOrder {
 
 export default function PurchaseOrderDashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tenderId = searchParams.get('tenderId');
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +40,19 @@ export default function PurchaseOrderDashboard() {
 
   useEffect(() => {
     fetchPurchaseOrders();
-  }, [filters]);
+  }, [filters, tenderId]);
 
   const fetchPurchaseOrders = async () => {
     try {
       setLoading(true);
       let query = 'http://localhost:3001/api/purchase-orders';
       const params = new URLSearchParams();
+
+      // ✅ Filter by tenderId if provided in URL
+      if (tenderId) {
+        params.append('tenderId', tenderId);
+        console.log('🎯 Filtering POs by tenderId:', tenderId);
+      }
 
       if (filters.status !== 'all') {
         params.append('status', filters.status);
@@ -112,6 +120,35 @@ export default function PurchaseOrderDashboard() {
     }
   };
 
+  const handleFinalizePO = async (id: string) => {
+    if (!confirm('Are you sure you want to finalize this PO? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/purchase-orders/${id}/finalize`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'finalized' })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+        return;
+      }
+
+      // Update PO in list
+      setPurchaseOrders(prev => prev.map(po => 
+        po.id === id ? { ...po, status: 'finalized' } : po
+      ));
+      alert('✅ Purchase order finalized successfully');
+    } catch (err) {
+      console.error('Error finalizing PO:', err);
+      alert('Failed to finalize purchase order');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'draft':
@@ -148,12 +185,22 @@ export default function PurchaseOrderDashboard() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex justify-between items-start">
-          <div>
+          <div className="flex-1">
+            {tenderId && purchaseOrders.length > 0 && (
+              <Button 
+                variant="ghost" 
+                onClick={() => navigate(`/dashboard/contract-tender?type=${purchaseOrders[0].tender_type}`)}
+                className="mb-4"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Tender
+              </Button>
+            )}
             <h1 className="text-4xl font-bold text-slate-900 mb-2">Purchase Orders</h1>
             <p className="text-slate-600">Manage all purchase orders generated from tenders</p>
           </div>
           <Button 
-            onClick={() => navigate('/dashboard/create-po')}
+            onClick={() => navigate(tenderId ? `/dashboard/create-po?tenderId=${tenderId}` : '/dashboard/create-po')}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -215,9 +262,7 @@ export default function PurchaseOrderDashboard() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="issued">Issued</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="finalized">Finalized</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -261,7 +306,7 @@ export default function PurchaseOrderDashboard() {
           <Card>
             <CardContent className="pt-6 text-center">
               <p className="text-slate-600 mb-4">No purchase orders found</p>
-              <Button onClick={() => navigate('/dashboard/create-po')} variant="outline">
+              <Button onClick={() => navigate(tenderId ? `/dashboard/create-po?tenderId=${tenderId}` : '/dashboard/create-po')} variant="outline">
                 <Plus className="w-4 h-4 mr-2" />
                 Create First PO
               </Button>
@@ -329,14 +374,32 @@ export default function PurchaseOrderDashboard() {
                               <Eye className="w-4 h-4" />
                             </Button>
                             {po.status === 'draft' && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDeletePO(po.id)}
-                                title="Delete PO"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => navigate(`/dashboard/po/${po.id}/edit`)}
+                                  title="Edit PO"
+                                >
+                                  ✏️ Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => handleFinalizePO(po.id)}
+                                  title="Finalize PO"
+                                >
+                                  ✓ Finalize
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeletePO(po.id)}
+                                  title="Delete PO"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </td>

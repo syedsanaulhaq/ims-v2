@@ -10,10 +10,8 @@ const session = require('express-session');
 const jwt = require('jsonwebtoken');
 const aspnetIdentity = require('aspnet-identity-pw');
 require('dotenv').config({ path: '.env.sqlserver' });
-
 const app = express();
 const PORT = process.env.PORT || 3001;
-
 // Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'inventory-management-secret-key-2025',
@@ -26,14 +24,12 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
-
 // Middleware
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:4173', 'http://localhost', 'http://172.20.150.34', 'file://'],
   credentials: true
 }));
 app.use(express.json());
-
 // ============================================================================
 // JWT Configuration for SSO
 // ============================================================================
@@ -41,7 +37,6 @@ app.use(express.json());
 const JWT_SECRET = process.env.JWT_SECRET || 'YourVerySecureSecretKeyAtLeast32CharactersLong123456';
 const JWT_ISSUER = 'DigitalSystem';
 const JWT_AUDIENCE = 'IMS';
-
 // Global request logger to debug routing issues
 app.use((req, res, next) => {
   console.log(`🌍 ALL REQUESTS: ${req.method} ${req.originalUrl}`);
@@ -56,13 +51,11 @@ app.use((req, res, next) => {
   }
   next();
 });
-
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads', 'tender-files');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -75,7 +68,6 @@ const storage = multer.diskStorage({
     cb(null, file.fieldname + '-' + uniqueSuffix + fileExtension);
   }
 });
-
 const upload = multer({ 
   storage: storage,
   limits: {
@@ -91,22 +83,17 @@ const upload = multer({
     }
   }
 });
-
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // GET /api/items-master - Return all active items from ItemMaster (for procurement request page)
 app.get('/api/items-master', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const categoryId = req.query.category_id;
     console.log(`🔄 /items-master called with category_id:`, categoryId, 'Type:', typeof categoryId);
-
     let request = pool.request();
-    
     let query = `
       SELECT 
         im.id,
@@ -123,23 +110,18 @@ app.get('/api/items-master', async (req, res) => {
       LEFT JOIN categories c ON im.category_id = c.id
       WHERE im.status = 'Active'
     `;
-
     if (categoryId) {
       console.log(`📌 Filtering by category_id: ${categoryId}`);
       // Handle both numeric and string/UUID format
       query += ` AND (im.category_id = @categoryId OR CAST(im.category_id AS VARCHAR(MAX)) = @categoryId)`;
       request = request.input('categoryId', sql.VarChar, categoryId);
     }
-    
     query += ` ORDER BY im.nomenclature`;
-
     console.log('📋 Executing query:', query);
     const result = await request.query(query);
     const items = result.recordset;
-
     console.log(`✅ Found ${items.length} items${categoryId ? ` for category ${categoryId}` : ''}`);
     console.log(`📦 First item sample:`, items[0]);
-    
     res.json({
       success: true,
       items: items,
@@ -153,7 +135,6 @@ app.get('/api/items-master', async (req, res) => {
     });
   }
 });
-
 // SQL Server configuration - Using environment variables from .env.sqlserver
 const sqlConfig = {
   server: process.env.SQL_SERVER_HOST || 'localhost',
@@ -171,7 +152,6 @@ const sqlConfig = {
   connectionTimeout: 30000
 };
 let pool;
-
 // Default session for development/testing
 const DEFAULT_SESSION = {
   user_id: 'DEV-USER-001',
@@ -182,21 +162,17 @@ const DEFAULT_SESSION = {
   wing_id: 19,
   created_at: new Date().toISOString()
 };
-
 // Session management
 const sessions = new Map();
 const DEFAULT_SESSION_ID = 'default-session';
-
 // Initialize default session
 sessions.set(DEFAULT_SESSION_ID, DEFAULT_SESSION);
-
 // Initialize SQL Server connection
 async function initializeDatabase() {
   try {
     console.log('🔗 Connecting to SQL Server...');
     pool = await sql.connect(sqlConfig);
     console.log('✅ Connected to SQL Server successfully');
-    
     // Test the connection
     const testResult = await pool.request().query('SELECT @@VERSION as version');
     console.log('📊 Database version:', testResult.recordset[0]?.version?.substring(0, 50) + '...');
@@ -206,13 +182,10 @@ async function initializeDatabase() {
     // Don't exit - allow server to run with mock data
   }
 }
-
 // API Routes
-
 // ============================================================================
 // IMS ROLE & PERMISSION MIDDLEWARE
 // ============================================================================
-
 // Authentication middleware
 const requireAuth = (req, res, next) => {
   if (req.session && req.session.userId) {
@@ -221,7 +194,6 @@ const requireAuth = (req, res, next) => {
     res.status(401).json({ error: 'Authentication required' });
   }
 };
-
 // Permission checking middleware - checks IMS permissions
 const requirePermission = (permissionKey) => {
   return (req, res, next) => {
@@ -231,34 +203,27 @@ const requirePermission = (permissionKey) => {
         if (!req.session || !req.session.userId) {
           return res.status(401).json({ error: 'Authentication required' });
         }
-
         if (!pool) {
           console.error('❌ Permission check failed - no database connection');
           return res.status(503).json({ error: 'Database connection unavailable' });
         }
-
         // First check if user is super admin - they bypass all permission checks
         const superAdminResult = await pool.request()
           .input('userId', sql.NVarChar(450), req.session.userId)
           .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
-
         const isSuperAdmin = superAdminResult.recordset[0]?.isSuperAdmin === 1 || superAdminResult.recordset[0]?.isSuperAdmin === true;
-
         if (isSuperAdmin) {
           console.log(`✅ Super Admin bypassing permission check: ${permissionKey}`);
           return next();
         }
-
         // Check if user has the required permission
         console.log(`🔍 Checking permission: ${permissionKey} for user ${req.session.userId}`);
         const result = await pool.request()
           .input('userId', sql.NVarChar(450), req.session.userId)
           .input('permissionKey', sql.NVarChar(100), permissionKey)
           .query('SELECT dbo.fn_HasPermission(@userId, @permissionKey) as hasPermission');
-
         console.log(`🔍 Permission check result:`, result.recordset[0]);
         const hasPermission = result.recordset[0]?.hasPermission === 1 || result.recordset[0]?.hasPermission === true;
-
         if (hasPermission) {
           console.log(`✅ Permission granted: ${permissionKey} for user ${req.session.userId}`);
           next();
@@ -277,41 +242,32 @@ const requirePermission = (permissionKey) => {
         }
       }
     };
-
     checkPermission();
   };
 };
-
 // Check if user is Super Admin
 const requireSuperAdmin = (req, res, next) => {
   // Handle async operations properly in Express middleware
   const checkSuperAdmin = async () => {
     try {
       console.log('🔍 requireSuperAdmin - Checking session:', !!req.session, 'userId:', req.session?.userId);
-      
       if (!req.session || !req.session.userId) {
         console.log('❌ No session or userId');
         return res.status(401).json({ error: 'Authentication required' });
       }
-
       if (!pool) {
         console.warn('⚠️  Super admin check skipped - no database connection');
         return next(); // Allow in development mode
       }
-
       console.log('🔍 Checking super admin status for user:', req.session.userId);
       const result = await pool.request()
         .input('userId', sql.NVarChar(450), req.session.userId)
         .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
-
       console.log('🔍 SQL result:', result.recordset[0]);
-
       // SQL Server returns bit as boolean (true/false), not as 1/0
       const isSuperAdmin = result.recordset[0]?.isSuperAdmin === true || 
                            result.recordset[0]?.isSuperAdmin === 1;
-
       console.log('🔍 isSuperAdmin:', isSuperAdmin);
-
       if (isSuperAdmin) {
         console.log(`✅ Super Admin access granted for user ${req.session.userId}`);
         next();
@@ -329,14 +285,11 @@ const requireSuperAdmin = (req, res, next) => {
       }
     }
   };
-
   checkSuperAdmin();
 };
-
 // Assign default permissions to new SSO users
 async function assignDefaultPermissionsToSSOUser(userId) {
   if (!pool) return;
-
   try {
     // Check if user already has permissions
     const checkResult = await pool.request()
@@ -346,19 +299,15 @@ async function assignDefaultPermissionsToSSOUser(userId) {
         FROM vw_ims_user_permissions
         WHERE user_id = @userId
       `);
-
     const hasPermissions = checkResult.recordset[0]?.count > 0;
-
     if (!hasPermissions) {
       console.log('📋 Assigning default permissions to SSO user:', userId);
-
       // Get or create a default "GENERAL_USER" role if it doesn't exist
       const roleResult = await pool.request()
         .query(`
           SELECT TOP 1 id FROM ims_roles 
           WHERE role_name = 'GENERAL_USER' AND is_active = 1
         `);
-
       let roleId;
       if (roleResult.recordset.length > 0) {
         roleId = roleResult.recordset[0].id;
@@ -376,7 +325,6 @@ async function assignDefaultPermissionsToSSOUser(userId) {
         roleId = createRoleResult.recordset[0]?.id;
         console.log('✅ Created new General User role:', roleId);
       }
-
       if (roleId) {
         // Assign role to user in ims_user_roles table (not user_roles!)
         const assignResult = await pool.request()
@@ -399,7 +347,6 @@ async function assignDefaultPermissionsToSSOUser(userId) {
               SELECT 0 as assigned;
             END
           `);
-
         const wasAssigned = assignResult.recordset[0]?.assigned === 1;
         console.log(`✅ SSO user role assignment - User: ${userId}, Role: ${roleId}, Assigned: ${wasAssigned}`);
       }
@@ -412,19 +359,15 @@ async function assignDefaultPermissionsToSSOUser(userId) {
     // Continue even if assignment fails
   }
 }
-
 // Get user's IMS roles and permissions
 async function getUserImsData(userId) {
   if (!pool) return null;
-
   try {
     console.log(`\n🔍 ==== getUserImsData() DEBUG START for userId: ${userId} ====`);
-
     // Get roles
     const rolesResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query('SELECT * FROM dbo.fn_GetUserRoles(@userId)');
-
     console.log(`📋 Roles found: ${rolesResult.recordset.length}`);
     if (rolesResult.recordset.length > 0) {
       console.log('   Roles:', rolesResult.recordset.map(r => ({
@@ -434,7 +377,6 @@ async function getUserImsData(userId) {
         scope_type: r.scope_type
       })));
     }
-
     // Get permissions
     const permsResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
@@ -444,7 +386,6 @@ async function getUserImsData(userId) {
         WHERE user_id = @userId
         ORDER BY module_name, action_name
       `);
-
     console.log(`🔐 Permissions found: ${permsResult.recordset.length}`);
     if (permsResult.recordset.length > 0) {
       console.log('   Permissions:', permsResult.recordset.map(p => ({
@@ -454,7 +395,6 @@ async function getUserImsData(userId) {
       })));
     } else {
       console.log('   ⚠️ NO PERMISSIONS FOUND! Checking database...');
-      
       // Debug: Check if user has roles in ims_user_roles
       const roleCheckResult = await pool.request()
         .input('userId', sql.NVarChar(450), userId)
@@ -464,12 +404,10 @@ async function getUserImsData(userId) {
           LEFT JOIN ims_roles r ON ur.role_id = r.id
           WHERE ur.user_id = @userId
         `);
-      
       console.log(`   Checking ims_user_roles: ${roleCheckResult.recordset.length} records`);
       if (roleCheckResult.recordset.length > 0) {
         console.log('   ims_user_roles records:', roleCheckResult.recordset);
       }
-      
       // Debug: Check if role has permissions
       if (rolesResult.recordset.length > 0) {
         const roleId = rolesResult.recordset[0].role_id;
@@ -481,7 +419,6 @@ async function getUserImsData(userId) {
             LEFT JOIN ims_permissions p ON rp.permission_id = p.id
             WHERE rp.role_id = @roleId
           `);
-        
         console.log(`   Checking ims_role_permissions for role ${roleId}: ${permCheckResult.recordset.length} records`);
         if (permCheckResult.recordset.length > 0) {
           console.log('   Role permissions:', permCheckResult.recordset.map(p => ({
@@ -493,16 +430,13 @@ async function getUserImsData(userId) {
         }
       }
     }
-
     // Check if super admin
     const superAdminResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
-
     // SQL Server returns bit as boolean (true/false), not as 1/0
     const isSuperAdmin = superAdminResult.recordset[0]?.isSuperAdmin === true || 
                          superAdminResult.recordset[0]?.isSuperAdmin === 1;
-
     return {
       roles: rolesResult.recordset,
       permissions: permsResult.recordset,
@@ -513,26 +447,21 @@ async function getUserImsData(userId) {
     return null;
   }
 }
-
 // Authentication endpoints
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-
     console.log(`\n📥 LOGIN REQUEST RECEIVED`);
     console.log(`   Username: ${username}`);
     console.log(`   Password length: ${password ? password.length : 0} chars`);
-
     if (!username || !password) {
       console.log(`❌ Missing credentials - username: ${!!username}, password: ${!!password}`);
       return res.status(400).json({ error: 'Username and password are required' });
     }
-
     if (!pool) {
       console.log(`❌ Database pool unavailable`);
       return res.status(503).json({ error: 'Database connection unavailable' });
     }
-
     // Query AspNetUsers table
     const result = await pool.request()
       .input('username', sql.NVarChar, username)
@@ -543,21 +472,17 @@ app.post('/api/auth/login', async (req, res) => {
         FROM AspNetUsers 
         WHERE UserName = @username AND ISACT = 1
       `);
-
     if (result.recordset.length === 0) {
       console.log(`❌ User not found: ${username}`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-
     const user = result.recordset[0];
-
     // Check password - multiple fallback strategies
     let isPasswordValid = false;
     console.log(`\n🔐 Checking password for user: ${username} (ID: ${user.Id})`);
     console.log(`📋 User Password field exists: ${!!user.Password}, length: ${user.Password ? user.Password.length : 0}`);
     console.log(`📋 User PasswordHash field exists: ${!!user.PasswordHash}, length: ${user.PasswordHash ? user.PasswordHash.length : 0}`);
     console.log(`📋 Provided password length: ${password.length}`);
-    
     // Strategy 1: Check plain text Password field
     if (user.Password) {
       console.log(`   🔍 Strategy 1: Checking plain text Password field`);
@@ -569,7 +494,6 @@ app.post('/api/auth/login', async (req, res) => {
         isPasswordValid = true;
       }
     }
-    
     // Strategy 2: Check ASP.NET Identity hash in PasswordHash field
     if (!isPasswordValid && user.PasswordHash) {
       console.log(`   🔍 Strategy 2: Checking ASP.NET Identity hash in PasswordHash field`);
@@ -588,7 +512,6 @@ app.post('/api/auth/login', async (req, res) => {
         isPasswordValid = false;
       }
     }
-    
     // Strategy 3: Try bcrypt comparison as fallback
     if (!isPasswordValid && user.PasswordHash && user.PasswordHash.startsWith('$2')) {
       console.log(`   🔍 Strategy 3: Checking bcrypt hash in PasswordHash field`);
@@ -603,22 +526,18 @@ app.post('/api/auth/login', async (req, res) => {
         isPasswordValid = false;
       }
     }
-    
     // Strategy 4: Check if plain password is in PasswordHash field (stored as plain text)
     if (!isPasswordValid && user.PasswordHash && user.PasswordHash === password) {
       console.log(`   🔍 Strategy 4: Checking if plain text password in PasswordHash field`);
       console.log('✅ Password matched as plain text in PasswordHash field');
       isPasswordValid = true;
     }
-
     if (!isPasswordValid) {
       console.log(`\n❌ LOGIN FAILED - Invalid credentials for user: ${username}`);
       console.log(`   All strategies failed`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-
     console.log(`\n✅ PASSWORD VALIDATION SUCCESSFUL for user: ${username}`);
-
     // Store user in session
     req.session.userId = user.Id;
     req.session.user = {
@@ -632,7 +551,6 @@ app.post('/api/auth/login', async (req, res) => {
       intBranchID: user.intBranchID,
       intDesignationID: user.intDesignationID
     };
-
     // Get IMS roles and permissions
     const imsData = await getUserImsData(user.Id);
     if (imsData) {
@@ -640,7 +558,6 @@ app.post('/api/auth/login', async (req, res) => {
       req.session.user.ims_permissions = imsData.permissions;
       req.session.user.is_super_admin = imsData.is_super_admin;
     }
-
     // Update last login time
     await pool.request()
       .input('userId', sql.NVarChar, user.Id)
@@ -650,29 +567,24 @@ app.post('/api/auth/login', async (req, res) => {
         SET LastLoggedIn = @lastLogin 
         WHERE Id = @userId
       `);
-
     res.json({
       success: true,
       user: req.session.user,
       message: 'Login successful'
     });
-
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 // ============================================================================
 // SSO Login Endpoint - Receives JWT token from Digital System
 // ============================================================================
 app.get('/sso-login', async (req, res) => {
   try {
     const { token } = req.query;
-    
     console.log('🔐 SSO Login attempt received');
     console.log('📝 Token:', token ? 'Present' : 'Missing');
-
     if (!token) {
       console.error('❌ SSO Login failed: No token provided');
       return res.status(400).send(`
@@ -686,7 +598,6 @@ app.get('/sso-login', async (req, res) => {
         </html>
       `);
     }
-
     // Verify JWT token
     let decoded;
     try {
@@ -710,7 +621,6 @@ app.get('/sso-login', async (req, res) => {
         </html>
       `);
     }
-
     // Extract user information from JWT token
     const userId = decoded.sub; // User ID from token
     const userName = decoded.full_name;
@@ -721,7 +631,6 @@ app.get('/sso-login', async (req, res) => {
     const branchId = decoded.branch_id;
     const designationId = decoded.designation_id;
     const role = decoded.role || 'User';
-
     // Optional: Verify user exists in database and is active
     if (pool) {
       try {
@@ -732,7 +641,6 @@ app.get('/sso-login', async (req, res) => {
             FROM AspNetUsers 
             WHERE Id = @userId
           `);
-
         if (result.recordset.length === 0) {
           console.warn('⚠️ User not found in IMS database, proceeding with token data');
         } else {
@@ -757,23 +665,18 @@ app.get('/sso-login', async (req, res) => {
         // Continue with token data even if DB check fails
       }
     }
-
     // Create session
     req.session.userId = userId;
-    
     // Assign default permissions to new SSO users if they don't have any
     await assignDefaultPermissionsToSSOUser(userId);
-    
     // Fetch IMS roles and permissions for SSO user
     const imsData = await getUserImsData(userId);
-    
     console.log(`\n✅ SSO LOGIN COMPLETE - Session preparation:`);
     console.log(`   User ID: ${userId}`);
     console.log(`   User Name: ${userName}`);
     console.log(`   Roles from IMS: ${imsData?.roles?.length || 0}`);
     console.log(`   Permissions from IMS: ${imsData?.permissions?.length || 0}`);
     console.log(`   Is Super Admin: ${imsData?.is_super_admin}`);
-    
     req.session.user = {
       Id: userId,
       FullName: userName,
@@ -789,17 +692,14 @@ app.get('/sso-login', async (req, res) => {
       ims_permissions: imsData?.permissions || [],
       is_super_admin: imsData?.is_super_admin || false
     };
-
     console.log(`\n📊 Session created for SSO user:`);
     console.log(`   Storing in session.user.ims_roles: ${req.session.user.ims_roles.length}`);
     console.log(`   Storing in session.user.ims_permissions: ${req.session.user.ims_permissions.length}`);
     console.log('🔑 Session ID:', req.sessionID);
     console.log('📋 IMS Roles loaded:', imsData?.roles?.length || 0);
     console.log('🔐 IMS Permissions loaded:', imsData?.permissions?.length || 0);
-
     // Redirect to IMS application with success
     const imsUrl = 'http://172.20.150.34'; // IMS frontend URL
-    
     res.send(`
       <html>
         <head>
@@ -842,7 +742,6 @@ app.get('/sso-login', async (req, res) => {
             // Store session info in sessionStorage
             sessionStorage.setItem('sso_authenticated', 'true');
             sessionStorage.setItem('user_name', '${userName}');
-            
             // Redirect after a brief delay
             setTimeout(function() {
               window.location.href = '${imsUrl}';
@@ -859,7 +758,6 @@ app.get('/sso-login', async (req, res) => {
         </body>
       </html>
     `);
-
   } catch (error) {
     console.error('❌ SSO Login error:', error);
     res.status(500).send(`
@@ -875,7 +773,6 @@ app.get('/sso-login', async (req, res) => {
     `);
   }
 });
-
 app.post('/api/auth/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) {
@@ -884,14 +781,12 @@ app.post('/api/auth/logout', (req, res) => {
     res.json({ success: true, message: 'Logout successful' });
   });
 });
-
 app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({
     success: true,
     user: req.session.user
   });
 });
-
 // Session management endpoints
 app.get('/api/session', async (req, res) => {
   try {
@@ -904,22 +799,18 @@ app.get('/api/session', async (req, res) => {
         hasImsRoles: !!req.session.user?.ims_roles?.length,
         hasImsPerms: !!req.session.user?.ims_permissions?.length
       });
-      
       // User is properly logged in via session - GET IMS DATA!
       const imsData = await getUserImsData(req.session.userId);
-      
       console.log('🔐 IMS Data fetched from /api/session:', {
         rolesCount: imsData?.roles?.length || 0,
         permsCount: imsData?.permissions?.length || 0,
         isSuperAdmin: imsData?.is_super_admin,
         permissionKeys: imsData?.permissions?.map(p => p.permission_key) || []
       });
-      
       // Get the primary IMS role display name (first role if multiple)
       const primaryRole = imsData?.roles?.length > 0 
         ? (imsData.roles[0].display_name || imsData.roles[0].role_name || 'User')
         : 'User';
-      
       // Get designation name if available
       let designation = null;
       if (req.session.user?.intDesignationID) {
@@ -927,7 +818,6 @@ app.get('/api/session', async (req, res) => {
           const designationResult = await pool.request()
             .input('userId', sql.NVarChar(450), req.session.userId)
             .query('SELECT strDesignation FROM vw_User_with_designation WHERE Id = @userId');
-          
           if (designationResult.recordset && designationResult.recordset.length > 0) {
             designation = designationResult.recordset[0].strDesignation;
           }
@@ -935,7 +825,6 @@ app.get('/api/session', async (req, res) => {
           console.error('Error fetching designation:', error);
         }
       }
-      
       const sessionUser = {
         user_id: req.session.userId,
         user_name: req.session.user?.FullName || req.session.user?.UserName || 'Unknown User',
@@ -951,21 +840,18 @@ app.get('/api/session', async (req, res) => {
         ims_permissions: imsData?.permissions || [],
         is_super_admin: imsData?.is_super_admin || false
       };
-      
       console.log('✅ Session response prepared:', {
         userId: sessionUser.user_id,
         rolesCount: sessionUser.ims_roles?.length || 0,
         permsCount: sessionUser.ims_permissions?.length || 0,
         permissionKeys: sessionUser.ims_permissions?.map(p => p.permission_key) || []
       });
-      
       return res.json({
         success: true,
         session: sessionUser,
         session_id: req.sessionID
       });
     }
-    
     // No auto-login fallback - require proper authentication
     // Users must either:
     // 1. Come from DS with SSO token (handled by /api/sso-login)
@@ -973,7 +859,6 @@ app.get('/api/session', async (req, res) => {
   } catch (error) {
     console.error('❌ Error getting session user:', error);
   }
-  
   // No session found - return null to redirect to login
   console.log('⚠️  No active session - user needs to log in');
   res.json({
@@ -982,7 +867,6 @@ app.get('/api/session', async (req, res) => {
     message: 'No active session'
   });
 });
-
 app.get('/api/session/current-user', (req, res) => {
   // Return current user info
   res.json({
@@ -990,14 +874,12 @@ app.get('/api/session/current-user', (req, res) => {
     user: DEFAULT_SESSION
   });
 });
-
 // File upload endpoint
 app.post('/api/upload', upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-
     // Return the relative path that can be used to access the file
     const filePath = `tender-files/${req.file.filename}`;
     res.json({ 
@@ -1011,40 +893,31 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     res.status(500).json({ error: 'File upload failed' });
   }
 });
-
 // ============================================================================
 // IMS ROLE & PERMISSION API ENDPOINTS
 // ============================================================================
-
 // Check if user has a specific permission
 app.get('/api/ims/check-permission', requireAuth, async (req, res) => {
   try {
     const { permission } = req.query;
-
     if (!permission) {
       return res.status(400).json({ error: 'Permission key is required' });
     }
-
     console.log('🔐 Permission check for:', permission, 'userId:', req.session.userId);
     console.log('🔐 Session exists:', !!req.session);
-
     if (!pool) {
       console.log('🔐 No pool, returning true for dev mode');
       return res.json({ hasPermission: true }); // Allow in dev mode
     }
-
     const result = await pool.request()
       .input('userId', sql.NVarChar(450), req.session.userId)
       .input('permissionKey', sql.NVarChar(100), permission)
       .query('SELECT dbo.fn_HasPermission(@userId, @permissionKey) as hasPermission');
-
     const rawValue = result.recordset[0]?.hasPermission;
     console.log('🔐 SQL result:', rawValue, 'type:', typeof rawValue);
     console.log('🔐 Comparison:', rawValue === 1, rawValue === true);
-
     const hasPermission = rawValue === 1 || rawValue === true;
     console.log('🔐 Final result:', hasPermission);
-
     res.json({ 
       hasPermission: hasPermission,
       permission: permission,
@@ -1061,16 +934,13 @@ app.get('/api/ims/check-permission', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Permission check failed' });
   }
 });
-
 // Get current user's IMS roles
 app.get('/api/ims/my-roles', requireAuth, async (req, res) => {
   try {
     if (!pool) {
       return res.json({ roles: [], permissions: [], is_super_admin: false });
     }
-
     const imsData = await getUserImsData(req.session.userId);
-    
     res.json({
       roles: imsData?.roles || [],
       permissions: imsData?.permissions || [],
@@ -1081,7 +951,6 @@ app.get('/api/ims/my-roles', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to retrieve roles' });
   }
 });
-
 // Get all available IMS roles (requires auth)
 app.get('/api/ims/roles', requireAuth, async (req, res) => {
   try {
@@ -1090,7 +959,6 @@ app.get('/api/ims/roles', requireAuth, async (req, res) => {
       console.log('⚠️  No database pool');
       return res.json([]);
     }
-
     const result = await pool.request().query(`
       SELECT 
         id as role_id,
@@ -1112,7 +980,6 @@ app.get('/api/ims/roles', requireAuth, async (req, res) => {
         END,
         display_name
     `);
-
     console.log(`✅ Found ${result.recordset.length} roles`);
     res.json(result.recordset);
   } catch (error) {
@@ -1120,38 +987,30 @@ app.get('/api/ims/roles', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to retrieve roles' });
   }
 });
-
 // Create new custom role (requires roles.manage permission)
 app.post('/api/ims/roles', requireAuth, requirePermission('roles.manage'), async (req, res) => {
   try {
     const { display_name, description, permission_keys } = req.body;
-
     if (!display_name || !display_name.trim()) {
       return res.status(400).json({ error: 'Role name is required' });
     }
-
     if (!pool) {
       return res.status(503).json({ error: 'Database not available' });
     }
-
     // Generate role name from display name (uppercase, spaces to underscores)
     const role_name = 'CUSTOM_' + display_name.toUpperCase().replace(/\s+/g, '_');
-
     // Start transaction
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Check if role name already exists
       const existing = await transaction.request()
         .input('roleName', sql.NVarChar(100), role_name)
         .query('SELECT id FROM dbo.ims_roles WHERE role_name = @roleName');
-
       if (existing.recordset.length > 0) {
         await transaction.rollback();
         return res.status(400).json({ error: 'A role with this name already exists' });
       }
-
       // Insert new role - generate GUID using NEWID() in SQL
       const insertResult = await transaction.request()
         .input('roleName', sql.NVarChar(100), role_name)
@@ -1163,13 +1022,11 @@ app.post('/api/ims/roles', requireAuth, requirePermission('roles.manage'), async
           VALUES (NEWID(), @roleName, @displayName, @description, @isSystemRole, GETDATE());
           SELECT id FROM dbo.ims_roles WHERE role_name = @roleName
         `);
-
       const roleId = insertResult.recordset[0]?.id;
       if (!roleId) {
         await transaction.rollback();
         return res.status(500).json({ error: 'Failed to retrieve created role ID' });
       }
-
       // Add permissions if provided
       if (permission_keys && Array.isArray(permission_keys) && permission_keys.length > 0) {
         for (const permKey of permission_keys) {
@@ -1184,9 +1041,7 @@ app.post('/api/ims/roles', requireAuth, requirePermission('roles.manage'), async
             `);
         }
       }
-
       await transaction.commit();
-      
       res.json({
         success: true,
         message: 'Role created successfully',
@@ -1203,16 +1058,13 @@ app.post('/api/ims/roles', requireAuth, requirePermission('roles.manage'), async
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create role' });
   }
 });
-
 // Get role details with permissions (requires auth)
 app.get('/api/ims/roles/:roleId', requireAuth, async (req, res) => {
   try {
     const { roleId } = req.params;
-
     if (!pool) {
       return res.json(null);
     }
-
     // Get role details
     const roleResult = await pool.request()
       .input('roleId', sql.UniqueIdentifier, roleId)
@@ -1228,11 +1080,9 @@ app.get('/api/ims/roles/:roleId', requireAuth, async (req, res) => {
         FROM ims_roles
         WHERE id = @roleId
       `);
-
     if (roleResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Role not found' });
     }
-
     // Get role permissions
     const permsResult = await pool.request()
       .input('roleId', sql.UniqueIdentifier, roleId)
@@ -1248,7 +1098,6 @@ app.get('/api/ims/roles/:roleId', requireAuth, async (req, res) => {
         WHERE rp.role_id = @roleId
         ORDER BY p.module_name, p.action_name
       `);
-
     // Get users with this role
     const usersResult = await pool.request()
       .input('roleId', sql.UniqueIdentifier, roleId)
@@ -1268,7 +1117,6 @@ app.get('/api/ims/roles/:roleId', requireAuth, async (req, res) => {
         WHERE ur.role_id = @roleId AND ur.is_active = 1
         ORDER BY u.FullName
       `);
-
     res.json({
       ...roleResult.recordset[0],
       permissions: permsResult.recordset,
@@ -1279,40 +1127,32 @@ app.get('/api/ims/roles/:roleId', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to retrieve role details' });
   }
 });
-
 // Update role permissions (requires roles.manage permission)
 app.put('/api/ims/roles/:roleId/permissions', requireAuth, requirePermission('roles.manage'), async (req, res) => {
   try {
     const { roleId } = req.params;
     const { permission_keys } = req.body;
-
     if (!pool) {
       return res.status(503).json({ error: 'Database not available' });
     }
-
     if (!permission_keys || !Array.isArray(permission_keys)) {
       return res.status(400).json({ error: 'permission_keys array is required' });
     }
-
     // Check if role is IMS_SUPER_ADMIN (protected)
     const roleCheck = await pool.request()
       .input('roleId', sql.UniqueIdentifier, roleId)
       .query('SELECT role_name FROM ims_roles WHERE id = @roleId');
-    
     if (roleCheck.recordset[0]?.role_name === 'IMS_SUPER_ADMIN') {
       return res.status(403).json({ error: 'Cannot modify IMS_SUPER_ADMIN role permissions' });
     }
-
     // Start transaction
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Delete existing permissions
       await transaction.request()
         .input('roleId', sql.UniqueIdentifier, roleId)
         .query('DELETE FROM ims_role_permissions WHERE role_id = @roleId');
-
       // Insert new permissions
       for (const permKey of permission_keys) {
         await transaction.request()
@@ -1325,7 +1165,6 @@ app.put('/api/ims/roles/:roleId/permissions', requireAuth, requirePermission('ro
             WHERE permission_key = @permKey
           `);
       }
-
       await transaction.commit();
       res.json({ success: true, message: 'Permissions updated successfully' });
     } catch (error) {
@@ -1337,14 +1176,12 @@ app.put('/api/ims/roles/:roleId/permissions', requireAuth, requirePermission('ro
     res.status(500).json({ error: 'Failed to update permissions' });
   }
 });
-
 // Get all available permissions (Super Admin only)
 app.get('/api/ims/permissions', requireAuth, async (req, res) => {
   try {
     if (!pool) {
       return res.json([]);
     }
-
     const result = await pool.request().query(`
       SELECT 
         id as permission_id,
@@ -1356,27 +1193,22 @@ app.get('/api/ims/permissions', requireAuth, async (req, res) => {
       FROM ims_permissions
       ORDER BY module_name, action_name
     `);
-
     res.json(result.recordset);
   } catch (error) {
     console.error('Error getting permissions:', error);
     res.status(500).json({ error: 'Failed to retrieve permissions' });
   }
 });
-
 // Get users with their IMS roles
 app.get('/api/ims/users', requireAuth, async (req, res) => {
   try {
     const { search, office_id, wing_id, role_name } = req.query;
     const userId = req.session.userId;
-
     console.log('🔍 BACKEND DEBUG: /api/ims/users called with params:', { search, office_id, wing_id, role_name });
-
     if (!pool) {
       console.log('❌ BACKEND DEBUG: No pool available');
       return res.json([]);
     }
-
     let query = `
       SELECT DISTINCT
         u.Id as user_id,
@@ -1396,24 +1228,19 @@ app.get('/api/ims/users', requireAuth, async (req, res) => {
       LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
       WHERE u.ISACT = 1
     `;
-
     const request = pool.request();
-
     if (search) {
       query += ` AND (u.FullName LIKE @search OR u.Email LIKE @search OR u.CNIC LIKE @search)`;
       request.input('search', sql.NVarChar, `%${search}%`);
     }
-
     if (wing_id) {
       query += ` AND u.intWingID = @wingId AND u.intWingID > 0`;
       request.input('wingId', sql.Int, parseInt(wing_id));
     }
-    
     // Always exclude users with unassigned wings (intWingID = 0)
     if (!wing_id) {
       query += ` AND (u.intWingID > 0 OR u.intWingID IS NULL)`;
     }
-
     if (role_name) {
       query += ` AND EXISTS (
         SELECT 1 FROM ims_user_roles ur
@@ -1422,15 +1249,10 @@ app.get('/api/ims/users', requireAuth, async (req, res) => {
       )`;
       request.input('roleName', sql.NVarChar, role_name);
     }
-
     query += ` ORDER BY u.FullName`;
-
     console.log('🔍 BACKEND DEBUG: Final SQL Query:', query);
-    
     const result = await request.query(query);
-
     console.log('✅ BACKEND DEBUG: Query returned', result.recordset.length, 'users');
-
     // Fetch roles separately for each user (SQL Server 2012 compatible)
     const users = await Promise.all(result.recordset.map(async (user) => {
       const rolesResult = await pool.request()
@@ -1446,26 +1268,22 @@ app.get('/api/ims/users', requireAuth, async (req, res) => {
           INNER JOIN ims_roles r ON ur.role_id = r.id
           WHERE ur.user_id = @userId AND ur.is_active = 1
         `);
-      
       return {
         ...user,
         roles: rolesResult.recordset
       };
     }));
-
     res.json(users);
   } catch (error) {
     console.error('Error getting users:', error);
     res.status(500).json({ error: 'Failed to retrieve users' });
   }
 });
-
 // Assign role to user (Super Admin or IMS Admin)
 app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.manage'), async (req, res) => {
   try {
     const { userId } = req.params;
     const { role_id, scope_type, scope_wing_id, notes } = req.body;
-
     console.log('📝 Role assignment request:', {
       userId,
       role_id,
@@ -1474,33 +1292,26 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
       assigned_by: req.session.userId,
       session: req.session
     });
-
     if (!role_id) {
       return res.status(400).json({ error: 'Role ID is required' });
     }
-
     if (!pool) {
       return res.status(500).json({ error: 'Database not connected' });
     }
-
     // Check if user exists
     const userCheck = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query('SELECT Id FROM AspNetUsers WHERE Id = @userId AND ISACT = 1');
-
     if (userCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-
     // Check if role exists
     const roleCheck = await pool.request()
       .input('roleId', sql.UniqueIdentifier, role_id)
       .query('SELECT id, role_name FROM ims_roles WHERE id = @roleId');
-
     if (roleCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Role not found' });
     }
-
     // Check if user already has this role with same scope
     const existingCheck = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
@@ -1514,11 +1325,9 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
         AND scope_type = @scopeType
         AND (scope_wing_id = @scopeWingId OR (scope_wing_id IS NULL AND @scopeWingId IS NULL))
       `);
-
     if (existingCheck.recordset.length > 0) {
       return res.status(400).json({ error: 'User already has this role with the same scope' });
     }
-
     // Assign role
     await pool.request()
       .input('userId', sql.NVarChar(450), userId)
@@ -1531,7 +1340,6 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
         INSERT INTO ims_user_roles (user_id, role_id, scope_type, scope_wing_id, assigned_by, notes)
         VALUES (@userId, @roleId, @scopeType, @scopeWingId, @assignedBy, @notes)
       `);
-
     // Log to audit
     await pool.request()
       .input('userId', sql.NVarChar(450), userId)
@@ -1543,7 +1351,6 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
         INSERT INTO ims_role_audit_log (user_id, role_id, action, performed_by, notes)
         VALUES (@userId, @roleId, @action, @performedBy, @notes)
       `);
-
     res.json({ 
       success: true,
       message: 'Role assigned successfully'
@@ -1563,17 +1370,14 @@ app.post('/api/ims/users/:userId/roles', requireAuth, requirePermission('users.m
     });
   }
 });
-
 // Revoke role from user (Super Admin or IMS Admin)
 app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermission('users.manage'), async (req, res) => {
   try {
     const { userId, userRoleId } = req.params;
     const { reason } = req.body || {}; // Handle undefined body for DELETE requests
-
     if (!pool) {
       return res.status(500).json({ error: 'Database not connected' });
     }
-
     // Get role details before deletion
     const roleDetails = await pool.request()
       .input('userRoleId', sql.UniqueIdentifier, userRoleId)
@@ -1583,18 +1387,14 @@ app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermi
         FROM ims_user_roles
         WHERE id = @userRoleId AND user_id = @userId
       `);
-
     if (roleDetails.recordset.length === 0) {
       return res.status(404).json({ error: 'Role assignment not found' });
     }
-
     const roleId = roleDetails.recordset[0].role_id;
-
     // Delete role assignment
     await pool.request()
       .input('userRoleId', sql.UniqueIdentifier, userRoleId)
       .query('DELETE FROM ims_user_roles WHERE id = @userRoleId');
-
     // Log to audit
     await pool.request()
       .input('userId', sql.NVarChar(450), userId)
@@ -1606,7 +1406,6 @@ app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermi
         INSERT INTO ims_role_audit_log (user_id, role_id, action, performed_by, notes)
         VALUES (@userId, @roleId, @action, @performedBy, @notes)
       `);
-
     res.json({ 
       success: true,
       message: 'Role revoked successfully'
@@ -1616,16 +1415,13 @@ app.delete('/api/ims/users/:userId/roles/:userRoleId', requireAuth, requirePermi
     res.status(500).json({ error: 'Failed to revoke role' });
   }
 });
-
 // Get role audit log (Super Admin only)
 app.get('/api/ims/audit-log', requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const { user_id, role_id, limit } = req.query;
-
     if (!pool) {
       return res.json([]);
     }
-
     let query = `
       SELECT TOP ${limit || 100}
         al.log_id,
@@ -1645,21 +1441,16 @@ app.get('/api/ims/audit-log', requireAuth, requireSuperAdmin, async (req, res) =
       LEFT JOIN AspNetUsers pb ON al.performed_by = pb.Id
       WHERE 1=1
     `;
-
     const request = pool.request();
-
     if (user_id) {
       query += ` AND al.user_id = @userId`;
       request.input('userId', sql.NVarChar(450), user_id);
     }
-
     if (role_id) {
       query += ` AND al.role_id = @roleId`;
       request.input('roleId', sql.UniqueIdentifier, role_id);
     }
-
     query += ` ORDER BY al.performed_at DESC`;
-
     const result = await request.query(query);
     res.json(result.recordset);
   } catch (error) {
@@ -1667,11 +1458,9 @@ app.get('/api/ims/audit-log', requireAuth, requireSuperAdmin, async (req, res) =
     res.status(500).json({ error: 'Failed to retrieve audit log' });
   }
 });
-
 // ============================================================================
 // END IMS ROLE & PERMISSION API ENDPOINTS
 // ============================================================================
-
 // Get all active offices
 app.get('/api/offices', async (req, res) => {
   try {
@@ -1684,7 +1473,6 @@ app.get('/api/offices', async (req, res) => {
       ];
       return res.json(mockOffices);
     }
-
     const result = await pool.request().query(`
       SELECT 
         intOfficeID,
@@ -1729,7 +1517,6 @@ app.get('/api/offices', async (req, res) => {
     res.json(mockOffices);
   }
 });
-
 // Get all offices for filter dropdown
 app.get('/api/offices', async (req, res) => {
   try {
@@ -1744,7 +1531,6 @@ app.get('/api/offices', async (req, res) => {
       ];
       return res.json(mockOffices);
     }
-
     const result = await pool.request().query(`
       SELECT 
         intOfficeID,
@@ -1766,12 +1552,10 @@ app.get('/api/offices', async (req, res) => {
     res.json(mockOffices);
   }
 });
-
 // Get all active wings
 app.get('/api/wings', async (req, res) => {
   try {
     const { office_id } = req.query;
-    
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockWings = [
@@ -1781,7 +1565,6 @@ app.get('/api/wings', async (req, res) => {
       ];
       return res.json(mockWings);
     }
-
     let query = `
       SELECT 
         Id,
@@ -1802,14 +1585,11 @@ app.get('/api/wings', async (req, res) => {
         UpdatedAt
       FROM WingsInformation 
       WHERE IS_ACT = 1`;
-    
     // If office_id is provided, filter by that office
     if (office_id) {
       query += ` AND OfficeID = ${parseInt(office_id)}`;
     }
-    
     query += ` ORDER BY Name`;
-    
     const result = await pool.request().query(query);
     res.json(result.recordset);
   } catch (error) {
@@ -1823,7 +1603,6 @@ app.get('/api/wings', async (req, res) => {
     res.json(mockWings);
   }
 });
-
 // Get all active DECs
 app.get('/api/decs', async (req, res) => {
   try {
@@ -1836,7 +1615,6 @@ app.get('/api/decs', async (req, res) => {
       ];
       return res.json(mockDecs);
     }
-
     const result = await pool.request().query(`
       SELECT DISTINCT
         DECID as intAutoID,
@@ -1860,7 +1638,6 @@ app.get('/api/decs', async (req, res) => {
     res.json(mockDecs);
   }
 });
-
 // Get office names by IDs
 app.get('/api/offices/names', async (req, res) => {
   try {
@@ -1868,31 +1645,26 @@ app.get('/api/offices/names', async (req, res) => {
     if (!ids) {
       return res.json({ names: [] });
     }
-
     const idList = ids.split(',').map(id => id.trim()).filter(id => id);
     if (idList.length === 0) {
       return res.json({ names: [] });
     }
-
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockNames = idList.map((id, index) => `Office ${id}`);
       return res.json({ names: mockNames });
     }
-
     const placeholders = idList.map((_, index) => `@id${index}`).join(',');
     const request = pool.request();
     idList.forEach((id, index) => {
       request.input(`id${index}`, sql.Int, parseInt(id));
     });
-
     const result = await request.query(`
       SELECT strOfficeName 
       FROM Office_MST 
       WHERE intOfficeID IN (${placeholders}) AND IS_ACT = 1
       ORDER BY strOfficeName
     `);
-
     const names = result.recordset.map(row => row.strOfficeName);
     res.json({ names });
   } catch (error) {
@@ -1900,7 +1672,6 @@ app.get('/api/offices/names', async (req, res) => {
     res.json({ names: [] });
   }
 });
-
 // Get wing names by IDs
 app.get('/api/wings/names', async (req, res) => {
   try {
@@ -1908,31 +1679,26 @@ app.get('/api/wings/names', async (req, res) => {
     if (!ids) {
       return res.json({ names: [] });
     }
-
     const idList = ids.split(',').map(id => id.trim()).filter(id => id);
     if (idList.length === 0) {
       return res.json({ names: [] });
     }
-
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockNames = idList.map((id, index) => `Wing ${id}`);
       return res.json({ names: mockNames });
     }
-
     const placeholders = idList.map((_, index) => `@id${index}`).join(',');
     const request = pool.request();
     idList.forEach((id, index) => {
       request.input(`id${index}`, sql.Int, parseInt(id));
     });
-
     const result = await request.query(`
       SELECT WingName 
       FROM Wing_MST 
       WHERE intAutoID IN (${placeholders}) AND IS_ACT = 'true'
       ORDER BY WingName
     `);
-
     const names = result.recordset.map(row => row.WingName);
     res.json({ names });
   } catch (error) {
@@ -1940,7 +1706,6 @@ app.get('/api/wings/names', async (req, res) => {
     res.json({ names: [] });
   }
 });
-
 // Get DEC names by IDs
 app.get('/api/decs/names', async (req, res) => {
   try {
@@ -1948,31 +1713,26 @@ app.get('/api/decs/names', async (req, res) => {
     if (!ids) {
       return res.json({ names: [] });
     }
-
     const idList = ids.split(',').map(id => id.trim()).filter(id => id);
     if (idList.length === 0) {
       return res.json({ names: [] });
     }
-
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockNames = idList.map((id, index) => `DEC ${id}`);
       return res.json({ names: mockNames });
     }
-
     const placeholders = idList.map((_, index) => `@id${index}`).join(',');
     const request = pool.request();
     idList.forEach((id, index) => {
       request.input(`id${index}`, sql.Int, parseInt(id));
     });
-
     const result = await request.query(`
       SELECT DECName 
       FROM DEC_MST 
       WHERE intAutoID IN (${placeholders}) AND IS_ACT = 'true'
       ORDER BY DECName
     `);
-
     const names = result.recordset.map(row => row.DECName);
     res.json({ names });
   } catch (error) {
@@ -1980,7 +1740,6 @@ app.get('/api/decs/names', async (req, res) => {
     res.json({ names: [] });
   }
 });
-
 // Get all active users from AspNetUsers
 app.get('/api/users', async (req, res) => {
   try {
@@ -1993,7 +1752,6 @@ app.get('/api/users', async (req, res) => {
       ];
       return res.json(mockUsers);
     }
-
     const result = await pool.request().query(`
       SELECT 
         Id,
@@ -2029,7 +1787,6 @@ app.get('/api/users', async (req, res) => {
     res.json(mockUsers);
   }
 });
-
 // Get users for approval forwarding (formatted for dropdown)
 app.get('/api/users/approvers', async (req, res) => {
   try {
@@ -2063,7 +1820,6 @@ app.get('/api/users/approvers', async (req, res) => {
       ];
       return res.json(mockUsers);
     }
-
     const result = await pool.request().query(`
       SELECT 
         u.Id,
@@ -2085,7 +1841,6 @@ app.get('/api/users/approvers', async (req, res) => {
       WHERE u.ISACT = 1
       ORDER BY u.FullName
     `);
-
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching approvers:', error);
@@ -2111,12 +1866,10 @@ app.get('/api/users/approvers', async (req, res) => {
     res.json(mockUsers);
   }
 });
-
 // Get single user details
 app.get('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     if (!pool) {
       // Return mock data
       const mockUser = {
@@ -2129,7 +1882,6 @@ app.get('/api/users/:id', async (req, res) => {
       };
       return res.json(mockUser);
     }
-
     const result = await pool.request()
       .input('userId', sql.NVarChar, id)
       .query(`
@@ -2158,18 +1910,15 @@ app.get('/api/users/:id', async (req, res) => {
         LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
         WHERE u.Id = @userId AND u.ISACT = 1
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-
     res.json(result.recordset[0]);
   } catch (error) {
     console.error('Error fetching user:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 // Get wings by office
 app.get('/api/offices/:officeId/wings', async (req, res) => {
   try {
@@ -2203,7 +1952,6 @@ app.get('/api/offices/:officeId/wings', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch wings by office', details: error.message });
   }
 });
-
 // Get DECs by wing
 app.get('/api/wings/:wingId/decs', async (req, res) => {
   try {
@@ -2237,7 +1985,6 @@ app.get('/api/wings/:wingId/decs', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch DECs by wing', details: error.message });
   }
 });
-
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
@@ -2251,14 +1998,12 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({ status: 'unhealthy', database: 'error', error: error.message });
   }
 });
-
 // Check if inventoryuser exists
 app.get('/api/check-user', async (req, res) => {
   try {
     if (!pool) {
       return res.status(503).json({ error: 'Database not connected' });
     }
-
     // Check if inventoryuser exists
     const userCheck = await pool.request().query(`
       SELECT 
@@ -2270,7 +2015,6 @@ app.get('/api/check-user', async (req, res) => {
       FROM sys.server_principals 
       WHERE name = 'inventoryuser'
     `);
-
     // Check database users
     const dbUserCheck = await pool.request().query(`
       SELECT 
@@ -2281,33 +2025,27 @@ app.get('/api/check-user', async (req, res) => {
       FROM sys.database_principals 
       WHERE name = 'inventoryuser'
     `);
-
     // Check current user
     const currentUser = await pool.request().query('SELECT SYSTEM_USER as current_user, USER_NAME() as database_user');
-
     res.json({
       serverLogin: userCheck.recordset,
       databaseUser: dbUserCheck.recordset,
       currentConnection: currentUser.recordset[0],
       timestamp: new Date().toISOString()
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to check user', details: error.message });
   }
 });
-
 // =============================================================================
 // STOCK ISSUANCE API ENDPOINTS (REBUILT FROM SCRATCH)
 // =============================================================================
-
 // Submit stock issuance request
 app.post('/api/stock-issuance/requests', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const {
       request_number,
       request_type,
@@ -2351,15 +2089,12 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
           GETDATE(), GETDATE(), GETDATE()
         )
       `);
-
     // Automatically submit for approval
     const requestId = requestResult.recordset[0].id;
     const workflowId = 'D806EC95-FB78-4187-8FC2-87B897C124A4'; // Stock Issuance Approval workflow
     const userId = req.session?.userId || requester_user_id; // Use session user or requester
-
     try {
       let firstApproverId = null;
-      
       // For Individual requests: Use hierarchy-based supervisor lookup
       // For Organizational requests: Use Wing HOD lookup
       if (request_type === 'Individual' && requester_user_id) {
@@ -2378,9 +2113,7 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
             INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_view ON hierarchy.BossID = boss_view.EmployeeID
             WHERE emp_view.Id = @user_id
           `);
-
         console.log('🔍 Supervisor lookup result:', supervisorResult.recordset);
-        
         if (supervisorResult.recordset.length > 0 && supervisorResult.recordset[0].BossAspNetUsersId) {
           // Found supervisor in hierarchy
           firstApproverId = supervisorResult.recordset[0].BossAspNetUsersId;
@@ -2403,9 +2136,7 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
             LEFT JOIN AspNetUsers u ON u.FullName = w.HODName
             WHERE w.Id = @wing_id
           `);
-
         console.log('🔍 Wing HOD lookup result:', wingResult.recordset);
-        
         if (wingResult.recordset.length > 0 && wingResult.recordset[0].HODUserId) {
           // Found Wing HOD
           firstApproverId = wingResult.recordset[0].HODUserId;
@@ -2416,7 +2147,6 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
       } else {
         console.log('🏢 Request type:', request_type, '- Using workflow approvers or hierarchy');
       }
-      
       // If no approver found yet (Organizer/Department OR Individual without supervisor), use workflow_approvers
       if (!firstApproverId) {
         const workflowResult = await pool.request()
@@ -2427,13 +2157,11 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
             WHERE workflow_id = @workflow_id AND can_approve = 1
             ORDER BY added_date
           `);
-        
         if (workflowResult.recordset.length > 0) {
           firstApproverId = workflowResult.recordset[0].user_id;
           console.log('👤 Auto-assigning to workflow approver:', firstApproverId);
         }
       }
-
       if (firstApproverId) {
         // Create approval record
         const approvalResult = await pool.request()
@@ -2448,12 +2176,9 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
             OUTPUT INSERTED.id
             VALUES (@request_id, @request_type, @workflow_id, @current_approver_id, @current_status, @submitted_by)
           `);
-
         const approvalId = approvalResult.recordset[0].id;
         console.log('✅ Approval record created with ID:', approvalId, 'for stock issuance request:', requestId);
-
         // Note: approval_items will be populated when items are submitted via /api/stock-issuance/items
-        
         // Create notification for the assigned approver
         try {
           await createNotification(
@@ -2474,28 +2199,23 @@ app.post('/api/stock-issuance/requests', async (req, res) => {
       console.error('❌ Failed to create approval record:', approvalError);
       // Don't fail the entire request, just log the error
     }
-
     res.json({
       success: true,
       data: requestResult.recordset[0]
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create request', details: error.message });
   }
 });
-
 // Submit stock issuance items
 app.post('/api/stock-issuance/items', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { request_id, items } = req.body;
     console.log('📝 Submitting items for request:', request_id);
     console.log('📝 Number of items:', items.length);
-    
     // Insert multiple items
     const itemInserts = items.map(item => {
       return pool.request()
@@ -2516,15 +2236,12 @@ app.post('/api/stock-issuance/items', async (req, res) => {
           )
         `);
     });
-
     console.log('📝 Inserting', itemInserts.length, 'items into stock_issuance_items');
     await Promise.all(itemInserts);
     console.log('✅ Items inserted successfully');
-
     // Populate approval_items table for existing approval records
     try {
       console.log('📝 Looking for approval record for request:', request_id);
-      
       // Check if there's an existing approval record for this request
       const approvalCheck = await pool.request()
         .input('requestId', sql.UniqueIdentifier, request_id)
@@ -2532,13 +2249,10 @@ app.post('/api/stock-issuance/items', async (req, res) => {
           SELECT id FROM request_approvals 
           WHERE request_id = @requestId AND request_type = 'stock_issuance'
         `);
-
       console.log('📝 Approval records found:', approvalCheck.recordset.length);
-
       if (approvalCheck.recordset.length > 0) {
         const approvalId = approvalCheck.recordset[0].id;
         console.log('📋 Found existing approval record:', approvalId, 'for request:', request_id);
-
         // Get the newly inserted items
         const itemsResult = await pool.request()
           .input('requestId', sql.UniqueIdentifier, request_id)
@@ -2547,9 +2261,7 @@ app.post('/api/stock-issuance/items', async (req, res) => {
             FROM stock_issuance_items
             WHERE request_id = @requestId
           `);
-
         console.log('📝 Items found in stock_issuance_items:', itemsResult.recordset.length);
-
         if (itemsResult.recordset.length > 0) {
           // Insert into approval_items with decision_type = 'PENDING'
           const approvalItemInserts = itemsResult.recordset.map(item => {
@@ -2572,7 +2284,6 @@ app.post('/api/stock-issuance/items', async (req, res) => {
                 )
               `);
           });
-
           await Promise.all(approvalItemInserts);
           console.log('✅ Populated approval_items table with', itemsResult.recordset.length, 'items for approval ID:', approvalId);
         }
@@ -2583,28 +2294,23 @@ app.post('/api/stock-issuance/items', async (req, res) => {
       console.error('❌ Failed to populate approval_items:', approvalError.message);
       // Don't fail the entire request, just log the error
     }
-
     res.json({ 
       success: true, 
       items_count: items.length,
       message: `Successfully created ${items.length} items`
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create items', details: error.message });
   }
 });
-
 // Get stock issuance requests with proper JOINs
 app.get('/api/stock-issuance/requests', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { status } = req.query;
     let whereClause = '';
-    
     if (status) {
       whereClause = `WHERE sir.request_status = '${status}'`;
     }
@@ -2646,7 +2352,6 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
       ${whereClause}
       ORDER BY sir.created_at DESC
     `;
-
     const result = await pool.request().query(requestsQuery);
     // Get items for each request
     const requestsWithItems = await Promise.all(
@@ -2670,7 +2375,6 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
               WHERE sii.request_id = @request_id
               ORDER BY sii.created_at
             `);
-          
           return {
             // Request data
             id: request.id,
@@ -2685,7 +2389,6 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
             submitted_at: request.submitted_at,
             created_at: request.created_at,
             updated_at: request.updated_at,
-            
             // Requester information
             requester: {
               user_id: request.requester_user_id,
@@ -2694,14 +2397,12 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
               email: request.requester_email,
               username: request.requester_username
             },
-            
             // Office information
             office: {
               office_id: request.requester_office_id,
               name: request.office_name,
               office_code: request.office_code
             },
-            
             // Wing information
             wing: {
               wing_id: request.requester_wing_id,
@@ -2709,13 +2410,11 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
               short_name: request.wing_short_name,
               wing_code: request.wing_code
             },
-            
             // Branch/DEC information (derived from wing)
             branch: {
               branch_id: request.requester_branch_id,
               dec_name: request.wing_name
             },
-            
             // Items
             items: itemsResult.recordset || []
           };
@@ -2749,7 +2448,6 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
         }
       })
     );
-
     // Calculate dashboard counts
     const totalCount = requestsWithItems.length;
     const pendingCount = requestsWithItems.filter(r => 
@@ -2763,7 +2461,6 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
     ).length;
     if (requestsWithItems.length > 0) {
     }
-    
     res.json({
       success: true,
       data: requestsWithItems,
@@ -2779,7 +2476,6 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
         pageSize: requestsWithItems.length
       }
     });
-
   } catch (error) {
     res.status(500).json({ 
       success: false,
@@ -2788,14 +2484,12 @@ app.get('/api/stock-issuance/requests', async (req, res) => {
     });
   }
 });
-
 // Get issued items for stock returns (returnable items with status 'Issued')
 app.get('/api/stock-issuance/issued-items', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const result = await pool.request().query(`
       SELECT 
         sii.id,
@@ -2818,12 +2512,10 @@ app.get('/api/stock-issuance/issued-items', async (req, res) => {
       success: true,
       data: result.recordset
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch issued items', details: error.message });
   }
 });
-
 // Get single stock issuance request by ID
 app.get('/api/stock-issuance/requests/:id', async (req, res) => {
   try {
@@ -2832,9 +2524,7 @@ app.get('/api/stock-issuance/requests/:id', async (req, res) => {
     console.log('📋 [UPDATED] Fetching stock issuance request:', id);
     console.log('📋 [UPDATED] Query params:', JSON.stringify(req.query));
     console.log('📋 [UPDATED] returned_approval_id:', returned_approval_id, 'type:', typeof returned_approval_id, 'length:', returned_approval_id?.length);
-
     const request = pool.request().input('id', sql.NVarChar, id);
-
     const result = await request.query(`
       SELECT 
         sir.*,
@@ -2846,15 +2536,11 @@ app.get('/api/stock-issuance/requests/:id', async (req, res) => {
       LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
       WHERE sir.id = @id
     `);
-
     console.log('📋 [UPDATED] Query executed successfully, found', result.recordset.length, 'records');
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
-
     const requestData = result.recordset[0];
-
     // Get items for this request
     let itemsQuery;
     if (returned_approval_id) {
@@ -2891,33 +2577,26 @@ app.get('/api/stock-issuance/requests/:id', async (req, res) => {
         ORDER BY sii.created_at
       `;
     }
-
     const itemsResult = await pool.request()
       .input('request_id', sql.NVarChar, id)
       .input('returned_approval_id', sql.NVarChar, returned_approval_id || '')
       .query(itemsQuery);
-
     const requestWithItems = {
       ...requestData,
       items: itemsResult.recordset
     };
-
     res.json({ success: true, data: requestWithItems });
-
   } catch (error) {
     console.error('❌ Error fetching stock issuance request:', error);
     res.status(500).json({ error: 'Failed to fetch request', details: error.message });
   }
 });
-
 // Update stock issuance request (for returned requests that need editing)
 app.put('/api/stock-issuance/requests/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { purpose, urgency_level, justification, expected_return_date, is_returnable, items } = req.body;
-
     console.log('📝 Updating stock issuance request:', id);
-
     // Update the main request
     const updateRequest = pool.request()
       .input('id', sql.NVarChar, id)
@@ -2926,7 +2605,6 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
       .input('justification', sql.NVarChar, justification)
       .input('expected_return_date', sql.DateTime, expected_return_date)
       .input('is_returnable', sql.Bit, is_returnable);
-
     await updateRequest.query(`
       UPDATE stock_issuance_requests 
       SET purpose = @purpose,
@@ -2937,14 +2615,12 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
           updated_at = GETDATE()
       WHERE id = @id
     `);
-
     // Delete existing items and re-insert updated ones
     if (items && items.length > 0) {
       // First delete existing items
       await pool.request()
         .input('request_id', sql.NVarChar, id)
         .query('DELETE FROM stock_issuance_items WHERE request_id = @request_id');
-
       // Then insert updated items
       for (const item of items) {
         const insertItem = pool.request()
@@ -2955,7 +2631,6 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
           .input('unit_price', sql.Decimal(10, 2), item.unit_price || 0)
           .input('item_type', sql.NVarChar, item.item_type || 'inventory')
           .input('custom_item_name', sql.NVarChar, item.custom_item_name);
-
         await insertItem.query(`
           INSERT INTO stock_issuance_items
           (id, request_id, item_master_id, nomenclature, requested_quantity, unit_price, item_type, custom_item_name, created_at, updated_at)
@@ -2963,14 +2638,11 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
         `);
       }
     }
-
     // Check if this is a resubmission from returned status
     const currentStatusResult = await pool.request()
       .input('request_id', sql.NVarChar, id)
       .query('SELECT current_status FROM request_approvals WHERE request_id = @request_id');
-
     const isResubmission = currentStatusResult.recordset[0]?.current_status === 'returned';
-
     if (isResubmission) {
       // Reset approval status to pending for resubmission
       await pool.request()
@@ -2981,15 +2653,12 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = @id
         `);
-
       // Get the wing supervisor for this request
       const wingResult = await pool.request()
         .input('request_id', sql.NVarChar, id)
         .query('SELECT requester_wing_id FROM stock_issuance_requests WHERE id = @request_id');
-
       const wingId = wingResult.recordset[0]?.requester_wing_id;
       let supervisorId = null;
-
       if (wingId) {
         // First, check if the current logged-in user is a supervisor for this wing
         const currentUserId = req.session?.userId;
@@ -2998,13 +2667,11 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
             .input('user_id', sql.NVarChar, currentUserId)
             .input('wing_id', sql.Int, wingId)
             .query('SELECT COUNT(*) as count FROM vw_wing_supervisors WHERE user_id = @user_id AND wing_id = @wing_id');
-
           if (isCurrentUserSupervisorResult.recordset[0].count > 0) {
             supervisorId = currentUserId;
             console.log('📝 Resubmission: Assigning to current logged-in user (supervisor):', currentUserId);
           }
         }
-
         // If current user is not a supervisor, try to assign to the supervisor who originally returned this request
         if (!supervisorId) {
           const returnHistoryResult = await pool.request()
@@ -3016,32 +2683,26 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
               WHERE ra.request_id = @request_id AND ah.action_type = 'returned' 
               ORDER BY ah.action_date DESC
             `);
-
           const originalApproverId = returnHistoryResult.recordset[0]?.action_by;
-
           // Check if the original approver is still a supervisor for this wing
           if (originalApproverId) {
             const isStillSupervisorResult = await pool.request()
               .input('user_id', sql.NVarChar, originalApproverId)
               .input('wing_id', sql.Int, wingId)
               .query('SELECT COUNT(*) as count FROM vw_wing_supervisors WHERE user_id = @user_id AND wing_id = @wing_id');
-
             if (isStillSupervisorResult.recordset[0].count > 0) {
               supervisorId = originalApproverId;
             }
           }
         }
-
         // If no suitable supervisor found, assign to first available supervisor
         if (!supervisorId) {
           const supervisorResult = await pool.request()
             .input('wing_id', sql.Int, wingId)
             .query('SELECT TOP 1 user_id FROM vw_wing_supervisors WHERE wing_id = @wing_id ORDER BY supervisor_name');
-
           supervisorId = supervisorResult.recordset[0]?.user_id;
         }
       }
-
       // Update the corresponding request_approvals record to pending status with supervisor assigned
       await pool.request()
         .input('request_id', sql.NVarChar, id)
@@ -3053,7 +2714,6 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
               updated_date = GETDATE()
           WHERE request_id = @request_id
         `);
-
       // Mark approval_items as resubmitted (change all decision_types for this request)
       await pool.request()
         .input('request_id', sql.NVarChar, id)
@@ -3067,27 +2727,22 @@ app.put('/api/stock-issuance/requests/:id', async (req, res) => {
           )
         `);
     }
-
     console.log('✅ Request updated and resubmitted for approval');
     res.json({ success: true, message: 'Request updated and resubmitted for approval' });
-
   } catch (error) {
     console.error('❌ Error updating stock issuance request:', error);
     res.status(500).json({ error: 'Failed to update request', details: error.message });
   }
 });
-
 // =============================================================================
 // STOCK ISSUANCE APPROVAL ENDPOINTS
 // =============================================================================
-
 // Approve stock issuance request
 app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const {
       approver_name,
@@ -3095,10 +2750,8 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
       approval_comments,
       item_approvals
     } = req.body;
-
     // Get the actual logged-in user from session - this should always be authenticated
     const userId = req.session?.userId;
-
     if (!userId) {
       console.log('⚠️ Stock Issuance Approve: No authenticated user in session');
       return res.status(401).json({
@@ -3106,11 +2759,9 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
         details: 'No user session found. You must be logged in to perform approval actions.'
       });
     }
-
     // Get the user's actual name and designation from database
     let actualApproverName = approver_name;
     let actualApproverDesignation = approver_designation;
-
     if (userId) {
       try {
         const userInfoResult = await pool.request()
@@ -3122,7 +2773,6 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
             LEFT JOIN tblUserDesignations ON AspNetUsers.intDesignationID = tblUserDesignations.intDesignationID
             WHERE Id = @userId
           `);
-        
         if (userInfoResult.recordset.length > 0) {
           actualApproverName = userInfoResult.recordset[0].FullName;
           actualApproverDesignation = userInfoResult.recordset[0].designation_name;
@@ -3132,10 +2782,8 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
         console.log('⚠️ Approve: Could not get user info, using request body values');
       }
     }
-
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Update request status to approved
       await transaction.request()
@@ -3153,7 +2801,6 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
             updated_at = GETDATE()
           WHERE id = @id
         `);
-
       // Update individual items if item_approvals provided
       if (item_approvals && Array.isArray(item_approvals)) {
         for (const itemApproval of item_approvals) {
@@ -3187,30 +2834,25 @@ app.put('/api/stock-issuance/requests/:id/approve', async (req, res) => {
             WHERE request_id = @request_id
           `);
       }
-
       await transaction.commit();
       res.json({
         success: true,
         message: 'Request approved successfully'
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to approve request', details: error.message });
   }
 });
-
 // Reject stock issuance request
 app.put('/api/stock-issuance/requests/:id/reject', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const {
       approver_name,
@@ -3219,7 +2861,6 @@ app.put('/api/stock-issuance/requests/:id/reject', async (req, res) => {
     } = req.body;
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Update request status to rejected
       await transaction.request()
@@ -3237,7 +2878,6 @@ app.put('/api/stock-issuance/requests/:id/reject', async (req, res) => {
             updated_at = GETDATE()
           WHERE id = @id
         `);
-
       // Mark all items as rejected
       await transaction.request()
         .input('request_id', sql.UniqueIdentifier, id)
@@ -3251,23 +2891,19 @@ app.put('/api/stock-issuance/requests/:id/reject', async (req, res) => {
             updated_at = GETDATE()
           WHERE request_id = @request_id
         `);
-
       await transaction.commit();
       res.json({
         success: true,
         message: 'Request rejected successfully'
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to reject request', details: error.message });
   }
 });
-
 // Get pending requests for approval (alias for submitted status)
 app.get('/api/stock-issuance/pending-approvals', async (req, res) => {
   try {
@@ -3278,14 +2914,12 @@ app.get('/api/stock-issuance/pending-approvals', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch pending approvals', details: error.message });
   }
 });
-
 // Get inventory matches for a specific request (for enhanced approval)
 app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     // First, get the requested items
     const requestedItemsResult = await pool.request()
@@ -3301,9 +2935,7 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
         WHERE sii.request_id = @request_id
         ORDER BY sii.created_at
       `);
-
     const requestedItems = requestedItemsResult.recordset;
-
     // For each requested item, find potential inventory matches
     const itemsWithMatches = await Promise.all(
       requestedItems.map(async (requestedItem) => {
@@ -3311,9 +2943,7 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
           // Search for inventory items that match the requested nomenclature
           const searchTerm = requestedItem.nomenclature || requestedItem.custom_item_name || '';
           const searchWords = searchTerm.split(' ').filter(word => word.length > 2);
-          
           let inventoryMatches = [];
-          
           if (searchWords.length > 0) {
             // Create a dynamic WHERE clause for fuzzy matching
             const searchConditions = searchWords.map((_, index) => `
@@ -3321,7 +2951,6 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
                im.description LIKE '%' + @searchWord${index} + '%' OR
                im.specifications LIKE '%' + @searchWord${index} + '%')
             `).join(' OR ');
-
             const matchQuery = `
               SELECT 
                 cis.id as inventory_id,
@@ -3354,20 +2983,16 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
                 AND (${searchConditions})
               ORDER BY match_score DESC, (cis.current_quantity - ISNULL(cis.reserved_quantity, 0)) DESC
             `;
-
             const matchRequest = pool.request()
               .input('exactMatch', sql.NVarChar, searchTerm)
               .input('firstWord', sql.NVarChar, searchWords[0] || '');
-
             // Add search word parameters
             searchWords.forEach((word, index) => {
               matchRequest.input(`searchWord${index}`, sql.NVarChar, word);
             });
-
             const matchResult = await matchRequest.query(matchQuery);
             inventoryMatches = matchResult.recordset;
           }
-
           return {
             requested_item_id: requestedItem.requested_item_id,
             requested_nomenclature: requestedItem.requested_nomenclature,
@@ -3379,7 +3004,6 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
             can_fulfill: inventoryMatches.some(match => match.available_quantity >= requestedItem.requested_quantity),
             total_available: inventoryMatches.reduce((sum, match) => sum + match.available_quantity, 0)
           };
-
         } catch (error) {
           return {
             requested_item_id: requestedItem.requested_item_id,
@@ -3396,7 +3020,6 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
         }
       })
     );
-
     // Calculate summary statistics
     const totalRequestedItems = requestedItems.length;
     const fullyFulfillableItems = itemsWithMatches.filter(item => item.can_fulfill).length;
@@ -3417,7 +3040,6 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
           Math.round((fullyFulfillableItems / totalRequestedItems) * 100) : 0
       }
     });
-
   } catch (error) {
     res.status(500).json({ 
       success: false,
@@ -3426,14 +3048,12 @@ app.get('/api/stock-issuance/requests/:id/inventory-matches', async (req, res) =
     });
   }
 });
-
 // Approve request with specific inventory allocations
 app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const {
       approver_name,
@@ -3443,7 +3063,6 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
     } = req.body;
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Update main request status
       await transaction.request()
@@ -3460,7 +3079,6 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
             updated_at = GETDATE()
           WHERE id = @id
         `);
-
       // Process each item allocation
       for (const allocation of item_allocations) {
         const {
@@ -3471,7 +3089,6 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
           rejection_reason,
           procurement_required_quantity
         } = allocation;
-
         // Update the requested item with approval details
         await transaction.request()
           .input('requested_item_id', sql.UniqueIdentifier, requested_item_id)
@@ -3487,7 +3104,6 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
               updated_at = GETDATE()
             WHERE id = @requested_item_id
           `);
-
         // If approved from stock, create reservation
         if (decision_type === 'APPROVE_FROM_STOCK' && inventory_item_id && allocated_quantity > 0) {
           // Create stock reservation
@@ -3507,7 +3123,6 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
                 @reserved_quantity, @reserved_by, @expires_at
               )
             `);
-
           // Update inventory reserved stock
           await transaction.request()
             .input('inventory_item_id', sql.UniqueIdentifier, inventory_item_id)
@@ -3521,7 +3136,6 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
               WHERE id = @inventory_item_id
             `);
         }
-
         // If procurement required, create procurement request
         if (decision_type === 'APPROVE_FOR_PROCUREMENT' && procurement_required_quantity > 0) {
           await transaction.request()
@@ -3537,7 +3151,6 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
               )
             `);
         }
-
         // Record the approval decision
         await transaction.request()
           .input('request_id', sql.UniqueIdentifier, id)
@@ -3558,9 +3171,7 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
             )
           `);
       }
-
       await transaction.commit();
-
       const approvedCount = item_allocations.filter(a => a.decision_type === 'APPROVE_FROM_STOCK').length;
       const procurementCount = item_allocations.filter(a => a.decision_type === 'APPROVE_FOR_PROCUREMENT').length;
       const rejectedCount = item_allocations.filter(a => a.decision_type === 'REJECT').length;
@@ -3573,24 +3184,20 @@ app.post('/api/stock-issuance/requests/:id/approve-with-allocation', async (req,
           rejected: rejectedCount
         }
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to approve request with allocations', details: error.message });
   }
 });
-
 // Finalize stock issuance request
 app.put('/api/stock-issuance/requests/:id/finalize', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const { finalized_by } = req.body;
     const now = new Date();
@@ -3598,20 +3205,16 @@ app.put('/api/stock-issuance/requests/:id/finalize', async (req, res) => {
     const checkResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query('SELECT is_finalized, request_status FROM stock_issuance_requests WHERE id = @id');
-
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Stock issuance request not found' });
     }
-
     if (checkResult.recordset[0].is_finalized) {
       return res.status(400).json({ error: 'Stock issuance request is already finalized' });
     }
-
     // Only approved or issued requests can be finalized
     if (!['Approved', 'Issued'].includes(checkResult.recordset[0].request_status)) {
       return res.status(400).json({ error: 'Only approved or issued requests can be finalized. Please process the request first.' });
     }
-
     // Update request to finalized status
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -3632,29 +3235,23 @@ app.put('/api/stock-issuance/requests/:id/finalize', async (req, res) => {
       finalized_at: now,
       finalized_by: finalized_by
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to finalize request', details: error.message });
   }
 });
-
 // =============================================================================
 // STOCK ISSUANCE - ACTUAL ISSUANCE (NEW IMPLEMENTATION)
 // =============================================================================
-
 // Issue approved stock items (reduces inventory)
 app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const { issued_by, issued_date, issuance_items } = req.body;
-    
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Check if request exists and is approved
       const requestCheck = await transaction.request()
@@ -3664,20 +3261,16 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
           FROM stock_issuance_requests 
           WHERE id = @id
         `);
-
       if (requestCheck.recordset.length === 0) {
         throw new Error('Stock issuance request not found');
       }
-
       const request = requestCheck.recordset[0];
       if (request.request_status !== 'Approved') {
         throw new Error('Request must be approved before issuing items');
       }
-
       if (request.is_finalized) {
         throw new Error('Request is already finalized');
       }
-
       // Create main StockIssuances record
       const stockIssuanceId = uuidv4();
       await transaction.request()
@@ -3692,11 +3285,9 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
             @id, @request_id, @issued_by, @issued_date, 'ISSUED', GETDATE()
           )
         `);
-
       // Process each item being issued
       for (const item of issuance_items) {
         const { item_master_id, issued_quantity, inventory_item_id, unit_price } = item;
-
         // Get current inventory stock
         const inventoryCheck = await transaction.request()
           .input('inventory_id', sql.UniqueIdentifier, inventory_item_id)
@@ -3705,16 +3296,13 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
             FROM current_inventory_stock 
             WHERE id = @inventory_id
           `);
-
         if (inventoryCheck.recordset.length === 0) {
           throw new Error(`Inventory item not found: ${inventory_item_id}`);
         }
-
         const inventory = inventoryCheck.recordset[0];
         if (inventory.current_quantity < issued_quantity) {
           throw new Error(`Insufficient stock. Available: ${inventory.current_quantity}, Requested: ${issued_quantity}`);
         }
-
         // 1. UPDATE INVENTORY STOCK - Reduce current_quantity and reserved_quantity
         await transaction.request()
           .input('inventory_id', sql.UniqueIdentifier, inventory_item_id)
@@ -3736,7 +3324,6 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
               last_updated = GETDATE()
             WHERE id = @inventory_id
           `);
-
         // 2. CREATE STOCK MOVEMENT LOG ENTRY
         const movementId = uuidv4();
         await transaction.request()
@@ -3757,7 +3344,6 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
               'Stock issued against request', GETDATE()
             )
           `);
-
         // 3. UPDATE STOCK ISSUANCE ITEMS with issued quantity
         await transaction.request()
           .input('request_id', sql.UniqueIdentifier, id)
@@ -3772,7 +3358,6 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
             WHERE request_id = @request_id AND item_master_id = @item_master_id
           `);
       }
-
       // 4. UPDATE REQUEST STATUS TO ISSUED
       await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
@@ -3786,21 +3371,17 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
             updated_at = GETDATE()
           WHERE id = @id
         `);
-
       await transaction.commit();
-
       res.json({
         success: true,
         message: 'Items issued successfully and inventory updated',
         issuance_id: stockIssuanceId,
         items_issued: issuance_items.length
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('Error issuing stock items:', error);
     res.status(500).json({ 
@@ -3809,24 +3390,19 @@ app.post('/api/stock-issuance/requests/:id/issue', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // STOCK RETURNS - COMPLETE IMPLEMENTATION
 // =============================================================================
-
 // Process stock return (increases inventory)
 app.post('/api/stock-returns/:id/process', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const { processed_by, processing_notes, return_items } = req.body;
-    
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Check if return exists and is not already processed
       const returnCheck = await transaction.request()
@@ -3836,20 +3412,16 @@ app.post('/api/stock-returns/:id/process', async (req, res) => {
           FROM stock_returns 
           WHERE id = @id
         `);
-
       if (returnCheck.recordset.length === 0) {
         throw new Error('Stock return not found');
       }
-
       const stockReturn = returnCheck.recordset[0];
       if (stockReturn.return_status === 'Accepted') {
         throw new Error('Return is already processed');
       }
-
       // Process each return item
       for (const item of return_items) {
         const { item_master_id, return_quantity, condition_on_return, inventory_item_id } = item;
-
         // Only add back to inventory if condition is Good or Fair
         if (['Good', 'Fair'].includes(condition_on_return)) {
           // 1. UPDATE INVENTORY STOCK - Increase current_quantity
@@ -3864,7 +3436,6 @@ app.post('/api/stock-returns/:id/process', async (req, res) => {
                 last_updated = GETDATE()
               WHERE id = @inventory_id
             `);
-
           // 2. CREATE STOCK MOVEMENT LOG ENTRY
           const movementId = uuidv4();
           await transaction.request()
@@ -3884,7 +3455,6 @@ app.post('/api/stock-returns/:id/process', async (req, res) => {
             `);
         }
       }
-
       // 3. UPDATE RETURN STATUS
       await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
@@ -3899,20 +3469,16 @@ app.post('/api/stock-returns/:id/process', async (req, res) => {
             processing_notes = @processing_notes
           WHERE id = @id
         `);
-
       await transaction.commit();
-
       res.json({
         success: true,
         message: 'Stock return processed successfully and inventory updated',
         items_returned: return_items.length
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('Error processing stock return:', error);
     res.status(500).json({ 
@@ -3921,18 +3487,15 @@ app.post('/api/stock-returns/:id/process', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // INVENTORY REPORTING AND DASHBOARD ENDPOINTS
 // =============================================================================
-
 // Get inventory dashboard statistics
 app.get('/api/inventory/dashboard-stats', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     // Get comprehensive inventory statistics from current_inventory_stock table
     const statsResult = await pool.request().query(`
       WITH InventoryStats AS (
@@ -3962,9 +3525,7 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
       FROM InventoryStats inv
       CROSS JOIN CategoryStats cat
     `);
-
     const stats = statsResult.recordset[0];
-
     // Get top items by current stock
     const topItemsResult = await pool.request().query(`
       SELECT TOP 10
@@ -3977,7 +3538,6 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
       LEFT JOIN categories c ON im.category_id = c.id
       ORDER BY cis.current_quantity DESC
     `);
-
     // Get low stock alerts
     const lowStockResult = await pool.request().query(`
       SELECT 
@@ -3994,7 +3554,6 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
         AND cis.minimum_stock_level > 0
       ORDER BY (cis.current_quantity - cis.minimum_stock_level) ASC
     `);
-
     res.json({
       success: true,
       stats: {
@@ -4021,49 +3580,39 @@ app.get('/api/inventory/dashboard-stats', async (req, res) => {
       top_moving_items: topItemsResult.recordset,
       low_stock_alerts: lowStockResult.recordset
     });
-
   } catch (error) {
     console.error('Error fetching inventory dashboard stats:', error);
     res.status(500).json({ error: 'Failed to fetch inventory dashboard statistics', details: error.message });
   }
 });
-
 // Get stock movement history
 app.get('/api/inventory/movements', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { page = 1, limit = 50, movement_type, date_from, date_to, item_master_id } = req.query;
     const offset = (page - 1) * limit;
-
     let whereClause = '1 = 1';
     const request = pool.request();
-
     if (movement_type) {
       whereClause += ' AND sml.movement_type = @movement_type';
       request.input('movement_type', sql.NVarChar, movement_type);
     }
-
     if (date_from) {
       whereClause += ' AND sml.movement_date >= @date_from';
       request.input('date_from', sql.Date, date_from);
     }
-
     if (date_to) {
       whereClause += ' AND sml.movement_date <= @date_to';
       request.input('date_to', sql.Date, date_to);
     }
-
     if (item_master_id) {
       whereClause += ' AND sml.item_master_id = @item_master_id';
       request.input('item_master_id', sql.UniqueIdentifier, item_master_id);
     }
-
     request.input('offset', sql.Int, offset);
     request.input('limit', sql.Int, parseInt(limit));
-
     const result = await request.query(`
       SELECT 
         sml.id,
@@ -4086,7 +3635,6 @@ app.get('/api/inventory/movements', async (req, res) => {
       OFFSET @offset ROWS
       FETCH NEXT @limit ROWS ONLY
     `);
-
     res.json({
       success: true,
       data: result.recordset,
@@ -4096,7 +3644,6 @@ app.get('/api/inventory/movements', async (req, res) => {
         total_records: result.recordset.length
       }
     });
-
   } catch (error) {
     console.error('Error fetching stock movements:', error);
     res.status(500).json({ 
@@ -4105,14 +3652,12 @@ app.get('/api/inventory/movements', async (req, res) => {
     });
   }
 });
-
 // Get inventory valuation report
 app.get('/api/inventory/valuation', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const result = await pool.request().query(`
       WITH LatestPrices AS (
         SELECT 
@@ -4140,9 +3685,7 @@ app.get('/api/inventory/valuation', async (req, res) => {
       WHERE cis.current_quantity > 0
       ORDER BY (cis.current_quantity * ISNULL(lp.unit_price, 0)) DESC
     `);
-
     const totalValue = result.recordset.reduce((sum, item) => sum + (item.total_value || 0), 0);
-
     res.json({
       success: true,
       data: result.recordset,
@@ -4152,7 +3695,6 @@ app.get('/api/inventory/valuation', async (req, res) => {
         average_item_value: result.recordset.length > 0 ? totalValue / result.recordset.length : 0
       }
     });
-
   } catch (error) {
     console.error('Error fetching inventory valuation:', error);
     res.status(500).json({ 
@@ -4161,16 +3703,13 @@ app.get('/api/inventory/valuation', async (req, res) => {
     });
   }
 });
-
 // Stock adjustment endpoint
 app.put('/api/inventory/stock/:id', async (req, res) => {
   const transaction = new sql.Transaction(pool);
-  
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const { 
       adjustment_quantity, 
@@ -4178,22 +3717,17 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
       reason, 
       authorized_by 
     } = req.body;
-
     // Validation
     if (!adjustment_quantity || adjustment_quantity <= 0) {
       return res.status(400).json({ error: 'Adjustment quantity must be greater than 0' });
     }
-
     if (!['increase', 'decrease'].includes(adjustment_type)) {
       return res.status(400).json({ error: 'Adjustment type must be increase or decrease' });
     }
-
     if (!reason || !authorized_by) {
       return res.status(400).json({ error: 'Reason and authorized_by are required' });
     }
-
     await transaction.begin();
-
     // Get current stock record
     const stockResult = await transaction.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -4206,17 +3740,14 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
         INNER JOIN item_masters im ON cis.item_master_id = im.id
         WHERE cis.id = @id
       `);
-
     if (stockResult.recordset.length === 0) {
       await transaction.rollback();
       return res.status(404).json({ error: 'Stock record not found' });
     }
-
     const stockRecord = stockResult.recordset[0];
     const currentQuantity = stockRecord.current_quantity;
     const adjustmentValue = adjustment_type === 'increase' ? adjustment_quantity : -adjustment_quantity;
     const newQuantity = currentQuantity + adjustmentValue;
-
     // Prevent negative stock
     if (newQuantity < 0) {
       await transaction.rollback();
@@ -4226,7 +3757,6 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
         adjustment: adjustmentValue
       });
     }
-
     // Update current inventory stock
     await transaction.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -4239,7 +3769,6 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
           last_updated = GETDATE()
         WHERE id = @id
       `);
-
     // Log the adjustment in stock movement log
     await transaction.request()
       .input('item_master_id', sql.UniqueIdentifier, stockRecord.item_master_id)
@@ -4257,9 +3786,7 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
           GETDATE(), @movement_notes, @authorized_by, GETDATE()
         )
       `);
-
     await transaction.commit();
-
     res.json({
       success: true,
       message: 'Stock adjustment completed successfully',
@@ -4270,7 +3797,6 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
         new_quantity: newQuantity
       }
     });
-
   } catch (error) {
     if (transaction._aborted === false) {
       await transaction.rollback();
@@ -4282,39 +3808,29 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
     });
   }
 });
-
 // Initial Inventory Setup Endpoint
 app.post('/api/inventory/initial-setup', async (req, res) => {
   const transaction = new sql.Transaction(pool);
-  
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { initialStocks, setupDate, setupBy } = req.body;
-
     // Validation
     if (!initialStocks || !Array.isArray(initialStocks) || initialStocks.length === 0) {
       return res.status(400).json({ error: 'Initial stocks array is required' });
     }
-
     if (!setupBy) {
       return res.status(400).json({ error: 'Setup by user is required' });
     }
-
     await transaction.begin();
-
     const insertedRecords = [];
     let totalQuantity = 0;
-
     for (const stock of initialStocks) {
       const { ItemMasterID, quantity, notes } = stock;
-
       if (!ItemMasterID || quantity <= 0) {
         continue; // Skip invalid entries
       }
-
       // Check if item master exists
       const itemMasterResult = await transaction.request()
         .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
@@ -4323,14 +3839,11 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
           FROM item_masters 
           WHERE id = @itemMasterId
         `);
-
       if (itemMasterResult.recordset.length === 0) {
         console.warn(`Item Master ID ${ItemMasterID} not found, skipping...`);
         continue;
       }
-
       const itemMaster = itemMasterResult.recordset[0];
-
       // Check if inventory record already exists for this item
       const existingStockResult = await transaction.request()
         .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
@@ -4339,14 +3852,11 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
           FROM current_inventory_stock 
           WHERE item_master_id = @itemMasterId
         `);
-
       let currentQuantity = 0;
       let operationType = 'INSERT';
-
       if (existingStockResult.recordset.length > 0) {
         currentQuantity = existingStockResult.recordset[0].current_quantity;
         operationType = 'UPDATE';
-        
         // Update existing record
         await transaction.request()
           .input('inventoryId', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
@@ -4381,11 +3891,9 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
             )
           `);
       }
-
       // Create opening balance transaction record - simplified for now
       // TODO: Create proper transaction logging table
       console.log(`Initial stock setup: ${itemMaster.nomenclature} - Quantity: ${quantity} by ${setupBy}`);
-
       insertedRecords.push({
         ItemMasterID: ItemMasterID,
         ItemDescription: itemMaster.ItemDescription,
@@ -4394,12 +3902,9 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
         NewQuantity: quantity,
         Operation: operationType
       });
-
       totalQuantity += quantity;
     }
-
     await transaction.commit();
-
     res.json({
       success: true,
       message: `Initial inventory setup completed successfully`,
@@ -4411,7 +3916,6 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
         records: insertedRecords
       }
     });
-
   } catch (error) {
     if (transaction._aborted === false) {
       await transaction.rollback();
@@ -4423,18 +3927,15 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // FRESH INITIAL SETUP ENDPOINTS
 // =============================================================================
-
 // Get detailed current stock with item master information
 app.get('/api/inventory/current-stock-detailed', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const request = pool.request();
     const result = await request.query(`
       SELECT 
@@ -4454,10 +3955,8 @@ app.get('/api/inventory/current-stock-detailed', async (req, res) => {
       WHERE im.status = 'Active'
       ORDER BY im.nomenclature
     `);
-
     console.log(`📊 Fetched ${result.recordset.length} detailed current stock items`);
     res.json(result.recordset);
-
   } catch (error) {
     console.error('Error fetching detailed current stock:', error);
     res.status(500).json({ 
@@ -4466,33 +3965,24 @@ app.get('/api/inventory/current-stock-detailed', async (req, res) => {
     });
   }
 });
-
 // Update stock quantities (for initial setup adjustments)
 app.post('/api/inventory/update-stock-quantities', async (req, res) => {
   const transaction = new sql.Transaction(pool);
-  
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { updates, updated_by, update_date } = req.body;
-
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
       return res.status(400).json({ error: 'Updates array is required' });
     }
-
     await transaction.begin();
-
     const updatedItems = [];
-    
     for (const update of updates) {
       const { item_master_id, new_quantity, notes } = update;
-
       if (!item_master_id || new_quantity < 0) {
         continue; // Skip invalid entries
       }
-
       // Get current stock info
       const currentStockResult = await transaction.request()
         .input('itemMasterId', sql.UniqueIdentifier, item_master_id)
@@ -4502,15 +3992,12 @@ app.post('/api/inventory/update-stock-quantities', async (req, res) => {
           INNER JOIN item_masters im ON cs.item_master_id = im.id
           WHERE cs.item_master_id = @itemMasterId
         `);
-
       if (currentStockResult.recordset.length === 0) {
         console.warn(`No current stock found for item ${item_master_id}, skipping...`);
         continue;
       }
-
       const currentStock = currentStockResult.recordset[0];
       const previousQuantity = currentStock.current_quantity;
-
       // Update the current stock quantity
       await transaction.request()
         .input('itemMasterId', sql.UniqueIdentifier, item_master_id)
@@ -4525,7 +4012,6 @@ app.post('/api/inventory/update-stock-quantities', async (req, res) => {
             updated_by = @updatedBy
           WHERE item_master_id = @itemMasterId
         `);
-
       // Log the stock movement (if you have a stock transactions table)
       try {
         await transaction.request()
@@ -4550,7 +4036,6 @@ app.post('/api/inventory/update-stock-quantities', async (req, res) => {
         // If stock_transactions table doesn't exist, just log to console
         console.log(`Stock change logged: ${currentStock.nomenclature} - ${previousQuantity} → ${new_quantity}`);
       }
-
       updatedItems.push({
         item_master_id: item_master_id,
         nomenclature: currentStock.nomenclature,
@@ -4559,11 +4044,8 @@ app.post('/api/inventory/update-stock-quantities', async (req, res) => {
         change: new_quantity - previousQuantity
       });
     }
-
     await transaction.commit();
-
     console.log(`✅ Updated ${updatedItems.length} stock quantities`);
-    
     res.json({
       success: true,
       message: `Successfully updated ${updatedItems.length} stock quantities`,
@@ -4574,7 +4056,6 @@ app.post('/api/inventory/update-stock-quantities', async (req, res) => {
         update_date: update_date
       }
     });
-
   } catch (error) {
     if (transaction._aborted === false) {
       await transaction.rollback();
@@ -4586,21 +4067,17 @@ app.post('/api/inventory/update-stock-quantities', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // CURRENT INVENTORY STOCK ENDPOINTS (FROM SCRATCH)
 // =============================================================================
-
 // Get all records from current_inventory_stock table
 app.get('/api/inventory/current-inventory-stock', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     console.log('📊 Fetching data from View_Current_Inv_Stock view...');
     console.log('🔍 Using view with all item details and categories');
-    
     const request = pool.request();
     const result = await request.query(`
       SELECT 
@@ -4623,11 +4100,9 @@ app.get('/api/inventory/current-inventory-stock', async (req, res) => {
       FROM View_Current_Inv_Stock
       ORDER BY nomenclature
     `);
-
     console.log(`✅ Query executed. Found ${result.recordset.length} records from view`);
     console.log('📄 Sample record fields:', Object.keys(result.recordset[0] || {}));
     res.json(result.recordset);
-
   } catch (error) {
     console.error('❌ Error fetching current_inventory_stock:', error);
     res.status(500).json({ 
@@ -4636,19 +4111,15 @@ app.get('/api/inventory/current-inventory-stock', async (req, res) => {
     });
   }
 });
-
 // Update single record in current_inventory_stock
 app.put('/api/inventory/current-inventory-stock/:id', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const { current_quantity } = req.body;
-    
     console.log(`🔄 Updating current_inventory_stock ID: ${id} with quantity: ${current_quantity}`);
-    
     const request = pool.request();
     const result = await request
       .input('id', sql.UniqueIdentifier, id)
@@ -4662,11 +4133,9 @@ app.put('/api/inventory/current-inventory-stock/:id', async (req, res) => {
             updated_by = @updated_by
         WHERE id = @id
       `);
-    
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Record not found' });
     }
-    
     console.log(`✅ Updated current_inventory_stock ID: ${id}`);
     res.json({ 
       success: true, 
@@ -4674,7 +4143,6 @@ app.put('/api/inventory/current-inventory-stock/:id', async (req, res) => {
       id: id,
       new_quantity: current_quantity
     });
-
   } catch (error) {
     console.error('❌ Error updating current_inventory_stock:', error);
     res.status(500).json({ 
@@ -4683,21 +4151,16 @@ app.put('/api/inventory/current-inventory-stock/:id', async (req, res) => {
     });
   }
 });
-
 // Bulk update records in current_inventory_stock
 app.post('/api/inventory/current-inventory-stock/bulk-update', async (req, res) => {
   const transaction = new sql.Transaction(pool);
-  
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { updates } = req.body;
     console.log('🚀 Bulk updating current_inventory_stock:', updates.length, 'records');
-    
     await transaction.begin();
-    
     for (const update of updates) {
       const request = new sql.Request(transaction);
       await request
@@ -4713,16 +4176,13 @@ app.post('/api/inventory/current-inventory-stock/bulk-update', async (req, res) 
           WHERE item_master_id = @item_master_id
         `);
     }
-    
     await transaction.commit();
-    
     console.log('✅ Bulk update completed successfully');
     res.json({ 
       success: true, 
       message: 'Bulk update completed successfully',
       recordsUpdated: updates.length
     });
-
   } catch (error) {
     if (transaction._aborted === false) {
       await transaction.rollback();
@@ -4734,37 +4194,30 @@ app.post('/api/inventory/current-inventory-stock/bulk-update', async (req, res) 
     });
   }
 });
-
 // =============================================================================
 // STOCK RETURN MANAGEMENT ENDPOINTS
 // =============================================================================
-
 // Get stock return requests
 app.get('/api/stock-returns/requests', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { status, request_date_from, request_date_to } = req.query;
     let whereClause = '1 = 1';
     const request = pool.request();
-
     if (status) {
       whereClause += ' AND srr.status = @status';
       request.input('status', sql.NVarChar, status);
     }
-
     if (request_date_from) {
       whereClause += ' AND srr.request_date >= @request_date_from';
       request.input('request_date_from', sql.Date, request_date_from);
     }
-
     if (request_date_to) {
       whereClause += ' AND srr.request_date <= @request_date_to';
       request.input('request_date_to', sql.Date, request_date_to);
     }
-
     const result = await request.query(`
       SELECT 
         srr.*,
@@ -4776,12 +4229,10 @@ app.get('/api/stock-returns/requests', async (req, res) => {
       WHERE ${whereClause}
       ORDER BY srr.request_date DESC
     `);
-
     res.json({
       success: true,
       data: result.recordset
     });
-
   } catch (error) {
     console.error('Error fetching stock return requests:', error);
     res.status(500).json({ 
@@ -4790,51 +4241,39 @@ app.get('/api/stock-returns/requests', async (req, res) => {
     });
   }
 });
-
 // Process stock return
 app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
   const transaction = new sql.Transaction(pool);
-  
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { id } = req.params;
     const { action, processed_by, processing_notes } = req.body; // action: 'approve' or 'reject'
-
     // Validation
     if (!['approve', 'reject'].includes(action)) {
       return res.status(400).json({ error: 'Action must be approve or reject' });
     }
-
     if (!processed_by) {
       return res.status(400).json({ error: 'processed_by is required' });
     }
-
     await transaction.begin();
-
     // Get return request details
     const returnResult = await transaction.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
         SELECT * FROM stock_return_requests WHERE id = @id
       `);
-
     if (returnResult.recordset.length === 0) {
       await transaction.rollback();
       return res.status(404).json({ error: 'Stock return request not found' });
     }
-
     const returnRequest = returnResult.recordset[0];
-
     if (returnRequest.status !== 'Pending') {
       await transaction.rollback();
       return res.status(400).json({ error: 'Only pending requests can be processed' });
     }
-
     const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
-
     // Update return request status
     await transaction.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -4850,7 +4289,6 @@ app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
           processing_notes = @processing_notes
         WHERE id = @id
       `);
-
     // If approved, create stock return items and update inventory
     if (action === 'approve') {
       // Get return items
@@ -4859,7 +4297,6 @@ app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
         .query(`
           SELECT * FROM stock_return_items WHERE return_request_id = @return_request_id
         `);
-
       for (const item of itemsResult.recordset) {
         // Add returned quantity back to inventory
         await transaction.request()
@@ -4872,7 +4309,6 @@ app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
               available_quantity = available_quantity + @returned_quantity,
               last_updated = GETDATE()
             WHERE item_master_id = @item_master_id;
-            
             -- If record doesn't exist, create it
             IF @@ROWCOUNT = 0
             BEGIN
@@ -4885,7 +4321,6 @@ app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
               )
             END
           `);
-
         // Log stock movement
         await transaction.request()
           .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
@@ -4906,9 +4341,7 @@ app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
           `);
       }
     }
-
     await transaction.commit();
-
     res.json({
       success: true,
       message: `Stock return request ${action}d successfully`,
@@ -4918,7 +4351,6 @@ app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
         new_status: newStatus
       }
     });
-
   } catch (error) {
     if (transaction._aborted === false) {
       await transaction.rollback();
@@ -4930,14 +4362,12 @@ app.put('/api/stock-returns/requests/:id/process', async (req, res) => {
     });
   }
 });
-
 // Create a stock return with return items
 app.post('/api/stock-returns', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { 
       return_date,
       returned_by,
@@ -4946,10 +4376,8 @@ app.post('/api/stock-returns', async (req, res) => {
       return_status,
       return_items 
     } = req.body;
-
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Create stock return record
       const returnResult = await transaction.request()
@@ -4963,9 +4391,7 @@ app.post('/api/stock-returns', async (req, res) => {
           OUTPUT INSERTED.id
           VALUES (@return_date, @returned_by, @verified_by, @return_notes, @return_status)
         `);
-
       const returnId = returnResult.recordset[0].id;
-
       // Process each return item
       for (const item of return_items) {
         // Create return item record
@@ -4981,7 +4407,6 @@ app.post('/api/stock-returns', async (req, res) => {
             (return_id, issued_item_id, nomenclature, return_quantity, condition_on_return, damage_description)
             VALUES (@return_id, @issued_item_id, @nomenclature, @return_quantity, @condition_on_return, @damage_description)
           `);
-
         // Update the issuance item status
         await transaction.request()
           .input('issued_item_id', item.issued_item_id)
@@ -4990,7 +4415,6 @@ app.post('/api/stock-returns', async (req, res) => {
             SET status = 'Returned' 
             WHERE id = @issued_item_id
           `);
-
         // Add back to inventory (for good condition items)
         if (item.condition_on_return === 'Good') {
           await transaction.request()
@@ -5005,24 +4429,20 @@ app.post('/api/stock-returns', async (req, res) => {
             `);
         }
       }
-
       await transaction.commit();
       res.json({ 
         success: true, 
         return_id: returnId,
         message: `Successfully processed return for ${return_items.length} items`
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create stock return', details: error.message });
   }
 });
-
 // Get all stock returns
 app.get('/api/stock-returns', async (req, res) => {
   try {
@@ -5047,11 +4467,9 @@ app.get('/api/stock-returns', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch stock returns', details: error.message });
   }
 });
-
 // =============================================================================
 // TENDER ENDPOINTS (REBUILT FROM SCRATCH)
 // =============================================================================
-
 // POST /api/tenders - Create a new tender and its items
 app.post('/api/tenders', upload.fields([
   { name: 'contract_file', maxCount: 1 },
@@ -5065,10 +4483,8 @@ app.post('/api/tenders', upload.fields([
     await transaction.begin();
     const tenderId = uuidv4();
     const now = new Date();
-
     // Parse tender data from FormData
     let tenderData, items;
-    
     if (req.body.tenderData) {
       // Data sent as FormData with JSON string
       const parsedData = JSON.parse(req.body.tenderData);
@@ -5081,11 +4497,9 @@ app.post('/api/tenders', upload.fields([
       items = itemsFromBody;
       tenderData = tenderDataFromBody;
     }
-
     console.log('✅ POST /api/tenders - Creating new tender');
     console.log('📊 Tender type:', tenderData.tender_type);
     console.log('📋 Total items to create:', items?.length || 0);
-    
     if (items && items.length > 0) {
       console.log('📦 Items received:');
       items.forEach((item, idx) => {
@@ -5094,7 +4508,6 @@ app.post('/api/tenders', upload.fields([
         console.log(`    - vendor_id (single):`, item.vendor_id);
       });
     }
-
     // Handle file uploads
     if (req.files) {
       if (req.files.contract_file) {
@@ -5113,11 +4526,9 @@ app.post('/api/tenders', upload.fields([
         tenderData.rfp_file_path = req.files.rfp_file[0].filename;
       }
     }
-
     // Insert into tenders table
     const tenderRequest = transaction.request();
     tenderRequest.input('id', sql.NVarChar, tenderId);
-    
     // Map all fields from the schema
     const tenderFields = [
       'reference_number', 'title', 'description', 'estimated_value', 'publish_date',
@@ -5128,21 +4539,16 @@ app.post('/api/tenders', upload.fields([
       'office_ids', 'wing_ids', 'dec_ids', 'tender_spot_type', 'vendor_id', 'tender_status',
       'individual_total', 'actual_price_total'
     ];
-
     let insertQuery = 'INSERT INTO tenders (id, created_at, updated_at, is_finalized';
     let valuesQuery = 'VALUES (@id, @created_at, @updated_at, 0';
-
     tenderRequest.input('created_at', sql.DateTime, now);
     tenderRequest.input('updated_at', sql.DateTime, now);
-
     for (const field of tenderFields) {
       if (tenderData[field] !== undefined) {
         insertQuery += `, ${field}`;
         valuesQuery += `, @${field}`;
-        
         let value = tenderData[field];
         let sqlType = sql.NVarChar; // Default to NVarChar
-
         // Adjust SQL type based on field name/schema
         if (field.endsWith('_date') || field.endsWith('_deadline')) {
           sqlType = sql.DateTime;
@@ -5153,82 +4559,55 @@ app.post('/api/tenders', upload.fields([
         } else if (field.endsWith('_id')) {
           sqlType = sql.NVarChar;
         }
-
         tenderRequest.input(field, sqlType, value);
       }
     }
-
     insertQuery += ') ' + valuesQuery + ')';
-
     await tenderRequest.query(insertQuery);
-
     // Insert into tender_items table with vendor_id and pricing for all types
     if (items && Array.isArray(items) && items.length > 0) {
       // For CONTRACT/SPOT_PURCHASE: Single vendor for all items
       // For ANNUAL_TENDER: Different vendor per item
       const tender_type = tenderData.tender_type || 'contract';
       const awardedVendorId = tenderData.vendor_id || tenderData.awarded_vendor_id;
-
       console.log('📦 Processing items for tender type:', tender_type);
       console.log('📋 Total items:', items.length);
-
       for (const item of items) {
         console.log(`📝 Processing item: ${item.nomenclature}`);
         console.log(`   - vendor_ids (array):`, item.vendor_ids);
         console.log(`   - vendor_id (single):`, item.vendor_id);
-        
         const itemRequest = transaction.request();
         itemRequest.input('id', sql.NVarChar, uuidv4());
         itemRequest.input('tender_id', sql.NVarChar, tenderId);
         itemRequest.input('created_at', sql.DateTime2, now);
         itemRequest.input('updated_at', sql.DateTime2, now);
-
-        // ✅ NEW: Set vendor_id and vendor_ids based on tender type
+        // ✅ OPTION A: Use ONLY vendor_id field (single vendor per item)
         let itemVendorId = null;
-        let itemVendorIds = null;
-        
         if (tender_type === 'annual-tender') {
-          // Annual tender: Each item can have single or multiple vendors (comma-separated)
-          if (item.vendor_ids && Array.isArray(item.vendor_ids)) {
-            // If vendor_ids is an array, join them as comma-separated string
-            itemVendorIds = item.vendor_ids.filter((id) => id && id.trim()).join(',');
-            console.log(`   ✅ Converted vendor_ids array to string: ${itemVendorIds}`);
-          } else if (item.vendor_id) {
-            // Single vendor or already comma-separated string
-            itemVendorIds = item.vendor_id;
-            console.log(`   ✅ Using vendor_id as vendor_ids: ${itemVendorIds}`);
-          } else {
-            console.log(`   ⚠️  No vendor_ids found for this annual tender item!`);
-          }
+          // Annual tender: Each item has single vendor from request
+          itemVendorId = item.vendor_id || null;
+          console.log(`   ✅ Annual tender item vendor_id: ${itemVendorId}`);
         } else if (['contract', 'spot-purchase'].includes(tender_type)) {
           // Contract/Spot Purchase: All items from same vendor
           itemVendorId = awardedVendorId || item.vendor_id;
           console.log(`   ✅ Using vendor_id for ${tender_type}: ${itemVendorId}`);
         }
-
-        console.log(`   💾 Saving: vendor_id=${itemVendorId}, vendor_ids=${itemVendorIds}`);
-        
-        itemRequest.input('vendor_id', sql.NVarChar, itemVendorId || null);
-        itemRequest.input('vendor_ids', sql.NVarChar, itemVendorIds || null);
-
-        let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at, vendor_id, vendor_ids';
-        let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at, @vendor_id, @vendor_ids';
-
+        console.log(`   💾 Saving: vendor_id=${itemVendorId}`);
+        itemRequest.input('vendor_id', sql.UniqueIdentifier, itemVendorId || null);
+        let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at, vendor_id';
+        let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at, @vendor_id';
         // ✅ MODIFIED: Always include vendor_id in the query
         const itemFields = [
           'item_master_id', 'nomenclature', 'quantity', 'quantity_received', 
           'estimated_unit_price', 'actual_unit_price', 'total_amount', 
           'specifications', 'remarks', 'status'
         ];
-
         for (const field of itemFields) {
           if (item[field] !== undefined) {
             itemInsertQuery += `, ${field}`;
             itemValuesQuery += `, @${field}`;
-
             let value = item[field];
             let sqlType = sql.NVarChar; // Default
-
             if (['quantity', 'quantity_received', 'estimated_unit_price', 'actual_unit_price', 'total_amount'].includes(field)) {
               if (field === 'quantity' || field === 'quantity_received') {
                 sqlType = sql.Int;
@@ -5240,38 +4619,31 @@ app.post('/api/tenders', upload.fields([
             } else if (field === 'item_master_id') {
               sqlType = sql.NVarChar(50);
             }
-            
             itemRequest.input(field, sqlType, value);
           }
         }
-        
         itemInsertQuery += ') ' + itemValuesQuery + ')';
         console.log(`   📝 Final INSERT Query: ${itemInsertQuery}`);
         console.log(`   📊 Query Parameters:`, {
           id: uuidv4(),
           tender_id: tenderId,
           vendor_id: itemVendorId,
-          vendor_ids: itemVendorIds,
           item_master_id: item.item_master_id,
           nomenclature: item.nomenclature,
           quantity: item.quantity,
           estimated_unit_price: item.estimated_unit_price
         });
-        
         await itemRequest.query(itemInsertQuery);
       }
     }
-
     await transaction.commit();
     res.status(201).json({ success: true, message: 'Tender created successfully', tenderId });
-
   } catch (error) {
     await transaction.rollback();
     console.error('Failed to create tender:', error);
     res.status(500).json({ error: 'Failed to create tender', details: error.message });
   }
 });
-
 // GET /api/tenders - Get all tenders
 app.get('/api/tenders', async (req, res) => {
   try {
@@ -5289,26 +4661,21 @@ app.get('/api/tenders', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
   }
 });
-
 // GET /api/tender/:id/items - Get items for a tender (for Purchase Order creation)
 app.get('/api/tender/:id/items', async (req, res) => {
   const { id } = req.params;
   console.log(`📥 GET /api/tender/${id}/items - Fetching items for tender`);
-  
   try {
     // First get the tender to know the type and vendor info
     const tenderRequest = await pool.request()
       .input('tender_id', sql.NVarChar, id)
       .query(`SELECT id, tender_type, vendor_id FROM tenders WHERE id = @tender_id`);
-    
     if (tenderRequest.recordset.length === 0) {
       return res.status(404).json({ error: 'Tender not found' });
     }
-
     const tender = tenderRequest.recordset[0];
     const isSingleVendorType = ['contract', 'spot-purchase'].includes(tender.tender_type?.toLowerCase());
     const tenderVendorId = tender.vendor_id; // For contract/spot-purchase
-
     // Query tender_items - vendor may or may not be in the table depending on tender type
     let itemsResult;
     if (isSingleVendorType) {
@@ -5332,7 +4699,7 @@ app.get('/api/tender/:id/items', async (req, res) => {
           ORDER BY ti.id
         `);
     } else {
-      // For annual-tender: vendor_id may be in each item
+      // For annual-tender: vendor_id is in each item
       itemsResult = await pool.request()
         .input('tender_id', sql.NVarChar, id)
         .query(`
@@ -5352,7 +4719,6 @@ app.get('/api/tender/:id/items', async (req, res) => {
           ORDER BY ti.id
         `);
     }
-
     console.log(`✅ Found ${itemsResult.recordset.length} items for tender ${id} (type: ${tender.tender_type})`);
     res.json(itemsResult.recordset);
   } catch (error) {
@@ -5363,7 +4729,6 @@ app.get('/api/tender/:id/items', async (req, res) => {
       const fallbackResult = await pool.request()
         .input('tender_id', sql.NVarChar, id)
         .query(`SELECT id, item_master_id, quantity, nomenclature, estimated_unit_price FROM tender_items WHERE tender_id = @tender_id ORDER BY id`);
-      
       console.log(`✅ Fallback found ${fallbackResult.recordset.length} items`);
       res.json(fallbackResult.recordset);
     } catch (fallbackError) {
@@ -5372,22 +4737,17 @@ app.get('/api/tender/:id/items', async (req, res) => {
     }
   }
 });
-
 // GET /api/tenders/:id - Get a single tender by ID
 app.get('/api/tenders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
     const tenderResult = await pool.request()
       .input('id', sql.NVarChar, id)
       .query('SELECT * FROM tenders WHERE id = @id');
-
     if (tenderResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Tender not found' });
     }
-
     const tender = tenderResult.recordset[0];
-    
     // Fetch tender items
     const itemsResult = await pool.request()
       .input('tender_id', sql.NVarChar, id)
@@ -5401,6 +4761,8 @@ app.get('/api/tenders/:id', async (req, res) => {
           ti.estimated_unit_price,
           ti.vendor_id,
           ti.vendor_ids,
+          ti.specifications,
+          ti.remarks,
           ti.created_at,
           ti.updated_at,
           im.nomenclature as item_nomenclature
@@ -5409,23 +4771,19 @@ app.get('/api/tenders/:id', async (req, res) => {
         WHERE ti.tender_id = @tender_id
         ORDER BY ti.created_at
       `);
-
     // For each item, if vendor_ids is not null (annual tender), try to fetch vendor details
     const itemsWithVendors = await Promise.all(itemsResult.recordset.map(async (item) => {
       // Check vendor_ids first (for annual tender), then vendor_id (for contract/spot purchase)
       const vendorIdString = item.vendor_ids || item.vendor_id;
-      
       if (vendorIdString) {
         // vendor_ids might be a single UUID or comma-separated UUIDs
         const vendorIds = vendorIdString.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
-        
         if (vendorIds.length > 0) {
           try {
             // Fetch vendor details for the first vendor ID
             const vendorResult = await pool.request()
               .input('vendor_id', sql.NVarChar, vendorIds[0])
               .query('SELECT vendor_code, vendor_name, contact_person, email, phone FROM vendors WHERE id = @vendor_id');
-            
             if (vendorResult.recordset.length > 0) {
               const vendor = vendorResult.recordset[0];
               return {
@@ -5443,35 +4801,26 @@ app.get('/api/tenders/:id', async (req, res) => {
           }
         }
       }
-      
       return item;
     }));
-
     tender.items = itemsWithVendors;
-
     res.json(tender);
   } catch (error) {
     console.error('Failed to fetch tender:', error);
     res.status(500).json({ error: 'Failed to fetch tender', details: error.message });
   }
 });
-
 // PUT /api/tenders/:id/finalize - Finalize a tender (MUST be before /api/tenders/:id)
 app.put('/api/tenders/:id/finalize', async (req, res) => {
     console.log('🔥 FINALIZE ENDPOINT HIT! Route: PUT /api/tenders/:id/finalize');
     const { id } = req.params;
     const { finalized_by } = req.body;
-    
     console.log('🎯 FINALIZE REQUEST:', { id, finalized_by });
-    
     const transaction = new sql.Transaction(pool);
-    
     try {
         await transaction.begin();
         console.log('✅ Transaction started');
-        
         const now = new Date();
-        
         // First, get all tender items
         console.log('📦 Getting tender items...');
         const tenderItemsResult = await transaction.request()
@@ -5486,16 +4835,12 @@ app.put('/api/tenders/:id/finalize', async (req, res) => {
                 INNER JOIN item_masters im ON ti.item_master_id = im.id
                 WHERE ti.tender_id = @tender_id
             `);
-            
         console.log('📦 Found tender items:', tenderItemsResult.recordset.length);
-        
         // Add each tender item to stock_transactions_clean
         for (const item of tenderItemsResult.recordset) {
             console.log('📥 Adding item to stock_transactions_clean:', item.nomenclature);
-            
             // Auto-populate actual_unit_price with estimated_unit_price by default
             const estimatedPrice = item.estimated_unit_price || 0;
-            
             await transaction.request()
                 .input('tender_id', sql.UniqueIdentifier, id)
                 .input('item_master_id', sql.VarChar(50), item.item_master_id)
@@ -5536,7 +4881,6 @@ app.put('/api/tenders/:id/finalize', async (req, res) => {
                     )
                 `);
         }
-        
         // Update tender status to finalized
         console.log('📝 Updating tender status...');
         const updateResult = await transaction.request()
@@ -5554,14 +4898,11 @@ app.put('/api/tenders/:id/finalize', async (req, res) => {
                     status = 'Finalized'
                 WHERE id = @id AND is_finalized = 0
             `);
-            
         console.log('📝 Tender update result:', updateResult.rowsAffected);
-
         if (updateResult.rowsAffected[0] === 0) {
             await transaction.rollback();
             return res.status(404).json({ error: 'Tender not found or already finalized.' });
         }
-
         await transaction.commit();
         console.log('🎉 Tender finalized successfully with stock transactions!');
         res.json({ 
@@ -5576,7 +4917,6 @@ app.put('/api/tenders/:id/finalize', async (req, res) => {
         res.status(500).json({ error: 'Failed to finalize tender', details: error.message });
     }
 });
-
 // TEST endpoint - New finalize endpoint with different name
 app.put('/api/tenders/:id/finalize-test', async (req, res) => {
     console.log('🧪 TEST FINALIZE ENDPOINT HIT!');
@@ -5587,18 +4927,14 @@ app.put('/api/tenders/:id/finalize-test', async (req, res) => {
         body: req.body
     });
 });
-
 // PUT /api/tenders/:id - Update a tender and its items
 app.put('/api/tenders/:id', async (req, res) => {
   const { id } = req.params;
   const { items, bidders, ...tenderData } = req.body;
-  
   console.log('🔥🔥🔥 PUT /api/tenders/:id RECEIVED 🔥🔥🔥');
   console.log('Full request body:', JSON.stringify(req.body, null, 2));
   console.log('TenderData object:', JSON.stringify(tenderData, null, 2));
-  
   const transaction = new sql.Transaction(pool);
-  
   try {
     await transaction.begin();
     console.log(`🔄 Starting tender update for ID: ${id}`);
@@ -5608,18 +4944,13 @@ app.put('/api/tenders/:id', async (req, res) => {
       submission_deadline: tenderData.submission_deadline,
       opening_date: tenderData.opening_date
     });
-    
     const now = new Date();
-
     // Step 1: Update tender basic information
     console.log('📝 Updating tender basic information...');
-    
     const tenderUpdateRequest = transaction.request();
     tenderUpdateRequest.input('id', sql.NVarChar, id);
     tenderUpdateRequest.input('updated_at', sql.DateTime2, now);
-    
     let updateQuery = 'UPDATE tenders SET updated_at = @updated_at';
-    
     // Only update fields that exist in database schema
     const validFields = {
       reference_number: sql.NVarChar,
@@ -5637,15 +4968,11 @@ app.put('/api/tenders/:id', async (req, res) => {
       wing_ids: sql.NVarChar,
       dec_ids: sql.NVarChar
     };
-    
     for (const [field, sqlType] of Object.entries(validFields)) {
       if (tenderData[field] !== undefined) {
         updateQuery += `, ${field} = @${field}`;
-        
         let value = tenderData[field];
-        
         console.log(`📌 Processing field: ${field}, Original value: ${value}, Type: ${typeof value}`);
-        
         // Handle special data types
         if (field === 'estimated_value') {
           value = value ? parseFloat(value) : null;
@@ -5656,7 +4983,6 @@ app.put('/api/tenders/:id', async (req, res) => {
           value = value ? new Date(value) : null;
           console.log(`   ✅ Parsed ${field}: ${value}`);
         }
-        
         console.log(`   📝 Adding to request: ${field} = ${value}`);
         tenderUpdateRequest.input(field, sqlType, value);
         console.log(`   ✔️ Added successfully`);
@@ -5664,42 +4990,32 @@ app.put('/api/tenders/:id', async (req, res) => {
         console.log(`⏭️  Skipping field: ${field} (undefined in tenderData)`);
       }
     }
-    
     updateQuery += ' WHERE id = @id';
-    
     console.log('🔍 Executing update query:', updateQuery);
     console.log('📊 Request inputs:', tenderUpdateRequest);
     await tenderUpdateRequest.query(updateQuery);
     console.log('✅ Tender basic information updated');
-
     // Step 2: Handle tender items
     if (items && Array.isArray(items)) {
       console.log(`📋 Processing ${items.length} items...`);
-      
       // First, get the tender_type to determine how to handle vendors
       const tenderCheckResult = await transaction.request()
         .input('id', sql.NVarChar, id)
         .query('SELECT tender_type FROM tenders WHERE id = @id');
-      
       const tender_type = tenderCheckResult.recordset[0]?.tender_type || 'contract';
       console.log(`📦 Processing items for tender type: ${tender_type}`);
-      
       // Delete all existing items
       console.log('🗑️ Removing existing items...');
       await transaction.request()
         .input('tender_id', sql.NVarChar, id)
         .query('DELETE FROM tender_items WHERE tender_id = @tender_id');
-      
       // Insert new items
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         console.log(`📝 Adding item ${i + 1}/${items.length}: ${item.nomenclature}`);
-        
         const itemRequest = transaction.request();
-        
         // Generate new UUID for item
         const itemId = uuidv4();
-        
         itemRequest.input('id', sql.NVarChar, itemId);
         itemRequest.input('tender_id', sql.NVarChar, id);
         itemRequest.input('item_master_id', sql.NVarChar, item.item_master_id);
@@ -5712,32 +5028,22 @@ app.put('/api/tenders/:id', async (req, res) => {
         itemRequest.input('status', sql.NVarChar, 'Active');
         itemRequest.input('created_at', sql.DateTime2, now);
         itemRequest.input('updated_at', sql.DateTime2, now);
-        
         // Handle optional actual_unit_price
         if (item.actual_unit_price !== undefined) {
           itemRequest.input('actual_unit_price', sql.Decimal(15, 2), parseFloat(item.actual_unit_price) || 0);
         } else {
           itemRequest.input('actual_unit_price', sql.Decimal(15, 2), 0);
         }
-        
         // ✅ NEW: Handle vendor_id and vendor_ids based on tender type
         let itemVendorId = null;
-        let itemVendorIds = null;
-        
         if (tender_type === 'annual-tender') {
           // Annual tender: Each item can have multiple vendors (comma-separated)
           if (item.vendor_ids && Array.isArray(item.vendor_ids)) {
             // If vendor_ids is an array, join them as comma-separated string
-            itemVendorIds = item.vendor_ids.filter((id) => id && id.trim()).join(',');
-            console.log(`   ✅ Converted vendor_ids array to string: ${itemVendorIds}`);
           } else if (item.vendor_ids && typeof item.vendor_ids === 'string') {
             // Already a comma-separated string
-            itemVendorIds = item.vendor_ids;
-            console.log(`   ✅ Using vendor_ids as string: ${itemVendorIds}`);
           } else if (item.vendor_id) {
             // Single vendor or already comma-separated string
-            itemVendorIds = item.vendor_id;
-            console.log(`   ✅ Using vendor_id as vendor_ids: ${itemVendorIds}`);
           } else {
             console.log(`   ⚠️ No vendor_ids found for this annual tender item!`);
           }
@@ -5746,28 +5052,19 @@ app.put('/api/tenders/:id', async (req, res) => {
           itemVendorId = item.vendor_id || null;
           console.log(`   ✅ Using vendor_id for ${tender_type}: ${itemVendorId}`);
         }
-        
         itemRequest.input('vendor_id', sql.NVarChar, itemVendorId || null);
-        itemRequest.input('vendor_ids', sql.NVarChar, itemVendorIds || null);
-        
-        console.log(`   💾 Saving: vendor_id=${itemVendorId}, vendor_ids=${itemVendorIds}`);
-        
         const insertQuery = `
           INSERT INTO tender_items (
             id, tender_id, item_master_id, nomenclature, quantity,
             estimated_unit_price, actual_unit_price, total_amount,
-            specifications, remarks, status, created_at, updated_at, vendor_id, vendor_ids
-          )
+            specifications, remarks, status, created_at, updated_at, vendor_id)
           VALUES (
             @id, @tender_id, @item_master_id, @nomenclature, @quantity,
             @estimated_unit_price, @actual_unit_price, @total_amount,
-            @specifications, @remarks, @status, @created_at, @updated_at, @vendor_id, @vendor_ids
-          )
+            @specifications, @remarks, @status, @created_at, @updated_at, @vendor_id)
         `;
-        
         await itemRequest.query(insertQuery);
       }
-      
       console.log('✅ All items processed successfully');
     } else {
       console.log('🗑️ No items provided, removing all existing items');
@@ -5775,35 +5072,27 @@ app.put('/api/tenders/:id', async (req, res) => {
         .input('tender_id', sql.NVarChar, id)
         .query('DELETE FROM tender_items WHERE tender_id = @tender_id');
     }
-
     // Step 3: Handle vendor successful status changes
     if (bidders && Array.isArray(bidders)) {
       console.log(`📊 Processing ${bidders.length} bidders for successful status updates...`);
       console.log('🔍 Bidders data received:', JSON.stringify(bidders, null, 2));
-      
       for (const bidder of bidders) {
         if (!bidder.vendor_id) continue;
-        
         const currentStatus = bidder.is_successful ? 1 : 0;
         console.log(`   📌 Updating vendor ${bidder.vendor_id} (${bidder.vendor_name}) - is_successful: ${currentStatus} (boolean: ${bidder.is_successful})`);
-        
         // Check if vendor needs to be removed from items (if marked as unsuccessful)
         if (!bidder.is_successful) {
           // Get all items for this tender that have this vendor
           const itemsResult = await transaction.request()
             .input('tender_id', sql.NVarChar, id)
             .query(`SELECT id, vendor_ids FROM tender_items WHERE tender_id = @tender_id`);
-          
           console.log(`      Found ${itemsResult.recordset.length} items for this tender`);
-          
           // Remove this vendor from their vendor_ids
           for (const item of itemsResult.recordset) {
             if (item.vendor_ids) {
               const vendorIds = item.vendor_ids.split(',').map(vid => vid.trim());
               const updatedVendorIds = vendorIds.filter(vid => vid !== bidder.vendor_id).join(',');
-              
               console.log(`      🗑️ Removing vendor from item ${item.id}: "${item.vendor_ids}" → "${updatedVendorIds}"`);
-              
               await transaction.request()
                 .input('item_id', sql.NVarChar, item.id)
                 .input('vendor_ids', sql.NVarChar, updatedVendorIds || null)
@@ -5811,7 +5100,6 @@ app.put('/api/tenders/:id', async (req, res) => {
             }
           }
         }
-        
         // Update the vendor's successful status
         console.log(`      🔄 Updating tender_vendors: tender_id=${id}, vendor_id=${bidder.vendor_id}, is_successful=${currentStatus}`);
         const updateResult = await transaction.request()
@@ -5819,86 +5107,68 @@ app.put('/api/tenders/:id', async (req, res) => {
           .input('vendor_id', sql.NVarChar, bidder.vendor_id)
           .input('is_successful', sql.Bit, currentStatus)
           .query(`UPDATE tender_vendors SET is_successful = @is_successful, updated_at = GETDATE() WHERE tender_id = @tender_id AND vendor_id = @vendor_id`);
-        
         console.log(`      ✅ Update completed for vendor ${bidder.vendor_id}`);
       }
-      
       console.log('✅ Vendor successful status updates completed');
     } else {
       console.log('⚠️ No bidders data provided in request body');
     }
-
     await transaction.commit();
     console.log('✅ Tender update completed successfully');
-    
     res.json({ 
       success: true, 
       message: 'Tender updated successfully',
       tender_id: id
     });
-
   } catch (error) {
     console.error('❌ Tender update failed:', error.message);
-    
     try {
       await transaction.rollback();
       console.log('🔄 Transaction rolled back');
     } catch (rollbackError) {
       console.error('❌ Rollback failed:', rollbackError.message);
     }
-    
     res.status(500).json({ 
       error: 'Failed to update tender', 
       details: error.message 
     });
   }
 });
-
 // DELETE /api/tenders/:id - Delete a tender
 app.delete('/api/tenders/:id', async (req, res) => {
   const { id } = req.params;
   const transaction = pool.transaction();
   try {
     console.log('🗑️ DELETE TENDER: Starting deletion for tender ID:', id);
-    
     await transaction.begin();
-
     // First, check if tender exists
     const checkResult = await transaction.request()
       .input('id', sql.NVarChar, id)
       .query('SELECT id, is_finalized FROM tenders WHERE id = @id');
-    
     console.log('🔍 DELETE TENDER: Check result:', checkResult.recordset.length, 'records found');
-    
     if (checkResult.recordset.length === 0) {
       await transaction.rollback();
       console.log('❌ DELETE TENDER: Tender not found');
       return res.status(404).json({ error: 'Tender not found' });
     }
-    
     const tender = checkResult.recordset[0];
     if (tender.is_finalized) {
       await transaction.rollback();
       console.log('❌ DELETE TENDER: Cannot delete finalized tender');
       return res.status(400).json({ error: 'Cannot delete a finalized tender' });
     }
-
     // Delete tender_items first (if cascade is not working)
     console.log('🗑️ DELETE TENDER: Deleting tender items...');
     const itemsDeleteResult = await transaction.request()
       .input('tender_id', sql.NVarChar, id)
       .query('DELETE FROM tender_items WHERE tender_id = @tender_id');
-    
     console.log('🗑️ DELETE TENDER: Deleted', itemsDeleteResult.rowsAffected[0], 'items');
-
     // Now delete the tender
     console.log('🗑️ DELETE TENDER: Deleting tender...');
     const tenderDeleteResult = await transaction.request()
       .input('id', sql.NVarChar, id)
       .query('DELETE FROM tenders WHERE id = @id');
-    
     console.log('🗑️ DELETE TENDER: Deleted', tenderDeleteResult.rowsAffected[0], 'tender(s)');
-
     await transaction.commit();
     console.log('✅ DELETE TENDER: Successfully deleted tender and items');
     res.json({ success: true, message: 'Tender deleted successfully' });
@@ -5912,18 +5182,15 @@ app.delete('/api/tenders/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete tender', details: error.message });
   }
 });
-
 // =============================================================================
 // TENDER VENDORS ENDPOINTS - Multiple vendors per tender with proposals
 // =============================================================================
-
 // Configure multer for proposal document uploads
 const proposalStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const tenderId = req.params.tenderId;
     const vendorId = req.params.vendorId;
     const uploadPath = path.join(__dirname, 'uploads', 'tender-proposals', tenderId, vendorId);
-    
     // Create directory if it doesn't exist
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
@@ -5936,7 +5203,6 @@ const proposalStorage = multer.diskStorage({
     cb(null, `${nameWithoutExt}_${timestamp}${ext}`);
   }
 });
-
 const proposalUpload = multer({
   storage: proposalStorage,
   limits: {
@@ -5947,7 +5213,6 @@ const proposalUpload = multer({
     const allowedTypes = /pdf|doc|docx|xls|xlsx/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
     if (extname && mimetype) {
       return cb(null, true);
     } else {
@@ -5955,25 +5220,20 @@ const proposalUpload = multer({
     }
   }
 });
-
 // POST - Add a vendor to a tender
 app.post('/api/tenders/:tenderId/vendors', async (req, res) => {
   const { tenderId } = req.params;
   const { vendor_id, vendor_name, quoted_amount, remarks, is_selected, is_successful } = req.body;
-  
   console.log('📦 Adding vendor to tender:', { tenderId, vendor_id, vendor_name, is_selected, is_successful });
-  
   try {
     // Check if vendor already exists for this tender
     const checkResult = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
       .input('vendor_id', sql.UniqueIdentifier, vendor_id)
       .query('SELECT id FROM tender_vendors WHERE tender_id = @tender_id AND vendor_id = @vendor_id');
-    
     if (checkResult.recordset.length > 0) {
       return res.status(400).json({ error: 'This vendor is already added to this tender' });
     }
-    
     // Insert new tender vendor
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -5993,23 +5253,18 @@ app.post('/api/tenders/:tenderId/vendors', async (req, res) => {
           @tender_id, @vendor_id, @vendor_name, @quoted_amount, @remarks, @is_selected, @is_successful, @created_by
         )
       `);
-    
     console.log('✅ Vendor added successfully:', result.recordset[0]);
     res.status(201).json(result.recordset[0]);
-    
   } catch (error) {
     console.error('❌ Error adding vendor to tender:', error);
     res.status(500).json({ error: 'Failed to add vendor', details: error.message });
   }
 });
-
 // GET - Get all vendors for a tender
 app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
   const { tenderId } = req.params;
-  
   try {
     console.log(`📥 Fetching vendors for tender ${tenderId}`);
-    
     // Query tender_vendors table which stores all participating bidders
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6042,21 +5297,17 @@ app.get('/api/tenders/:tenderId/vendors', async (req, res) => {
         WHERE tv.tender_id = @tender_id
         ORDER BY tv.created_at DESC
       `);
-    
     console.log(`✅ Found ${result.recordset.length} participating bidders for tender`);
     res.json(result.recordset);
-    
   } catch (error) {
     console.error('❌ Error fetching tender vendors:', error);
     res.status(500).json({ error: 'Failed to fetch vendors', details: error.message });
   }
 });
-
 // PUT - Update vendor information (quoted amount, remarks)
 app.put('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
   const { tenderId, vendorId } = req.params;
   const { quoted_amount, remarks } = req.body;
-  
   try {
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6072,36 +5323,29 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
         OUTPUT INSERTED.*
         WHERE tender_id = @tender_id AND vendor_id = @vendor_id
       `);
-    
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Vendor not found for this tender' });
     }
-    
     res.json(result.recordset[0]);
-    
   } catch (error) {
     console.error('❌ Error updating vendor:', error);
     res.status(500).json({ error: 'Failed to update vendor', details: error.message });
   }
 });
-
 // POST - Upload proposal document for a vendor
 app.post('/api/tenders/:tenderId/vendors/:vendorId/proposal', 
   proposalUpload.single('proposal'), 
   async (req, res) => {
     const { tenderId, vendorId } = req.params;
-    
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    
     console.log('📄 Uploading proposal:', {
       tenderId,
       vendorId,
       filename: req.file.filename,
       size: req.file.size
     });
-    
     try {
       // Update tender vendor with proposal information
       const result = await pool.request()
@@ -6121,20 +5365,17 @@ app.post('/api/tenders/:tenderId/vendors/:vendorId/proposal',
           OUTPUT INSERTED.*
           WHERE tender_id = @tender_id AND vendor_id = @vendor_id
         `);
-      
       if (result.recordset.length === 0) {
         // Delete uploaded file if vendor not found
         fs.unlinkSync(req.file.path);
         return res.status(404).json({ error: 'Vendor not found for this tender' });
       }
-      
       console.log('✅ Proposal uploaded successfully');
       res.json({
         success: true,
         message: 'Proposal uploaded successfully',
         vendor: result.recordset[0]
       });
-      
     } catch (error) {
       console.error('❌ Error uploading proposal:', error);
       // Delete uploaded file on error
@@ -6144,11 +5385,9 @@ app.post('/api/tenders/:tenderId/vendors/:vendorId/proposal',
       res.status(500).json({ error: 'Failed to upload proposal', details: error.message });
     }
 });
-
 // GET - Download proposal document
 app.get('/api/tenders/:tenderId/vendors/:vendorId/proposal/download', async (req, res) => {
   const { tenderId, vendorId } = req.params;
-  
   try {
     // Get proposal document path
     const result = await pool.request()
@@ -6161,19 +5400,15 @@ app.get('/api/tenders/:tenderId/vendors/:vendorId/proposal/download', async (req
         FROM tender_vendors 
         WHERE tender_id = @tender_id AND vendor_id = @vendor_id
       `);
-    
     if (result.recordset.length === 0 || !result.recordset[0].proposal_document_path) {
       return res.status(404).json({ error: 'Proposal not found' });
     }
-    
     const filePath = result.recordset[0].proposal_document_path;
     const fileName = result.recordset[0].proposal_document_name;
-    
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Proposal file not found on server' });
     }
-    
     // Send file
     res.download(filePath, fileName, (err) => {
       if (err) {
@@ -6181,21 +5416,17 @@ app.get('/api/tenders/:tenderId/vendors/:vendorId/proposal/download', async (req
         res.status(500).json({ error: 'Failed to download file' });
       }
     });
-    
   } catch (error) {
     console.error('❌ Error fetching proposal:', error);
     res.status(500).json({ error: 'Failed to fetch proposal', details: error.message });
   }
 });
-
 // PUT - Mark vendor as awarded
 app.put('/api/tenders/:tenderId/vendors/:vendorId/award', async (req, res) => {
   const { tenderId, vendorId } = req.params;
   const transaction = new sql.Transaction(pool);
-  
   try {
     await transaction.begin();
-    
     // Unmark all vendors for this tender
     await transaction.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6204,7 +5435,6 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/award', async (req, res) => {
         SET is_awarded = 0, updated_at = GETDATE()
         WHERE tender_id = @tender_id
       `);
-    
     // Mark the selected vendor as awarded
     const result = await transaction.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6215,12 +5445,10 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/award', async (req, res) => {
         OUTPUT INSERTED.*
         WHERE tender_id = @tender_id AND vendor_id = @vendor_id
       `);
-    
     if (result.recordset.length === 0) {
       await transaction.rollback();
       return res.status(404).json({ error: 'Vendor not found for this tender' });
     }
-    
     // Update tender table with awarded vendor
     await transaction.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6232,33 +5460,26 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/award', async (req, res) => {
             updated_at = GETDATE()
         WHERE id = @tender_id
       `);
-    
     await transaction.commit();
-    
     console.log('✅ Vendor awarded successfully');
     res.json({
       success: true,
       message: 'Vendor awarded successfully',
       vendor: result.recordset[0]
     });
-    
   } catch (error) {
     await transaction.rollback();
     console.error('❌ Error awarding vendor:', error);
     res.status(500).json({ error: 'Failed to award vendor', details: error.message });
   }
 });
-
 // PUT - Mark vendor as successful bidder
 app.put('/api/tenders/:tenderId/vendors/:vendorId/successful', async (req, res) => {
   const { tenderId, vendorId } = req.params;
   const { is_successful } = req.body;
-  
   const transaction = new sql.Transaction(pool);
-  
   try {
     await transaction.begin();
-    
     // Mark/unmark the selected vendor as successful (allow multiple successful bidders)
     const result = await transaction.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6270,29 +5491,23 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/successful', async (req, res) 
         OUTPUT INSERTED.*
         WHERE tender_id = @tender_id AND vendor_id = @vendor_id
       `);
-    
     if (result.recordset.length === 0) {
       await transaction.rollback();
       return res.status(404).json({ error: 'Vendor not found for this tender' });
     }
-    
     // If unmarking vendor as successful, remove them from all items
     if (!is_successful) {
       console.log(`🗑️ Removing vendor ${vendorId} from all items since they're no longer successful`);
-      
       // Get all items for this tender
       const itemsResult = await transaction.request()
         .input('tender_id', sql.UniqueIdentifier, tenderId)
         .query(`SELECT id, vendor_ids FROM tender_items WHERE tender_id = @tender_id`);
-      
       // Update each item to remove this vendor from their vendor_ids
       for (const item of itemsResult.recordset) {
         if (item.vendor_ids) {
           const vendorIds = item.vendor_ids.split(',').map(id => id.trim());
           const updatedVendorIds = vendorIds.filter(id => id !== vendorId).join(',');
-          
           console.log(`   📝 Updating item ${item.id}: vendor_ids "${item.vendor_ids}" → "${updatedVendorIds}"`);
-          
           await transaction.request()
             .input('item_id', sql.NVarChar, item.id)
             .input('vendor_ids', sql.NVarChar, updatedVendorIds || null)
@@ -6300,30 +5515,24 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/successful', async (req, res) 
         }
       }
     }
-    
     console.log(`📊 Vendor marked: is_successful = ${is_successful}, tender_id = ${tenderId}, vendor_id = ${vendorId}`);
-    
     await transaction.commit();
-    
     console.log(`✅ Vendor ${is_successful ? 'marked' : 'unmarked'} as successful`);
     res.json({
       success: true,
       message: `Vendor ${is_successful ? 'marked' : 'unmarked'} as successful (multiple successful bidders allowed)`,
       vendor: result.recordset[0]
     });
-    
   } catch (error) {
     await transaction.rollback();
     console.error('❌ Error marking vendor as successful:', error);
     res.status(500).json({ error: 'Failed to mark vendor as successful', details: error.message });
   }
 });
-
 // PUT - Mark vendor as selected (only one selected vendor per tender)
 app.put('/api/tenders/:tenderId/vendors/:vendorId/selected', async (req, res) => {
   const { tenderId, vendorId } = req.params;
   const { is_selected } = req.body;
-  
   try {
     if (is_selected) {
       // Unmark all vendors as selected for this tender
@@ -6335,7 +5544,6 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/selected', async (req, res) =>
           WHERE tender_id = @tender_id
         `);
     }
-    
     // Mark the selected vendor as selected (or unmark if is_selected is false)
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6347,28 +5555,23 @@ app.put('/api/tenders/:tenderId/vendors/:vendorId/selected', async (req, res) =>
         OUTPUT INSERTED.*
         WHERE tender_id = @tender_id AND vendor_id = @vendor_id
       `);
-    
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Vendor not found for this tender' });
     }
-    
     console.log(`✅ Vendor ${is_selected ? 'marked' : 'unmarked'} as selected`);
     res.json({
       success: true,
       message: `Vendor ${is_selected ? 'marked' : 'unmarked'} as selected`,
       vendor: result.recordset[0]
     });
-    
   } catch (error) {
     console.error('❌ Error marking vendor as selected:', error);
     res.status(500).json({ error: 'Failed to mark vendor as selected', details: error.message });
   }
 });
-
 // DELETE - Remove vendor from tender
 app.delete('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
   const { tenderId, vendorId } = req.params;
-  
   try {
     // Get proposal file path before deleting
     const fileResult = await pool.request()
@@ -6379,7 +5582,6 @@ app.delete('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
         FROM tender_vendors 
         WHERE tender_id = @tender_id AND vendor_id = @vendor_id
       `);
-    
     // Delete from database
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
@@ -6388,11 +5590,9 @@ app.delete('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
         DELETE FROM tender_vendors 
         WHERE tender_id = @tender_id AND vendor_id = @vendor_id
       `);
-    
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Vendor not found for this tender' });
     }
-    
     // Delete proposal file if exists
     if (fileResult.recordset.length > 0 && fileResult.recordset[0].proposal_document_path) {
       const filePath = fileResult.recordset[0].proposal_document_path;
@@ -6401,20 +5601,16 @@ app.delete('/api/tenders/:tenderId/vendors/:vendorId', async (req, res) => {
         console.log('🗑️ Deleted proposal file:', filePath);
       }
     }
-    
     console.log('✅ Vendor removed from tender');
     res.json({ success: true, message: 'Vendor removed successfully' });
-    
   } catch (error) {
     console.error('❌ Error removing vendor:', error);
     res.status(500).json({ error: 'Failed to remove vendor', details: error.message });
   }
 });
-
 // =============================================================================
 // DELIVERY ENDPOINTS
 // =============================================================================
-
 // GET all deliveries
 app.get('/api/deliveries', async (req, res) => {
   try {
@@ -6429,17 +5625,14 @@ app.get('/api/deliveries', async (req, res) => {
       ORDER BY d.created_at DESC
     `);
     res.json(result.recordset);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
   }
 });
-
 // GET single delivery by ID
 app.get('/api/deliveries/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -6452,17 +5645,14 @@ app.get('/api/deliveries/:id', async (req, res) => {
         LEFT JOIN tenders t ON d.tender_id = t.id
         WHERE d.id = @id
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
     res.json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch delivery', details: error.message });
   }
 });
-
 // POST create new delivery
 app.post('/api/deliveries', async (req, res) => {
   try {
@@ -6475,10 +5665,8 @@ app.post('/api/deliveries', async (req, res) => {
       delivery_chalan,
       chalan_file_path
     } = req.body;
-
     const deliveryId = uuidv4();
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, deliveryId)
       .input('delivery_number', sql.Int, delivery_number)
@@ -6505,12 +5693,10 @@ app.post('/api/deliveries', async (req, res) => {
       delivery_number: delivery_number,
       message: 'Delivery created successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create delivery', details: error.message });
   }
 });
-
 // PUT update delivery
 app.put('/api/deliveries/:id', async (req, res) => {
   try {
@@ -6524,7 +5710,6 @@ app.put('/api/deliveries/:id', async (req, res) => {
       delivery_chalan,
       chalan_file_path
     } = req.body;
-
     // Check if delivery is finalized
     const checkResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -6533,22 +5718,17 @@ app.put('/api/deliveries/:id', async (req, res) => {
         FROM deliveries d
         WHERE d.id = @id
       `);
-
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
-
     const { is_finalized } = checkResult.recordset[0];
-
     if (is_finalized) {
       return res.status(400).json({ 
         error: 'Cannot update delivery - delivery is finalized',
         reason: 'delivery_finalized'
       });
     }
-
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('delivery_number', sql.Int, delivery_number)
@@ -6571,7 +5751,6 @@ app.put('/api/deliveries/:id', async (req, res) => {
           updated_at = @updated_at
         WHERE id = @id
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
@@ -6580,17 +5759,14 @@ app.put('/api/deliveries/:id', async (req, res) => {
       id: id,
       message: 'Delivery updated successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update delivery', details: error.message });
   }
 });
-
 // DELETE delivery
 app.delete('/api/deliveries/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     // Check if delivery is finalized
     const checkResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -6599,24 +5775,19 @@ app.delete('/api/deliveries/:id', async (req, res) => {
         FROM deliveries d
         WHERE d.id = @id
       `);
-
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
-
     const { is_finalized } = checkResult.recordset[0];
-
     if (is_finalized) {
       return res.status(400).json({ 
         error: 'Cannot delete delivery - delivery is finalized',
         reason: 'delivery_finalized'
       });
     }
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query('DELETE FROM deliveries WHERE id = @id');
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
@@ -6624,28 +5795,22 @@ app.delete('/api/deliveries/:id', async (req, res) => {
       success: true, 
       message: 'Delivery deleted successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete delivery', details: error.message });
   }
 });
-
 // POST create delivery items
 app.post('/api/delivery-items', async (req, res) => {
   try {
     const { delivery_id, items } = req.body;
-
     if (!delivery_id || !items || !Array.isArray(items)) {
       return res.status(400).json({ error: 'Missing delivery_id or items array' });
     }
-
     // First, delete existing delivery items for this delivery
     await pool.request()
       .input('delivery_id', sql.UniqueIdentifier, delivery_id)
       .query('DELETE FROM delivery_items WHERE delivery_id = @delivery_id');
-
     const now = new Date().toISOString();
-    
     // Insert new delivery items
     for (const item of items) {
       const itemId = uuidv4();
@@ -6664,36 +5829,29 @@ app.post('/api/delivery-items', async (req, res) => {
           )
         `);
     }
-
     res.json({ 
       success: true, 
       message: 'Delivery items saved successfully',
       items_count: items.length
     });
-
   } catch (error) {
     console.error('Error saving delivery items:', error);
     res.status(500).json({ error: 'Failed to save delivery items', details: error.message });
   }
 });
-
 // PUT update delivery items
 app.put('/api/delivery-items/:delivery_id', async (req, res) => {
   try {
     const { delivery_id } = req.params;
     const { items } = req.body;
-
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ error: 'Missing items array' });
     }
-
     // First, delete existing delivery items for this delivery
     await pool.request()
       .input('delivery_id', sql.UniqueIdentifier, delivery_id)
       .query('DELETE FROM delivery_items WHERE delivery_id = @delivery_id');
-
     const now = new Date().toISOString();
-    
     // Insert updated delivery items
     for (const item of items) {
       const itemId = uuidv4();
@@ -6712,27 +5870,22 @@ app.put('/api/delivery-items/:delivery_id', async (req, res) => {
           )
         `);
     }
-
     res.json({ 
       success: true, 
       message: 'Delivery items updated successfully',
       items_count: items.length
     });
-
   } catch (error) {
     console.error('Error updating delivery items:', error);
     res.status(500).json({ error: 'Failed to update delivery items', details: error.message });
   }
 });
-
 // PUT finalize delivery and add to inventory
 app.put('/api/deliveries/:id/finalize', async (req, res) => {
   try {
     const { id } = req.params;
     const { finalized_by } = req.body;
-
     const now = new Date().toISOString();
-
     try {
       // Check if delivery exists and is not already finalized
       const checkResult = await pool.request()
@@ -6742,17 +5895,13 @@ app.put('/api/deliveries/:id/finalize', async (req, res) => {
           FROM deliveries d
           WHERE d.id = @id
         `);
-
       if (checkResult.recordset.length === 0) {
         return res.status(404).json({ error: 'Delivery not found' });
       }
-
       const { is_finalized } = checkResult.recordset[0];
-
       if (is_finalized) {
         return res.status(400).json({ error: 'Delivery is already finalized' });
       }
-
       // Update delivery to finalized status
       // Note: finalized_by is stored as NVARCHAR, so we don't need to convert it to GUID
       const updateQuery = `
@@ -6763,15 +5912,12 @@ app.put('/api/deliveries/:id/finalize', async (req, res) => {
           updated_at = @updated_at
         WHERE id = @id
       `;
-
       const request = pool.request()
         .input('id', sql.UniqueIdentifier, id)
         .input('finalized_by', sql.NVarChar(450), finalized_by)
         .input('finalized_at', sql.DateTime2, now)
         .input('updated_at', sql.DateTime2, now);
-
       await request.query(updateQuery);
-
       res.json({ 
         success: true, 
         id: id,
@@ -6779,11 +5925,9 @@ app.put('/api/deliveries/:id/finalize', async (req, res) => {
         finalized_at: now,
         finalized_by: finalized_by
       });
-
     } catch (error) {
       throw error;
     }
-
   } catch (error) {
     console.error('Error finalizing delivery:', error);
     res.status(500).json({ 
@@ -6792,11 +5936,9 @@ app.put('/api/deliveries/:id/finalize', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // STOCK TRANSACTION / INVENTORY ENDPOINTS
 // =============================================================================
-
 // GET all current inventory stock
 app.get('/api/inventory-stock', async (req, res) => {
   try {
@@ -6824,17 +5966,14 @@ app.get('/api/inventory-stock', async (req, res) => {
       ORDER BY cis.last_updated DESC
     `);
     res.json(result.recordset);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch inventory stock', details: error.message });
   }
 });
-
 // GET single inventory stock by ID
 app.get('/api/inventory-stock/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -6849,17 +5988,14 @@ app.get('/api/inventory-stock/:id', async (req, res) => {
         LEFT JOIN item_masters im ON cis.item_master_id = im.id
         WHERE cis.id = @id
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Inventory stock record not found' });
     }
     res.json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch inventory stock', details: error.message });
   }
 });
-
 // POST create new inventory stock record
 app.post('/api/inventory-stock', async (req, res) => {
   try {
@@ -6873,10 +6009,8 @@ app.post('/api/inventory-stock', async (req, res) => {
       maximum_stock_level,
       updated_by
     } = req.body;
-
     const stockId = uuidv4();
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, stockId)
       .input('item_master_id', sql.UniqueIdentifier, item_master_id)
@@ -6906,12 +6040,10 @@ app.post('/api/inventory-stock', async (req, res) => {
       item_master_id: item_master_id,
       message: 'Inventory stock record created successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create inventory stock record', details: error.message });
   }
 });
-
 // PUT update inventory stock (stock transaction)
 app.put('/api/inventory-stock/:id', async (req, res) => {
   try {
@@ -6925,9 +6057,7 @@ app.put('/api/inventory-stock/:id', async (req, res) => {
       maximum_stock_level,
       updated_by
     } = req.body;
-
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('current_quantity', sql.Int, current_quantity)
@@ -6950,7 +6080,6 @@ app.put('/api/inventory-stock/:id', async (req, res) => {
           last_updated = @last_updated
         WHERE id = @id
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Inventory stock record not found' });
     }
@@ -6959,21 +6088,17 @@ app.put('/api/inventory-stock/:id', async (req, res) => {
       id: id,
       message: 'Inventory stock updated successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update inventory stock', details: error.message });
   }
 });
-
 // DELETE inventory stock record
 app.delete('/api/inventory-stock/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query('DELETE FROM current_inventory_stock WHERE id = @id');
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Inventory stock record not found' });
     }
@@ -6981,12 +6106,10 @@ app.delete('/api/inventory-stock/:id', async (req, res) => {
       success: true, 
       message: 'Inventory stock record deleted successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete inventory stock record', details: error.message });
   }
 });
-
 // POST stock transaction (adjust stock levels)
 app.post('/api/inventory-stock/:id/transaction', async (req, res) => {
   try {
@@ -6997,22 +6120,17 @@ app.post('/api/inventory-stock/:id/transaction', async (req, res) => {
       reason,
       updated_by
     } = req.body;
-
     const now = new Date().toISOString();
-
     // Get current stock levels
     const currentStock = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query('SELECT * FROM current_inventory_stock WHERE id = @id');
-
     if (currentStock.recordset.length === 0) {
       return res.status(404).json({ error: 'Inventory stock record not found' });
     }
-
     const stock = currentStock.recordset[0];
     let newCurrentQuantity = stock.current_quantity;
     let newAvailableQuantity = stock.available_quantity;
-
     // Calculate new quantities based on transaction type
     switch (transaction_type.toUpperCase()) {
       case 'IN':
@@ -7030,11 +6148,9 @@ app.post('/api/inventory-stock/:id/transaction', async (req, res) => {
       default:
         return res.status(400).json({ error: 'Invalid transaction type. Use IN, OUT, or ADJUST' });
     }
-
     // Ensure quantities don't go negative
     if (newCurrentQuantity < 0) newCurrentQuantity = 0;
     if (newAvailableQuantity < 0) newAvailableQuantity = 0;
-
     // Update the stock record
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -7058,21 +6174,17 @@ app.post('/api/inventory-stock/:id/transaction', async (req, res) => {
       new_quantity: newCurrentQuantity,
       message: `Stock ${transaction_type.toLowerCase()} transaction completed successfully`
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to process stock transaction', details: error.message });
   }
 });
-
 // =============================================================================
 // ITEM MASTER ENDPOINTS
 // =============================================================================
-
 // GET all item masters
 app.get('/api/item-masters', async (req, res) => {
   try {
     console.log('🔍 Starting /api/item-masters request...');
-    
     if (!pool) {
       console.log('⚠️ No database pool available, returning mock data');
       // Return mock data when SQL Server is not connected
@@ -7134,7 +6246,6 @@ app.get('/api/item-masters', async (req, res) => {
       ];
       return res.json(mockItemMasters);
     }
-
     console.log('📊 Executing database query...');
     const result = await pool.request().query(`
       SELECT 
@@ -7157,17 +6268,14 @@ app.get('/api/item-masters', async (req, res) => {
       FROM vw_item_masters_with_categories
       ORDER BY nomenclature
     `);
-    
     console.log('✅ Query executed successfully, rows returned:', result.recordset.length);
     if (result.recordset.length > 0) {
       console.log('📊 First item sample:', JSON.stringify(result.recordset[0], null, 2));
     }
-    
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error in /api/item-masters:', error.message);
     console.error('📋 Full error:', error);
-    
     // Fallback to mock data on any error
     const mockItemMasters = [
       { 
@@ -7228,12 +6336,10 @@ app.get('/api/item-masters', async (req, res) => {
     res.json(mockItemMasters);
   }
 });
-
 // GET single item master by ID
 app.get('/api/item-masters/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -7255,17 +6361,14 @@ app.get('/api/item-masters/:id', async (req, res) => {
         FROM item_masters 
         WHERE id = @id AND status != 'Deleted'
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Item master not found' });
     }
     res.json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch item master', details: error.message });
   }
 });
-
 // POST create new item master
 app.post('/api/item-masters', async (req, res) => {
   try {
@@ -7282,10 +6385,8 @@ app.post('/api/item-masters', async (req, res) => {
       maximum_stock_level,
       status = 'Active'
     } = req.body;
-
     const itemId = uuidv4();
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, itemId)
       .input('nomenclature', sql.NVarChar, nomenclature)
@@ -7312,7 +6413,6 @@ app.post('/api/item-masters', async (req, res) => {
           @maximum_stock_level, @status, @created_at, @updated_at
         )
       `);
-    
     res.json({ 
       id: itemId,
       nomenclature: nomenclature,
@@ -7320,12 +6420,10 @@ app.post('/api/item-masters', async (req, res) => {
       category_id: category_id,
       status: status
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create item master', details: error.message });
   }
 });
-
 // PUT update item master
 app.put('/api/item-masters/:id', async (req, res) => {
   try {
@@ -7343,13 +6441,10 @@ app.put('/api/item-masters/:id', async (req, res) => {
       maximum_stock_level,
       status
     } = req.body;
-
     console.log('🔄 PUT /api/item-masters/:id - Request received');
     console.log('📝 Item ID:', id);
     console.log('📊 Request body:', req.body);
-
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('nomenclature', sql.NVarChar, nomenclature)
@@ -7380,31 +6475,26 @@ app.put('/api/item-masters/:id', async (req, res) => {
           updated_at = @updated_at
         WHERE id = @id
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Item master not found' });
     }
-    
     console.log('✅ Item master updated successfully');
     res.json({ 
       success: true, 
       id: id,
       message: 'Item master updated successfully'
     });
-
   } catch (error) {
     console.error('❌ Error updating item master:', error);
     console.error('📋 Error details:', error.message);
     res.status(500).json({ error: 'Failed to update item master', details: error.message });
   }
 });
-
 // DELETE item master (soft delete)
 app.delete('/api/item-masters/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('updated_at', sql.DateTime2, now)
@@ -7414,7 +6504,6 @@ app.delete('/api/item-masters/:id', async (req, res) => {
           updated_at = @updated_at
         WHERE id = @id
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Item master not found' });
     }
@@ -7422,21 +6511,17 @@ app.delete('/api/item-masters/:id', async (req, res) => {
       success: true, 
       message: 'Item master deleted successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete item master', details: error.message });
   }
 });
-
 // =============================================================================
 // CATEGORIES ENDPOINTS
 // =============================================================================
-
 // GET all categories
 app.get('/api/categories', async (req, res) => {
   try {
     console.log('📋 /api/categories endpoint called');
-    
     if (!pool) {
       console.log('⚠️ No pool connection, returning mock categories');
       // Return mock data when SQL Server is not connected
@@ -7450,7 +6535,6 @@ app.get('/api/categories', async (req, res) => {
       console.log('✅ Returning mock categories:', mockCategories.length);
       return res.json(mockCategories);
     }
-
     console.log('🔍 Fetching categories from database...');
     const result = await pool.request().query(`
       SELECT 
@@ -7476,17 +6560,14 @@ app.get('/api/categories', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch categories', details: error.message });
   }
 });
-
 // GET single category by ID
 app.get('/api/categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
     if (!pool) {
       const mockCategory = { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active' };
       return res.json(mockCategory);
     }
-
     const result = await pool.request()
       .input('id', sql.Int, id)
       .query(`
@@ -7500,24 +6581,20 @@ app.get('/api/categories/:id', async (req, res) => {
         FROM categories 
         WHERE id = @id AND status != 'Deleted'
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Category not found' });
     }
-
     res.json(result.recordset[0]);
   } catch (error) {
     console.error('Error fetching category:', error);
     res.status(500).json({ error: 'Failed to fetch category', details: error.message });
   }
 });
-
 // GET items in a category
 app.get('/api/categories/:categoryId/items', async (req, res) => {
   try {
     const { categoryId } = req.params;
     console.log(`📦 Fetching items for category ${categoryId}...`);
-    
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockItems = [
@@ -7527,7 +6604,6 @@ app.get('/api/categories/:categoryId/items', async (req, res) => {
       ];
       return res.json(mockItems);
     }
-
     const result = await pool.request()
       .input('categoryId', sql.UniqueIdentifier, categoryId)
       .query(`
@@ -7541,23 +6617,19 @@ app.get('/api/categories/:categoryId/items', async (req, res) => {
         AND is_deleted = 0
         ORDER BY nomenclature
       `);
-    
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching category items:', error);
     res.status(500).json({ error: 'Failed to fetch category items', details: error.message });
   }
 });
-
 // =============================================================================
 // SUB-CATEGORIES ENDPOINTS
 // =============================================================================
-
 // GET all sub-categories
 app.get('/api/sub-categories', async (req, res) => {
   try {
     console.log('🔍 Fetching all sub-categories...');
-    
     if (!pool) {
       const mockSubCategories = [
         { id: 1, sub_category_name: 'Computers', category_id: 1, description: 'Desktop and laptop computers', status: 'Active', item_count: 0 },
@@ -7569,7 +6641,6 @@ app.get('/api/sub-categories', async (req, res) => {
       ];
       return res.json(mockSubCategories);
     }
-
     const result = await pool.request().query(`
       SELECT 
         sc.id,
@@ -7586,7 +6657,6 @@ app.get('/api/sub-categories', async (req, res) => {
       GROUP BY sc.id, sc.sub_category_name, sc.category_id, sc.description, sc.status, sc.created_at, sc.updated_at
       ORDER BY sc.sub_category_name
     `);
-    
     console.log('✅ Sub-categories fetched:', result.recordset.length);
     res.json(result.recordset);
   } catch (error) {
@@ -7603,13 +6673,11 @@ app.get('/api/sub-categories', async (req, res) => {
     res.json(mockSubCategories);
   }
 });
-
 // GET sub-categories by category ID
 app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
   try {
     const { categoryId } = req.params;
     console.log('🔍 Fetching sub-categories for category:', categoryId);
-    
     if (!pool) {
       const mockSubCategories = [
         { id: 1, sub_category_name: 'Computers', category_id: 1, description: 'Desktop and laptop computers', status: 'Active' },
@@ -7617,7 +6685,6 @@ app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
       ].filter(sub => sub.category_id.toString() === categoryId);
       return res.json(mockSubCategories);
     }
-
     const result = await pool.request()
       .input('categoryId', sql.Int, categoryId)
       .query(`
@@ -7633,7 +6700,6 @@ app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
         WHERE category_id = @categoryId AND status != 'Deleted'
         ORDER BY sub_category_name
       `);
-    
     console.log('✅ Sub-categories fetched for category', categoryId, ':', result.recordset.length);
     res.json(result.recordset);
   } catch (error) {
@@ -7641,21 +6707,16 @@ app.get('/api/sub-categories/by-category/:categoryId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch sub-categories', details: error.message });
   }
 });
-
 // POST - Create new category
 app.post('/api/categories', async (req, res) => {
   try {
     const { category_name, description } = req.body;
-    
     if (!category_name) {
       return res.status(400).json({ error: 'Category name is required' });
     }
-
     const categoryId = uuidv4();
     const now = new Date().toISOString();
-
     console.log('🔧 Creating category with data:', { category_name, description, status: 'Active', item_type: 'Dispensable' });
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, categoryId)
       .input('category_name', sql.NVarChar, category_name)
@@ -7669,7 +6730,6 @@ app.post('/api/categories', async (req, res) => {
         OUTPUT INSERTED.*
         VALUES (@id, @category_name, @description, @status, @item_type, @created_at, @updated_at)
       `);
-
     console.log('✅ Category created:', result.recordset[0]);
     res.json(result.recordset[0]);
   } catch (error) {
@@ -7677,13 +6737,11 @@ app.post('/api/categories', async (req, res) => {
     res.status(500).json({ error: 'Failed to create category', details: error.message });
   }
 });
-
 // PUT - Update category
 app.put('/api/categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { category_name, description, item_type, status } = req.body;
-
     const result = await pool.request()
       .input('id', sql.NVarChar, id)
       .input('category_name', sql.NVarChar, category_name)
@@ -7700,11 +6758,9 @@ app.put('/api/categories/:id', async (req, res) => {
         OUTPUT INSERTED.*
         WHERE id = @id
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Category not found' });
     }
-
     console.log('✅ Category updated:', result.recordset[0]);
     res.json({ message: 'Category updated successfully', data: result.recordset[0] });
   } catch (error) {
@@ -7712,32 +6768,26 @@ app.put('/api/categories/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update category', details: error.message });
   }
 });
-
 // DELETE - Delete category
 app.delete('/api/categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     // Check if category has sub-categories
     const checkResult = await pool.request()
       .input('id', sql.NVarChar, id)
       .query('SELECT COUNT(*) as count FROM sub_categories WHERE category_id = @id');
-
     if (checkResult.recordset[0].count > 0) {
       return res.status(400).json({ 
         error: 'Cannot delete category with existing sub-categories',
         details: 'Please delete all sub-categories first'
       });
     }
-
     const result = await pool.request()
       .input('id', sql.NVarChar, id)
       .query('DELETE FROM categories OUTPUT DELETED.* WHERE id = @id');
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Category not found' });
     }
-
     console.log('✅ Category deleted:', result.recordset[0]);
     res.json({ message: 'Category deleted successfully' });
   } catch (error) {
@@ -7745,16 +6795,13 @@ app.delete('/api/categories/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete category', details: error.message });
   }
 });
-
 // POST - Create new sub-category
 app.post('/api/sub-categories', async (req, res) => {
   try {
     const { category_id, sub_category_name, description, status } = req.body;
-    
     if (!category_id || !sub_category_name) {
       return res.status(400).json({ error: 'Category ID and sub-category name are required' });
     }
-
     const result = await pool.request()
       .input('category_id', sql.NVarChar, category_id)
       .input('sub_category_name', sql.NVarChar, sub_category_name)
@@ -7765,7 +6812,6 @@ app.post('/api/sub-categories', async (req, res) => {
         OUTPUT INSERTED.*
         VALUES (@category_id, @sub_category_name, @description, @status, GETDATE(), GETDATE())
       `);
-
     console.log('✅ Sub-category created:', result.recordset[0]);
     res.json({ message: 'Sub-category created successfully', data: result.recordset[0] });
   } catch (error) {
@@ -7773,13 +6819,11 @@ app.post('/api/sub-categories', async (req, res) => {
     res.status(500).json({ error: 'Failed to create sub-category', details: error.message });
   }
 });
-
 // PUT - Update sub-category
 app.put('/api/sub-categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { category_id, sub_category_name, description, status } = req.body;
-
     const result = await pool.request()
       .input('id', sql.NVarChar, id)
       .input('category_id', sql.NVarChar, category_id)
@@ -7796,11 +6840,9 @@ app.put('/api/sub-categories/:id', async (req, res) => {
         OUTPUT INSERTED.*
         WHERE id = @id
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Sub-category not found' });
     }
-
     console.log('✅ Sub-category updated:', result.recordset[0]);
     res.json({ message: 'Sub-category updated successfully', data: result.recordset[0] });
   } catch (error) {
@@ -7808,20 +6850,16 @@ app.put('/api/sub-categories/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update sub-category', details: error.message });
   }
 });
-
 // DELETE - Delete sub-category
 app.delete('/api/sub-categories/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     const result = await pool.request()
       .input('id', sql.NVarChar, id)
       .query('DELETE FROM sub_categories OUTPUT DELETED.* WHERE id = @id');
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Sub-category not found' });
     }
-
     console.log('✅ Sub-category deleted:', result.recordset[0]);
     res.json({ message: 'Sub-category deleted successfully' });
   } catch (error) {
@@ -7829,16 +6867,13 @@ app.delete('/api/sub-categories/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete sub-category', details: error.message });
   }
 });
-
 // =============================================================================
 // VENDOR ENDPOINTS
 // =============================================================================
-
 // GET all vendors
 app.get('/api/vendors', async (req, res) => {
   try {
     console.log('📋 /api/vendors endpoint called');
-    
     if (!pool) {
       console.log('⚠️ No pool connection, returning mock vendors');
       // Return mock data when SQL Server is not connected
@@ -7849,7 +6884,6 @@ app.get('/api/vendors', async (req, res) => {
       ];
       return res.json({ vendors: mockVendors });
     }
-
     const result = await pool.request().query(`
       SELECT 
         id,
@@ -7883,12 +6917,10 @@ app.get('/api/vendors', async (req, res) => {
     res.json({ vendors: mockVendors });
   }
 });
-
 // GET single vendor by ID
 app.get('/api/vendors/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -7909,17 +6941,14 @@ app.get('/api/vendors/:id', async (req, res) => {
         FROM vendors 
         WHERE id = @id AND status != 'Deleted'
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Vendor not found' });
     }
     res.json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch vendor', details: error.message });
   }
 });
-
 // POST create new vendor
 app.post('/api/vendors', async (req, res) => {
   try {
@@ -7935,10 +6964,8 @@ app.post('/api/vendors', async (req, res) => {
       tax_number,
       status = 'Active'
     } = req.body;
-
     const vendorId = uuidv4();
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, vendorId)
       .input('vendor_code', sql.NVarChar, vendor_code)
@@ -7969,12 +6996,10 @@ app.post('/api/vendors', async (req, res) => {
       vendor_name: vendor_name,
       message: 'Vendor created successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create vendor', details: error.message });
   }
 });
-
 // PUT update vendor
 app.put('/api/vendors/:id', async (req, res) => {
   try {
@@ -7991,9 +7016,7 @@ app.put('/api/vendors/:id', async (req, res) => {
       tax_number,
       status
     } = req.body;
-
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('vendor_code', sql.NVarChar, vendor_code)
@@ -8022,7 +7045,6 @@ app.put('/api/vendors/:id', async (req, res) => {
           updated_at = @updated_at
         WHERE id = @id
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Vendor not found' });
     }
@@ -8031,18 +7053,15 @@ app.put('/api/vendors/:id', async (req, res) => {
       id: id,
       message: 'Vendor updated successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update vendor', details: error.message });
   }
 });
-
 // DELETE vendor (soft delete)
 app.delete('/api/vendors/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('updated_at', sql.DateTime2, now)
@@ -8052,7 +7071,6 @@ app.delete('/api/vendors/:id', async (req, res) => {
           updated_at = @updated_at
         WHERE id = @id
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Vendor not found' });
     }
@@ -8060,21 +7078,17 @@ app.delete('/api/vendors/:id', async (req, res) => {
       success: true, 
       message: 'Vendor deleted successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete vendor', details: error.message });
   }
 });
-
 // ==================== REORDER REQUESTS ENDPOINTS ====================
-
 // Get all reorder requests or filter by status
 app.get('/api/reorder-requests', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     let query = `
       SELECT 
         rr.*,
@@ -8086,24 +7100,19 @@ app.get('/api/reorder-requests', async (req, res) => {
       LEFT JOIN Office o ON rr.office_id = o.intOfficeID
       WHERE rr.boolDeleted = 0
     `;
-    
     const request = pool.request();
-    
     // Add status filter if provided
     if (req.query.status) {
       query += ` AND rr.status = @status`;
       request.input('status', sql.VarChar, req.query.status);
     }
-    
     query += ` ORDER BY rr.created_at DESC`;
-    
     const result = await request.query(query);
     res.json(result.recordset);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch reorder requests', details: error.message });
   }
 });
-
 // Get reorder request by ID
 app.get('/api/reorder-requests/:id', async (req, res) => {
   try {
@@ -8111,7 +7120,6 @@ app.get('/api/reorder-requests/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -8125,7 +7133,6 @@ app.get('/api/reorder-requests/:id', async (req, res) => {
         LEFT JOIN Office o ON rr.office_id = o.intOfficeID
         WHERE rr.id = @id AND rr.boolDeleted = 0
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Reorder request not found' });
     }
@@ -8134,14 +7141,12 @@ app.get('/api/reorder-requests/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch reorder request', details: error.message });
   }
 });
-
 // Create new reorder request
 app.post('/api/reorder-requests', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const {
       item_master_id,
       office_id,
@@ -8154,10 +7159,8 @@ app.post('/api/reorder-requests', async (req, res) => {
       requested_by,
       remarks
     } = req.body;
-
     const id = uuidv4();
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('item_master_id', sql.UniqueIdentifier, item_master_id)
@@ -8188,7 +7191,6 @@ app.post('/api/reorder-requests', async (req, res) => {
           @status, @requested_by, @requested_at, @remarks, @created_at,
           @updated_at, @boolActive, @boolDeleted
         );
-        
         SELECT 
           rr.*,
           im.nomenclature as item_name,
@@ -8204,7 +7206,6 @@ app.post('/api/reorder-requests', async (req, res) => {
     res.status(500).json({ error: 'Failed to create reorder request', details: error.message });
   }
 });
-
 // Update reorder request
 app.put('/api/reorder-requests/:id', async (req, res) => {
   try {
@@ -8212,18 +7213,14 @@ app.put('/api/reorder-requests/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const updateData = req.body;
     const now = new Date().toISOString();
-
     // Build dynamic update query
     const fields = [];
     const request = pool.request().input('id', sql.UniqueIdentifier, id);
-
     Object.keys(updateData).forEach(key => {
       if (updateData[key] !== undefined) {
         fields.push(`${key} = @${key}`);
-        
         if (key.includes('_at') || key.includes('Date')) {
           request.input(key, sql.DateTime, updateData[key]);
         } else if (typeof updateData[key] === 'number') {
@@ -8235,19 +7232,15 @@ app.put('/api/reorder-requests/:id', async (req, res) => {
         }
       }
     });
-
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-
     fields.push('updated_at = @updated_at');
     request.input('updated_at', sql.DateTime, now);
-
     const result = await request.query(`
       UPDATE reorder_requests 
       SET ${fields.join(', ')}
       WHERE id = @id AND boolDeleted = 0;
-      
       SELECT 
         rr.*,
         im.nomenclature as item_name,
@@ -8258,7 +7251,6 @@ app.put('/api/reorder-requests/:id', async (req, res) => {
       LEFT JOIN Office o ON rr.office_id = o.intOfficeID
       WHERE rr.id = @id;
     `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Reorder request not found' });
     }
@@ -8267,7 +7259,6 @@ app.put('/api/reorder-requests/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update reorder request', details: error.message });
   }
 });
-
 // Delete reorder request
 app.delete('/api/reorder-requests/:id', async (req, res) => {
   try {
@@ -8275,9 +7266,7 @@ app.delete('/api/reorder-requests/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('updated_at', sql.DateTime, now)
@@ -8286,7 +7275,6 @@ app.delete('/api/reorder-requests/:id', async (req, res) => {
         SET boolDeleted = 1, updated_at = @updated_at
         WHERE id = @id AND boolDeleted = 0
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Reorder request not found' });
     }
@@ -8295,16 +7283,13 @@ app.delete('/api/reorder-requests/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete reorder request', details: error.message });
   }
 });
-
 // ==================== STOCK TRANSACTIONS ENDPOINTS ====================
-
 // Get all stock transactions with filters
 app.get('/api/stock-transactions', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     let query = `
       SELECT 
         st.*,
@@ -8320,44 +7305,35 @@ app.get('/api/stock-transactions', async (req, res) => {
       LEFT JOIN Office to_office ON st.to_office_id = to_office.intOfficeID
       WHERE st.boolDeleted = 0
     `;
-    
     const request = pool.request();
-    
     // Add filters
     if (req.query.officeId) {
       query += ` AND st.office_id = @officeId`;
       request.input('officeId', sql.Int, req.query.officeId);
     }
-    
     if (req.query.itemMasterId) {
       query += ` AND st.item_master_id = @itemMasterId`;
       request.input('itemMasterId', sql.UniqueIdentifier, req.query.itemMasterId);
     }
-    
     if (req.query.type) {
       query += ` AND st.transaction_type = @type`;
       request.input('type', sql.VarChar, req.query.type);
     }
-    
     if (req.query.startDate) {
       query += ` AND st.transaction_date >= @startDate`;
       request.input('startDate', sql.DateTime, req.query.startDate);
     }
-    
     if (req.query.endDate) {
       query += ` AND st.transaction_date <= @endDate`;
       request.input('endDate', sql.DateTime, req.query.endDate);
     }
-    
     query += ` ORDER BY st.transaction_date DESC, st.created_at DESC`;
-    
     const result = await request.query(query);
     res.json(result.recordset);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch stock transactions', details: error.message });
   }
 });
-
 // Get stock transaction by ID
 app.get('/api/stock-transactions/:id', async (req, res) => {
   try {
@@ -8365,7 +7341,6 @@ app.get('/api/stock-transactions/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -8383,7 +7358,6 @@ app.get('/api/stock-transactions/:id', async (req, res) => {
         LEFT JOIN Office to_office ON st.to_office_id = to_office.intOfficeID
         WHERE st.id = @id AND st.boolDeleted = 0
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Stock transaction not found' });
     }
@@ -8392,14 +7366,12 @@ app.get('/api/stock-transactions/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch stock transaction', details: error.message });
   }
 });
-
 // Create new stock transaction
 app.post('/api/stock-transactions', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const {
       item_master_id,
       office_id,
@@ -8416,11 +7388,9 @@ app.post('/api/stock-transactions', async (req, res) => {
       transaction_date,
       created_by
     } = req.body;
-
     const id = uuidv4();
     const now = new Date().toISOString();
     const transactionDate = transaction_date || now;
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('item_master_id', sql.UniqueIdentifier, item_master_id)
@@ -8453,7 +7423,6 @@ app.post('/api/stock-transactions', async (req, res) => {
           @from_office_id, @to_office_id, @remarks, @transaction_date, @created_by,
           @created_at, @updated_at, @boolActive, @boolDeleted
         );
-        
         SELECT 
           st.*,
           im.nomenclature as item_name,
@@ -8473,7 +7442,6 @@ app.post('/api/stock-transactions', async (req, res) => {
     res.status(500).json({ error: 'Failed to create stock transaction', details: error.message });
   }
 });
-
 // Update stock transaction
 app.put('/api/stock-transactions/:id', async (req, res) => {
   try {
@@ -8481,18 +7449,14 @@ app.put('/api/stock-transactions/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const updateData = req.body;
     const now = new Date().toISOString();
-
     // Build dynamic update query
     const fields = [];
     const request = pool.request().input('id', sql.UniqueIdentifier, id);
-
     Object.keys(updateData).forEach(key => {
       if (updateData[key] !== undefined) {
         fields.push(`${key} = @${key}`);
-        
         if (key.includes('_at') || key.includes('Date') || key.includes('_date')) {
           request.input(key, sql.DateTime, updateData[key]);
         } else if (key.includes('price') || key.includes('value')) {
@@ -8506,19 +7470,15 @@ app.put('/api/stock-transactions/:id', async (req, res) => {
         }
       }
     });
-
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-
     fields.push('updated_at = @updated_at');
     request.input('updated_at', sql.DateTime, now);
-
     const result = await request.query(`
       UPDATE stock_transactions 
       SET ${fields.join(', ')}
       WHERE id = @id AND boolDeleted = 0;
-      
       SELECT 
         st.*,
         im.nomenclature as item_name,
@@ -8533,7 +7493,6 @@ app.put('/api/stock-transactions/:id', async (req, res) => {
       LEFT JOIN Office to_office ON st.to_office_id = to_office.intOfficeID
       WHERE st.id = @id;
     `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Stock transaction not found' });
     }
@@ -8542,7 +7501,6 @@ app.put('/api/stock-transactions/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update stock transaction', details: error.message });
   }
 });
-
 // Delete stock transaction
 app.delete('/api/stock-transactions/:id', async (req, res) => {
   try {
@@ -8550,9 +7508,7 @@ app.delete('/api/stock-transactions/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('updated_at', sql.DateTime, now)
@@ -8561,7 +7517,6 @@ app.delete('/api/stock-transactions/:id', async (req, res) => {
         SET boolDeleted = 1, updated_at = @updated_at
         WHERE id = @id AND boolDeleted = 0
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Stock transaction not found' });
     }
@@ -8570,16 +7525,13 @@ app.delete('/api/stock-transactions/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete stock transaction', details: error.message });
   }
 });
-
 // ==================== STORES ENDPOINTS ====================
-
 // Get all stores
 app.get('/api/stores', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const result = await pool.request().query(`
       SELECT 
         id,
@@ -8599,7 +7551,6 @@ app.get('/api/stores', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch stores', details: error.message });
   }
 });
-
 // Get store by ID
 app.get('/api/stores/:id', async (req, res) => {
   try {
@@ -8607,7 +7558,6 @@ app.get('/api/stores/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -8623,7 +7573,6 @@ app.get('/api/stores/:id', async (req, res) => {
         FROM stores 
         WHERE id = @id AND boolDeleted = 0
       `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
@@ -8632,23 +7581,18 @@ app.get('/api/stores/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch store', details: error.message });
   }
 });
-
 // Create new store
 app.post('/api/stores', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { store_name, description, address, office_id } = req.body;
-
     if (!store_name) {
       return res.status(400).json({ error: 'Store name is required' });
     }
-
     const id = uuidv4();
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('store_name', sql.VarChar, store_name)
@@ -8667,7 +7611,6 @@ app.post('/api/stores', async (req, res) => {
           @id, @store_name, @description, @address, @office_id,
           @created_at, @updated_at, @boolActive, @boolDeleted
         );
-        
         SELECT 
           id,
           store_name,
@@ -8685,7 +7628,6 @@ app.post('/api/stores', async (req, res) => {
     res.status(500).json({ error: 'Failed to create store', details: error.message });
   }
 });
-
 // Update store
 app.put('/api/stores/:id', async (req, res) => {
   try {
@@ -8693,18 +7635,14 @@ app.put('/api/stores/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const updateData = req.body;
     const now = new Date().toISOString();
-
     // Build dynamic update query
     const fields = [];
     const request = pool.request().input('id', sql.UniqueIdentifier, id);
-
     Object.keys(updateData).forEach(key => {
       if (updateData[key] !== undefined) {
         fields.push(`${key} = @${key}`);
-        
         if (key.includes('_at') || key.includes('Date')) {
           request.input(key, sql.DateTime, updateData[key]);
         } else if (typeof updateData[key] === 'number') {
@@ -8716,19 +7654,15 @@ app.put('/api/stores/:id', async (req, res) => {
         }
       }
     });
-
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-
     fields.push('updated_at = @updated_at');
     request.input('updated_at', sql.DateTime, now);
-
     const result = await request.query(`
       UPDATE stores 
       SET ${fields.join(', ')}
       WHERE id = @id AND boolDeleted = 0;
-      
       SELECT 
         id,
         store_name,
@@ -8741,7 +7675,6 @@ app.put('/api/stores/:id', async (req, res) => {
       FROM stores 
       WHERE id = @id;
     `);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
@@ -8750,7 +7683,6 @@ app.put('/api/stores/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update store', details: error.message });
   }
 });
-
 // Delete store
 app.delete('/api/stores/:id', async (req, res) => {
   try {
@@ -8758,9 +7690,7 @@ app.delete('/api/stores/:id', async (req, res) => {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('updated_at', sql.DateTime, now)
@@ -8769,7 +7699,6 @@ app.delete('/api/stores/:id', async (req, res) => {
         SET boolDeleted = 1, updated_at = @updated_at
         WHERE id = @id AND boolDeleted = 0
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
@@ -8778,27 +7707,22 @@ app.delete('/api/stores/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete store', details: error.message });
   }
 });
-
 // =====================================================================
 // STOCK ISSUANCE WORKFLOW - API ENDPOINTS
 // =====================================================================
-
 // 1. CHECK STOCK AVAILABILITY (When creating request)
 app.post('/api/stock/check-availability', async (req, res) => {
   try {
     const { item_master_id, requested_quantity } = req.body;
-
     if (!item_master_id || !requested_quantity) {
       return res.status(400).json({ error: 'Item ID and quantity are required' });
     }
-
     const result = await pool.request()
       .input('item_master_id', sql.UniqueIdentifier, item_master_id)
       .input('requested_quantity', sql.Int, requested_quantity)
       .query(`
         SELECT * FROM dbo.fn_CheckStockAvailability(@item_master_id, @requested_quantity)
       `);
-
     if (result.recordset.length === 0) {
       return res.json({
         available: false,
@@ -8806,9 +7730,7 @@ app.post('/api/stock/check-availability', async (req, res) => {
         stock_status: 'Not Found'
       });
     }
-
     const stockInfo = result.recordset[0];
-
     res.json({
       available: stockInfo.availability_status === 'Available',
       stock_info: stockInfo,
@@ -8818,25 +7740,20 @@ app.post('/api/stock/check-availability', async (req, res) => {
         ? `⚠️ Only ${stockInfo.available_quantity} units available (requested ${requested_quantity})`
         : '❌ Out of stock'
     });
-
   } catch (error) {
     console.error('❌ Error checking stock availability:', error);
     res.status(500).json({ error: 'Failed to check stock availability', details: error.message });
   }
 });
-
 // 2. BATCH CHECK AVAILABILITY (For multiple items in a request)
 app.post('/api/stock/check-availability-batch', async (req, res) => {
   try {
     const { items } = req.body; // Array of { item_master_id, requested_quantity }
-
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ error: 'Items array is required' });
     }
-
     const availability = [];
     let allAvailable = true;
-
     for (const item of items) {
       const result = await pool.request()
         .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
@@ -8844,7 +7761,6 @@ app.post('/api/stock/check-availability-batch', async (req, res) => {
         .query(`
           SELECT * FROM dbo.fn_CheckStockAvailability(@item_master_id, @requested_quantity)
         `);
-
       if (result.recordset.length > 0) {
         const stockInfo = result.recordset[0];
         availability.push({
@@ -8855,7 +7771,6 @@ app.post('/api/stock/check-availability-batch', async (req, res) => {
           availability_status: stockInfo.availability_status,
           can_fulfill: stockInfo.availability_status === 'Available'
         });
-
         if (stockInfo.availability_status !== 'Available') {
           allAvailable = false;
         }
@@ -8868,7 +7783,6 @@ app.post('/api/stock/check-availability-batch', async (req, res) => {
         allAvailable = false;
       }
     }
-
     res.json({
       all_available: allAvailable,
       items: availability,
@@ -8878,18 +7792,15 @@ app.post('/api/stock/check-availability-batch', async (req, res) => {
         unavailable: availability.filter(a => !a.can_fulfill).length
       }
     });
-
   } catch (error) {
     console.error('❌ Error checking batch availability:', error);
     res.status(500).json({ error: 'Failed to check availability', details: error.message });
   }
 });
-
 // 3. SEARCH ITEMS WITH STOCK AVAILABILITY
 app.get('/api/stock/search-with-availability', async (req, res) => {
   try {
     const { search, category_id, sub_category_id, item_type } = req.query;
-
     let query = `
       SELECT 
         im.id as item_master_id,
@@ -8914,33 +7825,25 @@ app.get('/api/stock/search-with-availability', async (req, res) => {
       LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
       WHERE im.status = 'Active'
     `;
-
     const request = pool.request();
-
     if (search) {
       query += ` AND (im.nomenclature LIKE @search OR im.item_code LIKE @search OR im.description LIKE @search)`;
       request.input('search', sql.NVarChar, `%${search}%`);
     }
-
     if (category_id) {
       query += ` AND im.category_id = @category_id`;
       request.input('category_id', sql.NVarChar, category_id);
     }
-
     if (sub_category_id) {
       query += ` AND im.sub_category_id = @sub_category_id`;
       request.input('sub_category_id', sql.NVarChar, sub_category_id);
     }
-
     if (item_type) {
       query += ` AND c.item_type = @item_type`;
       request.input('item_type', sql.NVarChar, item_type);
     }
-
     query += ` ORDER BY im.nomenclature`;
-
     const result = await request.query(query);
-
     res.json({
       items: result.recordset,
       total: result.recordset.length,
@@ -8948,23 +7851,19 @@ app.get('/api/stock/search-with-availability', async (req, res) => {
       low_stock_items: result.recordset.filter(i => i.stock_status === 'Low Stock').length,
       out_of_stock_items: result.recordset.filter(i => i.stock_status === 'Out of Stock').length
     });
-
   } catch (error) {
     console.error('❌ Error searching items with availability:', error);
     res.status(500).json({ error: 'Failed to search items', details: error.message });
   }
 });
-
 // 4. ISSUE STOCK ITEMS (After approval)
 app.post('/api/stock-issuance/issue/:requestId', async (req, res) => {
   try {
     const { requestId } = req.params;
     const { issued_by, issued_by_name, issuance_notes } = req.body;
-
     if (!issued_by || !issued_by_name) {
       return res.status(400).json({ error: 'Issued by information is required' });
     }
-
     // Call the stored procedure
     await pool.request()
       .input('request_id', sql.UniqueIdentifier, requestId)
@@ -8972,15 +7871,12 @@ app.post('/api/stock-issuance/issue/:requestId', async (req, res) => {
       .input('issued_by_name', sql.NVarChar, issued_by_name)
       .input('issuance_notes', sql.NVarChar, issuance_notes || null)
       .execute('sp_IssueStockItems');
-
     console.log(`✅ Stock issued successfully for request: ${requestId}`);
-
     res.json({
       success: true,
       message: 'Stock items issued successfully and inventory updated',
       request_id: requestId
     });
-
   } catch (error) {
     console.error('❌ Error issuing stock:', error);
     res.status(500).json({ 
@@ -8989,44 +7885,34 @@ app.post('/api/stock-issuance/issue/:requestId', async (req, res) => {
     });
   }
 });
-
 // 5. GET USER'S ISSUED ITEMS HISTORY
 app.get('/api/issued-items/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const { status, is_returnable, from_date, to_date } = req.query;
-
     let query = `
       SELECT * FROM vw_UserIssuedItemsHistory
       WHERE issued_to_user_id = @userId
     `;
-
     const request = pool.request().input('userId', sql.UniqueIdentifier, userId);
-
     if (status) {
       query += ` AND status = @status`;
       request.input('status', sql.NVarChar, status);
     }
-
     if (is_returnable !== undefined) {
       query += ` AND is_returnable = @is_returnable`;
       request.input('is_returnable', sql.Bit, is_returnable === 'true' ? 1 : 0);
     }
-
     if (from_date) {
       query += ` AND issued_at >= @from_date`;
       request.input('from_date', sql.Date, from_date);
     }
-
     if (to_date) {
       query += ` AND issued_at <= @to_date`;
       request.input('to_date', sql.Date, to_date);
     }
-
     query += ` ORDER BY issued_at DESC`;
-
     const result = await request.query(query);
-
     // Calculate summary statistics
     const summary = {
       total_items: result.recordset.length,
@@ -9035,18 +7921,15 @@ app.get('/api/issued-items/user/:userId', async (req, res) => {
       not_returned: result.recordset.filter(i => i.is_returnable && i.return_status === 'Not Returned').length,
       overdue: result.recordset.filter(i => i.current_return_status === 'Overdue').length
     };
-
     res.json({
       items: result.recordset,
       summary: summary
     });
-
   } catch (error) {
     console.error('❌ Error fetching user issued items:', error);
     res.status(500).json({ error: 'Failed to fetch issued items', details: error.message });
   }
 });
-
 // ============================================================================
 // Personal Inventory API - IMS-Personal Page
 // ============================================================================
@@ -9054,40 +7937,30 @@ app.get('/api/personal-inventory/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const { status, is_returnable, from_date, to_date } = req.query;
-
     console.log('📦 Fetching personal inventory for user:', userId);
-
     let query = `
       SELECT * FROM vw_UserIssuedItemsHistory
       WHERE issued_to_user_id = @userId
     `;
-
     const request = pool.request().input('userId', sql.UniqueIdentifier, userId);
-
     if (status) {
       query += ` AND status = @status`;
       request.input('status', sql.NVarChar, status);
     }
-
     if (is_returnable !== undefined) {
       query += ` AND is_returnable = @is_returnable`;
       request.input('is_returnable', sql.Bit, is_returnable === 'true' ? 1 : 0);
     }
-
     if (from_date) {
       query += ` AND issued_at >= @from_date`;
       request.input('from_date', sql.Date, from_date);
     }
-
     if (to_date) {
       query += ` AND issued_at <= @to_date`;
       request.input('to_date', sql.Date, to_date);
     }
-
     query += ` ORDER BY issued_at DESC`;
-
     const result = await request.query(query);
-
     // Calculate summary statistics
     const summary = {
       total_items: result.recordset.length,
@@ -9096,23 +7969,19 @@ app.get('/api/personal-inventory/:userId', async (req, res) => {
       not_returned: result.recordset.filter(i => i.is_returnable && i.return_status === 'Not Returned').length,
       overdue: result.recordset.filter(i => i.current_return_status === 'Overdue').length
     };
-
     console.log('✅ Personal inventory fetched successfully:', {
       items: result.recordset.length,
       total_value: summary.total_value
     });
-
     res.json({
       items: result.recordset,
       summary: summary
     });
-
   } catch (error) {
     console.error('❌ Error fetching personal inventory:', error);
     res.status(500).json({ error: 'Failed to fetch personal inventory', details: error.message });
   }
 });
-
 // ============================================================================
 // Wing Inventory API - IMS-Wing Page
 // ============================================================================
@@ -9120,9 +7989,7 @@ app.get('/api/wing-inventory/:wingId', async (req, res) => {
   try {
     const { wingId } = req.params;
     const { status, is_returnable, from_date, to_date } = req.query;
-
     console.log('🏢 Fetching wing inventory for wing:', wingId);
-
     // Query to get all issued items for users in this wing
     let itemsQuery = `
       SELECT 
@@ -9133,33 +8000,25 @@ app.get('/api/wing-inventory/:wingId', async (req, res) => {
       INNER JOIN AspNetUsers u ON l.issued_to_user_id = u.Id
       WHERE u.intWingID = @wingId
     `;
-
     const request = pool.request().input('wingId', sql.Int, wingId);
-
     if (status) {
       itemsQuery += ` AND l.status = @status`;
       request.input('status', sql.NVarChar, status);
     }
-
     if (is_returnable !== undefined) {
       itemsQuery += ` AND l.is_returnable = @is_returnable`;
       request.input('is_returnable', sql.Bit, is_returnable === 'true' ? 1 : 0);
     }
-
     if (from_date) {
       itemsQuery += ` AND l.issued_at >= @from_date`;
       request.input('from_date', sql.Date, from_date);
     }
-
     if (to_date) {
       itemsQuery += ` AND l.issued_at <= @to_date`;
       request.input('to_date', sql.Date, to_date);
     }
-
     itemsQuery += ` ORDER BY l.issued_at DESC`;
-
     const itemsResult = await request.query(itemsQuery);
-
     // Calculate summary statistics
     const summary = {
       total_items: itemsResult.recordset.length,
@@ -9169,7 +8028,6 @@ app.get('/api/wing-inventory/:wingId', async (req, res) => {
       not_returned: itemsResult.recordset.filter(i => i.is_returnable && i.return_status === 'Not Returned').length,
       overdue: itemsResult.recordset.filter(i => i.current_return_status === 'Overdue').length
     };
-
     // Calculate user breakdown
     const userMap = new Map();
     itemsResult.recordset.forEach(item => {
@@ -9190,95 +8048,75 @@ app.get('/api/wing-inventory/:wingId', async (req, res) => {
         userStats.overdue_count++;
       }
     });
-
     const userBreakdown = Array.from(userMap.values()).sort((a, b) => b.total_value - a.total_value);
-
     console.log('✅ Wing inventory fetched successfully:', {
       items: itemsResult.recordset.length,
       total_value: summary.total_value,
       unique_users: summary.unique_users
     });
-
     res.json({
       items: itemsResult.recordset,
       summary: summary,
       userBreakdown: userBreakdown
     });
-
   } catch (error) {
     console.error('❌ Error fetching wing inventory:', error);
     res.status(500).json({ error: 'Failed to fetch wing inventory', details: error.message });
   }
 });
-
 // 6. GET ALL ISSUED ITEMS (With filters)
 app.get('/api/issued-items', async (req, res) => {
   try {
     const { office_id, wing_id, item_master_id, status, return_status, from_date, to_date } = req.query;
-
     let query = `SELECT * FROM vw_UserIssuedItemsHistory WHERE 1=1`;
     const request = pool.request();
-
     if (office_id) {
       query += ` AND issued_to_office_id = @office_id`;
       request.input('office_id', sql.Int, parseInt(office_id));
     }
-
     if (wing_id) {
       query += ` AND issued_to_wing_id = @wing_id`;
       request.input('wing_id', sql.Int, parseInt(wing_id));
     }
-
     if (item_master_id) {
       query += ` AND item_master_id = @item_master_id`;
       request.input('item_master_id', sql.UniqueIdentifier, item_master_id);
     }
-
     if (status) {
       query += ` AND status = @status`;
       request.input('status', sql.NVarChar, status);
     }
-
     if (return_status) {
       query += ` AND return_status = @return_status`;
       request.input('return_status', sql.NVarChar, return_status);
     }
-
     if (from_date) {
       query += ` AND issued_at >= @from_date`;
       request.input('from_date', sql.Date, from_date);
     }
-
     if (to_date) {
       query += ` AND issued_at <= @to_date`;
       request.input('to_date', sql.Date, to_date);
     }
-
     query += ` ORDER BY issued_at DESC`;
-
     const result = await request.query(query);
-
     res.json({
       items: result.recordset,
       total: result.recordset.length
     });
-
   } catch (error) {
     console.error('❌ Error fetching issued items:', error);
     res.status(500).json({ error: 'Failed to fetch issued items', details: error.message });
   }
 });
-
 // 7. RETURN ISSUED ITEMS
 app.post('/api/issued-items/return/:ledgerId', async (req, res) => {
   try {
     const { ledgerId } = req.params;
     const { return_quantity, returned_by, return_notes, item_condition } = req.body;
-
     if (!returned_by) {
       return res.status(400).json({ error: 'Returned by information is required' });
     }
-
     await pool.request()
       .input('ledger_id', sql.UniqueIdentifier, ledgerId)
       .input('return_quantity', sql.Int, return_quantity)
@@ -9286,21 +8124,17 @@ app.post('/api/issued-items/return/:ledgerId', async (req, res) => {
       .input('return_notes', sql.NVarChar, return_notes || null)
       .input('item_condition', sql.NVarChar, item_condition || 'Good')
       .execute('sp_ReturnIssuedItems');
-
     console.log(`✅ Item returned successfully: ${ledgerId}`);
-
     res.json({
       success: true,
       message: 'Item returned successfully',
       ledger_id: ledgerId
     });
-
   } catch (error) {
     console.error('❌ Error returning item:', error);
     res.status(500).json({ error: 'Failed to return item', details: error.message });
   }
 });
-
 // 8. GET STOCK AVAILABILITY DASHBOARD
 app.get('/api/stock/availability-dashboard', async (req, res) => {
   try {
@@ -9314,7 +8148,6 @@ app.get('/api/stock/availability-dashboard', async (req, res) => {
       GROUP BY stock_status, item_classification
       ORDER BY stock_status
     `);
-
     // Get low stock items
     const lowStockResult = await pool.request().query(`
       SELECT TOP 10 * 
@@ -9322,7 +8155,6 @@ app.get('/api/stock/availability-dashboard', async (req, res) => {
       WHERE stock_status IN ('Low Stock', 'Reorder Required')
       ORDER BY available_quantity ASC
     `);
-
     // Get out of stock items
     const outOfStockResult = await pool.request().query(`
       SELECT * 
@@ -9330,19 +8162,16 @@ app.get('/api/stock/availability-dashboard', async (req, res) => {
       WHERE stock_status = 'Out of Stock'
       ORDER BY nomenclature
     `);
-
     res.json({
       summary: result.recordset,
       low_stock_items: lowStockResult.recordset,
       out_of_stock_items: outOfStockResult.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching availability dashboard:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard', details: error.message });
   }
 });
-
 // 9. GET PENDING RETURNS (Overdue items)
 app.get('/api/issued-items/pending-returns', async (req, res) => {
   try {
@@ -9354,37 +8183,30 @@ app.get('/api/issued-items/pending-returns', async (req, res) => {
         AND expected_return_date < CAST(GETDATE() AS DATE)
       ORDER BY expected_return_date ASC
     `);
-
     res.json({
       overdue_items: result.recordset,
       total_overdue: result.recordset.length,
       total_value_at_risk: result.recordset.reduce((sum, item) => sum + (item.total_value || 0), 0)
     });
-
   } catch (error) {
     console.error('❌ Error fetching pending returns:', error);
     res.status(500).json({ error: 'Failed to fetch pending returns', details: error.message });
   }
 });
-
 console.log('✅ Stock Issuance Workflow API endpoints loaded');
-
 // =====================================================================
 // THREE-LEVEL APPROVAL WORKFLOW API ENDPOINTS
 // =====================================================================
 // Supervisor → Admin → Issuance workflow
 // Implements: User → Supervisor → Admin approval chain
-
 // Get pending requests for supervisor
 app.get('/api/approvals/supervisor/pending', requireAuth, requirePermission('stock_request.view_wing'), async (req, res) => {
   try {
     const supervisorId = req.query.supervisor_id || req.session.userId;
     const wingId = req.query.wing_id;
-
     if (!wingId) {
       return res.status(400).json({ error: 'wing_id is required' });
     }
-
     const result = await pool.request()
       .input('wingId', sql.Int, wingId)
       .query(`
@@ -9392,7 +8214,6 @@ app.get('/api/approvals/supervisor/pending', requireAuth, requirePermission('sto
         WHERE requester_wing_id = @wingId
         ORDER BY is_urgent DESC, pending_hours DESC
       `);
-
     console.log(`📋 Found ${result.recordset.length} pending requests for wing ${wingId}`);
     res.json({ requests: result.recordset, total: result.recordset.length });
   } catch (error) {
@@ -9400,7 +8221,6 @@ app.get('/api/approvals/supervisor/pending', requireAuth, requirePermission('sto
     res.status(500).json({ error: 'Failed to fetch pending requests', details: error.message });
   }
 });
-
 // Get pending requests for admin
 app.get('/api/approvals/admin/pending', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
   try {
@@ -9409,7 +8229,6 @@ app.get('/api/approvals/admin/pending', requireAuth, requirePermission('stock_re
         SELECT * FROM vw_pending_admin_approvals
         ORDER BY is_urgent DESC, pending_hours DESC
       `);
-
     console.log(`📋 Found ${result.recordset.length} pending requests for admin`);
     res.json({ requests: result.recordset, total: result.recordset.length });
   } catch (error) {
@@ -9417,12 +8236,10 @@ app.get('/api/approvals/admin/pending', requireAuth, requirePermission('stock_re
     res.status(500).json({ error: 'Failed to fetch pending requests', details: error.message });
   }
 });
-
 // Get request details with items and availability
 app.get('/api/approvals/request/:requestId', async (req, res) => {
   try {
     const { requestId } = req.params;
-
     // Get request details
     const requestResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9432,13 +8249,10 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
         LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
         WHERE sir.id = @requestId
       `);
-
     if (requestResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
-
     const request = requestResult.recordset[0];
-
     // Get request items
     const itemsResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9448,13 +8262,11 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
         LEFT JOIN item_masters im ON sii.item_master_id = im.id
         WHERE sii.request_id = @requestId
       `);
-
     // Check wing stock availability for each item
     const itemsWithAvailability = await Promise.all(itemsResult.recordset.map(async (item) => {
       if (item.is_custom_item) {
         return { ...item, wing_stock_available: 'N/A - Custom Item', admin_stock_available: 'N/A' };
       }
-
       // Check wing stock
       const wingStock = await pool.request()
         .input('itemId', sql.UniqueIdentifier, item.item_master_id)
@@ -9463,7 +8275,6 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
           SELECT available_quantity FROM stock_wing 
           WHERE item_master_id = @itemId AND wing_id = @wingId
         `);
-
       // Check admin stock
       const adminStock = await pool.request()
         .input('itemId', sql.UniqueIdentifier, item.item_master_id)
@@ -9471,7 +8282,6 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
           SELECT available_quantity FROM stock_admin 
           WHERE item_master_id = @itemId
         `);
-
       return {
         ...item,
         wing_stock_available: wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0,
@@ -9480,7 +8290,6 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
         can_fulfill_from_admin: adminStock.recordset.length > 0 && adminStock.recordset[0].available_quantity >= item.requested_quantity
       };
     }));
-
     // Get approval history
     const historyResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9489,7 +8298,6 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
         WHERE request_id = @requestId
         ORDER BY action_date DESC
       `);
-
     res.json({
       request,
       items: itemsWithAvailability,
@@ -9500,20 +8308,16 @@ app.get('/api/approvals/request/:requestId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch request details', details: error.message });
   }
 });
-
 // Supervisor: Approve request (issue from wing stock)
 app.post('/api/approvals/supervisor/approve', requireAuth, requirePermission('stock_request.approve_supervisor'), async (req, res) => {
   try {
     const { requestId, supervisorId, comments, itemApprovals } = req.body;
-
     if (!requestId || !supervisorId) {
       return res.status(400).json({ error: 'requestId and supervisorId are required' });
     }
-
     // Start transaction
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Update request status
       await transaction.request()
@@ -9530,7 +8334,6 @@ app.post('/api/approvals/supervisor/approve', requireAuth, requirePermission('st
               source_store_type = 'Wing'
           WHERE id = @requestId
         `);
-
       // Update item statuses if provided
       if (itemApprovals && Array.isArray(itemApprovals)) {
         for (const item of itemApprovals) {
@@ -9547,7 +8350,6 @@ app.post('/api/approvals/supervisor/approve', requireAuth, requirePermission('st
             `);
         }
       }
-
       // Log approval history
       await transaction.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9561,10 +8363,8 @@ app.post('/api/approvals/supervisor/approve', requireAuth, requirePermission('st
           SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
           FROM AspNetUsers WHERE Id = @actorId
         `);
-
       await transaction.commit();
       console.log(`✅ Supervisor approved request ${requestId}`);
-      
       res.json({ success: true, message: 'Request approved successfully', action: 'approved' });
     } catch (err) {
       await transaction.rollback();
@@ -9575,19 +8375,15 @@ app.post('/api/approvals/supervisor/approve', requireAuth, requirePermission('st
     res.status(500).json({ error: 'Failed to approve request', details: error.message });
   }
 });
-
 // Supervisor: Forward request to admin
 app.post('/api/approvals/supervisor/forward', requireAuth, requirePermission('stock_request.forward_to_admin'), async (req, res) => {
   try {
     const { requestId, supervisorId, forwardingReason, comments } = req.body;
-
     if (!requestId || !supervisorId || !forwardingReason) {
       return res.status(400).json({ error: 'requestId, supervisorId, and forwardingReason are required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Update request status
       await transaction.request()
@@ -9605,7 +8401,6 @@ app.post('/api/approvals/supervisor/forward', requireAuth, requirePermission('st
               forwarding_reason = @forwardingReason
           WHERE id = @requestId
         `);
-
       // Log history
       await transaction.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9619,10 +8414,8 @@ app.post('/api/approvals/supervisor/forward', requireAuth, requirePermission('st
           SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @reason
           FROM AspNetUsers WHERE Id = @actorId
         `);
-
       await transaction.commit();
       console.log(`✅ Supervisor forwarded request ${requestId} to admin`);
-      
       res.json({ success: true, message: 'Request forwarded to admin successfully', action: 'forwarded' });
     } catch (err) {
       await transaction.rollback();
@@ -9633,19 +8426,15 @@ app.post('/api/approvals/supervisor/forward', requireAuth, requirePermission('st
     res.status(500).json({ error: 'Failed to forward request', details: error.message });
   }
 });
-
 // Supervisor: Reject request
 app.post('/api/approvals/supervisor/reject', requireAuth, requirePermission('stock_request.reject_supervisor'), async (req, res) => {
   try {
     const { requestId, supervisorId, comments } = req.body;
-
     if (!requestId || !supervisorId || !comments) {
       return res.status(400).json({ error: 'requestId, supervisorId, and comments are required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Update request status
       await transaction.request()
@@ -9661,7 +8450,6 @@ app.post('/api/approvals/supervisor/reject', requireAuth, requirePermission('sto
               supervisor_action = 'Rejected'
           WHERE id = @requestId
         `);
-
       // Log history
       await transaction.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9675,10 +8463,8 @@ app.post('/api/approvals/supervisor/reject', requireAuth, requirePermission('sto
           SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
           FROM AspNetUsers WHERE Id = @actorId
         `);
-
       await transaction.commit();
       console.log(`✅ Supervisor rejected request ${requestId}`);
-      
       res.json({ success: true, message: 'Request rejected', action: 'rejected' });
     } catch (err) {
       await transaction.rollback();
@@ -9689,19 +8475,15 @@ app.post('/api/approvals/supervisor/reject', requireAuth, requirePermission('sto
     res.status(500).json({ error: 'Failed to reject request', details: error.message });
   }
 });
-
 // Admin: Approve request (issue from admin stock)
 app.post('/api/approvals/admin/approve', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
   try {
     const { requestId, adminId, comments, itemApprovals } = req.body;
-
     if (!requestId || !adminId) {
       return res.status(400).json({ error: 'requestId and adminId are required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Update request status
       await transaction.request()
@@ -9718,7 +8500,6 @@ app.post('/api/approvals/admin/approve', requireAuth, requirePermission('stock_r
               source_store_type = 'Admin'
           WHERE id = @requestId
         `);
-
       // Update item statuses if provided
       if (itemApprovals && Array.isArray(itemApprovals)) {
         for (const item of itemApprovals) {
@@ -9735,7 +8516,6 @@ app.post('/api/approvals/admin/approve', requireAuth, requirePermission('stock_r
             `);
         }
       }
-
       // Log history
       await transaction.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9749,10 +8529,8 @@ app.post('/api/approvals/admin/approve', requireAuth, requirePermission('stock_r
           SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
           FROM AspNetUsers WHERE Id = @actorId
         `);
-
       await transaction.commit();
       console.log(`✅ Admin approved request ${requestId}`);
-      
       res.json({ success: true, message: 'Request approved successfully', action: 'approved' });
     } catch (err) {
       await transaction.rollback();
@@ -9763,19 +8541,15 @@ app.post('/api/approvals/admin/approve', requireAuth, requirePermission('stock_r
     res.status(500).json({ error: 'Failed to approve request', details: error.message });
   }
 });
-
 // Admin: Reject request
 app.post('/api/approvals/admin/reject', requireAuth, requirePermission('stock_request.reject_admin'), async (req, res) => {
   try {
     const { requestId, adminId, comments } = req.body;
-
     if (!requestId || !adminId || !comments) {
       return res.status(400).json({ error: 'requestId, adminId, and comments are required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Update request status
       await transaction.request()
@@ -9791,7 +8565,6 @@ app.post('/api/approvals/admin/reject', requireAuth, requirePermission('stock_re
               admin_action = 'Rejected'
           WHERE id = @requestId
         `);
-
       // Log history
       await transaction.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
@@ -9805,10 +8578,8 @@ app.post('/api/approvals/admin/reject', requireAuth, requirePermission('stock_re
           SELECT @requestId, @actorId, FullName, Role, @action, @newStatus, @comments
           FROM AspNetUsers WHERE Id = @actorId
         `);
-
       await transaction.commit();
       console.log(`✅ Admin rejected request ${requestId}`);
-      
       res.json({ success: true, message: 'Request rejected', action: 'rejected' });
     } catch (err) {
       await transaction.rollback();
@@ -9819,12 +8590,10 @@ app.post('/api/approvals/admin/reject', requireAuth, requirePermission('stock_re
     res.status(500).json({ error: 'Failed to reject request', details: error.message });
   }
 });
-
 // Get user's requests
 app.get('/api/approvals/my-requests/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-
     const result = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(`
@@ -9832,51 +8601,39 @@ app.get('/api/approvals/my-requests/:userId', async (req, res) => {
         WHERE requester_user_id = @userId
         ORDER BY submitted_at DESC
       `);
-
     res.json({ requests: result.recordset, total: result.recordset.length });
   } catch (error) {
     console.error('❌ Error fetching user requests:', error);
     res.status(500).json({ error: 'Failed to fetch requests', details: error.message });
   }
 });
-
 console.log('✅ Three-Level Approval Workflow API endpoints loaded');
-
 // =====================================================================
 // END OF STOCK ISSUANCE WORKFLOW ENDPOINTS
 // =====================================================================
-
 // ============================================================================
 // SSO AUTHENTICATION ENDPOINTS
 // ============================================================================
-
 // Validate SSO token from Digital System (DS)
 app.post('/api/auth/sso-validate', async (req, res) => {
   try {
     const { token } = req.body;
-
     if (!token) {
       return res.status(400).json({ error: 'Token is required' });
     }
-
     console.log('🔐 Validating SSO token from Digital System...');
-
     // Verify JWT token
     const decoded = jwt.verify(token, JWT_SECRET, {
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE
     });
-
     // Extract user information from token
     const userId = decoded.sub;
     const userName = decoded.unique_name;
     const email = decoded.email;
-
     console.log(`🔍 Token decoded successfully for user: ${userName} (${userId})`);
-
     // Query IMS database for user (you'll sync this from DS periodically)
     console.log(`🔍 Querying IMS database for user information...`);
-    
     const userResult = await pool.request()
       .input('user_id', sql.NVarChar, userId)
       .query(`
@@ -9902,7 +8659,6 @@ app.post('/api/auth/sso-validate', async (req, res) => {
         FROM AspNetUsers
         WHERE Id = @user_id AND ISACT = 1
       `);
-
     if (userResult.recordset.length === 0) {
       console.log(`❌ User ${userId} not found or inactive in IMS database`);
       return res.status(404).json({ 
@@ -9910,11 +8666,8 @@ app.post('/api/auth/sso-validate', async (req, res) => {
         details: 'User may need to be synced from Digital System or account is inactive'
       });
     }
-
     const user = userResult.recordset[0];
-
     console.log(`✅ SSO login successful for user: ${user.UserName} (${user.FullName || 'N/A'})`);
-
     // Return user session data
     res.json({
       success: true,
@@ -9940,33 +8693,25 @@ app.post('/api/auth/sso-validate', async (req, res) => {
       },
       token: token // Return token for subsequent requests
     });
-
   } catch (error) {
     console.error('❌ SSO validation error:', error);
-    
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token', details: error.message });
     }
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired. Please login to Digital System again.' });
     }
-    
     res.status(500).json({ error: 'SSO validation failed', details: error.message });
   }
 });
-
 console.log('✅ SSO Authentication endpoints loaded');
-
 // ============================================================================
 // DS-Style Token Authentication (Compatible with DS's EMCC Pattern)
 // ============================================================================
-
 app.post('/api/auth/ds-authenticate', async (req, res) => {
   console.log('🔐 DS Authentication Request Received');
-  
   try {
     const { UserName, Password } = req.body;
-    
     if (!UserName || !Password) {
       console.log('❌ Missing UserName or Password');
       return res.status(400).json({
@@ -9974,9 +8719,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
         message: 'Missing username or password'
       });
     }
-
     console.log(`🔍 Authenticating user with UserName: ${UserName}`);
-
     // Query user from AspNetUsers by UserName
     const userResult = await pool.request()
       .input('username', sql.NVarChar, UserName)
@@ -10007,7 +8750,6 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
         FROM AspNetUsers 
         WHERE UserName = @username AND ISACT = 1
       `);
-
     if (userResult.recordset.length === 0) {
       console.log('❌ User not found or inactive');
       return res.status(401).json({
@@ -10015,15 +8757,12 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
         message: 'Invalid username or password'
       });
     }
-
     const user = userResult.recordset[0];
     console.log(`✅ User found: ${user.FullName} (${user.UserName})`);
     console.log(`   Password field: ${user.Password ? 'EXISTS (length: ' + user.Password.length + ')' : 'NULL'}`);
     console.log(`   PasswordHash field: ${user.PasswordHash ? 'EXISTS (length: ' + user.PasswordHash.length + ')' : 'NULL'}`);
-
     // Verify password - support BOTH bcrypt and ASP.NET Identity formats
     const passwordToCheck = user.PasswordHash || user.Password;
-    
     if (!passwordToCheck) {
       console.log('❌ No password hash found');
       return res.status(401).json({
@@ -10031,12 +8770,9 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
         message: 'Invalid username or password'
       });
     }
-    
     console.log(`🔑 Checking password against: ${user.PasswordHash ? 'PasswordHash field' : 'Password field'}`);
     console.log(`   Hash starts with: ${passwordToCheck.substring(0, 10)}...`);
-    
     let isPasswordValid = false;
-    
     // Check if it's bcrypt format (starts with $2a$, $2b$, $2x$, $2y$)
     if (passwordToCheck.startsWith('$2')) {
       console.log('   Format: bcrypt');
@@ -10046,7 +8782,6 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
     // Check if it's ASP.NET Identity format (starts with AQA or has specific length)
     else if (passwordToCheck.startsWith('AQA') || passwordToCheck.length > 60) {
       console.log('   Format: ASP.NET Core Identity');
-      
       try {
         // Use aspnet-identity-pw library to verify ASP.NET Core Identity V3 password
         isPasswordValid = aspnetIdentity.validatePassword(Password, passwordToCheck);
@@ -10060,7 +8795,6 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       console.log('   ⚠️ Unknown password format');
       isPasswordValid = false;
     }
-    
     if (!isPasswordValid) {
       console.log('❌ Invalid password - verification failed');
       console.log(`   Received password length: ${Password.length}`);
@@ -10069,9 +8803,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
         message: 'Invalid username or password'
       });
     }
-
     console.log('✅ Password verified successfully');
-
     // Update last login time
     await pool.request()
       .input('user_id', sql.NVarChar(450), user.Id)
@@ -10081,7 +8813,6 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
         SET LastLoggedIn = @last_login 
         WHERE Id = @user_id
       `);
-
     // Generate JWT token (same format as before)
     const token = jwt.sign(
       {
@@ -10109,9 +8840,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
         expiresIn: '24h'
       }
     );
-
     console.log('✅ Token generated successfully');
-
     // Store user in session for IMS
     req.session.userId = user.Id;
     req.session.user = {
@@ -10125,9 +8854,7 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       intBranchID: user.intBranchID,
       intDesignationID: user.intDesignationID
     };
-    
     console.log('✅ Session created for user:', user.FullName);
-
     // Return token (same format as EMCC API)
     res.status(200).json({
       Token: token, // Capital 'T' to match DS's TokenResponse class
@@ -10135,7 +8862,6 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
       message: 'Authentication successful',
       user: req.session.user
     });
-
   } catch (error) {
     console.error('❌ DS Authentication Error:', error);
     res.status(500).json({
@@ -10145,22 +8871,17 @@ app.post('/api/auth/ds-authenticate', async (req, res) => {
     });
   }
 });
-
 console.log('✅ DS-Style Authentication endpoint loaded: POST /api/auth/ds-authenticate');
-
 // =====================================================================
 // END OF SSO AUTHENTICATION ENDPOINTS
 // =====================================================================
-
 // Start server
 async function startServer() {
   try {
     await initializeDatabase();
     console.log('Database connection initialized');
-    
     // Serve HTML files from root directory (for session setter page) - MUST be after all API routes
     app.use(express.static(__dirname));
-    
     app.listen(PORT, () => {
       console.log(`✅ Server running on http://localhost:${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -10173,14 +8894,11 @@ async function startServer() {
     process.exit(1);
   }
 }
-
 // ===== ITEM SERIAL NUMBERS ENDPOINTS =====
-
 // GET all serial numbers by tender item ID
 app.get('/api/item-serial-numbers/tender-item/:tenderItemId', async (req, res) => {
   try {
     const { tenderItemId } = req.params;
-
     const result = await pool.request()
       .input('tender_item_id', sql.UniqueIdentifier, tenderItemId)
       .query(`
@@ -10196,12 +8914,10 @@ app.get('/api/item-serial-numbers/tender-item/:tenderItemId', async (req, res) =
         ORDER BY created_at DESC
       `);
     res.json(result.recordset);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch serial numbers', details: error.message });
   }
 });
-
 // POST create single serial number
 app.post('/api/item-serial-numbers', async (req, res) => {
   try {
@@ -10211,10 +8927,8 @@ app.post('/api/item-serial-numbers', async (req, res) => {
       status,
       remarks
     } = req.body;
-
     const id = require('crypto').randomUUID();
     const now = new Date().toISOString();
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('tender_item_id', sql.UniqueIdentifier, tender_item_id)
@@ -10234,31 +8948,24 @@ app.post('/api/item-serial-numbers', async (req, res) => {
       id: id,
       message: 'Serial number created successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create serial number', details: error.message });
   }
 });
-
 // POST create multiple serial numbers
 app.post('/api/item-serial-numbers/bulk', async (req, res) => {
   try {
     const { serials } = req.body;
-
     if (!Array.isArray(serials) || serials.length === 0) {
       return res.status(400).json({ error: 'Serials array is required and cannot be empty' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       const insertedIds = [];
-
       for (const serial of serials) {
         const id = require('crypto').randomUUID();
         const now = new Date().toISOString();
-
         await transaction.request()
           .input('id', sql.UniqueIdentifier, id)
           .input('tender_item_id', sql.UniqueIdentifier, serial.tender_item_id)
@@ -10273,10 +8980,8 @@ app.post('/api/item-serial-numbers/bulk', async (req, res) => {
               @id, @tender_item_id, @serial_number, @status, @remarks, @created_at
             )
           `);
-
         insertedIds.push(id);
       }
-
       await transaction.commit();
       res.json({ 
         success: true, 
@@ -10284,17 +8989,14 @@ app.post('/api/item-serial-numbers/bulk', async (req, res) => {
         count: serials.length,
         message: 'Serial numbers created successfully'
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create serial numbers', details: error.message });
   }
 });
-
 // PUT update serial number
 app.put('/api/item-serial-numbers/:id', async (req, res) => {
   try {
@@ -10304,7 +9006,6 @@ app.put('/api/item-serial-numbers/:id', async (req, res) => {
       status,
       remarks
     } = req.body;
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('serial_number', sql.NVarChar, serial_number)
@@ -10317,7 +9018,6 @@ app.put('/api/item-serial-numbers/:id', async (req, res) => {
           remarks = @remarks
         WHERE id = @id
       `);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Serial number not found' });
     }
@@ -10326,31 +9026,24 @@ app.put('/api/item-serial-numbers/:id', async (req, res) => {
       id: id,
       message: 'Serial number updated successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update serial number', details: error.message });
   }
 });
-
 // POST create delivery item serial numbers
 app.post('/api/delivery-item-serial-numbers', async (req, res) => {
   try {
     const { delivery_item_id, delivery_id, item_master_id, serial_numbers } = req.body;
-
     if (!delivery_item_id || !Array.isArray(serial_numbers) || serial_numbers.length === 0) {
       return res.status(400).json({ error: 'delivery_item_id and serial_numbers array are required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       const insertedIds = [];
       const now = new Date().toISOString();
-
       for (const serialNumber of serial_numbers) {
         const id = require('crypto').randomUUID();
-
         await transaction.request()
           .input('id', sql.UniqueIdentifier, id)
           .input('delivery_id', sql.UniqueIdentifier, delivery_id)
@@ -10367,10 +9060,8 @@ app.post('/api/delivery-item-serial-numbers', async (req, res) => {
               @id, @delivery_id, @delivery_item_id, @item_master_id, @serial_number, @notes, @created_at, @updated_at
             )
           `);
-
         insertedIds.push(id);
       }
-
       await transaction.commit();
       res.json({ 
         success: true, 
@@ -10378,26 +9069,21 @@ app.post('/api/delivery-item-serial-numbers', async (req, res) => {
         count: serial_numbers.length,
         message: `${serial_numbers.length} serial number(s) added successfully`
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create delivery item serial numbers', details: error.message });
   }
 });
-
 // DELETE serial number by ID
 app.delete('/api/item-serial-numbers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query('DELETE FROM item_serial_numbers WHERE id = @id');
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Serial number not found' });
     }
@@ -10405,17 +9091,14 @@ app.delete('/api/item-serial-numbers/:id', async (req, res) => {
       success: true, 
       message: 'Serial number deleted successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete serial number', details: error.message });
   }
 });
-
 // DELETE all serial numbers by tender item ID
 app.delete('/api/item-serial-numbers/tender-item/:tenderItemId', async (req, res) => {
   try {
     const { tenderItemId } = req.params;
-
     const result = await pool.request()
       .input('tender_item_id', sql.UniqueIdentifier, tenderItemId)
       .query('DELETE FROM item_serial_numbers WHERE tender_item_id = @tender_item_id');
@@ -10424,12 +9107,10 @@ app.delete('/api/item-serial-numbers/tender-item/:tenderItemId', async (req, res
       deletedCount: result.rowsAffected[0],
       message: 'Serial numbers deleted successfully'
     });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete serial numbers', details: error.message });
   }
 });
-
 // Get stock transaction dashboard statistics
 app.get('/api/stock-transaction-dashboard-stats', async (req, res) => {
   try {
@@ -10467,23 +9148,18 @@ app.get('/api/stock-transaction-dashboard-stats', async (req, res) => {
         CASE WHEN stockCounts.itemCount > 0 THEN 0 ELSE 1 END, -- Show tenders with stock transactions first
         t.updated_at DESC
     `;
-
     const allTendersResult = await pool.request().query(allTendersQuery);
     const allTenders = allTendersResult.recordset;
-
     // Separate tenders with and without stock transactions
     const tendersWithStockTransactions = allTenders.filter(t => t.hasStockTransactions === 1);
     const tendersWithoutStockTransactions = allTenders.filter(t => t.hasStockTransactions === 0);
-
     // Calculate stats from tenders WITH stock transactions
     const totalTendersWithStock = tendersWithStockTransactions.length;
     const totalItems = tendersWithStockTransactions.reduce((sum, t) => sum + (parseInt(t.itemCount) || 0), 0);
     const totalQuantity = tendersWithStockTransactions.reduce((sum, t) => sum + (parseInt(t.totalQuantity) || 0), 0);
-
     // Calculate active vs finalized based on stock transaction status
     const activeTenders = tendersWithStockTransactions.filter(t => !t.is_finalized || t.confirmedItems < t.itemCount).length;
     const finalizedTenders = tendersWithStockTransactions.filter(t => t.is_finalized && t.confirmedItems === t.itemCount).length;
-
     // Get acquisition type breakdown from ALL tenders
     const acquisitionStats = allTenders.reduce((acc, tender) => {
       const type = tender.tender_spot_type || 'Contract/Tender';
@@ -10497,13 +9173,11 @@ app.get('/api/stock-transaction-dashboard-stats', async (req, res) => {
       }
       return acc;
     }, {});
-
     // Combine tenders for display: active with stock transactions first, then those without
     const recentTenders = [
       ...tendersWithStockTransactions.slice(0, 5), // First 5 with stock transactions
       ...tendersWithoutStockTransactions.slice(0, 5) // Then up to 5 without stock transactions
     ];
-    
     const stats = {
       totalTenders: allTenders.length, // All tenders count
       tendersWithStockTransactions: totalTendersWithStock,
@@ -10556,7 +9230,6 @@ app.get('/api/stock-transaction-dashboard-stats', async (req, res) => {
       }))
     };
     res.json(stats);
-    
   } catch (error) {
     res.status(500).json({ 
       error: 'Failed to fetch dashboard statistics', 
@@ -10570,12 +9243,10 @@ app.get('/api/stock-transaction-dashboard-stats', async (req, res) => {
     });
   }
 });
-
 // Get stock transactions by tender_id from stock_transactions_clean
 app.get('/api/stock-transactions-clean', async (req, res) => {
   try {
     const { tender_id } = req.query;
-    
     let query = `
       SELECT 
         stc.id,
@@ -10599,25 +9270,18 @@ app.get('/api/stock-transactions-clean', async (req, res) => {
       LEFT JOIN item_masters im ON stc.item_master_id = CAST(im.id AS VARCHAR(50))
       WHERE (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
     `;
-    
     const request = pool.request();
-    
     if (tender_id) {
       query += ` AND stc.tender_id = @tender_id`;
       request.input('tender_id', sql.UniqueIdentifier, tender_id);
     }
-    
     query += ` ORDER BY stc.created_at DESC`;
-    
     const result = await request.query(query);
-    
     res.json(result.recordset);
-    
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch stock transactions', details: error.message });
   }
 });
-
 // Create new stock transaction in stock_transactions_clean
 app.post('/api/stock-transactions-clean', async (req, res) => {
   try {
@@ -10662,7 +9326,6 @@ app.post('/api/stock-transactions-clean', async (req, res) => {
         GETDATE()
       )
     `;
-
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tender_id)
       .input('item_master_id', sql.VarChar(50), item_master_id)
@@ -10674,12 +9337,10 @@ app.post('/api/stock-transactions-clean', async (req, res) => {
       .input('remarks', sql.Text, remarks)
       .query(query);
     res.status(201).json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create stock transaction', details: error.message });
   }
 });
-
 // Update stock transaction in stock_transactions_clean
 app.put('/api/stock-transactions-clean/:id', async (req, res) => {
   try {
@@ -10692,11 +9353,9 @@ app.put('/api/stock-transactions-clean/:id', async (req, res) => {
       type,
       remarks
     } = req.body;
-
     // Build dynamic update query
     const fields = [];
     const request = pool.request().input('id', sql.UniqueIdentifier, id);
-
     if (estimated_unit_price !== undefined) {
       fields.push('estimated_unit_price = @estimated_unit_price');
       request.input('estimated_unit_price', sql.Decimal(18, 2), estimated_unit_price);
@@ -10721,33 +9380,26 @@ app.put('/api/stock-transactions-clean/:id', async (req, res) => {
       fields.push('remarks = @remarks');
       request.input('remarks', sql.Text, remarks);
     }
-
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-
     fields.push('updated_at = GETDATE()');
-
     const query = `
       UPDATE stock_transactions_clean 
       SET ${fields.join(', ')}
       WHERE id = @id
     `;
-
     await request.query(query);
     res.json({ success: true, message: 'Stock transaction updated successfully' });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update stock transaction', details: error.message });
   }
 });
-
 // Soft delete stock transaction in stock_transactions_clean
 app.delete('/api/stock-transactions-clean/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { deleted_by } = req.body;
-
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('deleted_by', sql.NVarChar, deleted_by || 'System')
@@ -10761,22 +9413,18 @@ app.delete('/api/stock-transactions-clean/:id', async (req, res) => {
         WHERE id = @id
       `);
     res.json({ success: true, message: 'Stock transaction deleted successfully' });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete stock transaction', details: error.message });
   }
 });
-
 // =============================================================================
 // ENHANCED STOCK ACQUISITION WITH DELIVERY ENDPOINTS
 // =============================================================================
-
 // Get delivery by tender ID
 app.get('/api/deliveries/by-tender/:tenderId', async (req, res) => {
   try {
     const { tenderId } = req.params;
     console.log('🔍 Getting deliveries for tender:', tenderId);
-    
     // First, let's check the table structure
     console.log('🔍 Checking deliveries table structure...');
     const structureResult = await pool.request().query(`
@@ -10786,7 +9434,6 @@ app.get('/api/deliveries/by-tender/:tenderId', async (req, res) => {
       ORDER BY ORDINAL_POSITION
     `);
     console.log('📊 Deliveries table columns:', structureResult.recordset);
-    
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
       .query(`
@@ -10796,24 +9443,19 @@ app.get('/api/deliveries/by-tender/:tenderId', async (req, res) => {
         WHERE d.tender_id = @tender_id
         ORDER BY d.created_at DESC
       `);
-
     console.log('📦 Found deliveries:', result.recordset.length);
-
     if (result.recordset.length === 0) {
       console.log('❌ No deliveries found for tender:', tenderId);
       return res.status(404).json({ error: 'No deliveries found for this tender' });
     }
-
     // Get delivery items for each delivery
     const deliveries = [];
-    
     for (const delivery of result.recordset) {
       const itemsResult = await pool.request()
         .input('delivery_id', sql.UniqueIdentifier, delivery.id)
         .query(`
           SELECT * FROM delivery_items WHERE delivery_id = @delivery_id
         `);
-
       // Get serial numbers for each item
       const items = [];
       for (const item of itemsResult.recordset) {
@@ -10822,19 +9464,16 @@ app.get('/api/deliveries/by-tender/:tenderId', async (req, res) => {
           .query(`
             SELECT * FROM delivery_item_serial_numbers WHERE delivery_item_id = @delivery_item_id
           `);
-
         items.push({
           ...item,
           serial_numbers: serialsResult.recordset
         });
       }
-
       deliveries.push({
         ...delivery,
         items: items
       });
     }
-
     console.log('✅ Returning deliveries with items:', deliveries.length);
     res.json(deliveries);
   } catch (error) {
@@ -10842,19 +9481,15 @@ app.get('/api/deliveries/by-tender/:tenderId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
   }
 });
-
 // Update multiple stock transaction prices
 app.put('/api/stock-acquisition/update-multiple-prices', async (req, res) => {
   try {
     const { updates } = req.body;
-
     if (!updates || !Array.isArray(updates)) {
       return res.status(400).json({ error: 'Updates array is required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       for (const update of updates) {
         await transaction.request()
@@ -10872,20 +9507,16 @@ app.put('/api/stock-acquisition/update-multiple-prices', async (req, res) => {
             WHERE id = @id
           `);
       }
-
       await transaction.commit();
       res.json({ success: true, message: `Updated ${updates.length} items successfully` });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update multiple prices', details: error.message });
   }
 });
-
 // Get stock acquisition dashboard statistics
 app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
   try {
@@ -10907,10 +9538,8 @@ app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
         (SELECT COUNT(*) FROM deliveries) as total_deliveries,
         (SELECT COUNT(*) FROM deliveries WHERE is_finalized = 0 OR is_finalized IS NULL) as pending_deliveries
     `;
-
     const result = await pool.request().query(statsQuery);
     const stats = result.recordset[0];
-
     res.json({
       total_tenders: stats.total_tenders || 0,
       total_items: stats.total_items || 0,
@@ -10922,7 +9551,6 @@ app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
       total_deliveries: stats.total_deliveries || 0,
       pending_deliveries: stats.pending_deliveries || 0
     });
-
   } catch (error) {
     res.status(500).json({ 
       error: 'Failed to fetch dashboard stats', 
@@ -10940,7 +9568,6 @@ app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
     });
   }
 });
-
 // Get tender summaries from stock transactions
 app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
   try {
@@ -10973,20 +9600,16 @@ app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
       WHERE t.is_finalized = 1
       ORDER BY t.created_at DESC
     `;
-
     const result = await pool.request().query(query);
     res.json(result.recordset);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch tender summaries', details: error.message });
   }
 });
-
 // Get stock acquisition items by tender ID
 app.get('/api/stock-acquisition/items/:tenderId', async (req, res) => {
   try {
     const { tenderId } = req.params;
-    
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
       .query(`
@@ -10999,20 +9622,16 @@ app.get('/api/stock-acquisition/items/:tenderId', async (req, res) => {
           AND (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
         ORDER BY stc.created_at
       `);
-
     res.json(result.recordset);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch stock acquisition items', details: error.message });
   }
 });
-
 // Update single item price in stock acquisition
 app.put('/api/stock-acquisition/update-price/:itemId', async (req, res) => {
   try {
     const { itemId } = req.params;
     const { actual_unit_price, pricing_confirmed } = req.body;
-
     await pool.request()
       .input('id', sql.UniqueIdentifier, itemId)
       .input('actual_unit_price', sql.Decimal(18, 2), actual_unit_price)
@@ -11025,19 +9644,15 @@ app.put('/api/stock-acquisition/update-price/:itemId', async (req, res) => {
           updated_at = GETDATE()
         WHERE id = @id
       `);
-
     res.json({ success: true, message: 'Item price updated successfully' });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update item price', details: error.message });
   }
 });
-
 // Restore soft deleted stock transaction in stock_transactions_clean
 app.put('/api/stock-transactions-clean/:id/restore', async (req, res) => {
   try {
     const { id } = req.params;
-
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -11050,27 +9665,21 @@ app.put('/api/stock-transactions-clean/:id/restore', async (req, res) => {
         WHERE id = @id
       `);
     res.json({ success: true, message: 'Stock transaction restored successfully' });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to restore stock transaction', details: error.message });
   }
 });
-
 // Bulk create stock transactions for tender finalization
 app.post('/api/stock-transactions-clean/bulk-create', async (req, res) => {
   try {
     const { tender_id, items } = req.body;
-
     if (!tender_id || !items || !Array.isArray(items)) {
       return res.status(400).json({ error: 'tender_id and items array are required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       const createdItems = [];
-
       for (const item of items) {
         const result = await transaction.request()
           .input('tender_id', sql.UniqueIdentifier, tender_id)
@@ -11112,27 +9721,22 @@ app.post('/api/stock-transactions-clean/bulk-create', async (req, res) => {
               GETDATE()
             )
           `);
-
         createdItems.push(result.recordset[0]);
       }
-
       await transaction.commit();
       res.json({ 
         success: true, 
         message: `Created ${createdItems.length} stock transactions successfully`,
         items: createdItems
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create bulk stock transactions', details: error.message });
   }
 });
-
 // Get tenders from stock_transactions_clean
 app.get('/api/stock-acquisition/tenders', async (req, res) => {
   try {
@@ -11152,20 +9756,16 @@ app.get('/api/stock-acquisition/tenders', async (req, res) => {
       GROUP BY stc.tender_id, t.title, t.reference_number, t.tender_spot_type, t.status
       ORDER BY latest_transaction DESC
     `;
-
     const result = await pool.request().query(query);
     res.json(result.recordset);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
   }
 });
-
 // Get stock transaction statistics by tender
 app.get('/api/stock-acquisition/tender-stats/:tenderId', async (req, res) => {
   try {
     const { tenderId } = req.params;
-    
     const query = `
       SELECT 
         COUNT(*) as total_items,
@@ -11178,27 +9778,21 @@ app.get('/api/stock-acquisition/tender-stats/:tenderId', async (req, res) => {
       WHERE tender_id = @tender_id 
         AND (is_deleted = 0 OR is_deleted IS NULL)
     `;
-
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tenderId)
       .query(query);
-
     res.json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch tender statistics', details: error.message });
   }
 });
-
 // Search items in stock transactions
 app.get('/api/stock-acquisition/search', async (req, res) => {
   try {
     const { query: searchQuery } = req.query;
-    
     if (!searchQuery) {
       return res.status(400).json({ error: 'Search query is required' });
     }
-
     const result = await pool.request()
       .input('searchQuery', sql.NVarChar, `%${searchQuery}%`)
       .query(`
@@ -11219,41 +9813,31 @@ app.get('/api/stock-acquisition/search', async (req, res) => {
           )
         ORDER BY stc.created_at DESC
       `);
-
     res.json(result.recordset);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to search stock transactions', details: error.message });
   }
 });
-
 // New endpoint for the SQL Server view: View_stock_transactions_clean
 app.get('/api/stock-transactions-clean/view', async (req, res) => {
   try {
     const { tender_id } = req.query;
-    
     let query = `
       SELECT * FROM View_stock_transactions_clean
       WHERE (is_deleted = 0 OR is_deleted IS NULL)
     `;
-    
     const request = pool.request();
-    
     if (tender_id) {
       query += ` AND tender_id = @tender_id`;
       request.input('tender_id', sql.UniqueIdentifier, tender_id);
     }
-    
     query += ` ORDER BY created_at DESC`;
-    
     const result = await request.query(query);
     res.json(result.recordset);
-    
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch stock transactions from view', details: error.message });
   }
 });
-
 // Create new stock transaction in stock_transactions_clean
 app.post('/api/stock-transactions-clean', async (req, res) => {
   try {
@@ -11298,7 +9882,6 @@ app.post('/api/stock-transactions-clean', async (req, res) => {
         GETDATE()
       )
     `;
-
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tender_id)
       .input('item_master_id', sql.VarChar(50), item_master_id)
@@ -11310,12 +9893,10 @@ app.post('/api/stock-transactions-clean', async (req, res) => {
       .input('remarks', sql.Text, remarks)
       .query(query);
     res.status(201).json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to create stock transaction', details: error.message });
   }
 });
-
 // Update stock transaction in stock_transactions_clean
 app.put('/api/stock-transactions-clean/:tender_id/:item_master_id', async (req, res) => {
   try {
@@ -11324,41 +9905,32 @@ app.put('/api/stock-transactions-clean/:tender_id/:item_master_id', async (req, 
     // Build dynamic update query
     const setClause = [];
     const request = pool.request();
-    
     request.input('tender_id', sql.UniqueIdentifier, tender_id);
     request.input('item_master_id', sql.VarChar(50), item_master_id);
-
     if (updates.estimated_unit_price !== undefined) {
       setClause.push('estimated_unit_price = @estimated_unit_price');
       request.input('estimated_unit_price', sql.Decimal(18, 2), updates.estimated_unit_price);
     }
-
     if (updates.actual_unit_price !== undefined) {
       setClause.push('actual_unit_price = @actual_unit_price');
       request.input('actual_unit_price', sql.Decimal(18, 2), updates.actual_unit_price);
     }
-
     if (updates.total_quantity_received !== undefined) {
       setClause.push('total_quantity_received = @total_quantity_received');
       request.input('total_quantity_received', sql.Int, updates.total_quantity_received);
     }
-
     if (updates.pricing_confirmed !== undefined) {
       setClause.push('pricing_confirmed = @pricing_confirmed');
       request.input('pricing_confirmed', sql.Bit, updates.pricing_confirmed);
     }
-
     if (updates.remarks !== undefined) {
       setClause.push('remarks = @remarks');
       request.input('remarks', sql.Text, updates.remarks);
     }
-
     if (setClause.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
-
     setClause.push('updated_at = GETDATE()');
-
     const query = `
       UPDATE stock_transactions_clean 
       SET ${setClause.join(', ')}
@@ -11367,19 +9939,15 @@ app.put('/api/stock-transactions-clean/:tender_id/:item_master_id', async (req, 
         AND item_master_id = @item_master_id
         AND (is_deleted = 0 OR is_deleted IS NULL)
     `;
-
     const result = await request.query(query);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Stock transaction not found' });
     }
     res.json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to update stock transaction', details: error.message });
   }
 });
-
 // Soft delete stock transaction in stock_transactions_clean
 app.delete('/api/stock-transactions-clean/:tender_id/:item_master_id', async (req, res) => {
   try {
@@ -11397,23 +9965,19 @@ app.delete('/api/stock-transactions-clean/:tender_id/:item_master_id', async (re
         AND item_master_id = @item_master_id
         AND (is_deleted = 0 OR is_deleted IS NULL)
     `;
-
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tender_id)
       .input('item_master_id', sql.VarChar(50), item_master_id)
       .input('deleted_by', sql.VarChar(50), deleted_by)
       .query(query);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Stock transaction not found' });
     }
     res.json({ success: true, message: 'Stock transaction deleted successfully' });
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete stock transaction', details: error.message });
   }
 });
-
 // Restore soft deleted stock transaction in stock_transactions_clean
 app.post('/api/stock-transactions-clean/:tender_id/:item_master_id/restore', async (req, res) => {
   try {
@@ -11430,29 +9994,24 @@ app.post('/api/stock-transactions-clean/:tender_id/:item_master_id/restore', asy
         AND item_master_id = @item_master_id
         AND is_deleted = 1
     `;
-
     const result = await pool.request()
       .input('tender_id', sql.UniqueIdentifier, tender_id)
       .input('item_master_id', sql.VarChar(50), item_master_id)
       .query(query);
-
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Deleted stock transaction not found' });
     }
     res.json(result.recordset[0]);
-
   } catch (error) {
     res.status(500).json({ error: 'Failed to restore stock transaction', details: error.message });
   }
 });
-
 // Add tender items to stock acquisition (create stock_transaction_clean entries)
 app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
   const transaction = new sql.Transaction(pool);
   try {
     await transaction.begin();
     const { id: tenderId } = req.params;
-    
     // First, get the tender and its items
     const tenderResult = await transaction.request()
       .input('tender_id', sql.NVarChar, tenderId)
@@ -11464,18 +10023,14 @@ app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
         LEFT JOIN tender_items ti ON t.id = ti.tender_id
         WHERE t.id = @tender_id
       `);
-
     if (tenderResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Tender not found' });
     }
-
     const tender = tenderResult.recordset[0];
     const tenderItems = tenderResult.recordset.filter(row => row.item_id);
-
     if (tenderItems.length === 0) {
       return res.status(400).json({ error: 'No items found in this tender' });
     }
-
     // Check if stock transactions already exist for this tender
     const existingResult = await transaction.request()
       .input('tender_id', sql.NVarChar, tenderId)
@@ -11484,17 +10039,14 @@ app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
         FROM stock_transactions_clean 
         WHERE tender_id = @tender_id AND (is_deleted = 0 OR is_deleted IS NULL)
       `);
-
     if (existingResult.recordset[0].count > 0) {
       return res.status(400).json({ 
         error: 'Stock transactions already exist for this tender',
         message: 'This tender has already been added to stock acquisition'
       });
     }
-
     // Create stock_transaction_clean entries for each tender item
     let addedItems = 0;
-    
     for (const item of tenderItems) {
       const stockTransactionResult = await transaction.request()
         .input('id', sql.NVarChar, uuidv4())
@@ -11518,12 +10070,9 @@ app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
             @type, @remarks, 0, GETDATE(), GETDATE()
           )
         `);
-      
       addedItems++;
     }
-
     await transaction.commit();
-    
     res.json({ 
       success: true, 
       message: 'Tender items successfully added to stock acquisition',
@@ -11531,7 +10080,6 @@ app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
       tenderId,
       tenderTitle: tender.title
     });
-
   } catch (error) {
     await transaction.rollback();
     console.error('Failed to add tender to stock acquisition:', error);
@@ -11541,9 +10089,7 @@ app.post('/api/tenders/:id/add-to-stock-acquisition', async (req, res) => {
     });
   }
 });
-
 // Add missing API endpoints for dashboard
-
 // Get tenders from stock_transactions_clean
 app.get('/api/tenders', async (req, res) => {
   try {
@@ -11563,20 +10109,16 @@ app.get('/api/tenders', async (req, res) => {
       GROUP BY tender_id
       ORDER BY MAX(updated_at) DESC
     `;
-
     const result = await pool.request().query(query);
     res.json(result.recordset);
-    
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch tenders', details: error.message });
   }
 });
-
 // Get stock transactions by tender ID (for TransactionManager)
 app.get('/api/stock-transactions', async (req, res) => {
   try {
     const { tender_id } = req.query;
-    
     if (tender_id) {
       const query = `
         SELECT 
@@ -11598,12 +10140,10 @@ app.get('/api/stock-transactions', async (req, res) => {
         AND (is_deleted = 0 OR is_deleted IS NULL)
         ORDER BY created_at DESC
       `;
-
       const result = await pool.request()
         .input('tender_id', require('mssql').UniqueIdentifier, tender_id)
         .query(query);
       res.json(result.recordset);
-      
     } else {
       // Return all stock transactions if no tender_id filter
       const query = `
@@ -11622,16 +10162,13 @@ app.get('/api/stock-transactions', async (req, res) => {
         WHERE (is_deleted = 0 OR is_deleted IS NULL)
         ORDER BY created_at DESC
       `;
-
       const result = await pool.request().query(query);
       res.json(result.recordset);
     }
-    
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch stock transactions', details: error.message });
   }
 });
-
 // Get deliveries (dummy data for now since we don't have delivery table)
 app.get('/api/deliveries', async (req, res) => {
   try {
@@ -11649,15 +10186,12 @@ app.get('/api/deliveries', async (req, res) => {
       AND actual_unit_price > 0
       ORDER BY updated_at DESC
     `;
-
     const result = await pool.request().query(query);
     res.json(result.recordset);
-    
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
   }
 });
-
 // Get inventory stock (dummy data for now)
 app.get('/api/inventory-stock', async (req, res) => {
   try {
@@ -11676,21 +10210,17 @@ app.get('/api/inventory-stock', async (req, res) => {
       HAVING SUM(total_quantity_received) > 0
       ORDER BY MAX(updated_at) DESC
     `;
-
     const result = await pool.request().query(query);
     res.json(result.recordset);
-    
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch inventory stock', details: error.message });
   }
 });
-
 // Get specific tender by ID
 // New endpoint for the SQL Server view: View_stock_transactions_clean
 app.get('/api/view-stock-transactions-clean', async (req, res) => {
   try {
     const { tender_id } = req.query;
-    
     let query = `
       SELECT 
         id,
@@ -11715,25 +10245,18 @@ app.get('/api/view-stock-transactions-clean', async (req, res) => {
       FROM View_stock_transactions_clean
       WHERE (is_deleted = 0 OR is_deleted IS NULL)
     `;
-    
     const request = pool.request();
-    
     if (tender_id) {
       query += ` AND tender_id = @tender_id`;
       request.input('tender_id', sql.UniqueIdentifier, tender_id);
     }
-    
     query += ` ORDER BY title, nomenclature`;
-    
     const result = await request.query(query);
-    
     console.log(`✅ Retrieved ${result.recordset.length} records from View_stock_transactions_clean`);
     if (tender_id) {
       console.log(`📊 Filtered by tender_id: ${tender_id}`);
     }
-    
     res.json(result.recordset);
-    
   } catch (error) {
     console.error('❌ Error fetching from view:', error);
     res.status(500).json({ 
@@ -11742,16 +10265,13 @@ app.get('/api/view-stock-transactions-clean', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // APPROVAL FORWARDING APIs
 // =============================================================================
-
 // Get all approval forwards for a user (pending on them)
 app.get('/api/approvals/pending/:userId', async (req, res) => {
   try {
     let { userId } = req.params;
-
     // Require session authentication - userId parameter should match session user
     const sessionUserId = req.session?.userId;
     if (!sessionUserId) {
@@ -11761,15 +10281,12 @@ app.get('/api/approvals/pending/:userId', async (req, res) => {
         details: 'No user session found. You must be logged in to view approvals.'
       });
     }
-
     // Use session user if parameter doesn't match or is not provided
     if (!userId || userId === 'undefined' || userId === 'null' || userId !== sessionUserId) {
       userId = sessionUserId;
       console.log('📋 Pending Approvals: Using session user:', userId);
     }
-    
     console.log('📋 Pending Approvals: Fetching for user:', userId);
-    
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockPendingApprovals = [
@@ -11787,7 +10304,6 @@ app.get('/api/approvals/pending/:userId', async (req, res) => {
       ];
       return res.json(mockPendingApprovals);
     }
-
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query(`
@@ -11813,9 +10329,7 @@ app.get('/api/approvals/pending/:userId', async (req, res) => {
           AND ra.current_status = 'pending'
         ORDER BY ra.submitted_date DESC
       `);
-    
     res.json(result.recordset);
-    
   } catch (error) {
     console.error('❌ Error fetching pending approvals:', error);
     res.status(500).json({ 
@@ -11824,13 +10338,11 @@ app.get('/api/approvals/pending/:userId', async (req, res) => {
     });
   }
 });
-
 // Get approval history for an issuance (supports numeric issuanceId for legacy StockIssuances and GUID request IDs for request-based history)
 app.get('/api/approvals/history/:issuanceId', async (req, res) => {
   try {
     const { issuanceId } = req.params;
     console.log('Fetching approval history for:', issuanceId);
-    
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockHistory = [
@@ -11852,10 +10364,8 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
       ];
       return res.json(mockHistory);
     }
-
     // Detect if issuanceId looks numeric (legacy StockIssuances with INT id)
     const numericId = /^\d+$/.test(issuanceId);
-
     if (numericId) {
       // Legacy path: IssuanceApprovalHistory expects an INT issuanceId
       try {
@@ -11885,7 +10395,6 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
         // fallthrough to GUID/request-based path below
       }
     }
-
     // If not numeric, treat as a GUID request id and query the request-based approval history
     try {
       // approval_history links to request_approvals via request_approval_id; join to filter by request_id
@@ -11911,14 +10420,12 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
           WHERE ra.request_id = @requestId
           ORDER BY ah.action_date ASC
         `);
-
       console.log(`Found ${reqHistory.recordset.length} approval history entries for request ${issuanceId}`);
       return res.json(reqHistory.recordset || []);
     } catch (err) {
       console.error('❌ Error fetching guid-based approval history:', err);
       return res.status(500).json({ error: 'Failed to fetch approval history for request id', details: err.message });
     }
-    
   } catch (error) {
     console.error('❌ Error fetching approval history:', error);
     res.status(500).json({ 
@@ -11927,7 +10434,6 @@ app.get('/api/approvals/history/:issuanceId', async (req, res) => {
     });
   }
 });
-
 // Forward an approval to another user
 app.post('/api/approvals/forward', async (req, res) => {
   try {
@@ -11939,13 +10445,11 @@ app.post('/api/approvals/forward', async (req, res) => {
       dueDate,
       currentUserId 
     } = req.body;
-
     if (!issuanceId || !forwardedToUserId || !currentUserId) {
       return res.status(400).json({ 
         error: 'Missing required fields: issuanceId, forwardedToUserId, currentUserId' 
       });
     }
-    
     if (!pool) {
       // Return mock success when SQL Server is not connected
       return res.json({ 
@@ -11954,10 +10458,8 @@ app.post('/api/approvals/forward', async (req, res) => {
         forwardId: Math.floor(Math.random() * 1000)
       });
     }
-
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Get current approval level
       const currentForward = await transaction.request()
@@ -11969,10 +10471,8 @@ app.post('/api/approvals/forward', async (req, res) => {
             AND ForwardedToUserId = @currentUserId 
             AND IsActive = 1
         `);
-
       const currentLevel = currentForward.recordset[0]?.Level || 1;
       const nextLevel = currentLevel + 1;
-
       // Deactivate current forward
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -11984,7 +10484,6 @@ app.post('/api/approvals/forward', async (req, res) => {
             AND ForwardedToUserId = @currentUserId 
             AND IsActive = 1
         `);
-
       // Create new forward
       const forwardResult = await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12001,7 +10500,6 @@ app.post('/api/approvals/forward', async (req, res) => {
           OUTPUT INSERTED.Id
           VALUES (@issuanceId, @forwardedFromUserId, @forwardedToUserId, @forwardReason, @level, @priority, @dueDate, @createdBy)
         `);
-
       // Add to approval history
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12017,7 +10515,6 @@ app.post('/api/approvals/forward', async (req, res) => {
           (IssuanceId, UserId, ActionType, Comments, ForwardedToUserId, ForwardReason, Level, CreatedBy)
           VALUES (@issuanceId, @userId, @actionType, @comments, @forwardedToUserId, @forwardReason, @level, @createdBy)
         `);
-
       // Update stock issuance current approver
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12028,9 +10525,7 @@ app.post('/api/approvals/forward', async (req, res) => {
           SET CurrentApproverId = @currentApproverId, ApprovalLevel = @approvalLevel
           WHERE Id = @issuanceId
         `);
-
       await transaction.commit();
-
       // Create notification for the forwarded user
       try {
         await createNotification(
@@ -12045,18 +10540,15 @@ app.post('/api/approvals/forward', async (req, res) => {
         console.error('Failed to create notification:', notificationError);
         // Don't fail the request if notification fails
       }
-
       res.json({ 
         success: true, 
         message: 'Approval forwarded successfully',
         forwardId: forwardResult.recordset[0].Id
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-    
   } catch (error) {
     console.error('❌ Error forwarding approval:', error);
     res.status(500).json({ 
@@ -12065,7 +10557,6 @@ app.post('/api/approvals/forward', async (req, res) => {
     });
   }
 });
-
 // Approve an issuance
 app.post('/api/approvals/approve', async (req, res) => {
   try {
@@ -12075,13 +10566,11 @@ app.post('/api/approvals/approve', async (req, res) => {
       isFinalApproval = false,
       currentUserId 
     } = req.body;
-
     if (!issuanceId || !currentUserId) {
       return res.status(400).json({ 
         error: 'Missing required fields: issuanceId, currentUserId' 
       });
     }
-    
     if (!pool) {
       // Return mock success when SQL Server is not connected
       return res.json({ 
@@ -12089,10 +10578,8 @@ app.post('/api/approvals/approve', async (req, res) => {
         message: 'Approval completed successfully (mock)'
       });
     }
-
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Get current approval level
       const currentForward = await transaction.request()
@@ -12104,9 +10591,7 @@ app.post('/api/approvals/approve', async (req, res) => {
             AND ForwardedToUserId = @currentUserId 
             AND IsActive = 1
         `);
-
       const currentLevel = currentForward.recordset[0]?.Level || 1;
-
       // Deactivate current forward
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12118,7 +10603,6 @@ app.post('/api/approvals/approve', async (req, res) => {
             AND ForwardedToUserId = @currentUserId 
             AND IsActive = 1
         `);
-
       // Add to approval history
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12133,7 +10617,6 @@ app.post('/api/approvals/approve', async (req, res) => {
           (IssuanceId, UserId, ActionType, Comments, Level, IsFinalApproval, CreatedBy)
           VALUES (@issuanceId, @userId, @actionType, @comments, @level, @isFinalApproval, @createdBy)
         `);
-
       // Update stock issuance status
       const newStatus = isFinalApproval ? 'APPROVED' : 'PENDING';
       const updateQuery = isFinalApproval 
@@ -12147,25 +10630,20 @@ app.post('/api/approvals/approve', async (req, res) => {
            SET ApprovalStatus = @newStatus,
                CurrentApproverId = NULL
            WHERE Id = @issuanceId`;
-
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
         .input('newStatus', sql.NVarChar, newStatus)
         .input('currentUserId', sql.NVarChar, currentUserId)
         .query(updateQuery);
-
       await transaction.commit();
-
       res.json({ 
         success: true, 
         message: isFinalApproval ? 'Final approval completed successfully' : 'Approval completed successfully'
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-    
   } catch (error) {
     console.error('❌ Error approving issuance:', error);
     res.status(500).json({ 
@@ -12174,7 +10652,6 @@ app.post('/api/approvals/approve', async (req, res) => {
     });
   }
 });
-
 // Reject an issuance
 app.post('/api/approvals/reject', async (req, res) => {
   try {
@@ -12183,13 +10660,11 @@ app.post('/api/approvals/reject', async (req, res) => {
       comments, 
       currentUserId 
     } = req.body;
-
     if (!issuanceId || !currentUserId || !comments) {
       return res.status(400).json({ 
         error: 'Missing required fields: issuanceId, currentUserId, comments' 
       });
     }
-    
     if (!pool) {
       // Return mock success when SQL Server is not connected
       return res.json({ 
@@ -12197,10 +10672,8 @@ app.post('/api/approvals/reject', async (req, res) => {
         message: 'Issuance rejected successfully (mock)'
       });
     }
-
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Get current approval level
       const currentForward = await transaction.request()
@@ -12212,9 +10685,7 @@ app.post('/api/approvals/reject', async (req, res) => {
             AND ForwardedToUserId = @currentUserId 
             AND IsActive = 1
         `);
-
       const currentLevel = currentForward.recordset[0]?.Level || 1;
-
       // Deactivate all active forwards for this issuance
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12224,7 +10695,6 @@ app.post('/api/approvals/reject', async (req, res) => {
           WHERE IssuanceId = @issuanceId 
             AND IsActive = 1
         `);
-
       // Add to approval history
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12238,7 +10708,6 @@ app.post('/api/approvals/reject', async (req, res) => {
           (IssuanceId, UserId, ActionType, Comments, Level, CreatedBy)
           VALUES (@issuanceId, @userId, @actionType, @comments, @level, @createdBy)
         `);
-
       // Update stock issuance status
       await transaction.request()
         .input('issuanceId', sql.Int, issuanceId)
@@ -12248,19 +10717,15 @@ app.post('/api/approvals/reject', async (req, res) => {
               CurrentApproverId = NULL
           WHERE Id = @issuanceId
         `);
-
       await transaction.commit();
-
       res.json({ 
         success: true, 
         message: 'Issuance rejected successfully'
       });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-    
   } catch (error) {
     console.error('❌ Error rejecting issuance:', error);
     res.status(500).json({ 
@@ -12269,12 +10734,10 @@ app.post('/api/approvals/reject', async (req, res) => {
     });
   }
 });
-
 // Get approval status overview
 app.get('/api/approvals/status/:issuanceId', async (req, res) => {
   try {
     const { issuanceId } = req.params;
-    
     if (!pool) {
       // Return mock data when SQL Server is not connected
       const mockStatus = {
@@ -12290,20 +10753,16 @@ app.get('/api/approvals/status/:issuanceId', async (req, res) => {
       };
       return res.json(mockStatus);
     }
-
     const result = await pool.request()
       .input('issuanceId', sql.Int, issuanceId)
       .query(`
         SELECT * FROM View_IssuanceApprovalStatus 
         WHERE IssuanceId = @issuanceId
       `);
-    
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Issuance not found' });
     }
-    
     res.json(result.recordset[0]);
-    
   } catch (error) {
     console.error('❌ Error fetching approval status:', error);
     res.status(500).json({ 
@@ -12312,24 +10771,19 @@ app.get('/api/approvals/status/:issuanceId', async (req, res) => {
     });
   }
 });
-
 // ============================================================================
 // INVENTORY VERIFICATION ENDPOINTS
 // ============================================================================
-
 // Check wing inventory availability for an item
 app.post('/api/inventory/check-availability', async (req, res) => {
   try {
     const { itemMasterId, wingId, requestedQuantity } = req.body;
-
     console.log('📦 Inventory Check Request:', { itemMasterId, wingId, requestedQuantity });
-
     if (!itemMasterId || !requestedQuantity) {
       return res.status(400).json({ 
         error: 'Missing required fields: itemMasterId, requestedQuantity' 
       });
     }
-
     if (!pool) {
       // Mock data for testing
       return res.json({
@@ -12345,7 +10799,6 @@ app.post('/api/inventory/check-availability', async (req, res) => {
         }
       });
     }
-
     // Query the current inventory to check availability
     const result = await pool.request()
       .input('ItemMasterId', sql.NVarChar, itemMasterId)
@@ -12369,9 +10822,7 @@ app.post('/api/inventory/check-availability', async (req, res) => {
         LEFT JOIN item_masters im ON CAST(im.id AS NVARCHAR(450)) = CAST(cis.item_master_id AS NVARCHAR(450))
         WHERE CAST(cis.item_master_id AS NVARCHAR(450)) = @ItemMasterId
       `);
-
     console.log('📦 Inventory Query Result:', result.recordset);
-
     if (result.recordset.length === 0) {
       console.warn('⚠️ No inventory found for item:', itemMasterId);
       return res.json({
@@ -12387,13 +10838,11 @@ app.post('/api/inventory/check-availability', async (req, res) => {
         }
       });
     }
-
     console.log('✅ Inventory check successful for item:', itemMasterId);
     res.json({
       success: true,
       data: result.recordset[0]
     });
-
   } catch (error) {
     console.error('❌ Error checking inventory availability:', error);
     res.status(500).json({ 
@@ -12403,7 +10852,6 @@ app.post('/api/inventory/check-availability', async (req, res) => {
     });
   }
 });
-
 // Request inventory verification from inventory supervisor
 app.post('/api/inventory/request-verification', async (req, res) => {
   try {
@@ -12418,16 +10866,13 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       wingName,
       forwardToStoreKeeperId  // Optional: specific store keeper to forward to
     } = req.body;
-
     console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, itemNomenclature, requestedByUserId, wingId });
-
     if (!stockIssuanceId || !itemMasterId || !requestedByUserId) {
       return res.status(400).json({ 
         error: 'Missing required fields',
         received: { stockIssuanceId, itemMasterId, requestedByUserId }
       });
     }
-
     if (!pool) {
       console.log('⚠️  No database pool, returning mock response');
       return res.json({
@@ -12436,16 +10881,13 @@ app.post('/api/inventory/request-verification', async (req, res) => {
         verificationId: 'mock-' + Date.now()
       });
     }
-
     try {
       // First, if forwarding to a specific store keeper, get their name
       let storeKeeperUserId = forwardToStoreKeeperId;
       let storeKeeperName = null;
-      
       console.log('🔍 Auto-forwarding logic:');
       console.log('   wingId received:', wingId);
       console.log('   forwardToStoreKeeperId:', forwardToStoreKeeperId);
-      
       if (storeKeeperUserId) {
         // Get store keeper's name
         const skResult = await pool.request()
@@ -12454,7 +10896,6 @@ app.post('/api/inventory/request-verification', async (req, res) => {
             SELECT u.UserName, u.Id FROM AspNetUsers u 
             WHERE u.Id = @userId
           `);
-        
         if (skResult.recordset.length > 0) {
           storeKeeperName = skResult.recordset[0].UserName;
           console.log('👤 Store keeper found:', { storeKeeperUserId, storeKeeperName });
@@ -12462,7 +10903,6 @@ app.post('/api/inventory/request-verification', async (req, res) => {
       } else if (wingId) {
         // Auto-forward to any store keeper in this wing with CUSTOM_WING_STORE_KEEPER role
         console.log('🔍 Finding store keepers for wing:', wingId);
-        
         try {
           const skSearchResult = await pool.request()
             .input('wingId', sql.Int, wingId)
@@ -12476,7 +10916,6 @@ app.post('/api/inventory/request-verification', async (req, res) => {
                 AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
               ORDER BY u.UserName
             `);
-          
           if (skSearchResult.recordset.length > 0) {
             // Forward to the first store keeper found
             storeKeeperUserId = skSearchResult.recordset[0].Id;
@@ -12491,7 +10930,6 @@ app.post('/api/inventory/request-verification', async (req, res) => {
           console.log('    Stack:', queryError.stack);
         }
       }
-
       // Create verification request with forwarding information
       // Get wing name if not provided
       let finalWingName = wingName || 'Unknown';
@@ -12519,7 +10957,6 @@ app.post('/api/inventory/request-verification', async (req, res) => {
           console.warn('⚠️  Could not lookup wing name, using default:', wingError.message);
         }
       }
-
       const result = await pool.request()
         .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
         .input('itemMasterId', sql.NVarChar, itemMasterId)
@@ -12543,22 +10980,17 @@ app.post('/api/inventory/request-verification', async (req, res) => {
                   @requestedQuantity, 'pending', @wingId, @wingName, GETDATE(), GETDATE(),
                   @forwardedToUserId, @forwardedToName, @forwardedByUserId, @forwardedByName, GETDATE())
         `);
-
       const verificationId = result.recordset[0]?.id;
-      
       console.log('✅ Verification request created:', verificationId);
-
       res.json({
         success: true,
         message: 'Verification request created successfully',
         verificationId: verificationId
       });
-
     } catch (error) {
       console.error('❌ Error in verification request:', error.message);
       throw error;
     }
-
   } catch (error) {
     console.error('❌ Error requesting verification:', error);
     res.status(500).json({ 
@@ -12567,7 +10999,6 @@ app.post('/api/inventory/request-verification', async (req, res) => {
     });
   }
 });
-
 // Forward verification request to store keeper
 app.post('/api/inventory/forward-verification-to-store-keeper', async (req, res) => {
   try {
@@ -12579,14 +11010,12 @@ app.post('/api/inventory/forward-verification-to-store-keeper', async (req, res)
       forwardedByName,
       forwardNotes
     } = req.body;
-
     if (!verificationId || !storeKeeperUserId) {
       return res.status(400).json({
         error: 'Missing required fields',
         required: ['verificationId', 'storeKeeperUserId']
       });
     }
-
     if (!pool) {
       return res.json({
         success: true,
@@ -12594,7 +11023,6 @@ app.post('/api/inventory/forward-verification-to-store-keeper', async (req, res)
         verificationId
       });
     }
-
     // Update verification request with forwarding info
     const result = await pool.request()
       .input('verificationId', sql.Int, verificationId)
@@ -12615,15 +11043,12 @@ app.post('/api/inventory/forward-verification-to-store-keeper', async (req, res)
           updated_at = GETDATE()
         WHERE id = @verificationId
       `);
-
     console.log('✅ Verification forwarded to store keeper:', { verificationId, storeKeeperUserId });
-
     res.json({
       success: true,
       message: 'Verification forwarded to store keeper successfully',
       verificationId
     });
-
   } catch (error) {
     console.error('❌ Error forwarding verification:', error);
     res.status(500).json({
@@ -12632,27 +11057,22 @@ app.post('/api/inventory/forward-verification-to-store-keeper', async (req, res)
     });
   }
 });
-
 // Get pending verification requests for inventory supervisor
 app.get('/api/inventory/pending-verifications', async (req, res) => {
   try {
     const { userId, wingId } = req.query;
-
     if (!userId) {
       return res.status(400).json({ 
         error: 'User ID is required' 
       });
     }
-
     if (!pool) {
       return res.json({
         success: true,
         data: []
       });
     }
-
     console.log('📋 Pending Verifications API - userId:', userId, 'wingId:', wingId);
-
     // If wingId is provided, filter by that wing. Otherwise return empty (user must be a supervisor)
     let whereClause = '';
     if (wingId) {
@@ -12665,7 +11085,6 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
         data: []
       });
     }
-
     // Get pending stock issuance requests for the wing
     const query = `
       SELECT 
@@ -12688,17 +11107,13 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
                sir.purpose, sir.request_status, sir.submitted_at, sir.created_at, sir.updated_at
       ORDER BY sir.submitted_at DESC
     `;
-    
     console.log('🔍 Query:', query.substring(0, 100) + '...');
     const result = await pool.request().query(query);
-
     console.log(`✅ Fetched ${result.recordset.length} pending stock issuance requests for wing ${wingId}`);
-
     res.json({
       success: true,
       data: result.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching pending verifications:', error);
     res.status(500).json({ 
@@ -12707,27 +11122,22 @@ app.get('/api/inventory/pending-verifications', async (req, res) => {
     });
   }
 });
-
 // Get verification requests made by the current user (wing supervisor/requester)
 app.get('/api/inventory/my-verification-requests', async (req, res) => {
   try {
     const { userId } = req.query;
-
     if (!userId) {
       return res.status(400).json({ 
         error: 'User ID is required' 
       });
     }
-
     if (!pool) {
       return res.json({
         success: true,
         data: []
       });
     }
-
     console.log('📋 My Verification Requests - userId:', userId);
-
     // Query inventory_verification_requests made by this user
     // Returns both pending (waiting for store keeper) and verified (store keeper replied) requests
     const result = await pool.request()
@@ -12760,14 +11170,11 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
         WHERE ivr.requested_by_user_id = @userId
         ORDER BY ivr.requested_at DESC
       `);
-
     console.log('✅ Found', result.recordset.length, 'verification requests for user', userId);
-    
     res.json({
       success: true,
       data: result.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching my verification requests:', error);
     res.status(500).json({ 
@@ -12776,27 +11183,22 @@ app.get('/api/inventory/my-verification-requests', async (req, res) => {
     });
   }
 });
-
 // Get forwarded verifications for Store Keeper
 app.get('/api/inventory/my-forwarded-verifications', async (req, res) => {
   try {
     const { userId } = req.query;
-
     if (!userId) {
       return res.status(400).json({ 
         error: 'User ID is required' 
       });
     }
-
     if (!pool) {
       return res.json({
         success: true,
         data: []
       });
     }
-
     console.log('📋 My Forwarded Verifications - userId:', userId);
-
     // Query inventory_verification_requests forwarded to this store keeper
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
@@ -12832,14 +11234,11 @@ app.get('/api/inventory/my-forwarded-verifications', async (req, res) => {
         WHERE ivr.forwarded_to_user_id = @userId
         ORDER BY ivr.forwarded_at DESC
       `);
-
     console.log('✅ Found', result.recordset.length, 'forwarded verifications for store keeper', userId);
-    
     res.json({
       success: true,
       data: result.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching forwarded verifications:', error);
     res.status(500).json({ 
@@ -12848,7 +11247,6 @@ app.get('/api/inventory/my-forwarded-verifications', async (req, res) => {
     });
   }
 });
-
 // Update verification status (by inventory supervisor)
 app.post('/api/inventory/update-verification', async (req, res) => {
   try {
@@ -12864,23 +11262,19 @@ app.post('/api/inventory/update-verification', async (req, res) => {
       forwardToUserId,
       forwardToName
     } = req.body;
-
     if (!verificationId || !verificationStatus || !verifiedByUserId) {
       return res.status(400).json({ 
         error: 'Missing required fields' 
       });
     }
-
     if (!pool) {
       return res.json({
         success: true,
         message: 'Verification updated (mock)'
       });
     }
-
     try {
       console.log('📦 Updating verification:', { verificationId, verificationStatus });
-
       // Get verification request details before updating
       const verificationDetailsResult = await pool.request()
         .input('verificationId', sql.Int, verificationId)
@@ -12898,13 +11292,10 @@ app.post('/api/inventory/update-verification', async (req, res) => {
           FROM inventory_verification_requests
           WHERE id = @verificationId
         `);
-
       const verificationDetails = verificationDetailsResult.recordset[0];
-
       // Decide action
       const actionType = action || 'verify'; // verify | approve | reject | forward
       let finalStatus = verificationStatus;
-
       if (actionType === 'approve') {
         finalStatus = 'approved';
       } else if (actionType === 'reject') {
@@ -12912,7 +11303,6 @@ app.post('/api/inventory/update-verification', async (req, res) => {
       } else if (actionType === 'forward') {
         finalStatus = 'forwarded';
       }
-
       // Update based on action
       const requestBuilder = pool.request()
         .input('verificationId', sql.Int, verificationId)
@@ -12924,7 +11314,6 @@ app.post('/api/inventory/update-verification', async (req, res) => {
         .input('verifiedByName', sql.NVarChar, verifiedByName)
         .input('forwardToUserId', sql.NVarChar, forwardToUserId || null)
         .input('forwardToName', sql.NVarChar, forwardToName || null);
-
       if (actionType === 'forward') {
         await requestBuilder.query(`
           UPDATE inventory_verification_requests
@@ -12956,22 +11345,18 @@ app.post('/api/inventory/update-verification', async (req, res) => {
           WHERE id = @verificationId
         `);
       }
-
       console.log('✅ Verification updated successfully');
       console.log('📧 Verification notification will be automatically available via /api/my-notifications');
       console.log('   (Fetched directly from inventory_verification_requests table)');
-
       res.json({
         success: true,
         message: 'Verification updated successfully',
         verificationId: verificationId
       });
-
     } catch (error) {
       console.error('❌ Error in verification update:', error.message);
       throw error;
     }
-
   } catch (error) {
     console.error('❌ Error updating verification:', error);
     res.status(500).json({ 
@@ -12980,7 +11365,6 @@ app.post('/api/inventory/update-verification', async (req, res) => {
     });
   }
 });
-
 // Forward verification request to Store Keeper (by Supervisor)
 app.post('/api/inventory/forward-verification-to-storekeeper', async (req, res) => {
   try {
@@ -12992,23 +11376,19 @@ app.post('/api/inventory/forward-verification-to-storekeeper', async (req, res) 
       forwardedByName,
       forwardNotes
     } = req.body;
-
     if (!verificationId || !forwardedToUserId || !forwardedByUserId) {
       return res.status(400).json({ 
         error: 'Missing required fields: verificationId, forwardedToUserId, forwardedByUserId' 
       });
     }
-
     if (!pool) {
       return res.json({
         success: true,
         message: 'Verification forwarded to store keeper (mock)'
       });
     }
-
     try {
       console.log('📤 Forwarding verification to store keeper:', { verificationId, forwardedToName });
-
       // Update the verification request to forward it to store keeper
       const result = await pool.request()
         .input('verificationId', sql.Int, verificationId)
@@ -13028,7 +11408,6 @@ app.post('/api/inventory/forward-verification-to-storekeeper', async (req, res) 
               forwarded_at = GETDATE(),
               updated_at = GETDATE()
           WHERE id = @verificationId
-          
           SELECT 
             id,
             stock_issuance_id,
@@ -13040,28 +11419,22 @@ app.post('/api/inventory/forward-verification-to-storekeeper', async (req, res) 
           FROM inventory_verification_requests
           WHERE id = @verificationId
         `);
-
       if (result.recordset.length === 0) {
         return res.status(404).json({ 
           error: 'Verification request not found' 
         });
       }
-
       const updatedVerification = result.recordset[0];
-
       console.log('✅ Verification forwarded successfully to:', updatedVerification.forwarded_to_name);
-
       res.json({
         success: true,
         message: 'Verification request forwarded to store keeper',
         data: updatedVerification
       });
-
     } catch (error) {
       console.error('❌ Database error in forwarding:', error.message);
       throw error;
     }
-
   } catch (error) {
     console.error('❌ Error forwarding verification:', error);
     res.status(500).json({ 
@@ -13070,27 +11443,22 @@ app.post('/api/inventory/forward-verification-to-storekeeper', async (req, res) 
     });
   }
 });
-
 // Get verification history for a specific user (requester)
 app.get('/api/inventory/verification-history', async (req, res) => {
   try {
     const { userId, view } = req.query;
-
     if (!userId) {
       return res.status(400).json({ 
         error: 'User ID is required' 
       });
     }
-
     if (!pool) {
       return res.json({
         success: true,
         data: []
       });
     }
-
     const request = pool.request().input('userId', sql.NVarChar, userId);
-
     let query = `
       SELECT 
         id,
@@ -13110,7 +11478,6 @@ app.get('/api/inventory/verification-history', async (req, res) => {
         verified_at
       FROM inventory_verification_requests
     `;
-
     if (view === 'verifier') {
       query += `
         WHERE verified_by_user_id = @userId
@@ -13124,14 +11491,11 @@ app.get('/api/inventory/verification-history', async (req, res) => {
         ORDER BY requested_at DESC
       `;
     }
-
     const result = await request.query(query);
-
     res.json({
       success: true,
       data: result.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching verification history:', error);
     res.status(500).json({ 
@@ -13140,19 +11504,16 @@ app.get('/api/inventory/verification-history', async (req, res) => {
     });
   }
 });
-
 // Get verification history for a stock issuance
 app.get('/api/inventory/verification-history/:stockIssuanceId', async (req, res) => {
   try {
     const { stockIssuanceId } = req.params;
-
     if (!pool) {
       return res.json({
         success: true,
         data: []
       });
     }
-
     const result = await pool.request()
       .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
       .query(`
@@ -13165,12 +11526,10 @@ app.get('/api/inventory/verification-history/:stockIssuanceId', async (req, res)
         WHERE ivr.stock_issuance_id = @stockIssuanceId
         ORDER BY ivr.created_at DESC
       `);
-
     res.json({
       success: true,
       data: result.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching verification history:', error);
     res.status(500).json({ 
@@ -13179,11 +11538,9 @@ app.get('/api/inventory/verification-history/:stockIssuanceId', async (req, res)
     });
   }
 });
-
 // ============================================================================
 // NOTIFICATION SYSTEM
 // ============================================================================
-
 // Helper function to create system notifications
 async function createNotification(userId, title, message, type = 'info', actionUrl = null, actionText = null) {
   try {
@@ -13191,7 +11548,6 @@ async function createNotification(userId, title, message, type = 'info', actionU
       console.warn('⚠️ Database not available, skipping notification creation');
       return null;
     }
-
     // Save notification to database
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
@@ -13201,34 +11557,28 @@ async function createNotification(userId, title, message, type = 'info', actionU
       .input('actionUrl', sql.NVarChar, actionUrl)
       .input('actionText', sql.NVarChar, actionText)
       .execute('CreateNotification');
-    
     const notification = result.recordset[0];
     console.log(`📧 Notification created for user ${userId}: ${title}`);
-    
     return notification;
   } catch (error) {
     console.error('❌ Error creating notification:', error);
     return null;
   }
 }
-
 // Get notifications for a user
 app.get('/api/notifications/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const { unreadOnly = false, limit = 50 } = req.query;
-    
     if (!pool) {
       return res.json({ success: false, error: 'Database not available' });
     }
-    
     // Fetch notifications from database
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .input('unreadOnly', sql.Bit, unreadOnly === 'true')
       .input('limit', sql.Int, parseInt(limit))
       .execute('GetUserNotifications');
-    
     res.json({
       success: true,
       notifications: result.recordset
@@ -13238,33 +11588,27 @@ app.get('/api/notifications/:userId', async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to fetch notifications' });
   }
 });
-
 // Mark notification as read
 app.put('/api/notifications/:notificationId/read', async (req, res) => {
   try {
     const { notificationId } = req.params;
     const userId = req.session?.userId;
-
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-
     if (!pool) {
       return res.json({ success: false, error: 'Database not available' });
     }
-    
     await pool.request()
       .input('notificationId', sql.UniqueIdentifier, notificationId)
       .input('userId', sql.NVarChar, userId)
       .execute('MarkNotificationRead');
-    
     res.json({ success: true, message: 'Notification marked as read' });
   } catch (error) {
     console.error('❌ Error marking notification as read:', error);
     res.status(500).json({ success: false, error: 'Failed to mark notification as read' });
   }
 });
-
 // Get current user's notifications (uses session)
 app.get('/api/my-notifications', async (req, res) => {
   try {
@@ -13272,15 +11616,11 @@ app.get('/api/my-notifications', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
-    
     console.log(`📬 Fetching notifications for user: ${userId}`);
-    
     const { unreadOnly = false, limit = 50 } = req.query;
-    
     if (!pool) {
       return res.json({ success: false, error: 'Database not available' });
     }
-    
     // Query that combines regular notifications with verification requests
     const result = await pool.request()
       .input('UserId', sql.NVarChar, userId)
@@ -13303,9 +11643,7 @@ app.get('/api/my-notifications', async (req, res) => {
           FROM Notifications
           WHERE UserId = @UserId 
             AND (@UnreadOnly = 0 OR IsRead = 0)
-          
           UNION ALL
-
           -- Supervisor pending requests as notifications (for wing supervisors)
           SELECT
             CAST('VER-PEND-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
@@ -13326,9 +11664,7 @@ app.get('/api/my-notifications', async (req, res) => {
           JOIN ims_roles r ON r.id = ur.role_id
           WHERE r.role_name = 'WING_SUPERVISOR'
             AND ivr.verification_status = 'pending'
-          
           UNION ALL
-
           -- Requester pending requests as notifications (for the requester)
           SELECT
             CAST('REQ-PEND-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
@@ -13346,9 +11682,7 @@ app.get('/api/my-notifications', async (req, res) => {
           FROM inventory_verification_requests ivr
           WHERE ivr.requested_by_user_id = @UserId
             AND ivr.verification_status = 'pending'
-          
           UNION ALL
-
           -- Verification requests as notifications (only show verified ones to requester)
           SELECT 
             CAST('VER-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
@@ -13397,17 +11731,14 @@ app.get('/api/my-notifications', async (req, res) => {
         ) AS CombinedNotifications
         ORDER BY CreatedAt DESC
       `);
-    
     res.json({
       success: true,
       notifications: result.recordset
     });
-    
     const verificationCount = result.recordset.filter(n => n.SourceType === 'verification').length;
     const supervisorPendingCount = result.recordset.filter(n => n.SourceType === 'supervisor-pending').length;
     const requesterPendingCount = result.recordset.filter(n => n.SourceType === 'requester-pending').length;
     const regularCount = result.recordset.filter(n => n.SourceType === 'notification').length;
-    
     console.log(`✅ Returned ${result.recordset.length} total notifications for user ${userId}`);
     console.log(`   - ${regularCount} regular notifications`);
     console.log(`   - ${verificationCount} verification notifications`);
@@ -13422,12 +11753,10 @@ app.get('/api/my-notifications', async (req, res) => {
     });
   }
 });
-
 // Mark notification as read
 app.put('/api/notifications/:notificationId/read', async (req, res) => {
   try {
     const { notificationId } = req.params;
-    
     // TODO: In production, update database
     // await pool.request()
     //   .input('notificationId', sql.NVarChar, notificationId)
@@ -13436,9 +11765,7 @@ app.put('/api/notifications/:notificationId/read', async (req, res) => {
     //     SET IsRead = 1, ReadAt = GETDATE()
     //     WHERE Id = @notificationId
     //   `);
-    
     res.json({ success: true });
-    
   } catch (error) {
     console.error('❌ Error marking notification as read:', error);
     res.status(500).json({ 
@@ -13447,19 +11774,15 @@ app.put('/api/notifications/:notificationId/read', async (req, res) => {
     });
   }
 });
-
 // Delete notification
 app.delete('/api/notifications/:notificationId', async (req, res) => {
   try {
     const { notificationId } = req.params;
-    
     // TODO: In production, delete from database
     // await pool.request()
     //   .input('notificationId', sql.NVarChar, notificationId)
     //   .query(`DELETE FROM Notifications WHERE Id = @notificationId`);
-    
     res.json({ success: true });
-    
   } catch (error) {
     console.error('❌ Error deleting notification:', error);
     res.status(500).json({ 
@@ -13468,20 +11791,16 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
     });
   }
 });
-
 // ============================================================================
 // END NOTIFICATION SYSTEM
 // ============================================================================
-
 // ============================================================================
 // PROCUREMENT WORKFLOW ENDPOINTS
 // Wings request stock from Admin, Admin approves and delivers
 // ============================================================================
-
 // ============================================================================
 // Wing User Endpoints - Create and View Procurement Requests
 // ============================================================================
-
 // Create new procurement request
 app.post('/api/procurement/requests', async (req, res) => {
   try {
@@ -13489,26 +11808,19 @@ app.post('/api/procurement/requests', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { wing_id, wing_name, items, priority, justification } = req.body;
-
     if (!wing_id || !items || items.length === 0) {
       return res.status(400).json({ error: 'Wing ID and items are required' });
     }
-
     console.log(`📝 Creating procurement request for wing ${wing_id} by user ${userId}`);
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Get user details
       const userResult = await transaction.request()
         .input('userId', sql.NVarChar, userId)
         .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
-      
       const userName = userResult.recordset[0]?.FullName || 'Unknown User';
-
       // Create procurement request
       const requestId = uuidv4();
       await transaction.request()
@@ -13525,7 +11837,6 @@ app.post('/api/procurement/requests', async (req, res) => {
           (id, wing_id, wing_name, requested_by_user_id, requested_by_name, status, priority, justification)
           VALUES (@id, @wing_id, @wing_name, @requested_by_user_id, @requested_by_name, @status, @priority, @justification)
         `);
-
       // Insert request items
       for (const item of items) {
         const itemId = uuidv4();
@@ -13551,9 +11862,7 @@ app.post('/api/procurement/requests', async (req, res) => {
                     @estimated_unit_price, @notes)
           `);
       }
-
       await transaction.commit();
-
       // Get the created request with generated number
       const result = await pool.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
@@ -13563,21 +11872,17 @@ app.post('/api/procurement/requests', async (req, res) => {
           FROM procurement_requests pr
           WHERE pr.id = @requestId
         `);
-
       console.log(`✅ Procurement request created: ${result.recordset[0].request_number}`);
       res.json({ success: true, request: result.recordset[0] });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('❌ Error creating procurement request:', error);
     res.status(500).json({ error: 'Failed to create procurement request', details: error.message });
   }
 });
-
 // Get user's procurement requests
 app.get('/api/procurement/requests/my-requests', async (req, res) => {
   try {
@@ -13585,14 +11890,11 @@ app.get('/api/procurement/requests/my-requests', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { status } = req.query;
-
     let statusFilter = '';
     if (status && status !== 'all') {
       statusFilter = 'AND pr.status = @status';
     }
-
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .input('status', sql.NVarChar, status)
@@ -13606,15 +11908,12 @@ app.get('/api/procurement/requests/my-requests', async (req, res) => {
         ${statusFilter}
         ORDER BY pr.requested_at DESC
       `);
-
     res.json({ success: true, requests: result.recordset });
-
   } catch (error) {
     console.error('❌ Error fetching user procurement requests:', error);
     res.status(500).json({ error: 'Failed to fetch requests', details: error.message });
   }
 });
-
 // Get single procurement request details
 app.get('/api/procurement/requests/:id', async (req, res) => {
   try {
@@ -13622,18 +11921,14 @@ app.get('/api/procurement/requests/:id', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { id } = req.params;
-
     // Get request details
     const requestResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query('SELECT * FROM procurement_requests WHERE id = @id');
-
     if (requestResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
-
     // Get request items
     const itemsResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, id)
@@ -13646,25 +11941,21 @@ app.get('/api/procurement/requests/:id', async (req, res) => {
         WHERE pri.procurement_request_id = @requestId
         ORDER BY pri.created_at
       `);
-
     // Get deliveries if any
     const deliveriesResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, id)
       .query('SELECT * FROM procurement_deliveries WHERE procurement_request_id = @requestId ORDER BY created_at DESC');
-
     res.json({
       success: true,
       request: requestResult.recordset[0],
       items: itemsResult.recordset,
       deliveries: deliveriesResult.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching procurement request details:', error);
     res.status(500).json({ error: 'Failed to fetch request details', details: error.message });
   }
 });
-
 // Cancel procurement request (only if pending)
 app.put('/api/procurement/requests/:id/cancel', async (req, res) => {
   try {
@@ -13672,41 +11963,32 @@ app.put('/api/procurement/requests/:id/cancel', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { id } = req.params;
-
     // Verify request belongs to user and is pending
     const checkResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('userId', sql.NVarChar, userId)
       .query('SELECT status FROM procurement_requests WHERE id = @id AND requested_by_user_id = @userId');
-
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Request not found or access denied' });
     }
-
     if (checkResult.recordset[0].status !== 'pending') {
       return res.status(400).json({ error: 'Can only cancel pending requests' });
     }
-
     // Update status to cancelled
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`UPDATE procurement_requests SET status = 'cancelled', updated_at = GETDATE() WHERE id = @id`);
-
     console.log(`✅ Procurement request ${id} cancelled by user ${userId}`);
     res.json({ success: true, message: 'Request cancelled successfully' });
-
   } catch (error) {
     console.error('❌ Error cancelling procurement request:', error);
     res.status(500).json({ error: 'Failed to cancel request', details: error.message });
   }
 });
-
 // ============================================================================
 // Admin Endpoints - Review and Approve Procurement Requests
 // ============================================================================
-
 // Get all pending procurement requests (Admin)
 app.get('/api/procurement/requests/pending', async (req, res) => {
   try {
@@ -13714,9 +11996,7 @@ app.get('/api/procurement/requests/pending', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     // TODO: Add permission check for procurement.approve
-
     const result = await pool.request()
       .query(`
         SELECT 
@@ -13734,15 +12014,12 @@ app.get('/api/procurement/requests/pending', async (req, res) => {
           END,
           pr.requested_at
       `);
-
     res.json({ success: true, requests: result.recordset });
-
   } catch (error) {
     console.error('❌ Error fetching pending procurement requests:', error);
     res.status(500).json({ error: 'Failed to fetch pending requests', details: error.message });
   }
 });
-
 // Get all procurement requests with filters (Admin)
 app.get('/api/procurement/requests', async (req, res) => {
   try {
@@ -13750,39 +12027,30 @@ app.get('/api/procurement/requests', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { status, wing_id, priority, from_date, to_date } = req.query;
-
     let filters = [];
     const request = pool.request();
-
     if (status && status !== 'all') {
       filters.push('pr.status = @status');
       request.input('status', sql.NVarChar, status);
     }
-
     if (wing_id) {
       filters.push('pr.wing_id = @wing_id');
       request.input('wing_id', sql.Int, parseInt(wing_id));
     }
-
     if (priority && priority !== 'all') {
       filters.push('pr.priority = @priority');
       request.input('priority', sql.NVarChar, priority);
     }
-
     if (from_date) {
       filters.push('pr.requested_at >= @from_date');
       request.input('from_date', sql.DateTime2, from_date);
     }
-
     if (to_date) {
       filters.push('pr.requested_at <= @to_date');
       request.input('to_date', sql.DateTime2, to_date);
     }
-
     const whereClause = filters.length > 0 ? 'WHERE ' + filters.join(' AND ') : '';
-
     const result = await request.query(`
       SELECT 
         pr.*,
@@ -13792,15 +12060,12 @@ app.get('/api/procurement/requests', async (req, res) => {
       ${whereClause}
       ORDER BY pr.requested_at DESC
     `);
-
     res.json({ success: true, requests: result.recordset });
-
   } catch (error) {
     console.error('❌ Error fetching procurement requests:', error);
     res.status(500).json({ error: 'Failed to fetch requests', details: error.message });
   }
 });
-
 // Approve procurement request (Admin)
 app.put('/api/procurement/requests/:id/approve', async (req, res) => {
   try {
@@ -13808,20 +12073,15 @@ app.put('/api/procurement/requests/:id/approve', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { id } = req.params;
     const { approved_items, review_notes } = req.body;
-
     // Get user details
     const userResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
-    
     const userName = userResult.recordset[0]?.FullName || 'Unknown Admin';
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Update approved quantities for each item
       let allFullyApproved = true;
@@ -13834,12 +12094,10 @@ app.put('/api/procurement/requests/:id/approve', async (req, res) => {
             SET approved_quantity = @approved_quantity, updated_at = GETDATE()
             WHERE id = @id
           `);
-
         if (item.approved_quantity < item.requested_quantity) {
           allFullyApproved = false;
         }
       }
-
       // Update request status
       const newStatus = allFullyApproved ? 'approved' : 'partially_approved';
       await transaction.request()
@@ -13858,23 +12116,18 @@ app.put('/api/procurement/requests/:id/approve', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = @id
         `);
-
       await transaction.commit();
-
       console.log(`✅ Procurement request ${id} ${newStatus} by admin ${userId}`);
       res.json({ success: true, status: newStatus, message: 'Request approved successfully' });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('❌ Error approving procurement request:', error);
     res.status(500).json({ error: 'Failed to approve request', details: error.message });
   }
 });
-
 // Reject procurement request (Admin)
 app.put('/api/procurement/requests/:id/reject', async (req, res) => {
   try {
@@ -13882,21 +12135,16 @@ app.put('/api/procurement/requests/:id/reject', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { id } = req.params;
     const { review_notes } = req.body;
-
     if (!review_notes) {
       return res.status(400).json({ error: 'Rejection reason is required' });
     }
-
     // Get user details
     const userResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
-    
     const userName = userResult.recordset[0]?.FullName || 'Unknown Admin';
-
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('reviewed_by_user_id', sql.NVarChar, userId)
@@ -13912,20 +12160,16 @@ app.put('/api/procurement/requests/:id/reject', async (req, res) => {
             updated_at = GETDATE()
         WHERE id = @id
       `);
-
     console.log(`✅ Procurement request ${id} rejected by admin ${userId}`);
     res.json({ success: true, message: 'Request rejected successfully' });
-
   } catch (error) {
     console.error('❌ Error rejecting procurement request:', error);
     res.status(500).json({ error: 'Failed to reject request', details: error.message });
   }
 });
-
 // ============================================================================
 // Delivery Management Endpoints (Admin)
 // ============================================================================
-
 // Create delivery from approved request
 app.post('/api/procurement/deliveries', async (req, res) => {
   try {
@@ -13933,7 +12177,6 @@ app.post('/api/procurement/deliveries', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { 
       procurement_request_id, 
       delivery_items, 
@@ -13942,33 +12185,25 @@ app.post('/api/procurement/deliveries', async (req, res) => {
       driver_name,
       driver_contact
     } = req.body;
-
     if (!procurement_request_id || !delivery_items || delivery_items.length === 0) {
       return res.status(400).json({ error: 'Request ID and delivery items are required' });
     }
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Get request details
       const requestResult = await transaction.request()
         .input('requestId', sql.UniqueIdentifier, procurement_request_id)
         .query('SELECT * FROM procurement_requests WHERE id = @requestId');
-
       if (requestResult.recordset.length === 0) {
         throw new Error('Procurement request not found');
       }
-
       const request = requestResult.recordset[0];
-
       // Get user details
       const userResult = await transaction.request()
         .input('userId', sql.NVarChar, userId)
         .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
-      
       const userName = userResult.recordset[0]?.FullName || 'Unknown User';
-
       // Create delivery
       const deliveryId = uuidv4();
       await transaction.request()
@@ -13992,7 +12227,6 @@ app.post('/api/procurement/deliveries', async (req, res) => {
                   @delivered_by_user_id, @delivered_by_name, @vehicle_number,
                   @driver_name, @driver_contact, @notes)
         `);
-
       // Insert delivery items
       for (const item of delivery_items) {
         const deliveryItemId = uuidv4();
@@ -14016,7 +12250,6 @@ app.post('/api/procurement/deliveries', async (req, res) => {
                     @item_nomenclature, @delivered_quantity, @unit_of_measurement, @batch_number,
                     @expiry_date, @notes)
           `);
-
         // Update delivered quantity in request item
         await transaction.request()
           .input('id', sql.UniqueIdentifier, item.procurement_request_item_id)
@@ -14028,7 +12261,6 @@ app.post('/api/procurement/deliveries', async (req, res) => {
             WHERE id = @id
           `);
       }
-
       // Update request status to allocated
       await transaction.request()
         .input('requestId', sql.UniqueIdentifier, procurement_request_id)
@@ -14039,28 +12271,22 @@ app.post('/api/procurement/deliveries', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = @requestId
         `);
-
       await transaction.commit();
-
       // Get created delivery
       const deliveryResult = await pool.request()
         .input('deliveryId', sql.UniqueIdentifier, deliveryId)
         .query('SELECT * FROM procurement_deliveries WHERE id = @deliveryId');
-
       console.log(`✅ Delivery created: ${deliveryResult.recordset[0].delivery_number}`);
       res.json({ success: true, delivery: deliveryResult.recordset[0] });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('❌ Error creating delivery:', error);
     res.status(500).json({ error: 'Failed to create delivery', details: error.message });
   }
 });
-
 // Mark delivery as in-transit
 app.put('/api/procurement/deliveries/:id/dispatch', async (req, res) => {
   try {
@@ -14068,9 +12294,7 @@ app.put('/api/procurement/deliveries/:id/dispatch', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { id } = req.params;
-
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
@@ -14080,7 +12304,6 @@ app.put('/api/procurement/deliveries/:id/dispatch', async (req, res) => {
             updated_at = GETDATE()
         WHERE id = @id
       `);
-
     // Update request status
     await pool.request()
       .input('deliveryId', sql.UniqueIdentifier, id)
@@ -14089,20 +12312,16 @@ app.put('/api/procurement/deliveries/:id/dispatch', async (req, res) => {
         SET status = 'in_transit', updated_at = GETDATE()
         WHERE id = (SELECT procurement_request_id FROM procurement_deliveries WHERE id = @deliveryId)
       `);
-
     console.log(`✅ Delivery ${id} dispatched`);
     res.json({ success: true, message: 'Delivery dispatched successfully' });
-
   } catch (error) {
     console.error('❌ Error dispatching delivery:', error);
     res.status(500).json({ error: 'Failed to dispatch delivery', details: error.message });
   }
 });
-
 // ============================================================================
 // Wing Supervisor Endpoints - Receive Deliveries
 // ============================================================================
-
 // Confirm delivery receipt
 app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
   try {
@@ -14110,24 +12329,18 @@ app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { id } = req.params;
     const { received_items, notes } = req.body;
-
     if (!received_items || received_items.length === 0) {
       return res.status(400).json({ error: 'Received items are required' });
     }
-
     // Get user details
     const userResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query('SELECT FullName FROM AspNetUsers WHERE Id = @userId');
-    
     const userName = userResult.recordset[0]?.FullName || 'Unknown User';
-
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
-
     try {
       // Update delivery items with received quantities
       for (const item of received_items) {
@@ -14144,7 +12357,6 @@ app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
                 updated_at = GETDATE()
             WHERE id = @id
           `);
-
         // Add to wing inventory stock
         const itemDetailsResult = await transaction.request()
           .input('itemId', sql.UniqueIdentifier, item.id)
@@ -14154,9 +12366,7 @@ app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
             JOIN procurement_deliveries pd ON pdi.procurement_delivery_id = pd.id
             WHERE pdi.id = @itemId
           `);
-
         const itemDetails = itemDetailsResult.recordset[0];
-
         // Check if item already exists in wing inventory
         const existingStockResult = await transaction.request()
           .input('itemMasterId', sql.Int, itemDetails.item_master_id)
@@ -14166,7 +12376,6 @@ app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
             FROM inventory_stock 
             WHERE item_master_id = @itemMasterId AND wing_id = @wingId
           `);
-
         if (existingStockResult.recordset.length > 0) {
           // Update existing stock
           await transaction.request()
@@ -14195,7 +12404,6 @@ app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
             `);
         }
       }
-
       // Update delivery status
       await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
@@ -14212,7 +12420,6 @@ app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = @id
         `);
-
       // Update request status to delivered
       await transaction.request()
         .input('deliveryId', sql.UniqueIdentifier, id)
@@ -14223,23 +12430,18 @@ app.put('/api/procurement/deliveries/:id/receive', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = (SELECT procurement_request_id FROM procurement_deliveries WHERE id = @deliveryId)
         `);
-
       await transaction.commit();
-
       console.log(`✅ Delivery ${id} received and stock updated for wing`);
       res.json({ success: true, message: 'Delivery received successfully and inventory updated' });
-
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('❌ Error receiving delivery:', error);
     res.status(500).json({ error: 'Failed to receive delivery', details: error.message });
   }
 });
-
 // Get wing's deliveries
 app.get('/api/procurement/deliveries/wing/:wingId', async (req, res) => {
   try {
@@ -14247,15 +12449,12 @@ app.get('/api/procurement/deliveries/wing/:wingId', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { wingId } = req.params;
     const { status } = req.query;
-
     let statusFilter = '';
     if (status && status !== 'all') {
       statusFilter = 'AND pd.status = @status';
     }
-
     const result = await pool.request()
       .input('wingId', sql.Int, parseInt(wingId))
       .input('status', sql.NVarChar, status)
@@ -14271,15 +12470,12 @@ app.get('/api/procurement/deliveries/wing/:wingId', async (req, res) => {
         ${statusFilter}
         ORDER BY pd.created_at DESC
       `);
-
     res.json({ success: true, deliveries: result.recordset });
-
   } catch (error) {
     console.error('❌ Error fetching wing deliveries:', error);
     res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
   }
 });
-
 // Get all deliveries (Admin)
 app.get('/api/procurement/deliveries', async (req, res) => {
   try {
@@ -14287,24 +12483,18 @@ app.get('/api/procurement/deliveries', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { status, wing_id } = req.query;
-
     let filters = [];
     const request = pool.request();
-
     if (status && status !== 'all') {
       filters.push('pd.status = @status');
       request.input('status', sql.NVarChar, status);
     }
-
     if (wing_id) {
       filters.push('pd.wing_id = @wing_id');
       request.input('wing_id', sql.Int, parseInt(wing_id));
     }
-
     const whereClause = filters.length > 0 ? 'WHERE ' + filters.join(' AND ') : '';
-
     const result = await request.query(`
       SELECT 
         pd.*,
@@ -14317,15 +12507,12 @@ app.get('/api/procurement/deliveries', async (req, res) => {
       ${whereClause}
       ORDER BY pd.created_at DESC
     `);
-
     res.json({ success: true, deliveries: result.recordset });
-
   } catch (error) {
     console.error('❌ Error fetching deliveries:', error);
     res.status(500).json({ error: 'Failed to fetch deliveries', details: error.message });
   }
 });
-
 // Get delivery details
 app.get('/api/procurement/deliveries/:id', async (req, res) => {
   try {
@@ -14333,9 +12520,7 @@ app.get('/api/procurement/deliveries/:id', async (req, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-
     const { id } = req.params;
-
     // Get delivery details
     const deliveryResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -14345,11 +12530,9 @@ app.get('/api/procurement/deliveries/:id', async (req, res) => {
         JOIN procurement_requests pr ON pd.procurement_request_id = pr.id
         WHERE pd.id = @id
       `);
-
     if (deliveryResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
-
     // Get delivery items
     const itemsResult = await pool.request()
       .input('deliveryId', sql.UniqueIdentifier, id)
@@ -14365,38 +12548,31 @@ app.get('/api/procurement/deliveries/:id', async (req, res) => {
         WHERE pdi.procurement_delivery_id = @deliveryId
         ORDER BY pdi.created_at
       `);
-
     res.json({
       success: true,
       delivery: deliveryResult.recordset[0],
       items: itemsResult.recordset
     });
-
   } catch (error) {
     console.error('❌ Error fetching delivery details:', error);
     res.status(500).json({ error: 'Failed to fetch delivery details', details: error.message });
   }
 });
-
 // ============================================================================
 // END PROCUREMENT WORKFLOW ENDPOINTS
 // ============================================================================
-
 // Graceful shutdown
 // =============================================================================
 // NEW STOCK ACQUISITION DASHBOARD ENDPOINTS
 // =============================================================================
-
 // Get acquisition dashboard overview stats
 app.get('/api/acquisition/dashboard-stats', async (req, res) => {
   try {
     console.log('📊 GET /api/acquisition/dashboard-stats - Fetching acquisition stats');
-    
     if (!pool) {
       console.error('❌ Database connection not available');
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     // Get comprehensive acquisition statistics
     const statsQuery = `
       WITH TenderStats AS (
@@ -14425,10 +12601,8 @@ app.get('/api/acquisition/dashboard-stats', async (req, res) => {
       FROM TenderStats ts
       CROSS JOIN DeliveryStats ds
     `;
-
     const result = await pool.request().query(statsQuery);
     console.log('✅ Query executed, rows returned:', result.recordset.length);
-    
     if (result.recordset.length > 0) {
       console.log('📈 Stats data:', result.recordset[0]);
       res.json(result.recordset[0]);
@@ -14450,14 +12624,12 @@ app.get('/api/acquisition/dashboard-stats', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch acquisition dashboard stats' });
   }
 });
-
 // Get active tenders for acquisition dashboard
 app.get('/api/acquisition/active-tenders', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const tendersQuery = `
       SELECT 
         t.id,
@@ -14488,7 +12660,6 @@ app.get('/api/acquisition/active-tenders', async (req, res) => {
       WHERE t.is_finalized = 0 OR t.is_finalized IS NULL
       ORDER BY t.updated_at DESC
     `;
-
     const result = await pool.request().query(tendersQuery);
     res.json(result.recordset);
   } catch (error) {
@@ -14496,14 +12667,12 @@ app.get('/api/acquisition/active-tenders', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch active tenders' });
   }
 });
-
 // Get recent deliveries for acquisition dashboard
 app.get('/api/acquisition/recent-deliveries', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const deliveriesQuery = `
       SELECT TOP 10
         di.id,
@@ -14518,7 +12687,6 @@ app.get('/api/acquisition/recent-deliveries', async (req, res) => {
       INNER JOIN item_masters im ON di.item_master_id = im.id
       ORDER BY d.delivery_date DESC, d.created_at DESC
     `;
-
     const result = await pool.request().query(deliveriesQuery);
     res.json(result.recordset);
   } catch (error) {
@@ -14526,11 +12694,9 @@ app.get('/api/acquisition/recent-deliveries', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch recent deliveries' });
   }
 });
-
 // =====================================================
 // ENHANCED STOCK ACQUISITION API ENDPOINTS
 // =====================================================
-
 // GET /api/stock-acquisition/dashboard-stats - Get stock acquisition dashboard statistics
 // DUPLICATE ROUTE REMOVED - Using the updated version at line ~6940
 // app.get('/api/stock-acquisition/dashboard-stats', async (req, res) => {
@@ -14567,7 +12733,6 @@ app.get('/api/acquisition/recent-deliveries', async (req, res) => {
 //     res.status(500).json({ error: 'Failed to fetch dashboard statistics', details: error.message });
 //   }
 // });
-
 // GET /api/stock-acquisition/tender-summaries - Get tender summaries from stock transactions
 // DUPLICATE ROUTE REMOVED - Using the updated version at line ~6994
 // app.get('/api/stock-acquisition/tender-summaries', async (req, res) => {
@@ -14604,12 +12769,10 @@ app.get('/api/acquisition/recent-deliveries', async (req, res) => {
 //     res.status(500).json({ error: 'Failed to fetch tender summaries', details: error.message });
 //   }
 // });
-
 // GET /api/stock-acquisition/items/:tenderId - Get stock transaction items for a specific tender
 app.get('/api/stock-acquisition/items/:tenderId', async (req, res) => {
   try {
     const { tenderId } = req.params;
-    
     const query = `
       SELECT 
         stc.*,
@@ -14620,24 +12783,20 @@ app.get('/api/stock-acquisition/items/:tenderId', async (req, res) => {
       AND (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
       ORDER BY stc.created_at ASC
     `;
-
     const result = await pool.request()
       .input('tender_id', sql.NVarChar, tenderId)
       .query(query);
-      
     res.json(result.recordset);
   } catch (error) {
     console.error('Failed to fetch tender items:', error);
     res.status(500).json({ error: 'Failed to fetch tender items', details: error.message });
   }
 });
-
 // PUT /api/stock-acquisition/update-price/:itemId - Update actual price for a stock transaction item
 app.put('/api/stock-acquisition/update-price/:itemId', async (req, res) => {
   try {
     const { itemId } = req.params;
     const { actual_unit_price, pricing_confirmed } = req.body;
-    
     const query = `
       UPDATE stock_transactions_clean 
       SET 
@@ -14647,17 +12806,14 @@ app.put('/api/stock-acquisition/update-price/:itemId', async (req, res) => {
       WHERE id = @item_id
       AND (is_deleted = 0 OR is_deleted IS NULL)
     `;
-
     const result = await pool.request()
       .input('item_id', sql.NVarChar, itemId)
       .input('actual_unit_price', sql.Decimal(15, 2), actual_unit_price)
       .input('pricing_confirmed', sql.Bit, pricing_confirmed)
       .query(query);
-
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Stock transaction item not found' });
     }
-
     res.json({ 
       success: true, 
       message: 'Price updated successfully',
@@ -14669,12 +12825,10 @@ app.put('/api/stock-acquisition/update-price/:itemId', async (req, res) => {
     res.status(500).json({ error: 'Failed to update price', details: error.message });
   }
 });
-
 // GET /api/stock-acquisition/price-history/:itemId - Get price change history for an item
 app.get('/api/stock-acquisition/price-history/:itemId', async (req, res) => {
   try {
     const { itemId } = req.params;
-    
     // This would require an audit table for price changes
     // For now, return the current item data
     const query = `
@@ -14688,26 +12842,21 @@ app.get('/api/stock-acquisition/price-history/:itemId', async (req, res) => {
       WHERE stc.id = @item_id
       AND (stc.is_deleted = 0 OR stc.is_deleted IS NULL)
     `;
-
     const result = await pool.request()
       .input('item_id', sql.NVarChar, itemId)
       .query(query);
-      
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Item not found' });
     }
-
     res.json(result.recordset[0]);
   } catch (error) {
     console.error('Failed to fetch price history:', error);
     res.status(500).json({ error: 'Failed to fetch price history', details: error.message });
   }
 });
-
 // ==============================================
 // APPROVAL FORWARDING SYSTEM ENDPOINTS
 // ==============================================
-
 // Get all approval workflows
 app.get('/api/approval-workflows', async (req, res) => {
   try {
@@ -14718,20 +12867,17 @@ app.get('/api/approval-workflows', async (req, res) => {
       WHERE is_active = 1
       ORDER BY workflow_name
     `);
-    
     res.json({ success: true, data: result.recordset });
   } catch (error) {
     console.error('Error fetching approval workflows:', error);
     res.status(500).json({ error: 'Failed to fetch approval workflows', details: error.message });
   }
 });
-
 // Create new approval workflow
 app.post('/api/approval-workflows', async (req, res) => {
   try {
     const { workflow_name, request_type, office_id, description } = req.body;
     const request = pool.request();
-    
     const result = await request
       .input('workflow_name', sql.NVarChar, workflow_name)
       .input('request_type', sql.NVarChar, request_type)
@@ -14742,28 +12888,23 @@ app.post('/api/approval-workflows', async (req, res) => {
         OUTPUT INSERTED.*
         VALUES (@workflow_name, @request_type, @office_id, @description, 1)
       `);
-    
     res.json({ success: true, data: result.recordset[0] });
   } catch (error) {
     console.error('Error creating approval workflow:', error);
     res.status(500).json({ error: 'Failed to create approval workflow', details: error.message });
   }
 });
-
 // Get workflow approvers
 app.get('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
   try {
     const { workflowId } = req.params;
     console.log('🔍 Backend: Fetching approvers for workflow:', workflowId);
-    
     // Validate GUID format
     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!guidRegex.test(workflowId)) {
       return res.status(400).json({ error: 'Invalid workflow ID format' });
     }
-    
     const request = pool.request();
-    
     const result = await request
       .input('workflowId', sql.UniqueIdentifier, workflowId.toLowerCase())
       .query(`
@@ -14784,7 +12925,6 @@ app.get('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
         WHERE wa.workflow_id = @workflowId
         ORDER BY wa.added_date
       `);
-    
     console.log('📋 Backend: Found approvers:', result.recordset.length, 'records');
     res.json({ success: true, data: result.recordset });
   } catch (error) {
@@ -14792,19 +12932,16 @@ app.get('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch workflow approvers', details: error.message });
   }
 });
-
 // Add workflow approver
 app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
   try {
     const { workflowId } = req.params;
     const { user_id, can_approve, can_forward, can_finalize, approver_role } = req.body;
-    
     // Validate GUID format
     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!guidRegex.test(workflowId)) {
       return res.status(400).json({ error: 'Invalid workflow ID format' });
     }
-    
     console.log('🔄 Backend: Adding approver to workflow:', {
       workflowId,
       user_id,
@@ -14813,9 +12950,7 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
       can_finalize,
       approver_role
     });
-    
     const request = pool.request();
-    
     const result = await request
       .input('workflowId', sql.UniqueIdentifier, workflowId.toLowerCase())
       .input('user_id', sql.NVarChar, user_id)
@@ -14828,7 +12963,6 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
         OUTPUT INSERTED.*
         VALUES (@workflowId, @user_id, @can_approve, @can_forward, @can_finalize, @approver_role)
       `);
-    
     console.log('✅ Backend: Approver added successfully:', result.recordset[0]);
     res.json({ success: true, data: result.recordset[0] });
   } catch (error) {
@@ -14836,22 +12970,17 @@ app.post('/api/approval-workflows/:workflowId/approvers', async (req, res) => {
     res.status(500).json({ error: 'Failed to add workflow approver', details: error.message });
   }
 });
-
 // Delete workflow approver
 app.delete('/api/approval-workflows/:workflowId/approvers/:approverId', async (req, res) => {
   try {
     const { workflowId, approverId } = req.params;
-    
     // Validate GUID formats
     const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!guidRegex.test(workflowId) || !guidRegex.test(approverId)) {
       return res.status(400).json({ error: 'Invalid ID format' });
     }
-    
     console.log('🗑️ Backend: Deleting approver:', { workflowId, approverId });
-    
     const request = pool.request();
-    
     const result = await request
       .input('workflowId', sql.UniqueIdentifier, workflowId.toLowerCase())
       .input('approverId', sql.UniqueIdentifier, approverId.toLowerCase())
@@ -14859,11 +12988,9 @@ app.delete('/api/approval-workflows/:workflowId/approvers/:approverId', async (r
         DELETE FROM workflow_approvers 
         WHERE workflow_id = @workflowId AND id = @approverId
       `);
-    
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Approver not found' });
     }
-    
     console.log('✅ Backend: Approver deleted successfully');
     res.json({ success: true, message: 'Approver deleted successfully' });
   } catch (error) {
@@ -14871,7 +12998,6 @@ app.delete('/api/approval-workflows/:workflowId/approvers/:approverId', async (r
     res.status(500).json({ error: 'Failed to delete workflow approver', details: error.message });
   }
 });
-
 // Get active AspNetUsers for approver selection
 app.get('/api/aspnet-users/active', async (req, res) => {
   try {
@@ -14884,23 +13010,19 @@ app.get('/api/aspnet-users/active', async (req, res) => {
       WHERE ISACT = 1
       ORDER BY FullName
     `);
-    
     res.json({ success: true, data: result.recordset });
   } catch (error) {
     console.error('Error fetching active AspNetUsers:', error);
     res.status(500).json({ error: 'Failed to fetch active users', details: error.message });
   }
 });
-
 // Get filtered users by office, wing, and branch from view
 app.get('/api/aspnet-users/filtered', async (req, res) => {
   try {
     const { officeId, wingId, branchId } = req.query;
-    
     if (!officeId || !wingId) {
       return res.status(400).json({ error: 'officeId and wingId are required' });
     }
-
     const request = pool.request();
     let query = `
       SELECT 
@@ -14916,35 +13038,27 @@ app.get('/api/aspnet-users/filtered', async (req, res) => {
       WHERE OfficeID = @officeId 
         AND WingID = @wingId
     `;
-
     request.input('officeId', sql.Int, parseInt(officeId));
     request.input('wingId', sql.Int, parseInt(wingId));
-
     // Add branch filter if provided
     if (branchId && branchId !== 'ALL_BRANCHES') {
       query += ' AND DECID = @branchId';
       request.input('branchId', sql.Int, parseInt(branchId));
     }
-
     query += ' ORDER BY EmployeeName';
-
     const result = await request.query(query);
-    
     console.log(`✅ Filtered users: Office=${officeId}, Wing=${wingId}, Branch=${branchId || 'ALL'} - Found ${result.recordset.length} users`);
-    
     res.json({ success: true, data: result.recordset });
   } catch (error) {
     console.error('Error fetching filtered AspNetUsers:', error);
     res.status(500).json({ error: 'Failed to fetch filtered users', details: error.message });
   }
 });
-
 // Submit request for approval
 app.post('/api/approvals/submit', async (req, res) => {
   try {
     const { request_id, request_type, workflow_id } = req.body;
     const userId = req.session?.userId;
-
     if (!userId) {
       console.log('⚠️ Submit: No authenticated user in session');
       return res.status(401).json({
@@ -14952,11 +13066,8 @@ app.post('/api/approvals/submit', async (req, res) => {
         details: 'No user session found. You must be logged in to submit requests.'
       });
     }
-
     console.log('🔄 Backend: Submitting approval request:', { request_id, request_type, workflow_id, userId });
-    
     const request = pool.request();
-    
     // Get first approver from workflow
     const workflowResult = await request
       .input('workflow_id', sql.UniqueIdentifier, workflow_id)
@@ -14966,15 +13077,12 @@ app.post('/api/approvals/submit', async (req, res) => {
         WHERE workflow_id = @workflow_id AND can_approve = 1
         ORDER BY added_date
       `);
-    
     if (workflowResult.recordset.length === 0) {
       console.error('❌ No approvers found for workflow:', workflow_id);
       return res.status(400).json({ error: 'No approvers found for this workflow' });
     }
-    
     const firstApproverId = workflowResult.recordset[0].user_id;
     console.log('👤 First approver assigned:', firstApproverId);
-    
     // Create approval record with proper data types
     const approvalResult = await request
       .input('request_id', sql.UniqueIdentifier, request_id)
@@ -14988,10 +13096,8 @@ app.post('/api/approvals/submit', async (req, res) => {
         OUTPUT INSERTED.*
         VALUES (@request_id, @request_type, @workflow_id, @current_approver_id, @current_status, @submitted_by)
       `);
-
     const approvalId = approvalResult.recordset[0].id;
     console.log('✅ Approval record created with ID:', approvalId);
-
     // Populate approval_items table if this is a stock issuance request
     if (request_type === 'stock_issuance') {
       try {
@@ -15002,7 +13108,6 @@ app.post('/api/approvals/submit', async (req, res) => {
             FROM stock_issuance_items
             WHERE request_id = @requestId
           `);
-
         if (itemsResult.recordset.length > 0) {
           for (const item of itemsResult.recordset) {
             await pool.request()
@@ -15029,7 +13134,6 @@ app.post('/api/approvals/submit', async (req, res) => {
         console.error('❌ Failed to populate approval_items:', itemsError);
       }
     }
-
     // Create history entry
     await request
       .input('approval_id', sql.UniqueIdentifier, approvalId)
@@ -15038,20 +13142,17 @@ app.post('/api/approvals/submit', async (req, res) => {
         INSERT INTO approval_history (request_approval_id, action_type, action_by, step_number, is_current_step)
         VALUES (@approval_id, 'submitted', @action_by, 1, 1)
       `);
-    
     res.json({ success: true, data: approvalResult.recordset[0] });
   } catch (error) {
     console.error('Error submitting for approval:', error);
     res.status(500).json({ error: 'Failed to submit for approval', details: error.message });
   }
 });
-
 // Get my pending approvals
 app.get('/api/approvals/my-pending', async (req, res) => {
   try {
     // Get userId from session - must be authenticated
     const userId = req.session?.userId;
-
     if (!userId) {
       console.log('⚠️ My Pending: No authenticated user in session');
       return res.status(401).json({
@@ -15059,11 +13160,8 @@ app.get('/api/approvals/my-pending', async (req, res) => {
         details: 'No user session found. You must be logged in to view your approvals.'
       });
     }
-
     console.log('🔍 Backend: Fetching pending approvals for user:', userId);
-    
     const request = pool.request();
-    
     const result = await request
       .input('userId', sql.NVarChar, userId)
       .query(`
@@ -15082,7 +13180,6 @@ app.get('/api/approvals/my-pending', async (req, res) => {
         AND ra.current_status = 'pending'
         ORDER BY ra.submitted_date DESC
       `);
-    
     console.log('📋 Backend: Found', result.recordset.length, 'pending approvals for user:', userId);
     res.json({ success: true, data: result.recordset });
   } catch (error) {
@@ -15090,20 +13187,16 @@ app.get('/api/approvals/my-pending', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch pending approvals', details: error.message });
   }
 });
-
 // Get approvals for all users in a specific wing
 app.get('/api/approvals/wing-approvals', async (req, res) => {
   try {
     // Get wingId and status from query parameters
     const wingId = req.query.wingId;
     const status = req.query.status || 'pending'; // default to pending
-
     if (!wingId) {
       return res.status(400).json({ error: 'wingId is required' });
     }
-
     console.log('🔍 Backend: Fetching', status, 'approvals for wing:', wingId);
-
     // Build query to get approvals where current approver is in the specified wing
     let query = `
       SELECT DISTINCT
@@ -15125,7 +13218,6 @@ app.get('/api/approvals/wing-approvals', async (req, res) => {
       LEFT JOIN approval_history ah ON ah.request_approval_id = ra.id
       WHERE approver.intWingID = @wingId
     `;
-
     // Add WHERE clause based on status
     if (status === 'pending') {
       // Pending: Only show requests where current approver is in the wing and status is pending
@@ -15150,14 +13242,11 @@ app.get('/api/approvals/wing-approvals', async (req, res) => {
         WHERE u_submitter.intWingID = @wingId OR u_actor.intWingID = @wingId
       )`;
     }
-
     query += ` ORDER BY ra.submitted_date DESC`;
-
     const result = await pool.request()
       .input('wingId', sql.Int, wingId)
       .input('status', sql.NVarChar, status)
       .query(query);
-
     console.log('📋 Backend: Found', result.recordset.length, status, 'approvals for wing:', wingId);
     res.json({ success: true, data: result.recordset });
   } catch (error) {
@@ -15165,26 +13254,20 @@ app.get('/api/approvals/wing-approvals', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch wing approvals', details: error.message });
   }
 });
-
 // Get stock issuance items for approval
 app.get('/api/approval-items/:approvalId', async (req, res) => {
   try {
     const { approvalId } = req.params;
     console.log('📋 Backend: Fetching items for approval:', approvalId);
-    
     const request = pool.request();
-    
     // Get the request ID from the approval ID first
     const approvalResult = await request
       .input('approvalId', sql.NVarChar, approvalId)
       .query(`SELECT request_id FROM request_approvals WHERE id = @approvalId`);
-    
     if (approvalResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Approval not found' });
     }
-    
     const requestId = approvalResult.recordset[0].request_id;
-    
     // Get items with proper custom item handling
     const result = await pool.request()
       .input('requestId', sql.NVarChar, requestId)
@@ -15226,22 +13309,18 @@ app.get('/api/approval-items/:approvalId', async (req, res) => {
             ELSE ISNULL(im.nomenclature, 'Unknown Item')
           END
       `);
-    
     console.log('📋 Backend: Found', result.recordset.length, 'items for approval');
     res.json({ success: true, data: result.recordset });
-    
   } catch (error) {
     console.error('❌ Backend: Error fetching approval items:', error);
     res.status(500).json({ error: 'Failed to fetch approval items', details: error.message });
   }
 });
-
 // Test endpoint for approval items
 app.get('/api/test-items/:approvalId', async (req, res) => {
   try {
     const { approvalId } = req.params;
     console.log('🧪 Test: Fetching items for approval:', approvalId);
-    
     // Direct SQL query without using pool.request() to avoid conflicts
     const result = await pool.request()
       .input('approvalId', sql.NVarChar, approvalId)
@@ -15256,27 +13335,23 @@ app.get('/api/test-items/:approvalId', async (req, res) => {
         AND item_id IS NOT NULL
         ORDER BY nomenclature
       `);
-    
     console.log('🧪 Test: Found', result.recordset.length, 'items');
     res.json({ 
       success: true, 
       data: result.recordset,
       approvalId: approvalId 
     });
-    
   } catch (error) {
     console.error('🧪 Test: Error:', error);
     res.status(500).json({ error: 'Test failed', details: error.message });
   }
 });
-
 // Get returned requests for the current user (requester view)
 app.get('/api/approvals/my-returned-requests', async (req, res) => {
   console.log('📋 Returned Requests: Endpoint called');
   console.log('📋 Returned Requests: req.session:', req.session ? 'exists' : 'null');
   console.log('📋 Returned Requests: req.session.userId:', req.session?.userId || 'not set');
   console.log('📋 Returned Requests: req.query.userId:', req.query.userId || 'not provided');
-  
   try {
     // Get userId - same logic as notifications endpoint
     const userId = req.session?.userId;
@@ -15284,10 +13359,8 @@ app.get('/api/approvals/my-returned-requests', async (req, res) => {
       console.log('📋 Returned Requests: No user session found');
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
-    
     console.log('📋 Returned Requests: Fetching returned requests for user:', userId);
     const request = pool.request();
-    
     // Get approval requests that have been returned to this user
     const result = await request
       .input('userId', sql.NVarChar, userId)
@@ -15318,7 +13391,6 @@ app.get('/api/approvals/my-returned-requests', async (req, res) => {
         AND ra.current_status != 'pending'
         ORDER BY ra.submitted_date DESC
       `);
-    
     console.log('📋 Returned Requests: Found', result.recordset.length, 'returned requests for user:', userId);
     res.json({ success: true, data: result.recordset });
   } catch (error) {
@@ -15326,20 +13398,16 @@ app.get('/api/approvals/my-returned-requests', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch returned requests', details: error.message });
   }
 });
-
 // Get wing approval dashboard data
 app.get('/api/approvals/wing-dashboard', async (req, res) => {
   try {
     // Get wingId from query parameter
     const wingId = req.query.wingId;
-
     if (!wingId) {
       return res.status(400).json({ error: 'wingId is required' });
     }
-
     console.log('📊 Wing Dashboard: Fetching dashboard data for wing:', wingId);
     const request = pool.request();
-
     // Get counts with wing-specific logic:
     // - pending: Count where current approver is in the wing
     // - approved/rejected: Count where someone in the wing submitted OR acted
@@ -15369,7 +13437,6 @@ app.get('/api/approvals/wing-dashboard', async (req, res) => {
            WHERE u_forwarder.intWingID = @wingId
            AND ah.action_type = 'forwarded') as forwarded_count
       `);
-
     // Get pending approvals for the wing
     const pendingResult = await request
       .query(`
@@ -15389,7 +13456,6 @@ app.get('/api/approvals/wing-dashboard', async (req, res) => {
         AND approver.intWingID = @wingId
         ORDER BY ra.submitted_date DESC
       `);
-
     // Get recent actions for the wing
     const actionsResult = await request
       .query(`
@@ -15406,13 +13472,11 @@ app.get('/api/approvals/wing-dashboard', async (req, res) => {
         WHERE action_user.intWingID = @wingId
         ORDER BY ah.action_date DESC
       `);
-
     const dashboard = {
       ...countsResult.recordset[0],
       my_pending: pendingResult.recordset,
       recent_actions: actionsResult.recordset
     };
-
     console.log('📊 Wing Dashboard: Returning dashboard data:', dashboard);
     res.json({ success: true, data: dashboard });
   } catch (error) {
@@ -15420,14 +13484,11 @@ app.get('/api/approvals/wing-dashboard', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch wing approval dashboard', details: error.message });
   }
 });
-
 // Get stock issuance items for an approval request (DUPLICATE REMOVED - using the enhanced version above)
-
 // Get approval details
 app.get('/api/approvals/:approvalId', async (req, res, next) => {
   try {
     const { approvalId } = req.params;
-
     // Only treat this route as an approval detail lookup when the param is a GUID.
     // This prevents collisions with static endpoints like `/api/approvals/my-approvals`.
     const guidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -15436,7 +13497,6 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
       return next();
     }
     const request = pool.request();
-    
     // Get approval details with scope information from stock_issuance_requests
     const approvalResult = await request
       .input('approvalId', sql.UniqueIdentifier, approvalId)
@@ -15454,13 +13514,10 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
         LEFT JOIN stock_issuance_requests sir ON ra.request_id = sir.id
         WHERE ra.id = @approvalId
       `);
-    
     if (approvalResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Approval not found' });
     }
-    
     const approval = approvalResult.recordset[0];
-    
     // Get approval items - use a new request object
     const itemRequest = pool.request();
     const itemsResult = await itemRequest
@@ -15475,7 +13532,6 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
         WHERE ai.request_approval_id = @approvalId
         ORDER BY ai.created_at
       `);
-    
     // Combine data
     const approvalData = {
       ...approval,
@@ -15484,20 +13540,17 @@ app.get('/api/approvals/:approvalId', async (req, res, next) => {
       request_items: itemsResult.recordset,  // For backward compatibility
       inventory_items: itemsResult.recordset  // For backward compatibility
     };
-    
     res.json({ success: true, data: approvalData });
   } catch (error) {
     console.error('Error fetching approval details:', error);
     res.status(500).json({ error: 'Failed to fetch approval details', details: error.message });
   }
 });
-
 // Get approval history
 app.get('/api/approvals/:approvalId/history', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const request = pool.request();
-    
     const result = await request
       .input('approvalId', sql.NVarChar, approvalId)
       .query(`
@@ -15519,32 +13572,26 @@ app.get('/api/approvals/:approvalId/history', async (req, res) => {
         WHERE ah.request_approval_id = @approvalId
         ORDER BY ah.action_date DESC, ah.step_number DESC
       `);
-    
     res.json({ success: true, data: result.recordset });
   } catch (error) {
     console.error('Error fetching approval history:', error);
     res.status(500).json({ error: 'Failed to fetch approval history', details: error.message });
   }
 });
-
 // Get available forwarders
 app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const request = pool.request();
-    
     // Get workflow and current approver from approval
     const approvalResult = await request
       .input('approvalId', sql.NVarChar, approvalId)
       .query('SELECT workflow_id, current_approver_id FROM request_approvals WHERE id = @approvalId');
-    
     if (approvalResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Approval not found' });
     }
-    
     const workflowId = approvalResult.recordset[0].workflow_id;
     const currentApproverId = approvalResult.recordset[0].current_approver_id;
-    
     // Get available forwarders from workflow_approvers
     const workflowResult = await request
       .input('workflowId', sql.UniqueIdentifier, workflowId)
@@ -15564,9 +13611,7 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
         AND (wa.can_approve = 1 OR wa.can_forward = 1)
         ORDER BY u.FullName
       `);
-    
     let forwarders = workflowResult.recordset;
-    
     // If current approver is not in workflow_approvers (hierarchy-based approval), add them with full permissions
     const currentApproverInList = forwarders.find(f => f.user_id === currentApproverId);
     if (!currentApproverInList && currentApproverId) {
@@ -15580,7 +13625,6 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
           FROM AspNetUsers
           WHERE Id = @userId
         `);
-      
       if (currentApproverResult.recordset.length > 0) {
         const currentApprover = currentApproverResult.recordset[0];
         forwarders.unshift({
@@ -15596,20 +13640,17 @@ app.get('/api/approvals/:approvalId/available-forwarders', async (req, res) => {
         console.log('✅ Added hierarchy-based current approver to forwarders list:', currentApprover.user_name);
       }
     }
-    
     res.json({ success: true, data: forwarders });
   } catch (error) {
     console.error('Error fetching available forwarders:', error);
     res.status(500).json({ error: 'Failed to fetch available forwarders', details: error.message });
   }
 });
-
 // Request wing stock confirmation from supervisor
 app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const { item_id, item_name, requested_quantity, approval_id, request_type } = req.body;
-
     console.log('📬 Wing stock confirmation request received:', {
       approvalId,
       item_id,
@@ -15618,15 +13659,12 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
       approval_id,
       request_type
     });
-
     if (!approvalId || !item_id) {
       console.error('❌ Missing required params:', { approvalId, item_id });
       return res.status(400).json({ error: 'approvalId and item_id are required' });
     }
-
     const confirmationId = require('uuid').v4();
     let dbCreated = false;
-    
     try {
       // Try to create confirmation record in database
       const result = await pool.request()
@@ -15660,14 +13698,12 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
             CURRENT_USER
           );
         `);
-
       console.log('✓ Wing stock confirmation record created:', confirmationId);
       dbCreated = true;
     } catch (dbError) {
       // If table doesn't exist, continue with in-memory tracking
       console.log('⚠ Database table error (continuing):', dbError.message);
     }
-
     // Try to notify wing stock supervisor
     let notifCreated = false;
     try {
@@ -15685,7 +13721,6 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
     } catch (notifError) {
       console.log('⚠ Notification error (continuing):', notifError.message);
     }
-
     console.log('✅ Wing stock confirmation request processed successfully');
     res.json({ 
       success: true, 
@@ -15703,16 +13738,13 @@ app.post('/api/approvals/:approvalId/request-wing-stock-confirmation', async (re
     });
   }
 });
-
 // Forward request
 app.post('/api/approvals/:approvalId/forward', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const { forwarded_to, comments, forwarding_type } = req.body;
-
     // Get userId from session - must be authenticated
     const userId = req.session?.userId;
-
     if (!userId) {
       console.log('⚠️ Forward: No authenticated user in session');
       return res.status(401).json({
@@ -15720,12 +13752,9 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
         details: 'No user session found. You must be logged in to forward requests.'
       });
     }
-
     const forwardingTypeLabel = forwarding_type === 'action' ? 'Action (Admin)' : 'Approval (Supervisor)';
     console.log('🔄 Forward: Processing forward request by user:', userId, '| Type:', forwardingTypeLabel);
-    
     const request = pool.request();
-    
     // Update approval record
     await request
       .input('approvalId', sql.NVarChar, approvalId)
@@ -15735,9 +13764,7 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
         SET current_approver_id = @forwarded_to, updated_date = GETDATE()
         WHERE id = @approvalId
       `);
-    
     console.log('✅ Forward: Request forwarded successfully from', userId, 'to', forwarded_to);
-    
     // Now add history tracking (schema is fixed!)
     try {
       const historyComments = `${comments || 'Forwarded'} [${forwardingTypeLabel}]`;
@@ -15754,22 +13781,18 @@ app.post('/api/approvals/:approvalId/forward', async (req, res) => {
       console.warn('⚠️ Forward: Could not record history:', historyError.message);
       // Don't fail the main operation if history fails
     }
-    
     res.json({ success: true, message: `Request forwarded successfully for ${forwardingTypeLabel}` });
   } catch (error) {
     console.error('Error forwarding request:', error);
     res.status(500).json({ error: 'Failed to forward request', details: error.message });
   }
 });
-
 // Get requester's supervisor for approval forwarding
 app.get('/api/requests/:requestId/requester-supervisor', async (req, res) => {
   try {
     const { requestId } = req.params;
     console.log('🔍 Getting supervisor for request:', requestId);
-    
     const request = pool.request();
-    
     // Get the requester's user ID from stock_issuance_requests
     const requestResult = await request
       .input('requestId', sql.NVarChar, requestId)
@@ -15778,14 +13801,11 @@ app.get('/api/requests/:requestId/requester-supervisor', async (req, res) => {
         FROM stock_issuance_requests 
         WHERE id = @requestId
       `);
-    
     if (requestResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
-    
     const requesterUserId = requestResult.recordset[0].requester_user_id;
     console.log('👤 Requester user ID:', requesterUserId);
-    
     // Look up supervisor using the same hierarchy logic as request creation
     // AspNetUsers.Id → EmployeeID → BossID → Boss's AspNetUsers.Id
     const supervisorResult = await pool.request()
@@ -15800,7 +13820,6 @@ app.get('/api/requests/:requestId/requester-supervisor', async (req, res) => {
         INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_user ON h.BossID = boss_user.EmployeeID
         WHERE emp_user.Id = @requesterUserId
       `);
-    
     if (supervisorResult.recordset.length === 0) {
       console.warn('⚠️ No supervisor found in hierarchy for requester:', requesterUserId);
       return res.json({ 
@@ -15808,29 +13827,24 @@ app.get('/api/requests/:requestId/requester-supervisor', async (req, res) => {
         message: 'No supervisor found for this requester' 
       });
     }
-    
     const supervisor = supervisorResult.recordset[0];
     console.log('✅ Found supervisor:', supervisor.supervisor_name, '(', supervisor.supervisor_id, ')');
-    
     res.json({ 
       success: true, 
       supervisor_id: supervisor.supervisor_id,
       supervisor_name: supervisor.supervisor_name,
       supervisor_email: supervisor.supervisor_email
     });
-    
   } catch (error) {
     console.error('❌ Error getting requester supervisor:', error);
     res.status(500).json({ error: 'Failed to get supervisor', details: error.message });
   }
 });
-
 // Get logged-in user's supervisor for approval forwarding
 app.get('/api/user/:userId/supervisor', async (req, res) => {
   try {
     const { userId } = req.params;
     console.log('🔍 Getting supervisor for logged-in user:', userId);
-    
     // Look up supervisor using hierarchy
     // AspNetUsers.Id → EmployeeID → BossID → Boss's AspNetUsers.Id
     const supervisorResult = await pool.request()
@@ -15846,7 +13860,6 @@ app.get('/api/user/:userId/supervisor', async (req, res) => {
         INNER JOIN vw_AspNetUser_with_Reg_App_DEC_ID boss_user ON h.BossID = boss_user.EmployeeID
         WHERE emp_user.Id = @userId
       `);
-    
     if (supervisorResult.recordset.length === 0) {
       console.warn('⚠️ No supervisor found in hierarchy for user:', userId);
       return res.json({ 
@@ -15854,28 +13867,23 @@ app.get('/api/user/:userId/supervisor', async (req, res) => {
         message: 'No supervisor found for this user' 
       });
     }
-    
     const supervisor = supervisorResult.recordset[0];
     console.log('✅ Found supervisor for', supervisor.employee_name, ':', supervisor.supervisor_name, '(', supervisor.supervisor_id, ')');
-    
     res.json({ 
       success: true, 
       supervisor_id: supervisor.supervisor_id,
       supervisor_name: supervisor.supervisor_name,
       supervisor_email: supervisor.supervisor_email
     });
-    
   } catch (error) {
     console.error('❌ Error getting user supervisor:', error);
     res.status(500).json({ error: 'Failed to get supervisor', details: error.message });
   }
 });
-
 // Get all workflows
 app.get('/api/workflows', async (req, res) => {
   try {
     console.log('📋 Getting all workflows');
-    
     const result = await pool.request().query(`
       SELECT 
         id,
@@ -15889,22 +13897,18 @@ app.get('/api/workflows', async (req, res) => {
       WHERE is_active = 1
       ORDER BY workflow_name
     `);
-    
     console.log('✅ Found', result.recordset.length, 'active workflows');
     res.json({ success: true, data: result.recordset });
-    
   } catch (error) {
     console.error('❌ Error getting workflows:', error);
     res.status(500).json({ error: 'Failed to get workflows', details: error.message });
   }
 });
-
 // Get workflow approvers
 app.get('/api/workflows/:workflowId/approvers', async (req, res) => {
   try {
     const { workflowId } = req.params;
     console.log('👥 Getting approvers for workflow:', workflowId);
-    
     const result = await pool.request()
       .input('workflowId', sql.NVarChar, workflowId)
       .query(`
@@ -15926,16 +13930,13 @@ app.get('/api/workflows/:workflowId/approvers', async (req, res) => {
         WHERE wa.workflow_id = @workflowId
         ORDER BY wa.step_number, u.FullName
       `);
-    
     console.log('✅ Found', result.recordset.length, 'approvers for workflow');
     res.json({ success: true, data: result.recordset });
-    
   } catch (error) {
     console.error('❌ Error getting workflow approvers:', error);
     res.status(500).json({ error: 'Failed to get workflow approvers', details: error.message });
   }
 });
-
 // Approve request
 app.post('/api/approvals/:approvalId/approve', async (req, res) => {
   try {
@@ -15946,10 +13947,8 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
       approval_comments,
       item_allocations
     } = req.body;
-
     // Get userId from session - this should always be the authenticated user
     const userId = req.session?.userId;
-
     if (!userId) {
       console.log('⚠️ Approve: No authenticated user in session');
       return res.status(401).json({
@@ -15957,7 +13956,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
         details: 'No user session found. You must be logged in to perform approval actions.'
       });
     }
-
     // Log which method was used to get userId
     if (req.session?.userId) {
       console.log('✅ Approve: Using userId from session:', userId);
@@ -15966,11 +13964,9 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
     } else if (req.body.userId) {
       console.log('⚠️ Approve: Using userId from request body:', userId);
     }
-
     // Get the user's actual name and designation from database for the approval record
     let actualApproverName = approver_name || 'System';
     let actualApproverDesignation = approver_designation || 'Approver';
-
     if (userId) {
       try {
         const userInfoResult = await pool.request()
@@ -15982,7 +13978,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
             LEFT JOIN tblUserDesignations ON AspNetUsers.intDesignationID = tblUserDesignations.intDesignationID
             WHERE Id = @userId
           `);
-        
         if (userInfoResult.recordset.length > 0) {
           actualApproverName = userInfoResult.recordset[0].FullName;
           actualApproverDesignation = userInfoResult.recordset[0].designation_name;
@@ -15992,28 +13987,23 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
         console.log('⚠️ Approve: Could not get user info, using request body values');
       }
     }
-
     console.log('✅ Approve: Processing per-item approval by user:', userId);
     console.log('📋 Item allocations:', item_allocations);
-
     const request = pool.request();
     const transaction = pool.transaction();
     await transaction.begin();
-
     try {
       // Check if this is a return action (an item marked as RETURN or a REJECT with returned reason)
       const hasReturnActions = item_allocations?.some(allocation =>
         allocation.decision_type === 'RETURN' ||
         (allocation.decision_type === 'REJECT' && allocation.rejection_reason?.toLowerCase().includes('returned to requester'))
       );
-
       // Determine overall approval status
       // Request can ONLY be marked as 'approved' when ALL items have final decisions
       // Final decisions: APPROVE_FROM_STOCK, APPROVE_FOR_PROCUREMENT, or REJECT
       // If ANY item is returned, entire approval is marked 'returned'
       // If ANY item is forwarded (FORWARD_TO_SUPERVISOR), request stays 'pending'
       let overallStatus = 'pending'; // Default to pending
-
       if (hasReturnActions) {
         overallStatus = 'returned'; // Items returned to requester - mark as 'returned' status
       } else if (item_allocations?.every(allocation => allocation.decision_type === 'REJECT')) {
@@ -16027,7 +14017,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
         overallStatus = 'approved';
       }
       // If any items are FORWARD_TO_SUPERVISOR or other non-final statuses, stays pending
-
       // Update approval record
       await transaction.request()
         .input('approvalId', sql.NVarChar, approvalId)
@@ -16044,7 +14033,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
               approval_comments = @approval_comments
           WHERE id = @approvalId
         `);
-
       // Process item allocations if provided
       if (item_allocations && Array.isArray(item_allocations)) {
         for (const allocation of item_allocations) {
@@ -16055,7 +14043,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
             rejection_reason,
             forwarding_reason
           } = allocation;
-
           // Update item-level decision
           await transaction.request()
             .input('itemId', sql.NVarChar, requested_item_id)
@@ -16074,10 +14061,8 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
             `);
         }
       }
-
       // If this is a return action, we might need to update the original request status
       // to allow editing. This depends on your business logic.
-
       // Get next step number
       const stepResult = await transaction.request()
         .input('approvalId', sql.NVarChar, approvalId)
@@ -16086,9 +14071,7 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
           FROM approval_history
           WHERE request_approval_id = @approvalId
         `);
-
       const nextStep = stepResult.recordset[0].next_step;
-
       // Update current step
       await transaction.request()
         .input('approvalId', sql.NVarChar, approvalId)
@@ -16097,7 +14080,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
           SET is_current_step = 0
           WHERE request_approval_id = @approvalId
         `);
-
       // Add history entry
       await transaction.request()
         .input('approvalId', sql.NVarChar, approvalId)
@@ -16110,9 +14092,7 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
           (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
           VALUES (@approvalId, @action_type, @action_by, @comments, @step_number, 1)
         `);
-
       await transaction.commit();
-
       // Create notification for requester if items were returned
       if (hasReturnActions) {
         try {
@@ -16125,11 +14105,9 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
               LEFT JOIN AspNetUsers u ON ra.submitted_by = u.Id
               WHERE ra.id = @approvalId
             `);
-          
           if (requesterResult.recordset.length > 0) {
             const requesterId = requesterResult.recordset[0].submitted_by;
             const requesterName = requesterResult.recordset[0].requester_name;
-            
             await createNotification(
               requesterId,
               'Request Returned for Revision',
@@ -16138,7 +14116,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
               `/approvals/${approvalId}`,
               'View Request'
             );
-            
             console.log(`📧 Notification sent to requester ${requesterName} (${requesterId}) for returned request ${approvalId}`);
           }
         } catch (notificationError) {
@@ -16146,7 +14123,6 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
           // Don't fail the request if notification fails
         }
       }
-
       res.json({
         success: true,
         message: hasReturnActions
@@ -16162,16 +14138,13 @@ app.post('/api/approvals/:approvalId/approve', async (req, res) => {
     res.status(500).json({ error: 'Failed to process approval', details: error.message });
   }
 });
-
 // Reject request
 app.post('/api/approvals/:approvalId/reject', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const { comments } = req.body;
-    
     // Get userId from session - this should always be the authenticated user
     const userId = req.session?.userId;
-
     if (!userId) {
       console.log('⚠️ Reject: No authenticated user in session');
       return res.status(401).json({
@@ -16179,15 +14152,11 @@ app.post('/api/approvals/:approvalId/reject', async (req, res) => {
         details: 'No user session found. You must be logged in to perform approval actions.'
       });
     }
-    
     console.log('❌ Reject: Processing rejection by user:', userId);
-    
     if (!comments || !comments.trim()) {
       return res.status(400).json({ error: 'Rejection reason is required' });
     }
-    
     const request = pool.request();
-    
     // Update approval record
     await request
       .input('approvalId', sql.NVarChar, approvalId)
@@ -16202,7 +14171,6 @@ app.post('/api/approvals/:approvalId/reject', async (req, res) => {
             updated_date = GETDATE()
         WHERE id = @approvalId
       `);
-    
     // Get next step number
     const stepResult = await request
       .query(`
@@ -16210,9 +14178,7 @@ app.post('/api/approvals/:approvalId/reject', async (req, res) => {
         FROM approval_history 
         WHERE request_approval_id = @approvalId
       `);
-    
     const nextStep = stepResult.recordset[0].next_step;
-    
     // Update current step
     await request
       .query(`
@@ -16220,7 +14186,6 @@ app.post('/api/approvals/:approvalId/reject', async (req, res) => {
         SET is_current_step = 0 
         WHERE request_approval_id = @approvalId
       `);
-    
     // Add history entry
     await request
       .input('action_by', sql.NVarChar, userId)
@@ -16231,23 +14196,19 @@ app.post('/api/approvals/:approvalId/reject', async (req, res) => {
         (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
         VALUES (@approvalId, 'rejected', @action_by, @comments, @step_number, 1)
       `);
-    
     res.json({ success: true, message: 'Request rejected successfully' });
   } catch (error) {
     console.error('Error rejecting request:', error);
     res.status(500).json({ error: 'Failed to reject request', details: error.message });
   }
 });
-
 // Finalize request
 app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
   try {
     const { approvalId } = req.params;
     const { comments } = req.body;
     const userId = req.session?.userId || 'demo-user';
-    
     const request = pool.request();
-    
     // Check if user can finalize
     const authResult = await request
       .input('approvalId', sql.NVarChar, approvalId)
@@ -16258,11 +14219,9 @@ app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
         JOIN workflow_approvers wa ON ra.workflow_id = wa.workflow_id
         WHERE ra.id = @approvalId AND wa.user_id = @userId
       `);
-    
     if (authResult.recordset.length === 0 || !authResult.recordset[0].can_finalize) {
       return res.status(403).json({ error: 'You do not have permission to finalize this request' });
     }
-    
     // Update approval record
     await request
       .input('finalized_by', sql.NVarChar, userId)
@@ -16274,7 +14233,6 @@ app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
             updated_date = GETDATE()
         WHERE id = @approvalId
       `);
-    
     // Get next step number
     const stepResult = await request
       .query(`
@@ -16282,9 +14240,7 @@ app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
         FROM approval_history 
         WHERE request_approval_id = @approvalId
       `);
-    
     const nextStep = stepResult.recordset[0].next_step;
-    
     // Update current step
     await request
       .query(`
@@ -16292,7 +14248,6 @@ app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
         SET is_current_step = 0 
         WHERE request_approval_id = @approvalId
       `);
-    
     // Add history entry
     await request
       .input('action_by', sql.NVarChar, userId)
@@ -16303,20 +14258,17 @@ app.post('/api/approvals/:approvalId/finalize', async (req, res) => {
         (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
         VALUES (@approvalId, 'finalized', @action_by, @comments, @step_number, 1)
       `);
-    
     res.json({ success: true, message: 'Request finalized successfully' });
   } catch (error) {
     console.error('Error finalizing request:', error);
     res.status(500).json({ error: 'Failed to finalize request', details: error.message });
   }
 });
-
 // Get request approval status
 app.get('/api/approvals/status', async (req, res) => {
   try {
     const { request_id, request_type } = req.query;
     const request = pool.request();
-    
     const result = await request
       .input('request_id', sql.UniqueIdentifier, request_id)
       .input('request_type', sql.NVarChar, request_type)
@@ -16332,36 +14284,29 @@ app.get('/api/approvals/status', async (req, res) => {
         LEFT JOIN approval_workflows wf ON ra.workflow_id = wf.id
         WHERE ra.request_id = @request_id AND ra.request_type = @request_type
       `);
-    
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'No approval process found for this request' });
     }
-    
     res.json({ success: true, data: result.recordset[0] });
   } catch (error) {
     console.error('Error fetching request status:', error);
     res.status(500).json({ error: 'Failed to fetch request status', details: error.message });
   }
 });
-
 process.on('SIGINT', async () => {
   if (pool) {
     await pool.close();
   }
   process.exit(0);
 });
-
 // SIMPLIFIED APPROVAL ACTIONS (bypassing schema issues)
 // Simple forward endpoint
 app.post('/api/approvals/simple-forward', async (req, res) => {
   try {
     const { approvalId, forwarded_to, comments } = req.body;
-    
     console.log('🔄 Simple Forward: Processing approval:', approvalId);
     console.log('🔄 Simple Forward: Forwarding to:', forwarded_to);
-    
     const request = pool.request();
-    
     // Simple update - just change the current approver
     await request
       .input('approvalId', sql.NVarChar, approvalId)
@@ -16372,14 +14317,12 @@ app.post('/api/approvals/simple-forward', async (req, res) => {
             updated_date = GETDATE()
         WHERE id = @approvalId
       `);
-    
     console.log('✅ Simple Forward: Success');
     res.json({ 
       success: true, 
       message: 'Request forwarded successfully',
       data: { current_approver_id: forwarded_to }
     });
-    
   } catch (error) {
     console.error('❌ Simple Forward: Error:', error);
     res.status(500).json({ 
@@ -16388,16 +14331,12 @@ app.post('/api/approvals/simple-forward', async (req, res) => {
     });
   }
 });
-
 // Simple approve endpoint
 app.post('/api/approvals/simple-approve', async (req, res) => {
   try {
     const { approvalId, comments } = req.body;
-    
     console.log('✅ Simple Approve: Processing approval:', approvalId);
-    
     const request = pool.request();
-    
     // Simple update - just change status to approved
     await request
       .input('approvalId', sql.NVarChar, approvalId)
@@ -16407,14 +14346,12 @@ app.post('/api/approvals/simple-approve', async (req, res) => {
             updated_date = GETDATE()
         WHERE id = @approvalId
       `);
-    
     console.log('✅ Simple Approve: Success');
     res.json({ 
       success: true, 
       message: 'Request approved successfully',
       data: { current_status: 'approved' }
     });
-    
   } catch (error) {
     console.error('❌ Simple Approve: Error:', error);
     res.status(500).json({ 
@@ -16423,16 +14360,12 @@ app.post('/api/approvals/simple-approve', async (req, res) => {
     });
   }
 });
-
 // Simple reject endpoint
 app.post('/api/approvals/simple-reject', async (req, res) => {
   try {
     const { approvalId, comments } = req.body;
-    
     console.log('❌ Simple Reject: Processing approval:', approvalId);
-    
     const request = pool.request();
-    
     // Simple update - just change status to rejected
     await request
       .input('approvalId', sql.NVarChar, approvalId)
@@ -16444,14 +14377,12 @@ app.post('/api/approvals/simple-reject', async (req, res) => {
             updated_date = GETDATE()
         WHERE id = @approvalId
       `);
-    
     console.log('❌ Simple Reject: Success');
     res.json({ 
       success: true, 
       message: 'Request rejected successfully',
       data: { current_status: 'rejected' }
     });
-    
   } catch (error) {
     console.error('❌ Simple Reject: Error:', error);
     res.status(500).json({ 
@@ -16460,12 +14391,10 @@ app.post('/api/approvals/simple-reject', async (req, res) => {
     });
   }
 });
-
 // Temporary endpoint to set session for specific user (development only)
 app.post('/api/dev/set-session/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
     // Get user details from database
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
@@ -16474,17 +14403,13 @@ app.post('/api/dev/set-session/:userId', async (req, res) => {
         FROM AspNetUsers 
         WHERE Id = @userId
       `);
-    
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
     const user = result.recordset[0];
-    
     // Set session
     req.session.userId = user.Id;
     req.session.user = user;
-    
     res.json({ 
       success: true, 
       message: 'Session set successfully',
@@ -16495,12 +14420,10 @@ app.post('/api/dev/set-session/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to set session' });
   }
 });
-
 // GET version for browser compatibility
 app.get('/api/dev/set-session/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
     // Get user details from database
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
@@ -16509,17 +14432,13 @@ app.get('/api/dev/set-session/:userId', async (req, res) => {
         FROM AspNetUsers 
         WHERE Id = @userId
       `);
-    
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
     const user = result.recordset[0];
-    
     // Set session
     req.session.userId = user.Id;
     req.session.user = user;
-    
     res.json({ 
       success: true, 
       message: 'Session set successfully via GET',
@@ -16531,14 +14450,11 @@ app.get('/api/dev/set-session/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to set session' });
   }
 });
-
 // Debug endpoint to check user roles and permissions
 app.get('/api/dev/debug-user-permissions/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
     console.log('🔍 DEBUG: Checking permissions for user:', userId);
-    
     // Get user from database
     const userResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
@@ -16547,18 +14463,14 @@ app.get('/api/dev/debug-user-permissions/:userId', async (req, res) => {
         FROM AspNetUsers 
         WHERE Id = @userId
       `);
-    
     if (userResult.recordset.length === 0) {
       return res.status(404).json({ error: 'User not found', userId });
     }
-    
     const user = userResult.recordset[0];
-    
     // Get roles using the function
     const rolesResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query('SELECT * FROM dbo.fn_GetUserRoles(@userId)');
-    
     // Get permissions using the view
     const permsResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
@@ -16568,15 +14480,12 @@ app.get('/api/dev/debug-user-permissions/:userId', async (req, res) => {
         WHERE user_id = @userId
         ORDER BY module_name, action_name
       `);
-    
     // Check if super admin
     const superAdminResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
-    
     const isSuperAdmin = superAdminResult.recordset[0]?.isSuperAdmin === true || 
                          superAdminResult.recordset[0]?.isSuperAdmin === 1;
-    
     res.json({
       success: true,
       user: {
@@ -16609,13 +14518,11 @@ app.get('/api/dev/debug-user-permissions/:userId', async (req, res) => {
     });
   }
 });
-
 // API to get user's submitted requests with tracking information
 app.get('/api/my-requests', async (req, res) => {
   try {
     console.log('Fetching user requests...');
     console.log('Session:', req.session);
-    
     // Check authentication
     if (!req.session.userId) {
       return res.status(401).json({ 
@@ -16623,10 +14530,8 @@ app.get('/api/my-requests', async (req, res) => {
         error: 'Not authenticated' 
       });
     }
-
     const userId = req.session.userId;
     console.log('Loading requests for user:', userId);
-
     // Get all requests REQUESTED by the current user (filter by requester_user_id, not approvals)
     const requestsQuery = `
       SELECT 
@@ -16636,29 +14541,23 @@ app.get('/api/my-requests', async (req, res) => {
         sir.requester_user_id as submitted_by,
         sir.request_status as current_status,
         sir.created_at as created_date,
-        
         -- Get requester info
         u_requester.FullName as requester_name,
         u_requester.FullName as current_approver_name,
-        
         -- Use stock issuance data for titles and descriptions
         sir.justification as title,
         sir.purpose as description,
         sir.created_at as requested_date,
         sir.request_status
-        
       FROM stock_issuance_requests sir
       LEFT JOIN AspNetUsers u_requester ON CAST(sir.requester_user_id AS NVARCHAR(450)) = CAST(u_requester.Id AS NVARCHAR(450))
       WHERE CAST(sir.requester_user_id AS NVARCHAR(450)) = @userId
       ORDER BY sir.created_at DESC;
     `;
-
     const requestsResult = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query(requestsQuery);
-
     const requests = [];
-
     for (const request of requestsResult.recordset) {
       // Get items for each request from stock issuance items
       let items = [];
@@ -16677,20 +14576,16 @@ app.get('/api/my-requests', async (req, res) => {
           WHERE si_items.request_id = @requestId
           ORDER BY si_items.nomenclature;
         `;
-        
         const stockItemsResult = await pool.request()
           .input('requestId', sql.UniqueIdentifier, request.request_id)
           .query(stockItemsQuery);
-          
         items = stockItemsResult.recordset || [];
-        
         // Debug log - show what we got
         console.log(`✓ Loaded ${items.length} items for request ${request.request_id.toString().substring(0, 8)}:`, JSON.stringify(items.map(i => ({ name: i.item_name, qty: i.requested_quantity }))));
       } catch (itemError) {
         console.log('Could not load stock issuance items for request', request.request_id, ':', itemError.message);
         items = [];
       }
-
       const processedRequest = {
         id: request.request_id,
         request_type: request.request_type || 'stock_issuance',
@@ -16705,18 +14600,14 @@ app.get('/api/my-requests', async (req, res) => {
         items: items,
         total_items: items.length
       };
-
       requests.push(processedRequest);
     }
-
     console.log(`Found ${requests.length} requests for user`);
-
     res.json({
       success: true,
       requests: requests,
       total: requests.length
     });
-
   } catch (error) {
     console.error('Error fetching user requests:', error);
     res.status(500).json({ 
@@ -16725,12 +14616,10 @@ app.get('/api/my-requests', async (req, res) => {
     });
   }
 });
-
 // API to get detailed information about a specific request
 app.get('/api/request-details/:requestId', async (req, res) => {
   try {
     console.log('Fetching request details...');
-
     // Check authentication
     if (!req.session.userId) {
       return res.status(401).json({
@@ -16738,12 +14627,9 @@ app.get('/api/request-details/:requestId', async (req, res) => {
         error: 'Not authenticated'
       });
     }
-
     const { requestId } = req.params;
     let userId = req.session.userId;
-
     console.log('Loading details for request:', requestId, 'by user:', userId);
-
     // Check if user has permission to view request details
     // Allow if user is super admin, has general permissions, or is involved in the request
     let hasAccess = false;
@@ -16752,10 +14638,8 @@ app.get('/api/request-details/:requestId', async (req, res) => {
         const superAdminResult = await pool.request()
           .input('userId', sql.NVarChar(450), userId)
           .query('SELECT dbo.fn_IsSuperAdmin(@userId) as isSuperAdmin');
-
         hasAccess = superAdminResult.recordset[0]?.isSuperAdmin === true ||
                    superAdminResult.recordset[0]?.isSuperAdmin === 1;
-
         if (!hasAccess) {
           // Check for general request viewing permissions
           const permResult = await pool.request()
@@ -16768,7 +14652,6 @@ app.get('/api/request-details/:requestId', async (req, res) => {
             `);
           hasAccess = permResult.recordset[0]?.permCount > 0;
         }
-
         if (!hasAccess) {
           // Check if user is directly involved in this specific request
           const involvementResult = await pool.request()
@@ -16786,14 +14669,12 @@ app.get('/api/request-details/:requestId', async (req, res) => {
       console.error('Error checking permissions:', error);
       hasAccess = false;
     }
-
     if (!hasAccess) {
       return res.status(403).json({
         success: false,
         error: 'Access denied. You do not have permission to view this request.'
       });
     }
-
     // Get request details - verify it belongs to the current user
     const requestQuery = `
       SELECT 
@@ -16802,42 +14683,33 @@ app.get('/api/request-details/:requestId', async (req, res) => {
         ra.submitted_date,
         ra.current_status,
         ra.submitted_by,
-        
         -- Get approver name
         u_approver.FullName as current_approver_name,
-        
         -- Get requester info
         u_requester.FullName as requester_name,
-        
         -- Use stock issuance data for details
         sir.justification as title,
         sir.purpose as description,
         sir.expected_return_date as requested_date,
-        
         -- Office and wing info disabled due to data type mismatch
         CAST(NULL AS NVARCHAR(100)) as office_name,
         CAST(NULL AS NVARCHAR(100)) as wing_name
-
       FROM request_approvals ra
       LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
       LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
       LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
       WHERE ra.request_id = @requestId
     `;
-
     const requestResult = await pool.request()
       .input('requestId', sql.NVarChar, requestId)
       .query(requestQuery);
-
     if (requestResult.recordset.length === 0) {
       return res.status(404).json({ 
         success: false, 
         error: 'Request not found or access denied' 
       });
     }
-
     const request = requestResult.recordset[0];
-
     // Get items for the request from stock issuance items
     let items = [];
     try {
@@ -16854,17 +14726,14 @@ app.get('/api/request-details/:requestId', async (req, res) => {
         WHERE si_items.request_id = @requestId
         ORDER BY im.nomenclature;
       `;
-      
       const stockItemsResult = await pool.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
         .query(stockItemsQuery);
-        
       items = stockItemsResult.recordset || [];
     } catch (itemError) {
       console.log('Could not load stock issuance items:', itemError.message);
       items = [];
     }
-
     // Get approval history
     const historyQuery = `
       SELECT 
@@ -16881,8 +14750,6 @@ app.get('/api/request-details/:requestId', async (req, res) => {
       )
       ORDER BY ah.action_date DESC;
     `;
-
-
     let approvalHistory = [];
     try {
       const historyResult = await pool.request()
@@ -16897,7 +14764,6 @@ app.get('/api/request-details/:requestId', async (req, res) => {
       console.log('Could not load approval history:', historyError.message);
       approvalHistory = [];
     }
-
     const response = {
       id: request.request_id,
       request_type: request.request_type || 'stock_issuance',
@@ -16913,14 +14779,11 @@ app.get('/api/request-details/:requestId', async (req, res) => {
       items: items,
       approval_history: approvalHistory
     };
-
     console.log(`Found request details with ${items.length} items and ${approvalHistory.length} history entries`);
-
     res.json({
       success: true,
       request: response
     });
-
   } catch (error) {
     console.error('Error fetching request details:', error);
     res.status(500).json({ 
@@ -16929,18 +14792,15 @@ app.get('/api/request-details/:requestId', async (req, res) => {
     });
   }
 });
-
 // API to get requests that came to the current user for approval (approval history)
 app.get('/api/my-approval-history', async (req, res) => {
   try {
     console.log('🔍 API CALLED: /api/my-approval-history');
     console.log('Fetching approval history...');
     console.log('Session:', req.session);
-    
     // Get user ID from session
     let userId = req.session?.userId;
     console.log('Session userId:', userId);
-    
     if (!userId) {
       console.log('⚠️  No userId in session, attempting to fetch from authenticated user...');
       // Try to get from auth header or return error
@@ -16950,10 +14810,8 @@ app.get('/api/my-approval-history', async (req, res) => {
         requests: []
       });
     }
-
     console.log('Using user ID from session:', userId);
     console.log('Loading approval history for user:', userId);
-
     // Test with absolute minimal query first
     const approvalHistoryQuery = `
       SELECT 
@@ -17008,19 +14866,14 @@ app.get('/api/my-approval-history', async (req, res) => {
                         AND ah.action_by = @userId 
                         AND ah.action_type = 'forwarded'))
       ORDER BY ra.submitted_date DESC`;
-
     console.log('�🚀🚀 NEW SIMPLIFIED CODE IS RUNNING - USING COUNT QUERY 🚀🚀🚀');
     console.log('📊 QUERY:', approvalHistoryQuery);
-    
     const historyResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(approvalHistoryQuery);
-
     console.log('✅ Query executed successfully. Records:', historyResult.recordset.length);
     console.log('🔍 Sample record:', historyResult.recordset[0]);
-    
     const requests = [];
-
     for (const request of historyResult.recordset) {
       // Load items for each request
       let items = [];
@@ -17046,20 +14899,16 @@ app.get('/api/my-approval-history', async (req, res) => {
               ELSE im.nomenclature
             END;
         `;
-        
         const stockItemsResult = await pool.request()
           .input('requestId', sql.UniqueIdentifier, request.request_id)
           .query(stockItemsQuery);
-        
         console.log('Items found for', request.request_id, ':', stockItemsResult.recordset.length);
-          
         items = stockItemsResult.recordset || [];
       } catch (itemError) {
         console.log('ERROR loading items for request', request.request_id, ':', itemError.message);
         console.log('Items error details:', itemError);
         items = [];
       }
-
       const processedRequest = {
         id: request.id,
         request_id: request.request_id,
@@ -17083,17 +14932,14 @@ app.get('/api/my-approval-history', async (req, res) => {
       };
       requests.push(processedRequest);
     }
-
     console.log(`✅ Found ${requests.length} approval history entries for user ${userId}`);
     console.log('📋 Requests:', requests.map(r => ({ id: r.id, title: r.title, action: r.my_action })));
-
     // Add item counts using simple SQL for each request
     for (let i = 0; i < requests.length; i++) {
       try {
         const itemCountResult = await pool.request()
           .input('requestId', sql.NVarChar, requests[i].request_id)
           .query('SELECT COUNT(*) as item_count FROM stock_issuance_items WHERE request_id = @requestId');
-        
         requests[i].total_items = itemCountResult.recordset[0].item_count || 0;
         console.log('✅ Item count for', requests[i].request_id, ':', requests[i].total_items);
       } catch (error) {
@@ -17101,7 +14947,6 @@ app.get('/api/my-approval-history', async (req, res) => {
         requests[i].total_items = 0;
       }
     }
-
     res.json({
       success: true,
       requests: requests,
@@ -17113,7 +14958,6 @@ app.get('/api/my-approval-history', async (req, res) => {
         item_count: r.total_items
       }))
     });
-
   } catch (error) {
     console.error('❌ Error fetching approval history:', error);
     console.error('❌ Stack trace:', error.stack);
@@ -17124,25 +14968,20 @@ app.get('/api/my-approval-history', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // WING REQUEST HISTORY API ENDPOINT
 // =============================================================================
-
 app.get('/api/wing-request-history', async (req, res) => {
   try {
     console.log('🔍 API CALLED: /api/wing-request-history');
     console.log('Fetching wing request history...');
     console.log('Session:', req.session);
-    
     // Check authentication and get user info
     let userId = req.session.userId;
     console.log('Session userId:', userId);
-    
     if (!userId) {
       return res.status(401).json({ success: false, error: 'User not authenticated' });
     }
-
     // Get user's wing ID
     const userWingQuery = `
       SELECT u.intWingID as wing_id, u.FullName, w.Name as wing_name
@@ -17150,23 +14989,18 @@ app.get('/api/wing-request-history', async (req, res) => {
       LEFT JOIN WingsInformation w ON w.Id = u.intWingID
       WHERE u.Id = @userId
     `;
-    
     const userWingResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(userWingQuery);
-    
     console.log('🔍 User query result:', userWingResult.recordset);
-    
     if (!userWingResult.recordset[0]?.wing_id) {
       console.error('❌ No wing ID found for user:', userId);
       return res.status(400).json({ success: false, error: 'User wing information not found' });
     }
-    
     const userWingId = userWingResult.recordset[0].wing_id;
     const userName = userWingResult.recordset[0].FullName;
     const userWingName = userWingResult.recordset[0].wing_name;
     console.log('✅ Found user:', userName, 'with wing ID:', userWingId, 'Wing:', userWingName);
-
     // Get all requests from users in the same wing
     // This includes both requests with approvals AND direct requests from stock_issuance_requests
     const wingRequestsQuery = `
@@ -17201,18 +15035,13 @@ app.get('/api/wing-request-history', async (req, res) => {
       AND u_requester.intWingID = @wingId
       AND sir.request_type = 'Organizational'
       ORDER BY COALESCE(ra.submitted_date, sir.submitted_at) DESC`;
-
     console.log('📊 WING REQUESTS QUERY:', wingRequestsQuery);
     console.log('🔢 Wing ID parameter:', userWingId, 'Type:', typeof userWingId);
-    
     const requestsResult = await pool.request()
       .input('wingId', sql.Int, parseInt(userWingId))
       .query(wingRequestsQuery);
-
     console.log('✅ Query executed successfully. Records:', requestsResult.recordset.length);
-    
     const requests = [];
-
     for (const request of requestsResult.recordset) {
       // Load items for each request
       let items = [];
@@ -17238,20 +15067,16 @@ app.get('/api/wing-request-history', async (req, res) => {
               ELSE im.nomenclature
             END;
         `;
-        
         const stockItemsResult = await pool.request()
           .input('requestId', sql.UniqueIdentifier, request.request_id)
           .query(stockItemsQuery);
-        
         console.log('Items found for', request.request_id, ':', stockItemsResult.recordset.length);
-          
         items = stockItemsResult.recordset || [];
       } catch (itemError) {
         console.log('ERROR loading items for request', request.request_id, ':', itemError.message);
         console.log('Items error details:', itemError);
         items = [];
       }
-
       const processedRequest = {
         id: request.id,
         request_id: request.request_id,
@@ -17277,10 +15102,8 @@ app.get('/api/wing-request-history', async (req, res) => {
       };
       requests.push(processedRequest);
     }
-
     console.log(`✅ Found ${requests.length} wing request history entries for wing ${userWingId}`);
     console.log('📋 Wing Requests:', requests.map(r => ({ id: r.id, title: r.title, requester: r.requester_name })));
-
     res.json({
       success: true,
       requests: requests,
@@ -17293,7 +15116,6 @@ app.get('/api/wing-request-history', async (req, res) => {
         item_count: r.total_items
       }))
     });
-
   } catch (error) {
     console.error('❌ Error fetching wing request history:', error);
     console.error('❌ Stack trace:', error.stack);
@@ -17304,31 +15126,25 @@ app.get('/api/wing-request-history', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // ISSUANCE WORKFLOW API ENDPOINTS (NEW)
 // =============================================================================
-
 // Determine issuance source - checks wing/admin inventory availability
 app.post('/api/issuance/determine-source', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { stock_issuance_item_id, item_master_id, required_quantity, wing_id } = req.body;
-
     if (!item_master_id || !required_quantity || !wing_id) {
       return res.status(400).json({ error: 'item_master_id, required_quantity, and wing_id are required' });
     }
-
     // Call the stored procedure
     const result = await pool.request()
       .input('item_master_id', sql.UniqueIdentifier, item_master_id)
       .input('required_quantity', sql.Int, required_quantity)
       .input('wing_id', sql.Int, wing_id)
       .execute('sp_DetermineIssuanceSource');
-
     if (result.recordset.length === 0) {
       return res.json({
         success: true,
@@ -17338,9 +15154,7 @@ app.post('/api/issuance/determine-source', async (req, res) => {
         message: 'Item not available in stock - procurement required'
       });
     }
-
     const sourceData = result.recordset[0];
-
     res.json({
       success: true,
       issuance_source: sourceData.issuance_source,
@@ -17350,7 +15164,6 @@ app.post('/api/issuance/determine-source', async (req, res) => {
       message: `Item can be issued from ${sourceData.issuance_source}`,
       details: sourceData
     });
-
   } catch (error) {
     console.error('Error determining issuance source:', error);
     res.status(500).json({ 
@@ -17359,20 +15172,16 @@ app.post('/api/issuance/determine-source', async (req, res) => {
     });
   }
 });
-
 // Issue item from wing store
 app.post('/api/issuance/issue-from-wing', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { stock_issuance_item_id, stock_issuance_request_id, item_master_id, quantity, wing_id, issued_by } = req.body;
-
     if (!stock_issuance_item_id || !quantity || !issued_by) {
       return res.status(400).json({ error: 'Required fields: stock_issuance_item_id, quantity, issued_by' });
     }
-
     // Call stored procedure
     const result = await pool.request()
       .input('stock_issuance_item_id', sql.UniqueIdentifier, stock_issuance_item_id)
@@ -17382,9 +15191,7 @@ app.post('/api/issuance/issue-from-wing', async (req, res) => {
       .input('wing_id', sql.Int, wing_id)
       .input('issued_by', sql.NVarChar, issued_by)
       .execute('sp_IssueFromWingStore');
-
     const transactionResult = result.recordset[0] || {};
-
     res.json({
       success: true,
       message: 'Item issued from wing store successfully',
@@ -17393,7 +15200,6 @@ app.post('/api/issuance/issue-from-wing', async (req, res) => {
       remaining_wing_stock: transactionResult.remaining_wing_stock,
       issued_at: transactionResult.issued_at
     });
-
   } catch (error) {
     console.error('Error issuing from wing store:', error);
     res.status(500).json({ 
@@ -17402,20 +15208,16 @@ app.post('/api/issuance/issue-from-wing', async (req, res) => {
     });
   }
 });
-
 // Issue item from admin store
 app.post('/api/issuance/issue-from-admin', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { stock_issuance_item_id, stock_issuance_request_id, item_master_id, quantity, issued_by } = req.body;
-
     if (!stock_issuance_item_id || !quantity || !issued_by) {
       return res.status(400).json({ error: 'Required fields: stock_issuance_item_id, quantity, issued_by' });
     }
-
     // Call stored procedure
     const result = await pool.request()
       .input('stock_issuance_item_id', sql.UniqueIdentifier, stock_issuance_item_id)
@@ -17424,9 +15226,7 @@ app.post('/api/issuance/issue-from-admin', async (req, res) => {
       .input('quantity', sql.Int, quantity)
       .input('issued_by', sql.NVarChar, issued_by)
       .execute('sp_IssueFromAdminStore');
-
     const transactionResult = result.recordset[0] || {};
-
     res.json({
       success: true,
       message: 'Item issued from admin store successfully',
@@ -17435,7 +15235,6 @@ app.post('/api/issuance/issue-from-admin', async (req, res) => {
       remaining_admin_stock: transactionResult.remaining_admin_stock,
       issued_at: transactionResult.issued_at
     });
-
   } catch (error) {
     console.error('Error issuing from admin store:', error);
     res.status(500).json({ 
@@ -17444,14 +15243,12 @@ app.post('/api/issuance/issue-from-admin', async (req, res) => {
     });
   }
 });
-
 // Handle verification result - update item status based on inventory check
 app.post('/api/issuance/handle-verification-result', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { 
       stock_issuance_item_id, 
       verification_result, // 'available', 'partial', 'unavailable'
@@ -17459,11 +15256,9 @@ app.post('/api/issuance/handle-verification-result', async (req, res) => {
       verification_notes,
       verified_by 
     } = req.body;
-
     if (!stock_issuance_item_id || !verification_result) {
       return res.status(400).json({ error: 'stock_issuance_item_id and verification_result are required' });
     }
-
     // Call stored procedure
     const result = await pool.request()
       .input('stock_issuance_item_id', sql.UniqueIdentifier, stock_issuance_item_id)
@@ -17472,9 +15267,7 @@ app.post('/api/issuance/handle-verification-result', async (req, res) => {
       .input('verification_notes', sql.NVarChar, verification_notes || null)
       .input('verified_by', sql.NVarChar, verified_by)
       .execute('sp_HandleVerificationResult');
-
     const verificationResult = result.recordset[0] || {};
-
     res.json({
       success: true,
       message: `Item verification recorded - ${verification_result}`,
@@ -17482,7 +15275,6 @@ app.post('/api/issuance/handle-verification-result', async (req, res) => {
       available_quantity: verificationResult.available_quantity,
       verified_at: verificationResult.verified_at
     });
-
   } catch (error) {
     console.error('Error handling verification result:', error);
     res.status(500).json({ 
@@ -17491,28 +15283,22 @@ app.post('/api/issuance/handle-verification-result', async (req, res) => {
     });
   }
 });
-
 // Finalize issuance - mark request as finalized after all items issued
 app.post('/api/issuance/finalize', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { stock_issuance_request_id, finalized_by } = req.body;
-
     if (!stock_issuance_request_id || !finalized_by) {
       return res.status(400).json({ error: 'stock_issuance_request_id and finalized_by are required' });
     }
-
     // Call stored procedure
     const result = await pool.request()
       .input('stock_issuance_request_id', sql.UniqueIdentifier, stock_issuance_request_id)
       .input('finalized_by', sql.NVarChar, finalized_by)
       .execute('sp_FinalizeIssuance');
-
     const finalizeResult = result.recordset[0] || {};
-
     res.json({
       success: true,
       message: 'Issuance finalized successfully',
@@ -17522,7 +15308,6 @@ app.post('/api/issuance/finalize', async (req, res) => {
       rejected_items: finalizeResult.rejected_items,
       finalized_at: finalizeResult.finalized_at
     });
-
   } catch (error) {
     console.error('Error finalizing issuance:', error);
     res.status(500).json({ 
@@ -17531,16 +15316,13 @@ app.post('/api/issuance/finalize', async (req, res) => {
     });
   }
 });
-
 // Get issuance status for a request - shows what items are issued, pending, rejected
 app.get('/api/issuance/status/:stock_issuance_request_id', async (req, res) => {
   try {
     if (!pool) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
-
     const { stock_issuance_request_id } = req.params;
-
     // Get issuance status from view
     const result = await pool.request()
       .input('request_id', sql.UniqueIdentifier, stock_issuance_request_id)
@@ -17557,7 +15339,6 @@ app.get('/api/issuance/status/:stock_issuance_request_id', async (req, res) => {
         FROM View_Issuance_Status
         WHERE request_id = @request_id
       `);
-
     if (result.recordset.length === 0) {
       return res.json({
         success: true,
@@ -17570,16 +15351,13 @@ app.get('/api/issuance/status/:stock_issuance_request_id', async (req, res) => {
         message: 'No issuance data found for this request'
       });
     }
-
     const statusData = result.recordset[0];
-
     res.json({
       success: true,
       ...statusData,
       completion_percentage: statusData.issuance_rate || 0,
       is_complete: (statusData.pending_items || 0) === 0
     });
-
   } catch (error) {
     console.error('Error fetching issuance status:', error);
     res.status(500).json({ 
@@ -17588,16 +15366,13 @@ app.get('/api/issuance/status/:stock_issuance_request_id', async (req, res) => {
     });
   }
 });
-
 // =============================================================================
 // APPROVAL WORKFLOW API ENDPOINTS
 // =============================================================================
-
 // Get approval items for a specific request
 app.get('/api/approvals/request/:requestId/items', async (req, res) => {
   try {
     const { requestId } = req.params;
-    
     const result = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`
@@ -17611,7 +15386,6 @@ app.get('/api/approvals/request/:requestId/items', async (req, res) => {
         WHERE ra.request_id = @requestId
         ORDER BY ai.nomenclature
       `);
-    
     res.json({
       success: true,
       data: result.recordset
@@ -17624,12 +15398,10 @@ app.get('/api/approvals/request/:requestId/items', async (req, res) => {
     });
   }
 });
-
 // Get item tracking history
 app.get('/api/approvals/item/:itemId/tracking', async (req, res) => {
   try {
     const { itemId } = req.params;
-    
     // Get current item status
     const itemResult = await pool.request()
       .input('itemId', sql.UniqueIdentifier, itemId)
@@ -17642,16 +15414,13 @@ app.get('/api/approvals/item/:itemId/tracking', async (req, res) => {
         FROM approval_items ai
         WHERE ai.id = @itemId
       `);
-    
     if (itemResult.recordset.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Item not found'
       });
     }
-    
     const item = itemResult.recordset[0];
-    
     // Get history from approval_history table for this request_approval
     const historyResult = await pool.request()
       .input('requestApprovalId', sql.UniqueIdentifier, item.request_approval_id)
@@ -17666,7 +15435,6 @@ app.get('/api/approvals/item/:itemId/tracking', async (req, res) => {
         WHERE ah.request_approval_id = @requestApprovalId
         ORDER BY ah.action_date DESC
       `);
-    
     res.json({
       success: true,
       data: {
@@ -17684,25 +15452,20 @@ app.get('/api/approvals/item/:itemId/tracking', async (req, res) => {
     });
   }
 });
-
 // Get pending approvals for the current user
 app.get('/api/approvals/my-approvals', async (req, res) => {
   try {
     console.log('🔍 API CALLED: /api/approvals/my-approvals');
     console.log('Query params:', req.query);
     console.log('Fetching my pending approvals...');
-
     // Allow userId from query params or session
     let userId = req.query.userId || req.session?.userId;
-
     console.log('UserId from query:', req.query.userId);
     console.log('UserId from session:', req.session?.userId);
     console.log('Final userId:', userId);
-
     // TEMPORARY: Allow testing without session authentication when userId is provided
     const hasSession = !!req.session?.userId;
     const hasQueryUserId = !!req.query.userId;
-
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -17710,7 +15473,6 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         details: 'No user session found. You must be logged in to view your approvals.'
       });
     }
-
     // Allow access if user has session OR if testing with query userId
     if (!hasSession && !hasQueryUserId) {
       return res.status(401).json({
@@ -17719,14 +15481,10 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         details: 'No user session found. You must be logged in to view your approvals.'
       });
     }
-
     const status = req.query.status || 'pending';
-
     console.log('User ID:', userId, 'Status filter:', status);
-
     // Build WHERE clause based on status and items with specific decision types
     let approvalsQuery = '';
-    
     if (status === 'pending') {
       approvalsQuery = `
         SELECT DISTINCT
@@ -17893,15 +15651,11 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         )
         ORDER BY ra.submitted_date DESC`;
     }
-
     const approvalsResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(approvalsQuery);
-
     console.log('✅ Found', approvalsResult.recordset.length, 'pending approvals for user', userId);
-
     const approvals = [];
-
     for (const approval of approvalsResult.recordset) {
       // Load items for each approval from approval_items table
       let items = [];
@@ -17920,17 +15674,14 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
           WHERE ai.request_approval_id = @approvalId
           ORDER BY ai.nomenclature;
         `;
-
         const approvalItemsResult = await pool.request()
           .input('approvalId', sql.UniqueIdentifier, approval.id)
           .query(approvalItemsQuery);
-
         items = approvalItemsResult.recordset || [];
       } catch (itemError) {
         console.log('Could not load items for approval', approval.id, ':', itemError.message);
         items = [];
       }
-
       const processedApproval = {
         id: approval.id,
         request_id: approval.request_id,
@@ -17948,17 +15699,14 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         total_items: approval.total_items || 0,
         priority: 'Medium'
       };
-
       approvals.push(processedApproval);
     }
-
     res.json({
       success: true,
       data: approvals,
       total: approvals.length,
       message: `Found ${approvals.length} ${status} approvals`
     });
-
   } catch (error) {
     console.error('❌ Error fetching my approvals:', error);
     res.status(500).json({
@@ -17967,16 +15715,13 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
     });
   }
 });
-
 // Get approval dashboard stats for the current user
 app.get('/api/approvals/dashboard', async (req, res) => {
   try {
     console.log('🔍 API CALLED: /api/approvals/dashboard');
     console.log('Fetching approval dashboard stats...');
-
     // Get userId from query parameter or session
     let userId = req.query.userId || req.session?.userId;
-    
     if (!userId) {
       console.log('❌ No user ID provided');
       return res.status(401).json({
@@ -17984,9 +15729,7 @@ app.get('/api/approvals/dashboard', async (req, res) => {
         error: 'Not authenticated'
       });
     }
-    
     console.log('User ID:', userId);
-
     // Get dashboard statistics - count by items with specific decision types
     const statsQuery = `
       SELECT
@@ -18010,11 +15753,9 @@ app.get('/api/approvals/dashboard', async (req, res) => {
          INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
          WHERE ra.current_approver_id = @userId
          AND ai.decision_type = 'RETURN') as returned_count`;
-
     const statsResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(statsQuery);
-
     const stats = statsResult.recordset[0] || {
       pending_count: 0,
       approved_count: 0,
@@ -18022,7 +15763,6 @@ app.get('/api/approvals/dashboard', async (req, res) => {
       forwarded_count: 0,
       returned_count: 0
     };
-
     res.json({
       success: true,
       pending_count: stats.pending_count || 0,
@@ -18031,7 +15771,6 @@ app.get('/api/approvals/dashboard', async (req, res) => {
       forwarded_count: stats.forwarded_count || 0,
       returned_count: stats.returned_count || 0
     });
-
   } catch (error) {
     console.error('❌ Error fetching approval dashboard:', error);
     res.status(500).json({
@@ -18040,16 +15779,13 @@ app.get('/api/approvals/dashboard', async (req, res) => {
     });
   }
 });
-
 // =====================================================================
 // ANNUAL TENDER SYSTEM APIS
 // =====================================================================
-
 // 1. GET ALL ANNUAL TENDERS
 app.get('/api/annual-tenders', async (req, res) => {
   try {
     const status = req.query.status || null;
-    
     let query = `
       SELECT 
         id,
@@ -18067,18 +15803,14 @@ app.get('/api/annual-tenders', async (req, res) => {
       FROM annual_tenders
       WHERE 1=1
     `;
-
     if (status) {
       query += ` AND status = @status`;
     }
-
     query += ` ORDER BY created_at DESC`;
-
     const request = pool.request();
     if (status) {
       request.input('status', sql.NVarChar(50), status);
     }
-
     const result = await request.query(query);
     res.json(result.recordset);
   } catch (error) {
@@ -18086,23 +15818,18 @@ app.get('/api/annual-tenders', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch annual tenders', details: error.message });
   }
 });
-
 // 2. GET SINGLE ANNUAL TENDER WITH DETAILS
 app.get('/api/annual-tenders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     // Get tender
     const tenderResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`SELECT * FROM annual_tenders WHERE id = @id`);
-
     if (tenderResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Annual tender not found' });
     }
-
     const tender = tenderResult.recordset[0];
-
     // Get groups in this tender
     const groupsResult = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, id)
@@ -18118,7 +15845,6 @@ app.get('/api/annual-tenders/:id', async (req, res) => {
         WHERE atg.annual_tender_id = @tenderId
         ORDER BY ig.group_name
       `);
-
     // Get vendors assigned to this tender
     const vendorsResult = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, id)
@@ -18138,7 +15864,6 @@ app.get('/api/annual-tenders/:id', async (req, res) => {
         WHERE atv.annual_tender_id = @tenderId AND atv.status = 'Active'
         ORDER BY ig.group_name, v.vendor_name
       `);
-
     res.json({
       ...tender,
       groups: groupsResult.recordset,
@@ -18149,18 +15874,14 @@ app.get('/api/annual-tenders/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch annual tender', details: error.message });
   }
 });
-
 // 3. CREATE ANNUAL TENDER
 app.post('/api/annual-tenders', async (req, res) => {
   try {
     const { tender_number, title, description, start_date, end_date, total_budget, remarks, created_by, groupIds } = req.body;
-
     if (!tender_number || !title || !start_date || !end_date) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-
     const id = uuidv4();
-
     // Insert tender
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -18177,7 +15898,6 @@ app.post('/api/annual-tenders', async (req, res) => {
         INSERT INTO annual_tenders (id, tender_number, title, description, start_date, end_date, status, total_budget, remarks, created_by, created_at, updated_at)
         VALUES (@id, @tender_number, @title, @description, @start_date, @end_date, @status, @total_budget, @remarks, @created_by, GETDATE(), GETDATE())
       `);
-
     // Assign groups if provided
     if (groupIds && Array.isArray(groupIds) && groupIds.length > 0) {
       for (const groupId of groupIds) {
@@ -18192,14 +15912,12 @@ app.post('/api/annual-tenders', async (req, res) => {
           `);
       }
     }
-
     res.json({ success: true, id, message: 'Annual tender created successfully' });
   } catch (error) {
     console.error('❌ Error creating annual tender:', error);
     res.status(500).json({ error: 'Failed to create annual tender', details: error.message });
   }
 });
-
 // 4. GET ALL ITEM GROUPS
 app.get('/api/item-groups', async (req, res) => {
   try {
@@ -18224,12 +15942,10 @@ app.get('/api/item-groups', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch item groups' });
   }
 });
-
 // 5. CREATE ITEM GROUP
 app.post('/api/item-groups', async (req, res) => {
   try {
     const { group_code, group_name, description, itemIds, created_by } = req.body;
-
     console.log('📥 Item Group Creation Request:', {
       group_code,
       group_name,
@@ -18238,13 +15954,10 @@ app.post('/api/item-groups', async (req, res) => {
       itemIdsLength: itemIds ? itemIds.length : 0,
       created_by
     });
-
     if (!group_code || !group_name) {
       return res.status(400).json({ error: 'Group code and name are required' });
     }
-
     const id = uuidv4();
-
     // Create group
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
@@ -18256,7 +15969,6 @@ app.post('/api/item-groups', async (req, res) => {
         INSERT INTO item_groups (id, group_code, group_name, description, is_active, created_by, created_at, updated_at)
         VALUES (@id, @group_code, @group_name, @description, 1, @created_by, GETDATE(), GETDATE())
       `);
-
     // Add items if provided
     if (itemIds && Array.isArray(itemIds) && itemIds.length > 0) {
       console.log(`✅ Adding ${itemIds.length} items to group ${id}`);
@@ -18275,38 +15987,30 @@ app.post('/api/item-groups', async (req, res) => {
     } else {
       console.log('⚠️ No items provided for this group');
     }
-
     res.json({ success: true, id, message: 'Item group created successfully' });
   } catch (error) {
     console.error('❌ Error creating item group:', error);
     res.status(500).json({ error: 'Failed to create item group', details: error.message });
   }
 });
-
 // 6. GET ITEMS IN A GROUP
 app.get('/api/item-groups/:groupId/items', async (req, res) => {
   try {
     const { groupId } = req.params;
-
     console.log(`📥 Fetching items for group: ${groupId}`);
-
     // First check if group exists
     const groupCheck = await pool.request()
       .input('groupId', sql.UniqueIdentifier, groupId)
       .query(`SELECT id, group_code, group_name FROM item_groups WHERE id = @groupId`);
-    
     console.log(`Group found:`, groupCheck.recordset.length > 0 ? groupCheck.recordset[0] : 'NOT FOUND');
-
     // Check group_items records
     const groupItemsCheck = await pool.request()
       .input('groupId', sql.UniqueIdentifier, groupId)
       .query(`SELECT id, group_id, item_master_id FROM group_items WHERE group_id = @groupId`);
-    
     console.log(`Group items records found: ${groupItemsCheck.recordset.length}`);
     if (groupItemsCheck.recordset.length > 0) {
       console.log('Sample group_items:', groupItemsCheck.recordset[0]);
     }
-
     const result = await pool.request()
       .input('groupId', sql.UniqueIdentifier, groupId)
       .query(`
@@ -18323,7 +16027,6 @@ app.get('/api/item-groups/:groupId/items', async (req, res) => {
         WHERE gi.group_id = @groupId
         ORDER BY im.nomenclature
       `);
-
     console.log(`✅ Found ${result.recordset.length} items for group ${groupId}`);
     res.json(result.recordset);
   } catch (error) {
@@ -18331,21 +16034,17 @@ app.get('/api/item-groups/:groupId/items', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch group items' });
   }
 });
-
 // 8. DELETE ITEM GROUP
 app.delete('/api/item-groups/:groupId', async (req, res) => {
   try {
     const { groupId } = req.params;
-
     console.log(`🗑️ Deleting item group: ${groupId}`);
-
     const result = await pool.request()
       .input('groupId', sql.UniqueIdentifier, groupId)
       .query(`
         DELETE FROM item_groups
         WHERE id = @groupId
       `);
-
     console.log(`✅ Item group deleted successfully`);
     res.json({ success: true, message: 'Item group deleted successfully' });
   } catch (error) {
@@ -18353,22 +16052,18 @@ app.delete('/api/item-groups/:groupId', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete item group', details: error.message });
   }
 });
-
 // 9. ASSIGN VENDORS TO GROUPS IN TENDER
 app.post('/api/annual-tenders/:tenderId/assign-vendors', async (req, res) => {
   try {
     const { tenderId } = req.params;
     const { assignments, created_by } = req.body;
-
     if (!Array.isArray(assignments)) {
       return res.status(400).json({ error: 'Assignments must be an array' });
     }
-
     // Delete existing assignments
     await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
       .query(`DELETE FROM annual_tender_vendors WHERE annual_tender_id = @tenderId`);
-
     // Add new assignments
     for (const assignment of assignments) {
       const { groupId, vendorIds } = assignment;
@@ -18386,19 +16081,16 @@ app.post('/api/annual-tenders/:tenderId/assign-vendors', async (req, res) => {
           `);
       }
     }
-
     res.json({ success: true, message: 'Vendors assigned successfully' });
   } catch (error) {
     console.error('❌ Error assigning vendors:', error);
     res.status(500).json({ error: 'Failed to assign vendors', details: error.message });
   }
 });
-
 // 8. GET VENDORS FOR A GROUP IN TENDER
 app.get('/api/annual-tenders/:tenderId/groups/:groupId/vendors', async (req, res) => {
   try {
     const { tenderId, groupId } = req.params;
-
     const result = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
       .input('groupId', sql.UniqueIdentifier, groupId)
@@ -18419,19 +16111,16 @@ app.get('/api/annual-tenders/:tenderId/groups/:groupId/vendors', async (req, res
           AND atv.status = 'Active'
         ORDER BY v.vendor_name
       `);
-
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching group vendors:', error);
     res.status(500).json({ error: 'Failed to fetch group vendors' });
   }
 });
-
 // GET vendors for a specific category in a tender
 app.get('/api/annual-tenders/:tenderId/categories/:categoryId/vendors', async (req, res) => {
   try {
     const { tenderId, categoryId } = req.params;
-
     const result = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
       .input('categoryId', sql.UniqueIdentifier, categoryId)
@@ -18452,23 +16141,19 @@ app.get('/api/annual-tenders/:tenderId/categories/:categoryId/vendors', async (r
           AND atv.status = 'Active'
         ORDER BY v.vendor_name
       `);
-
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching category vendors:', error);
     res.status(500).json({ error: 'Failed to fetch category vendors' });
   }
 });
-
 // 9. CREATE/UPDATE VENDOR PROPOSAL
 app.post('/api/vendor-proposals', async (req, res) => {
   try {
     const { annual_tender_id, group_id, vendor_id, item_master_id, proposed_unit_price, created_by } = req.body;
-
     if (!annual_tender_id || !group_id || !vendor_id || !item_master_id || proposed_unit_price === null) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-
     // Check if proposal exists
     const existingResult = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, annual_tender_id)
@@ -18480,7 +16165,6 @@ app.post('/api/vendor-proposals', async (req, res) => {
           AND vendor_id = @vendorId 
           AND item_master_id = @itemId
       `);
-
     if (existingResult.recordset.length > 0) {
       // Update existing
       await pool.request()
@@ -18512,19 +16196,16 @@ app.post('/api/vendor-proposals', async (req, res) => {
           VALUES (@id, @tenderId, @groupId, @vendorId, @itemId, @price, @created_by, GETDATE(), GETDATE())
         `);
     }
-
     res.json({ success: true, message: 'Proposal updated successfully' });
   } catch (error) {
     console.error('❌ Error saving proposal:', error);
     res.status(500).json({ error: 'Failed to save proposal', details: error.message });
   }
 });
-
 // 10. GET ALL VENDOR PROPOSALS FOR A TENDER
 app.get('/api/annual-tenders/:tenderId/vendor-proposals', async (req, res) => {
   try {
     const { tenderId } = req.params;
-
     const result = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
       .query(`
@@ -18545,25 +16226,30 @@ app.get('/api/annual-tenders/:tenderId/vendor-proposals', async (req, res) => {
         WHERE vp.annual_tender_id = @tenderId
         ORDER BY ig.group_name, v.vendor_name, im.nomenclature
       `);
-
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching proposals:', error);
     res.status(500).json({ error: 'Failed to fetch proposals' });
   }
 });
-
 console.log('✅ Annual Tender System APIs loaded');
-
 // ============================================================================
 // PURCHASE ORDERS APIs
 // ============================================================================
-
 // GET /api/purchase-orders - Get all POs with filters
 app.get('/api/purchase-orders', async (req, res) => {
   try {
     const { tenderId, vendorId, status, startDate, endDate } = req.query;
-    
+    // Debug: Log incoming parameters
+    console.log('🔍 GET /api/purchase-orders params:', { tenderId, vendorId, status, startDate, endDate });
+    // Validate UUID format
+    const isValidUUID = (uuid) => {
+      if (!uuid || typeof uuid !== 'string') return false;
+      const trimmed = String(uuid).trim();
+      if (!trimmed) return false;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(trimmed);
+    };
     let query = `
       SELECT 
         po.id,
@@ -18580,56 +16266,71 @@ app.get('/api/purchase-orders', async (req, res) => {
         v.vendor_name,
         (SELECT COUNT(*) FROM purchase_order_items WHERE po_id = po.id) as item_count
       FROM purchase_orders po
-      INNER JOIN tenders t ON po.tender_id = t.id
-      INNER JOIN vendors v ON po.vendor_id = v.id
+      LEFT JOIN tenders t ON TRY_CAST(po.tender_id AS UNIQUEIDENTIFIER) = t.id
+      LEFT JOIN vendors v ON TRY_CAST(po.vendor_id AS UNIQUEIDENTIFIER) = v.id
       WHERE 1=1
     `;
-
     const request = pool.request();
-
-    if (tenderId) {
+    if (tenderId && isValidUUID(tenderId)) {
       query += ' AND po.tender_id = @tenderId';
-      request.input('tenderId', sql.Int, tenderId);
+      request.input('tenderId', sql.UniqueIdentifier, tenderId.trim());
     }
-
-    if (vendorId) {
+    if (vendorId && isValidUUID(vendorId)) {
       query += ' AND po.vendor_id = @vendorId';
-      request.input('vendorId', sql.Int, vendorId);
+      request.input('vendorId', sql.UniqueIdentifier, vendorId.trim());
     }
-
-    if (status) {
+    if (status && typeof status === 'string' && status.trim() && status.trim() !== 'undefined') {
       query += ' AND po.status = @status';
-      request.input('status', sql.NVarChar, status);
+      request.input('status', sql.NVarChar, status.trim());
     }
-
-    if (startDate) {
-      query += ' AND po.po_date >= @startDate';
-      request.input('startDate', sql.DateTime, new Date(startDate));
+    if (startDate && typeof startDate === 'string' && startDate.trim() && startDate.trim() !== 'undefined') {
+      try {
+        const parsedDate = new Date(startDate.trim());
+        if (!isNaN(parsedDate.getTime())) {
+          query += ' AND po.po_date >= @startDate';
+          request.input('startDate', sql.DateTime, parsedDate);
+        }
+      } catch (e) {
+        console.warn('⚠️ Invalid startDate format:', startDate);
+      }
     }
-
-    if (endDate) {
-      query += ' AND po.po_date <= @endDate';
-      request.input('endDate', sql.DateTime, new Date(endDate));
+    if (endDate && typeof endDate === 'string' && endDate.trim() && endDate.trim() !== 'undefined') {
+      try {
+        const parsedDate = new Date(endDate.trim());
+        if (!isNaN(parsedDate.getTime())) {
+          query += ' AND po.po_date <= @endDate';
+          request.input('endDate', sql.DateTime, parsedDate);
+        }
+      } catch (e) {
+        console.warn('⚠️ Invalid endDate format:', endDate);
+      }
     }
-
     query += ' ORDER BY po.created_at DESC';
-
     const result = await request.query(query);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching POs:', error);
-    res.status(500).json({ error: 'Failed to fetch purchase orders' });
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      state: error.state
+    });
+    // If table doesn't exist or there's a schema issue, return empty array
+    if (error.message && (error.message.includes('Invalid object name') || error.message.includes('purchase_orders'))) {
+      console.warn('⚠️ Purchase orders table may not exist or has schema issues. Returning empty array.');
+      res.json([]);
+    } else {
+      res.status(500).json({ error: 'Failed to fetch purchase orders', details: error.message });
+    }
   }
 });
-
 // GET /api/purchase-orders/:id - Get specific PO with items
 app.get('/api/purchase-orders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     // Get PO details
     const poResult = await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.UniqueIdentifier, id)
       .query(`
         SELECT 
           po.id,
@@ -18645,22 +16346,22 @@ app.get('/api/purchase-orders/:id', async (req, res) => {
           t.title as tender_title,
           t.tender_type,
           v.vendor_name,
-          v.vendor_code
+          v.vendor_code,
+          v.contact_person,
+          v.phone,
+          v.email
         FROM purchase_orders po
-        INNER JOIN tenders t ON po.tender_id = t.id
-        INNER JOIN vendors v ON po.vendor_id = v.id
+        LEFT JOIN tenders t ON TRY_CAST(po.tender_id AS UNIQUEIDENTIFIER) = t.id
+        LEFT JOIN vendors v ON TRY_CAST(po.vendor_id AS UNIQUEIDENTIFIER) = v.id
         WHERE po.id = @id
       `);
-
     if (poResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
-
     const po = poResult.recordset[0];
-
     // Get PO items
     const itemsResult = await pool.request()
-      .input('poId', sql.Int, id)
+      .input('poId', sql.UniqueIdentifier, id)
       .query(`
         SELECT 
           poi.id,
@@ -18671,15 +16372,15 @@ app.get('/api/purchase-orders/:id', async (req, res) => {
           poi.total_price,
           poi.specifications,
           im.nomenclature,
-          im.category_name,
           im.unit,
-          im.subcategory_name
+          im.category_id,
+          c.category_name
         FROM purchase_order_items poi
         INNER JOIN item_masters im ON poi.item_master_id = im.id
+        LEFT JOIN categories c ON im.category_id = c.id
         WHERE poi.po_id = @poId
-        ORDER BY im.category_name, im.nomenclature
+        ORDER BY im.nomenclature
       `);
-
     res.json({
       ...po,
       items: itemsResult.recordset
@@ -18689,34 +16390,31 @@ app.get('/api/purchase-orders/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch purchase order details' });
   }
 });
-
 // POST /api/purchase-orders - Create POs from tender items
 // ✅ ENHANCED: Handles multiple vendors in annual tenders
 app.post('/api/purchase-orders', async (req, res) => {
   const transaction = new sql.Transaction(pool);
   try {
     await transaction.begin();
-
-    const { tenderId, selectedItems, poDate } = req.body;
-
+    const { tenderId, selectedItems, poDate, itemVendors, itemPrices, itemQuantities } = req.body;
+    console.log('📦 PO CREATION REQUEST RECEIVED:');
+    console.log('   - tenderId:', tenderId);
+    console.log('   - selectedItems count:', selectedItems?.length);
+    console.log('   - poDate:', poDate);
     if (!tenderId || !selectedItems || selectedItems.length === 0 || !poDate) {
       return res.status(400).json({ error: 'Missing required fields: tenderId, selectedItems, poDate' });
     }
-
     // First, get tender info to know its type
     const tenderRequest = await transaction.request()
-      .input('tenderId', sql.NVarChar, tenderId)
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
       .query(`SELECT tender_type, vendor_id FROM tenders WHERE id = @tenderId`);
-
     if (tenderRequest.recordset.length === 0) {
       await transaction.rollback();
       return res.status(404).json({ error: 'Tender not found' });
     }
-
     const tender = tenderRequest.recordset[0];
     const isSingleVendorType = ['contract', 'spot-purchase']
       .includes(tender.tender_type?.toLowerCase());
-
     // Get the latest PO number to generate new ones
     const lastPoRequest = transaction.request();
     const lastPoResult = await lastPoRequest.query(`
@@ -18724,19 +16422,18 @@ app.post('/api/purchase-orders', async (req, res) => {
       FROM purchase_orders
       WHERE po_number LIKE 'PO%'
     `);
-
     const lastNumber = lastPoResult.recordset[0]?.max_number || 0;
     let poCounter = lastNumber + 1;
-
-    // Get all items from tender_items WITH vendor_id
+    // Get all items from tender_items
     const allItems = [];
-    const itemPrices = req.body.itemPrices || {};
-    
+    const itemPricesMap = itemPrices || {};
+    const itemVendorsMap = itemVendors || {};
+    const itemQuantitiesMap = itemQuantities || {};
     for (const itemId of selectedItems) {
-      // ✅ NEW: Get vendor_id from tender_items for annual-tender
+      // ✅ NEW: Fetch tender_items with all details
       const itemResult = await transaction.request()
-        .input('itemId', sql.NVarChar, itemId)
-        .input('tenderId', sql.NVarChar, tenderId)
+        .input('itemId', sql.UniqueIdentifier, itemId)
+        .input('tenderId', sql.UniqueIdentifier, tenderId)
         .query(`
           SELECT 
             ti.id,
@@ -18750,34 +16447,36 @@ app.post('/api/purchase-orders', async (req, res) => {
           LEFT JOIN item_masters im ON ti.item_master_id = im.id
           WHERE ti.id = @itemId AND ti.tender_id = @tenderId
         `);
-
       if (itemResult.recordset.length > 0) {
         const item = itemResult.recordset[0];
-        const unitPrice = itemPrices[itemId] || item.estimated_unit_price || 0;
-        
-        // ✅ Determine vendor_id based on tender type
+        const unitPrice = itemPricesMap[itemId] || item.estimated_unit_price || 0;
+        const quantity = itemQuantitiesMap[itemId] || item.quantity || 1;
+        // ✅ OPTION A: Use ONLY vendor_id from tender_items (single vendor per item)
         let itemVendorId;
         if (isSingleVendorType) {
           // For contract/spot: use tender's vendor
           itemVendorId = tender.vendor_id;
         } else {
-          // For annual-tender: use item's vendor
-          itemVendorId = item.vendor_id;
+          // For annual-tender: use vendor_id from tender_items (populated during item creation)
+          itemVendorId = item.vendor_id || itemVendorsMap[itemId];
         }
-
+        if (!itemVendorId) {
+          console.warn(`⚠️ No vendor_id found for item ${itemId}`);
+          await transaction.rollback();
+          return res.status(400).json({ error: `No vendor selected for item ${itemId}` });
+        }
         allItems.push({
           ...item,
           unit_price: unitPrice,
+          quantity: quantity,
           vendor_id: itemVendorId
         });
       }
     }
-
     if (allItems.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ error: 'No valid items found for the selected tender' });
     }
-
     // ✅ GROUP ITEMS BY VENDOR_ID
     const itemsByVendor = {};
     for (const item of allItems) {
@@ -18787,46 +16486,37 @@ app.post('/api/purchase-orders', async (req, res) => {
       }
       itemsByVendor[vendorId].push(item);
     }
-
     // ✅ CREATE SEPARATE PO FOR EACH VENDOR
     const createdPos = [];
-
     for (const vendorId in itemsByVendor) {
       const vendorItems = itemsByVendor[vendorId];
       let vendorTotal = 0;
-
       for (const item of vendorItems) {
         vendorTotal += (item.unit_price || 0) * (item.quantity || 1);
       }
-
       const poNumber = `PO${String(poCounter).padStart(6, '0')}`;
       poCounter++;
-
       // Insert PO
       const poInsert = transaction.request()
         .input('po_number', sql.NVarChar, poNumber)
-        .input('tender_id', sql.NVarChar, tenderId)
-        .input('vendor_id', sql.NVarChar, vendorId) // ✅ Now accepts NVARCHAR
+        .input('tender_id', sql.UniqueIdentifier, tenderId)
+        .input('vendor_id', sql.UniqueIdentifier, vendorId) // ✅ vendor_id is UNIQUEIDENTIFIER
         .input('po_date', sql.DateTime, new Date(poDate))
         .input('total_amount', sql.Decimal(15, 2), vendorTotal)
         .input('status', sql.NVarChar, 'draft')
         .input('created_at', sql.DateTime, new Date());
-
       const poResult = await poInsert.query(`
         INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, total_amount, status, created_at, updated_at)
         OUTPUT INSERTED.id
         VALUES (@po_number, @tender_id, @vendor_id, @po_date, @total_amount, @status, @created_at, GETDATE())
       `);
-
       const poId = poResult.recordset[0].id;
-
       // Insert PO items for this vendor
       for (const item of vendorItems) {
         const itemTotal = (item.unit_price || 0) * (item.quantity || 1);
-
         await transaction.request()
-          .input('po_id', sql.Int, poId)
-          .input('item_master_id', sql.NVarChar, item.item_master_id) // ✅ Changed to NVARCHAR
+          .input('po_id', sql.UniqueIdentifier, poId)
+          .input('item_master_id', sql.UniqueIdentifier, item.item_master_id_lookup || item.item_master_id) // ✅ Changed to UNIQUEIDENTIFIER
           .input('quantity', sql.Decimal(10, 2), item.quantity || 1)
           .input('unit_price', sql.Decimal(15, 2), item.unit_price || 0)
           .input('total_price', sql.Decimal(15, 2), itemTotal)
@@ -18837,7 +16527,6 @@ app.post('/api/purchase-orders', async (req, res) => {
             VALUES (@po_id, @item_master_id, @quantity, @unit_price, @total_price, @specifications, @created_at)
           `);
       }
-
       createdPos.push({
         id: poId,
         po_number: poNumber,
@@ -18845,12 +16534,9 @@ app.post('/api/purchase-orders', async (req, res) => {
         item_count: vendorItems.length,
         total_amount: vendorTotal
       });
-
       console.log(`✅ Created PO ${poNumber} for vendor ${vendorId} with ${vendorItems.length} items`);
     }
-
     await transaction.commit();
-
     res.json({
       message: `✅ ${createdPos.length} Purchase Order(s) created successfully${createdPos.length > 1 ? ' (grouped by vendor)' : ''}`,
       pos: createdPos
@@ -18861,19 +16547,16 @@ app.post('/api/purchase-orders', async (req, res) => {
     res.status(500).json({ error: 'Failed to create purchase orders', details: error.message });
   }
 });
-
 // PUT /api/purchase-orders/:id - Update PO status
 app.put('/api/purchase-orders/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status, remarks } = req.body;
-
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
     }
-
     await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.UniqueIdentifier, id)
       .input('status', sql.NVarChar, status)
       .input('remarks', sql.NVarChar, remarks || null)
       .input('updated_at', sql.DateTime, new Date())
@@ -18884,11 +16567,44 @@ app.put('/api/purchase-orders/:id', async (req, res) => {
             updated_at = @updated_at
         WHERE id = @id
       `);
-
     res.json({ message: '✅ Purchase order updated successfully' });
   } catch (error) {
     console.error('❌ Error updating PO:', error);
     res.status(500).json({ error: 'Failed to update purchase order' });
+  }
+});
+// PUT /api/purchase-orders/:id/finalize - Finalize PO (change status from draft to finalized)
+app.put('/api/purchase-orders/:id/finalize', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if PO exists and is draft
+    const poCheck = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query('SELECT status FROM purchase_orders WHERE id = @id');
+    
+    if (poCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+    
+    if (poCheck.recordset[0].status !== 'draft') {
+      return res.status(400).json({ error: 'Can only finalize draft purchase orders' });
+    }
+    
+    // Update status to finalized
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE purchase_orders 
+        SET status = 'finalized', updated_at = GETDATE()
+        WHERE id = @id
+      `);
+    
+    console.log(`✅ Purchase order ${id} finalized`);
+    res.json({ message: '✅ Purchase order finalized successfully', status: 'finalized' });
+  } catch (error) {
+    console.error('❌ Error finalizing PO:', error);
+    res.status(500).json({ error: 'Failed to finalize purchase order' });
   }
 });
 
@@ -18896,31 +16612,24 @@ app.put('/api/purchase-orders/:id', async (req, res) => {
 app.delete('/api/purchase-orders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
     // Check if PO is draft
     const poCheck = await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.UniqueIdentifier, id)
       .query('SELECT status FROM purchase_orders WHERE id = @id');
-
     if (poCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
-
     if (poCheck.recordset[0].status !== 'draft') {
       return res.status(400).json({ error: 'Can only delete draft purchase orders' });
     }
-
     await pool.request()
-      .input('id', sql.Int, id)
+      .input('id', sql.UniqueIdentifier, id)
       .query('DELETE FROM purchase_orders WHERE id = @id');
-
     res.json({ message: '✅ Purchase order deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting PO:', error);
     res.status(500).json({ error: 'Failed to delete purchase order' });
   }
 });
-
 console.log('✅ Purchase Orders APIs loaded');
-
 startServer().catch(err => process.exit(1));

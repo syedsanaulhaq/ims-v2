@@ -36,6 +36,9 @@ interface PurchaseOrderDetails {
   tender_type: string;
   vendor_name: string;
   vendor_code: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
   items: POItem[];
 }
 
@@ -53,11 +56,11 @@ export default function PurchaseOrderDetails() {
 
   useEffect(() => {
     if (id) {
-      fetchPODetails(parseInt(id));
+      fetchPODetails(id);  // ✅ Pass UUID string directly, don't parse as number
     }
   }, [id]);
 
-  const fetchPODetails = async (poId: number) => {
+  const fetchPODetails = async (poId: string) => {  // ✅ Change type from number to string
     try {
       setLoading(true);
       const response = await fetch(`http://localhost:3001/api/purchase-orders/${poId}`);
@@ -151,7 +154,7 @@ export default function PurchaseOrderDetails() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
         <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={() => navigate('/dashboard/purchase-orders')} className="mb-4">
+          <Button variant="ghost" onClick={() => navigate(`/dashboard/purchase-orders?tenderId=${po?.tender_id || ''}`)} className="mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to POs
           </Button>
@@ -171,10 +174,16 @@ export default function PurchaseOrderDetails() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex justify-between items-start print:hidden">
-          <Button variant="ghost" onClick={() => navigate('/dashboard/purchase-orders')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to POs
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => navigate(`/dashboard/purchase-orders?tenderId=${po.tender_id}`)}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to POs
+            </Button>
+            <Button variant="ghost" onClick={() => navigate(`/dashboard/contract-tender?type=${po.tender_type}`)}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Tender
+            </Button>
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handlePrint}>
               <Printer className="w-4 h-4 mr-2" />
@@ -240,6 +249,18 @@ export default function PurchaseOrderDetails() {
                 <p className="font-mono text-slate-900">{po.vendor_code || 'N/A'}</p>
               </div>
               <div>
+                <p className="text-sm text-slate-600">Contact Person</p>
+                <p className="text-slate-900">{po.contact_person || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Phone</p>
+                <p className="text-slate-900">{po.phone || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Email</p>
+                <p className="text-slate-900">{po.email || 'N/A'}</p>
+              </div>
+              <div>
                 <p className="text-sm text-slate-600">Vendor ID</p>
                 <p className="font-mono text-slate-900">{po.vendor_id}</p>
               </div>
@@ -258,7 +279,7 @@ export default function PurchaseOrderDetails() {
                 <thead className="border-b border-slate-200 bg-slate-50">
                   <tr>
                     <th className="text-left py-3 px-4 font-semibold">Item</th>
-                    <th className="text-left py-3 px-4 font-semibold">Category</th>
+                    <th className="text-left py-3 px-4 font-semibold">Category/Group</th>
                     <th className="text-right py-3 px-4 font-semibold">Qty</th>
                     <th className="text-right py-3 px-4 font-semibold">Unit Price</th>
                     <th className="text-right py-3 px-4 font-semibold">Total</th>

@@ -1005,55 +1005,41 @@ const EditTender: React.FC = () => {
                 {/* Second Row - Vendor/Quantity and Price */}
                 {tenderData.tender_type === 'annual-tender' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                    {/* Vendor Multi-Select for Annual Tender - Show only participating bidders */}
+                    {/* Vendor Single-Select for Annual Tender - Show only participating bidders */}
                     <div>
-                      <label className="text-xs font-medium mb-1 block">Vendors * (Multi-select)</label>
-                      <div className="border rounded-lg bg-white p-2 space-y-1 max-h-48 overflow-y-auto">
-                        {bidders.length > 0 ? (
-                          // Only show successful bidders in the dropdown
-                          bidders
-                            .filter(vendor => vendor.is_successful)
-                            .map(vendor => {
-                            const vendorIds = Array.isArray(newItem.vendor_ids) ? newItem.vendor_ids : [];
-                            const isSelected = vendorIds.includes(vendor.vendor_id);
-                            return (
-                              <label key={vendor.vendor_id} className="flex items-center gap-2 p-1 text-xs hover:bg-gray-50 rounded cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setNewItem(prev => {
-                                        const updated = {
-                                          ...prev,
-                                          vendor_ids: [...(Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []), vendor.vendor_id]
-                                        };
-                                        return updated;
-                                      });
-                                    } else {
-                                      setNewItem(prev => {
-                                        const updated = {
-                                          ...prev,
-                                          vendor_ids: (Array.isArray(prev.vendor_ids) ? prev.vendor_ids : []).filter(id => id !== vendor.vendor_id)
-                                        };
-                                        return updated;
-                                      });
-                                    }
-                                  }}
-                                  className="w-4 h-4"
-                                />
-                                <span>{vendor.vendor_name}</span>
-                              </label>
-                            );
-                          })
-                        ) : (
-                          <p className="text-xs text-gray-500 p-2">Add vendors in the 'Participating Bidders' section first</p>
-                        )}
-                      </div>
+                      <label className="text-xs font-medium mb-1 block">Vendor (Select One)</label>
+                      <Select 
+                        value={Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0 ? newItem.vendor_ids[0] : ''}
+                        onValueChange={(selectedVendorId) => {
+                          // Single-select: store ONE vendor only
+                          // NOTE: Currently single-select. Easy to change to multi-select if needed in future
+                          setNewItem(prev => ({
+                            ...prev,
+                            vendor_ids: [selectedVendorId]
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select vendor..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bidders.length > 0 ? (
+                            bidders
+                              .filter(vendor => vendor.is_successful)
+                              .map(vendor => (
+                                <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
+                                  {vendor.vendor_name}
+                                </SelectItem>
+                              ))
+                          ) : (
+                            <div className="p-2 text-xs text-gray-500">No vendors available</div>
+                          )}
+                        </SelectContent>
+                      </Select>
                       <div className="mt-1 text-xs text-gray-600">
                         {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                          ? `✅ ${newItem.vendor_ids.length} vendor(s) selected`
-                          : '⚠️ Select at least 1 vendor'}
+                          ? `✅ Vendor selected`
+                          : '⚠️ Select a vendor'}
                       </div>
                     </div>
 

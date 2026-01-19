@@ -251,7 +251,8 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (!amount || amount === 0) return 'Rs 0';
     return new Intl.NumberFormat('en-PK', {
       style: 'currency',
       currency: 'PKR',
@@ -379,7 +380,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => navigate(`/dashboard/po-management?tenderId=${tender.id}`)}
+                              onClick={() => navigate(`/dashboard/purchase-orders?tenderId=${tender.id}`)}
                               className="text-blue-600 border-blue-300 hover:bg-blue-50"
                               title="Manage Purchase Orders related to this tender"
                             >
@@ -475,7 +476,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{dashboardTitle}</h1>
-          <p className="text-gray-600">Manage {isSpotPurchase ? 'spot purchases' : 'contract tenders'} and track their progress</p>
+          <p className="text-gray-600">Manage {isSpotPurchase ? 'spot purchases' : isAnnualTender ? 'annual tenders' : 'contract tenders'} and track their progress</p>
         </div>
         <Button onClick={handleCreateNew} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
@@ -493,11 +494,11 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">
-                  {isSpotPurchase ? 'Spot Purchases' : 'Contract Tenders'}
+                  {isSpotPurchase ? 'Spot Purchases' : isAnnualTender ? 'Annual Tenders' : 'Contract Tenders'}
                 </p>
                 <h3 className="text-2xl font-bold">{tenders.length}</h3>
                 <p className="text-xs text-gray-500">
-                  {isSpotPurchase ? 'Total spot purchases' : 'Total tenders'}
+                  {isSpotPurchase ? 'Total spot purchases' : isAnnualTender ? 'Total annual tenders' : 'Total tenders'}
                 </p>
               </div>
             </div>
