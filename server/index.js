@@ -43,11 +43,14 @@ const purchaseOrderRoutes = require('./routes/purchaseOrders');
 const tenderRoutes = require('./routes/tenders');
 const vendorRoutes = require('./routes/vendors');
 const itemRoutes = require('./routes/items');
+const categoryRoutes = require('./routes/categories');
 
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/tenders', tenderRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/items-master', itemRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/sub-categories', categoryRoutes);
 
 // ============================================================================
 // Error Handler (To be implemented)
