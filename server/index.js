@@ -41,6 +41,8 @@ app.use(requestLogger);
 // Import route modules here
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
+const approvalsRoutes = require('./routes/approvals');
+const permissionsRoutes = require('./routes/permissions');
 const purchaseOrderRoutes = require('./routes/purchaseOrders');
 const tenderRoutes = require('./routes/tenders');
 const vendorRoutes = require('./routes/vendors');
@@ -49,6 +51,8 @@ const categoryRoutes = require('./routes/categories');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/approvals', approvalsRoutes);
+app.use('/api/permissions', permissionsRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/tenders', tenderRoutes);
 app.use('/api/vendors', vendorRoutes);
