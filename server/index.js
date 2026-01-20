@@ -52,6 +52,10 @@ const inventoryRoutes = require('./routes/inventory');
 const stockIssuanceRoutes = require('./routes/stockIssuance');
 const reportsRoutes = require('./routes/reports');
 const utilsRoutes = require('./routes/utils');
+const deliveriesRoutes = require('./routes/deliveries');
+const reorderRequestsRoutes = require('./routes/reorderRequests');
+const stockReturnsRoutes = require('./routes/stockReturns');
+const annualTendersRoutes = require('./routes/annualTenders');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
@@ -72,6 +76,10 @@ app.use('/api/offices', utilsRoutes);
 app.use('/api/wings', utilsRoutes);
 app.use('/api/designations', utilsRoutes);
 app.use('/api/health', utilsRoutes);
+app.use('/api/deliveries', deliveriesRoutes);
+app.use('/api/reorder-requests', reorderRequestsRoutes);
+app.use('/api/stock-returns', stockReturnsRoutes);
+app.use('/api/annual-tenders', annualTendersRoutes);
 
 // ============================================================================
 // Error Handler (To be implemented)
