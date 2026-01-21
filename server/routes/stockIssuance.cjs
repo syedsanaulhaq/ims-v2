@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { getPool, sql } = require('../db/connection');
+const { getPool, sql } = require('../db/connection.cjs');
 
 const requireAuth = (req, res, next) => {
   if (!req.session || !req.session.userId) {

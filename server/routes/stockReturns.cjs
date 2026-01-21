@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getPool, sql } = require('../db/connection');
+const { getPool, sql } = require('../db/connection.cjs');
 
 // GET /api/stock-returns - List all stock returns
 router.get('/', async (req, res) => {

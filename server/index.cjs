@@ -6,10 +6,10 @@
 
 const express = require('express');
 const session = require('express-session');
-const config = require('./config/env');
-const { initializePool } = require('./db/connection');
-const corsMiddleware = require('./middleware/cors');
-const requestLogger = require('./middleware/logger');
+const config = require('./config/env.cjs');
+const { initializePool } = require('./db/connection.cjs');
+const corsMiddleware = require('./middleware/cors.cjs');
+const requestLogger = require('./middleware/logger.cjs');
 
 const app = express();
 

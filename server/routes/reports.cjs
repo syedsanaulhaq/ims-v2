@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { getPool, sql } = require('../db/connection');
+const { getPool, sql } = require('../db/connection.cjs');
 
 const requireAuth = (req, res, next) => {
   if (!req.session || !req.session.userId) {

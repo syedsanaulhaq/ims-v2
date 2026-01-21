@@ -1,6 +1,6 @@
 // Database connection pool
 const sql = require('mssql');
-const config = require('../config/env');
+const config = require('../config/env.cjs');
 
 // Database connection configuration
 const dbConfig = {

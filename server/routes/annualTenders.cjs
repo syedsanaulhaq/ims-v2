@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getPool, sql } = require('../db/connection');
+const { getPool, sql } = require('../db/connection.cjs');
 const { v4: uuidv4 } = require('uuid');
 
 // GET /api/annual-tenders - List all annual tenders
