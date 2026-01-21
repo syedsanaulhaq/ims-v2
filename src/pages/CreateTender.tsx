@@ -133,7 +133,10 @@ const CreateTender: React.FC = () => {
     standing_arrangement_file: null as File | null,
     vendor_list_file: null as File | null,
     schedule_file: null as File | null,
-    evaluation_report_file: null as File | null
+    evaluation_report_file: null as File | null,
+    tender_docs_file: null as File | null,
+    contract_awarded_letter_file: null as File | null,
+    noting_file: null as File | null
   });
 
   // Tender items
@@ -285,7 +288,7 @@ const CreateTender: React.FC = () => {
   // Handle adding new item to tender
   const handleAddItem = () => {
     console.log('🔍 handleAddItem called with newItem:', newItem);
-    console.log('🔍 vendor_ids array:', newItem.vendor_ids);
+    console.log('🔍 vendor_id:', newItem.vendor_id);
     
     if (!newItem.item_master_id || !newItem.nomenclature || newItem.quantity <= 0) {
       alert('Please fill in all required item fields');
@@ -312,7 +315,7 @@ const CreateTender: React.FC = () => {
       id: `temp-${Date.now()}` // Temporary ID for frontend
     };
 
-    console.log('✅ Adding item with vendor_ids:', item.vendor_ids);
+    console.log('✅ Adding item with vendor_id:', item.vendor_id);
     setTenderItems(prev => [...prev, item]);
     setNewItem({
       item_master_id: '',
@@ -472,9 +475,6 @@ const CreateTender: React.FC = () => {
       }
       if (fileUploads.loi_file) {
         formData.append('loi_file', fileUploads.loi_file);
-      }
-      if (fileUploads.noting_file) {
-        formData.append('noting_file', fileUploads.noting_file);
       }
       if (fileUploads.po_file) {
         formData.append('po_file', fileUploads.po_file);
@@ -1293,14 +1293,13 @@ const CreateTender: React.FC = () => {
                     <div>
                       <label className="text-xs font-medium mb-1 block">Vendor (Select One)</label>
                       <Select 
-                        value={Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0 ? newItem.vendor_ids[0] : ''}
+                        value={newItem.vendor_id || ''}
                         onValueChange={(selectedVendorId) => {
                           // Single-select: store ONE vendor only
-                          // NOTE: Currently single-select. Easy to change to multi-select if needed in future
                           console.log(`✅ Vendor selected: ${selectedVendorId}`);
                           setNewItem(prev => ({
                             ...prev,
-                            vendor_ids: [selectedVendorId]
+                            vendor_id: selectedVendorId
                           }));
                         }}
                       >
@@ -1321,7 +1320,7 @@ const CreateTender: React.FC = () => {
                         </SelectContent>
                       </Select>
                       <div className="mt-1 text-xs text-gray-600">
-                        {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
+                        {newItem.vendor_id
                           ? `✅ Vendor selected`
                           : '⚠️ Select a vendor'}
                       </div>
@@ -1466,19 +1465,12 @@ const CreateTender: React.FC = () => {
                             {tenderType === 'annual-tender' ? (
                               <>
                                 <TableCell>
-                                  {item.vendor_ids && Array.isArray(item.vendor_ids) && item.vendor_ids.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1">
-                                      {item.vendor_ids.map(vendorId => {
-                                        const vendor = vendors.find(v => v.id === vendorId);
-                                        return (
-                                          <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                            {vendor?.vendor_name || vendorId}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
+                                  {item.vendor_id ? (
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                      {vendors.find(v => v.id === item.vendor_id)?.vendor_name || item.vendor_id}
+                                    </span>
                                   ) : (
-                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendors</span>
+                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendor</span>
                                   )}
                                 </TableCell>
                                 <TableCell className="font-medium">
