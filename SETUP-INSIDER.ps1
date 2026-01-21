@@ -62,7 +62,7 @@ Write-Host "   src/api/       - API client utilities" -ForegroundColor Gray
 Write-Host "`n📁 Backend:" -ForegroundColor Cyan
 Write-Host "   server/index.cjs              - Main entry point (CommonJS)" -ForegroundColor Gray
 Write-Host "   server/routes/                - 17 modular route files (.cjs format):" -ForegroundColor Gray
-Write-Host "      1. auth.cjs                - Authentication & user login" -ForegroundColor Gray
+Write-Host "      1. auth.cjs                - Authentication and user login" -ForegroundColor Gray
 Write-Host "      2. users.cjs               - User management" -ForegroundColor Gray
 Write-Host "      3. approvals.cjs           - Approval workflows" -ForegroundColor Gray
 Write-Host "      4. permissions.cjs         - Role-based permissions" -ForegroundColor Gray
@@ -79,8 +79,8 @@ Write-Host "     14. deliveries.cjs          - Delivery management (NEW)" -Foreg
 Write-Host "     15. reorderRequests.cjs     - Reorder requests (NEW)" -ForegroundColor Gray
 Write-Host "     16. stockReturns.cjs        - Stock returns (NEW)" -ForegroundColor Gray
 Write-Host "     17. annualTenders.cjs       - Annual tender management (NEW)" -ForegroundColor Gray
-Write-Host "   server/middleware/            - Middleware files (CORS, file upload, logging)" -ForegroundColor Gray
-Write-Host "   server/config/                - Configuration (env.cjs, database)" -ForegroundColor Gray
+Write-Host "   server/middleware/            - Middleware files (CORS and file upload and logging)" -ForegroundColor Gray
+Write-Host "   server/config/                - Configuration (env.cjs and database)" -ForegroundColor Gray
 Write-Host "   server/db/                    - Database connection pool" -ForegroundColor Gray
 
 # Step 5: Available npm scripts
@@ -90,7 +90,7 @@ Write-Host "   npm run development:start    - Start frontend (Vite + React) on h
 Write-Host "   npm run backend              - Start backend (Express) on http://localhost:3001" -ForegroundColor Gray
 Write-Host "   npm run dev                  - Alias for development:start" -ForegroundColor Gray
 
-Write-Host "`n🔧 Build & Production:" -ForegroundColor Cyan
+Write-Host "`n🔧 Build and Production:" -ForegroundColor Cyan
 Write-Host "   npm run build                - Build frontend for production" -ForegroundColor Gray
 Write-Host "   npm run preview              - Preview production build locally" -ForegroundColor Gray
 
@@ -172,7 +172,7 @@ Write-Host "║                    Setup Complete! ✅                          
 Write-Host "╚════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📖 Documentation:" -ForegroundColor Yellow
-Write-Host "   • BACKEND-QUICKSTART.md      - Backend setup & deployment guide" -ForegroundColor Gray
+Write-Host "   • BACKEND-QUICKSTART.md      - Backend setup and deployment guide" -ForegroundColor Gray
 Write-Host "   • BACKEND-REFACTORING-COMPLETE.md - Detailed refactoring notes" -ForegroundColor Gray
 Write-Host ""
 

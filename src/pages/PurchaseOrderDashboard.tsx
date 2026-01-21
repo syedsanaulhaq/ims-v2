@@ -120,7 +120,7 @@ export default function PurchaseOrderDashboard() {
     }
   };
 
-  const handleFinalizePO = async (id: string) => {
+  const handleFinalizePO = async (id: number) => {
     if (!confirm('Are you sure you want to finalize this PO? This action cannot be undone.')) {
       return;
     }

@@ -1466,9 +1466,16 @@ const CreateTender: React.FC = () => {
                               <>
                                 <TableCell>
                                   {item.vendor_id ? (
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                      {vendors.find(v => v.id === item.vendor_id)?.vendor_name || item.vendor_id}
-                                    </span>
+                                    <div>
+                                      {(() => {
+                                        const vendor = vendors.find(v => v.id === item.vendor_id);
+                                        return (
+                                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                            {vendor?.vendor_name || item.vendor_id}
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
                                   ) : (
                                     <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendor</span>
                                   )}

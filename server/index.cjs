@@ -58,6 +58,7 @@ const stockReturnsRoutes = require('./routes/stockReturns.cjs');
 const annualTendersRoutes = require('./routes/annualTenders.cjs');
 
 app.use('/api/auth', authRoutes);
+app.use('/api', authRoutes); // Legacy mount for /api/session
 app.use('/api/users', usersRoutes);
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/permissions', permissionsRoutes);

@@ -34,26 +34,29 @@ async function getUserImsData(userId) {
       .input('userId', sql.NVarChar, userId)
       .query(`
         SELECT DISTINCT
-          ip.id,
-          ip.permission_name,
-          ip.permission_key,
-          ip.description
-        FROM ims_user_permissions iup
-        JOIN ims_permissions ip ON iup.permission_id = ip.id
-        WHERE iup.user_id = @userId AND iup.is_active = 1
+          permission_key,
+          module_name,
+          action_name
+        FROM vw_ims_user_permissions
+        WHERE user_id = @userId
       `);
     
-    // Check if super admin
+    // Check if super admin by role
     const adminCheck = await pool.request()
       .input('userId', sql.NVarChar, userId)
       .query(`
-        SELECT is_super_admin FROM ims_users WHERE user_id = @userId
+        SELECT COUNT(*) as is_admin
+        FROM ims_user_roles iur
+        JOIN ims_roles ir ON iur.role_id = ir.id
+        WHERE iur.user_id = @userId 
+          AND ir.role_name = 'IMS_SUPER_ADMIN'
+          AND iur.is_active = 1
       `);
     
     return {
       roles: rolesResult.recordset || [],
       permissions: permsResult.recordset || [],
-      is_super_admin: adminCheck.recordset?.length > 0 ? adminCheck.recordset[0].is_super_admin : false
+      is_super_admin: adminCheck.recordset?.length > 0 ? adminCheck.recordset[0].is_admin > 0 : false
     };
   } catch (error) {
     console.error('Error fetching user IMS data:', error);
@@ -65,19 +68,30 @@ async function assignDefaultPermissionsToSSOUser(userId) {
   try {
     const pool = getPool();
     
-    // Check if user exists in ims_users
-    const userCheck = await pool.request()
+    // Check if user already has any IMS roles assigned
+    const roleCheck = await pool.request()
       .input('userId', sql.NVarChar, userId)
-      .query('SELECT id FROM ims_users WHERE user_id = @userId');
+      .query('SELECT id FROM ims_user_roles WHERE user_id = @userId');
     
-    if (userCheck.recordset.length === 0) {
-      // Create user record with default user role
-      await pool.request()
-        .input('userId', sql.NVarChar, userId)
-        .query(`
-          INSERT INTO ims_users (user_id, is_super_admin, created_at)
-          VALUES (@userId, 0, GETDATE())
-        `);
+    if (roleCheck.recordset.length === 0) {
+      // Get the GENERAL_USER role ID
+      const roleResult = await pool.request()
+        .query("SELECT id FROM ims_roles WHERE role_name = 'GENERAL_USER'");
+      
+      if (roleResult.recordset.length > 0) {
+        const roleId = roleResult.recordset[0].id;
+        
+        // Assign GENERAL_USER role to the user
+        await pool.request()
+          .input('userId', sql.NVarChar, userId)
+          .input('roleId', sql.UniqueIdentifier, roleId)
+          .query(`
+            INSERT INTO ims_user_roles (user_id, role_id, scope_type, is_active, assigned_at)
+            VALUES (@userId, @roleId, 'GLOBAL', 1, GETDATE())
+          `);
+        
+        console.log(`✅ Assigned GENERAL_USER role to user: ${userId}`);
+      }
     }
   } catch (error) {
     console.error('Error assigning default permissions:', error);
