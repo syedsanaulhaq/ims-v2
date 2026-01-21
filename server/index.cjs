@@ -39,23 +39,23 @@ app.use(requestLogger);
 // Routes (To be implemented from original backend-server.cjs)
 // ============================================================================
 // Import route modules here
-const authRoutes = require('./routes/auth');
-const usersRoutes = require('./routes/users');
-const approvalsRoutes = require('./routes/approvals');
-const permissionsRoutes = require('./routes/permissions');
-const purchaseOrderRoutes = require('./routes/purchaseOrders');
-const tenderRoutes = require('./routes/tenders');
-const vendorRoutes = require('./routes/vendors');
-const itemRoutes = require('./routes/items');
-const categoryRoutes = require('./routes/categories');
-const inventoryRoutes = require('./routes/inventory');
-const stockIssuanceRoutes = require('./routes/stockIssuance');
-const reportsRoutes = require('./routes/reports');
-const utilsRoutes = require('./routes/utils');
-const deliveriesRoutes = require('./routes/deliveries');
-const reorderRequestsRoutes = require('./routes/reorderRequests');
-const stockReturnsRoutes = require('./routes/stockReturns');
-const annualTendersRoutes = require('./routes/annualTenders');
+const authRoutes = require('./routes/auth.cjs');
+const usersRoutes = require('./routes/users.cjs');
+const approvalsRoutes = require('./routes/approvals.cjs');
+const permissionsRoutes = require('./routes/permissions.cjs');
+const purchaseOrderRoutes = require('./routes/purchaseOrders.cjs');
+const tenderRoutes = require('./routes/tenders.cjs');
+const vendorRoutes = require('./routes/vendors.cjs');
+const itemRoutes = require('./routes/items.cjs');
+const categoryRoutes = require('./routes/categories.cjs');
+const inventoryRoutes = require('./routes/inventory.cjs');
+const stockIssuanceRoutes = require('./routes/stockIssuance.cjs');
+const reportsRoutes = require('./routes/reports.cjs');
+const utilsRoutes = require('./routes/utils.cjs');
+const deliveriesRoutes = require('./routes/deliveries.cjs');
+const reorderRequestsRoutes = require('./routes/reorderRequests.cjs');
+const stockReturnsRoutes = require('./routes/stockReturns.cjs');
+const annualTendersRoutes = require('./routes/annualTenders.cjs');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);

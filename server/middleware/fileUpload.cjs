@@ -2,7 +2,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const config = require('../config/env');
+const config = require('../config/env.cjs');
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '..', '..', config.UPLOAD_DIR);

@@ -8,7 +8,7 @@ const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const aspnetIdentity = require('aspnet-identity-hash');
+const aspnetIdentity = require('aspnet-identity-pw');
 
 // Required helpers
 async function getUserImsData(userId) {
