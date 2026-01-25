@@ -67,6 +67,13 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate GUID format
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidRegex.test(id)) {
+      return res.status(400).json({ error: 'Invalid request ID format' });
+    }
+    
     const pool = getPool();
 
     const result = await pool.request()

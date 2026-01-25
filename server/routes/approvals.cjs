@@ -102,6 +102,13 @@ router.get('/admin/pending', requireAuth, requirePermission('stock_request.view_
 router.get('/request/:requestId', async (req, res) => {
   try {
     const { requestId } = req.params;
+    
+    // Validate GUID format
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidRegex.test(requestId)) {
+      return res.status(400).json({ error: 'Invalid request ID format' });
+    }
+    
     const pool = getPool();
 
     // Get request details
