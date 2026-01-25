@@ -27,8 +27,9 @@ router.get('/', async (req, res) => {
       request.input('tenderId', sql.UniqueIdentifier, tenderId);
     }
 
-    query += ` GROUP BY d.id, d.tender_id, d.po_id, d.delivery_date, d.received_qty, 
-                       d.is_finalized, d.created_at, d.updated_at, t.title
+    query += ` GROUP BY d.id, d.delivery_number, d.tender_id, d.delivery_date, d.delivery_personnel,
+                       d.delivery_notes, d.delivery_chalan, d.chalan_file_path,
+                       d.is_finalized, d.finalized_at, d.finalized_by, d.created_at, d.updated_at, t.title
                ORDER BY d.delivery_date DESC
                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
 

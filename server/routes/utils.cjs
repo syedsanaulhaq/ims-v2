@@ -53,6 +53,10 @@ router.get('/', async (req, res) => {
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching disposals:', error);
+    // Return empty array if table doesn't exist
+    if (error.number === 208) {
+      return res.json([]);
+    }
     res.status(500).json({ error: 'Failed to fetch disposals' });
   }
 });
@@ -107,6 +111,10 @@ router.post('/', requireAuth, async (req, res) => {
     }
   } catch (error) {
     console.error('Error creating disposal:', error);
+    // Return 501 Not Implemented if table doesn't exist
+    if (error.number === 208) {
+      return res.status(501).json({ error: 'Disposals feature not yet implemented' });
+    }
     res.status(500).json({ error: 'Failed to create disposal' });
   }
 });
