@@ -66,6 +66,7 @@ app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/tenders', tenderRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/items-master', itemRoutes);
+app.use('/api/item-masters', itemRoutes); // Alias for frontend compatibility
 app.use('/api/categories', categoryRoutes);
 app.use('/api/sub-categories', categoryRoutes);
 app.use('/api/inventory', inventoryRoutes);
