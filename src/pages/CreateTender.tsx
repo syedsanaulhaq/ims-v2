@@ -727,7 +727,7 @@ const CreateTender: React.FC = () => {
           </Card>
 
           {/* Location Selection - Only for Contract Tenders */}
-          {tenderType !== 'spot-purchase' && (
+          {tenderType !== 'spot-purchase' && tenderType !== 'annual-tender' && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
