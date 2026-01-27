@@ -127,57 +127,9 @@ router.get('/:id', async (req, res) => {
 });
 
 // ============================================================================
-// POST /api/items-master - Create new item
-// ============================================================================
-router.post('/', async (req, res) => {
-  try {
-    const pool = getPool();
-    const {
-      item_code,
-      nomenclature,
-      unit,
-      specifications,
-      category_id,
-      sub_category_id,
-      status
-    } = req.body;
-
-    if (!nomenclature) {
-      return res.status(400).json({ error: 'Item nomenclature is required' });
-    }
-
-    const itemId = uuidv4();
-
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, itemId)
-      .input('item_code', sql.NVarChar, item_code || null)
-      .input('nomenclature', sql.NVarChar, nomenclature)
-      .input('unit', sql.NVarChar, unit || null)
-      .input('specifications', sql.NVarChar, specifications || null)
-      .input('category_id', sql.UniqueIdentifier, category_id || null)
-      .input('sub_category_id', sql.UniqueIdentifier, sub_category_id || null)
-      .input('status', sql.NVarChar, status || 'Active')
-      .input('created_at', sql.DateTime, new Date())
-      .input('updated_at', sql.DateTime, new Date())
-      .query(`
-        INSERT INTO item_masters (id, item_code, nomenclature, unit, specifications, category_id, sub_category_id, status, created_at, updated_at)
-        VALUES (@id, @item_code, @nomenclature, @unit, @specifications, @category_id, @sub_category_id, @status, @created_at, @updated_at)
-      `);
-
-    res.status(201).json({
-      success: true,
-      message: 'Item created successfully',
-      itemId
-    });
-  } catch (error) {
-    console.error('❌ Error creating item:', error);
-    res.status(500).json({ error: 'Failed to create item' });
-  }
-});
-
-// ============================================================================
 // POST /api/items-master/bulk-upload - Bulk upload items from CSV
 // ============================================================================
+// NOTE: This MUST be before the generic POST / route to match correctly
 router.post('/bulk-upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -202,11 +154,11 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
     };
 
     // Get all categories and subcategories for validation
-    const categoriesResult = await pool.request().query('SELECT id, name FROM categories WHERE status = \'Active\'');
-    const subCategoriesResult = await pool.request().query('SELECT id, name, category_id FROM sub_categories WHERE status = \'Active\'');
+    const categoriesResult = await pool.request().query('SELECT id, category_name FROM categories WHERE status = \'Active\'');
+    const subCategoriesResult = await pool.request().query('SELECT id, sub_category_name, category_id FROM sub_categories WHERE status = \'Active\'');
     
-    const categoryMap = new Map(categoriesResult.recordset.map(c => [c.name.toLowerCase(), c.id]));
-    const subCategoryMap = new Map(subCategoriesResult.recordset.map(sc => [sc.name.toLowerCase(), sc.id]));
+    const categoryMap = new Map(categoriesResult.recordset.map(c => [c.category_name.toLowerCase(), c.id]));
+    const subCategoryMap = new Map(subCategoriesResult.recordset.map(sc => [sc.sub_category_name.toLowerCase(), sc.id]));
 
     // Process each record
     for (let i = 0; i < records.length; i++) {
@@ -330,6 +282,55 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       error: 'Failed to process CSV file',
       details: error.message 
     });
+  }
+});
+
+// ============================================================================
+// POST /api/items-master - Create new item
+// ============================================================================
+router.post('/', async (req, res) => {
+  try {
+    const pool = getPool();
+    const {
+      item_code,
+      nomenclature,
+      unit,
+      specifications,
+      category_id,
+      sub_category_id,
+      status
+    } = req.body;
+
+    if (!nomenclature) {
+      return res.status(400).json({ error: 'Item nomenclature is required' });
+    }
+
+    const itemId = uuidv4();
+
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, itemId)
+      .input('item_code', sql.NVarChar, item_code || null)
+      .input('nomenclature', sql.NVarChar, nomenclature)
+      .input('unit', sql.NVarChar, unit || null)
+      .input('specifications', sql.NVarChar, specifications || null)
+      .input('category_id', sql.UniqueIdentifier, category_id || null)
+      .input('sub_category_id', sql.UniqueIdentifier, sub_category_id || null)
+      .input('status', sql.NVarChar, status || 'Active')
+      .input('created_at', sql.DateTime, new Date())
+      .input('updated_at', sql.DateTime, new Date())
+      .query(`
+        INSERT INTO item_masters (id, item_code, nomenclature, unit, specifications, category_id, sub_category_id, status, created_at, updated_at)
+        VALUES (@id, @item_code, @nomenclature, @unit, @specifications, @category_id, @sub_category_id, @status, @created_at, @updated_at)
+      `);
+
+    res.status(201).json({
+      success: true,
+      message: 'Item created successfully',
+      itemId
+    });
+  } catch (error) {
+    console.error('❌ Error creating item:', error);
+    res.status(500).json({ error: 'Failed to create item' });
   }
 });
 
