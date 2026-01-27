@@ -339,6 +339,54 @@ router.put('/:id', async (req, res) => {
 });
 
 // ============================================================================
+// PUT /api/tenders/:id/finalize - Finalize tender
+// ============================================================================
+router.put('/:id/finalize', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { finalized_by } = req.body;
+    const pool = getPool();
+
+    // Check if tender exists
+    const tenderCheck = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query('SELECT is_finalized FROM tenders WHERE id = @id');
+
+    if (tenderCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+
+    if (tenderCheck.recordset[0].is_finalized) {
+      return res.status(400).json({ error: 'Tender is already finalized' });
+    }
+
+    // Update tender to finalized
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('finalized_by', sql.NVarChar(450), finalized_by || 'System')
+      .query(`
+        UPDATE tenders 
+        SET is_finalized = 1,
+            finalized_at = GETDATE(),
+            finalized_by = @finalized_by,
+            updated_at = GETDATE()
+        WHERE id = @id
+      `);
+
+    console.log(`✅ Tender ${id} finalized successfully`);
+    res.json({ 
+      success: true, 
+      message: '✅ Tender finalized successfully',
+      is_finalized: true,
+      finalized_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error finalizing tender:', error);
+    res.status(500).json({ error: 'Failed to finalize tender' });
+  }
+});
+
+// ============================================================================
 // DELETE /api/tenders/:id - Delete tender
 // ============================================================================
 router.delete('/:id', async (req, res) => {
