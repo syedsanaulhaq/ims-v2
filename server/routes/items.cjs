@@ -7,6 +7,23 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { getPool, sql } = require('../db/connection.cjs');
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
+
+// Configure multer for CSV file upload (memory storage)
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
 
 // ============================================================================
 // GET /api/items-master - Get all active items with optional category filtering
@@ -155,6 +172,164 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('❌ Error creating item:', error);
     res.status(500).json({ error: 'Failed to create item' });
+  }
+});
+
+// ============================================================================
+// POST /api/items-master/bulk-upload - Bulk upload items from CSV
+// ============================================================================
+router.post('/bulk-upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No CSV file uploaded' });
+    }
+
+    // Parse CSV file
+    const fileContent = req.file.buffer.toString('utf-8');
+    const records = parse(fileContent, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    console.log(`📤 Bulk upload: Processing ${records.length} items from CSV`);
+
+    const pool = getPool();
+    const results = {
+      success: [],
+      errors: [],
+      total: records.length
+    };
+
+    // Get all categories and subcategories for validation
+    const categoriesResult = await pool.request().query('SELECT id, name FROM categories WHERE status = \'Active\'');
+    const subCategoriesResult = await pool.request().query('SELECT id, name, category_id FROM sub_categories WHERE status = \'Active\'');
+    
+    const categoryMap = new Map(categoriesResult.recordset.map(c => [c.name.toLowerCase(), c.id]));
+    const subCategoryMap = new Map(subCategoriesResult.recordset.map(sc => [sc.name.toLowerCase(), sc.id]));
+
+    // Process each record
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      try {
+        // Validate required fields
+        if (!row.nomenclature || !row.nomenclature.trim()) {
+          results.errors.push({
+            row: i + 2, // +2 for header and 1-indexed
+            error: 'Missing required field: nomenclature',
+            data: row
+          });
+          continue;
+        }
+
+        // Map category and subcategory names to IDs
+        let category_id = null;
+        let sub_category_id = null;
+
+        if (row.category_name && row.category_name.trim()) {
+          category_id = categoryMap.get(row.category_name.toLowerCase().trim());
+          if (!category_id) {
+            results.errors.push({
+              row: i + 2,
+              error: `Category not found: ${row.category_name}`,
+              data: row
+            });
+            continue;
+          }
+        }
+
+        if (row.sub_category_name && row.sub_category_name.trim()) {
+          sub_category_id = subCategoryMap.get(row.sub_category_name.toLowerCase().trim());
+          if (!sub_category_id) {
+            results.errors.push({
+              row: i + 2,
+              error: `Sub-category not found: ${row.sub_category_name}`,
+              data: row
+            });
+            continue;
+          }
+        }
+
+        // Check for duplicate item_code if provided
+        if (row.item_code && row.item_code.trim()) {
+          const existingItem = await pool.request()
+            .input('item_code', sql.NVarChar, row.item_code.trim())
+            .query('SELECT id FROM item_masters WHERE item_code = @item_code');
+          
+          if (existingItem.recordset.length > 0) {
+            results.errors.push({
+              row: i + 2,
+              error: `Duplicate item_code: ${row.item_code}`,
+              data: row
+            });
+            continue;
+          }
+        }
+
+        // Insert the item
+        const itemId = uuidv4();
+        await pool.request()
+          .input('id', sql.UniqueIdentifier, itemId)
+          .input('item_code', sql.NVarChar, row.item_code?.trim() || null)
+          .input('nomenclature', sql.NVarChar, row.nomenclature.trim())
+          .input('manufacturer', sql.NVarChar, row.manufacturer?.trim() || null)
+          .input('unit', sql.NVarChar, row.unit?.trim() || null)
+          .input('specifications', sql.NVarChar, row.specifications?.trim() || null)
+          .input('description', sql.NVarChar, row.description?.trim() || null)
+          .input('category_id', sql.UniqueIdentifier, category_id)
+          .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
+          .input('status', sql.NVarChar, row.status?.trim() || 'Active')
+          .input('minimum_stock_level', sql.Int, row.minimum_stock_level ? parseInt(row.minimum_stock_level) : null)
+          .input('maximum_stock_level', sql.Int, row.maximum_stock_level ? parseInt(row.maximum_stock_level) : null)
+          .input('reorder_level', sql.Int, row.reorder_level ? parseInt(row.reorder_level) : null)
+          .input('created_at', sql.DateTime, new Date())
+          .input('updated_at', sql.DateTime, new Date())
+          .query(`
+            INSERT INTO item_masters (
+              id, item_code, nomenclature, manufacturer, unit, specifications, description,
+              category_id, sub_category_id, status,
+              minimum_stock_level, maximum_stock_level, reorder_level,
+              created_at, updated_at
+            )
+            VALUES (
+              @id, @item_code, @nomenclature, @manufacturer, @unit, @specifications, @description,
+              @category_id, @sub_category_id, @status,
+              @minimum_stock_level, @maximum_stock_level, @reorder_level,
+              @created_at, @updated_at
+            )
+          `);
+
+        results.success.push({
+          row: i + 2,
+          item_code: row.item_code || 'N/A',
+          nomenclature: row.nomenclature,
+          itemId
+        });
+
+      } catch (error) {
+        console.error(`❌ Error processing row ${i + 2}:`, error);
+        results.errors.push({
+          row: i + 2,
+          error: error.message,
+          data: row
+        });
+      }
+    }
+
+    console.log(`✅ Bulk upload complete: ${results.success.length} success, ${results.errors.length} errors`);
+
+    res.status(200).json({
+      success: true,
+      message: `Processed ${results.total} rows: ${results.success.length} successful, ${results.errors.length} errors`,
+      results
+    });
+
+  } catch (error) {
+    console.error('❌ Error in bulk upload:', error);
+    res.status(500).json({ 
+      error: 'Failed to process CSV file',
+      details: error.message 
+    });
   }
 });
 

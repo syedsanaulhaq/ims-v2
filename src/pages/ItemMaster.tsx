@@ -87,6 +87,12 @@ const ItemMasterManagement = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [filteredSubCategories, setFilteredSubCategories] = useState<SubCategory[]>([]);
+  
+  // CSV Upload state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<any>(null);
 
   // Load categories and subcategories
   const loadCategories = async () => {
@@ -284,6 +290,74 @@ const ItemMasterManagement = () => {
     }
   };
 
+  // CSV Upload handlers
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setUploadFile(e.target.files[0]);
+      setUploadResult(null);
+    }
+  };
+
+  const handleUploadCSV = async () => {
+    if (!uploadFile) {
+      alert('Please select a CSV file first');
+      return;
+    }
+
+    setUploadLoading(true);
+    setUploadResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      const response = await fetch('http://localhost:3001/api/items-master/bulk-upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUploadResult(data.results);
+        console.log('✅ CSV upload complete:', data);
+        // Reload items after successful upload
+        if (data.results.success.length > 0) {
+          await loadItems();
+        }
+      } else {
+        alert(`Upload failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('❌ Upload error:', err);
+      alert(`Error uploading CSV: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const downloadCSVTemplate = () => {
+    const csvTemplate = `item_code,nomenclature,manufacturer,unit,specifications,description,category_name,sub_category_name,status,minimum_stock_level,maximum_stock_level,reorder_level
+ABC-001,Sample Item,Sample Manufacturer,Each,Sample specifications,Sample description,Category1,SubCategory1,Active,10,100,20
+ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2,SubCategory2,Active,5,50,10`;
+
+    const blob = new Blob([csvTemplate], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'item_masters_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const closeUploadModal = () => {
+    setShowUploadModal(false);
+    setUploadFile(null);
+    setUploadResult(null);
+  };
+
   // Load items
   const loadItems = async () => {
     try {
@@ -437,17 +511,31 @@ const ItemMasterManagement = () => {
               }).length} of {items.length} items
             </p>
           </div>
-          <PermissionGate permission="inventory.create">
-            <button
-              onClick={handleAddNew}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Item
-            </button>
-          </PermissionGate>
+          <div className="flex gap-2">
+            <PermissionGate permission="inventory.create">
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+                title="Bulk Upload CSV"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Upload CSV
+              </button>
+            </PermissionGate>
+            <PermissionGate permission="inventory.create">
+              <button
+                onClick={handleAddNew}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Item
+              </button>
+            </PermissionGate>
+          </div>
         </div>
         
         {items.length === 0 ? (
@@ -777,6 +865,133 @@ const ItemMasterManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold">Bulk Upload Items from CSV</h2>
+              <button
+                onClick={closeUploadModal}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Instructions */}
+              <div className="bg-blue-50 p-4 rounded-md">
+                <h3 className="font-semibold text-blue-900 mb-2">Upload Instructions:</h3>
+                <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
+                  <li>Download the CSV template below to see the required format</li>
+                  <li>Fill in your item data - <strong>nomenclature</strong> is required</li>
+                  <li>Use exact category and sub-category names (case-insensitive)</li>
+                  <li>Duplicate item codes will be rejected</li>
+                  <li>Status should be "Active" or "Inactive" (default: Active)</li>
+                </ul>
+              </div>
+
+              {/* Download Template Button */}
+              <button
+                onClick={downloadCSVTemplate}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-3 rounded-md flex items-center justify-center gap-2 transition-colors border border-gray-300"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download CSV Template
+              </button>
+
+              {/* File Input */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="csv-upload"
+                />
+                <label
+                  htmlFor="csv-upload"
+                  className="cursor-pointer flex flex-col items-center gap-2"
+                >
+                  <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <span className="text-gray-600 font-medium">
+                    {uploadFile ? uploadFile.name : 'Click to select CSV file'}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    or drag and drop your CSV file here
+                  </span>
+                </label>
+              </div>
+
+              {/* Upload Button */}
+              <button
+                onClick={handleUploadCSV}
+                disabled={!uploadFile || uploadLoading}
+                className={`w-full px-4 py-3 rounded-md text-white font-medium transition-colors ${
+                  !uploadFile || uploadLoading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {uploadLoading ? 'Uploading...' : 'Upload CSV'}
+              </button>
+
+              {/* Results */}
+              {uploadResult && (
+                <div className="mt-4 space-y-3">
+                  <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                    <h4 className="font-semibold text-green-900 mb-2">
+                      ✅ Successfully imported: {uploadResult.success.length} items
+                    </h4>
+                    {uploadResult.success.length > 0 && uploadResult.success.length <= 10 && (
+                      <ul className="text-sm text-green-800 space-y-1 mt-2">
+                        {uploadResult.success.map((item: any, idx: number) => (
+                          <li key={idx}>
+                            Row {item.row}: {item.nomenclature} ({item.item_code})
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {uploadResult.errors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-4 max-h-60 overflow-y-auto">
+                      <h4 className="font-semibold text-red-900 mb-2">
+                        ❌ Errors: {uploadResult.errors.length} items failed
+                      </h4>
+                      <ul className="text-sm text-red-800 space-y-2 mt-2">
+                        {uploadResult.errors.map((error: any, idx: number) => (
+                          <li key={idx} className="border-b border-red-200 pb-2 last:border-0">
+                            <div className="font-medium">Row {error.row}: {error.error}</div>
+                            {error.data && (
+                              <div className="text-xs text-red-700 mt-1">
+                                Data: {JSON.stringify(error.data).substring(0, 100)}...
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={closeUploadModal}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
