@@ -294,8 +294,8 @@ const ItemMasterManagement = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setItems(data);
-        console.log('✅ Items loaded:', data.length);
+        setItems(data.items || []);
+        console.log('✅ Items loaded:', data.items?.length || 0);
       } else {
         setError(`HTTP Error: ${response.status}`);
       }
