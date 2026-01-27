@@ -134,6 +134,7 @@ router.get('/:id', async (req, res) => {
           po.created_at,
           po.updated_at,
           t.title as tender_title,
+          t.reference_number as tender_reference_number,
           t.tender_type,
           v.vendor_name,
           v.vendor_code,

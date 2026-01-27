@@ -33,6 +33,7 @@ interface PurchaseOrderDetails {
   created_at: string;
   updated_at: string;
   tender_title: string;
+  tender_reference_number?: string;
   tender_type: string;
   vendor_name: string;
   vendor_code: string;
@@ -260,7 +261,7 @@ export default function PurchaseOrderDetails() {
             <div className="mb-8">
               <div className="flex justify-between items-start mb-2">
                 <div className="text-sm">
-                  <p>No. {po.po_number}</p>
+                  <p>{po.tender_reference_number ? `No.${po.tender_reference_number}` : `No. ${po.po_number}`}</p>
                 </div>
                 <div className="text-sm font-bold uppercase">
                   <p className="underline">MOST IMMEDIATE</p>
