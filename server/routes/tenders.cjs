@@ -208,6 +208,9 @@ router.get('/', async (req, res) => {
         estimated_value,
         publish_date,
         submission_deadline,
+        is_finalized,
+        finalized_at,
+        finalized_by,
         created_at
       FROM tenders
       WHERE 1=1
@@ -262,6 +265,9 @@ router.get('/:id', async (req, res) => {
           estimated_value,
           publish_date,
           submission_deadline,
+          is_finalized,
+          finalized_at,
+          finalized_by,
           created_at,
           updated_at,
           vendor_id,
