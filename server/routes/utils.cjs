@@ -18,7 +18,7 @@ const requireAuth = (req, res, next) => {
 // ============================================================================
 // GET /api/disposals - Get all disposals
 // ============================================================================
-router.get('/', async (req, res) => {
+router.get('/disposals', async (req, res) => {
   try {
     const pool = getPool();
     const { status } = req.query;
@@ -65,7 +65,7 @@ router.get('/', async (req, res) => {
 // ============================================================================
 // POST /api/disposals - Create disposal
 // ============================================================================
-router.post('/', requireAuth, async (req, res) => {
+router.post('/disposals', requireAuth, async (req, res) => {
   try {
     const { wing_id, items, reason } = req.body;
     const pool = getPool();

@@ -72,12 +72,7 @@ app.use('/api/sub-categories', categoryRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/stock-issuance', stockIssuanceRoutes);
 app.use('/api/reports', reportsRoutes);
-app.use('/api/disposals', utilsRoutes);
-app.use('/api/stores', utilsRoutes);
-app.use('/api/offices', utilsRoutes);
-app.use('/api/wings', utilsRoutes);
-app.use('/api/designations', utilsRoutes);
-app.use('/api/health', utilsRoutes);
+app.use('/api', utilsRoutes); // Single mount point for all utility routes
 app.use('/api/deliveries', deliveriesRoutes);
 app.use('/api/reorder-requests', reorderRequestsRoutes);
 app.use('/api/stock-returns', stockReturnsRoutes);
