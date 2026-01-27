@@ -691,10 +691,26 @@ const CreateTender: React.FC = () => {
                     <Input
                       type="date"
                       value={tenderData.publish_date}
-                      onChange={(e) => setTenderData(prev => ({
-                        ...prev,
-                        publish_date: e.target.value
-                      }))}
+                      onChange={(e) => {
+                        const newPublishDate = e.target.value;
+                        setTenderData(prev => {
+                          // For annual tenders, auto-set submission deadline 15 days ahead
+                          if (tenderType === 'annual-tender' && newPublishDate) {
+                            const publishDate = new Date(newPublishDate);
+                            publishDate.setDate(publishDate.getDate() + 15);
+                            const submissionDate = publishDate.toISOString().split('T')[0];
+                            return {
+                              ...prev,
+                              publish_date: newPublishDate,
+                              submission_deadline: submissionDate
+                            };
+                          }
+                          return {
+                            ...prev,
+                            publish_date: newPublishDate
+                          };
+                        });
+                      }}
                     />
                   </div>
                   
@@ -707,7 +723,11 @@ const CreateTender: React.FC = () => {
                         ...prev,
                         submission_deadline: e.target.value
                       }))}
+                      disabled={tenderType === 'annual-tender'}
                     />
+                    {tenderType === 'annual-tender' && (
+                      <p className="text-xs text-muted-foreground mt-1">Auto-set to 15 days after publish date</p>
+                    )}
                   </div>
                   
                   <div>
@@ -819,19 +839,21 @@ const CreateTender: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Estimated Value *</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={tenderData.estimated_value}
-                    onChange={(e) => setTenderData(prev => ({
-                      ...prev,
-                      estimated_value: e.target.value
-                    }))}
-                    placeholder="Enter estimated value"
-                  />
-                </div>
+                {tenderType !== 'annual-tender' && (
+                  <div>
+                    <label className="text-sm font-medium">Estimated Value *</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={tenderData.estimated_value}
+                      onChange={(e) => setTenderData(prev => ({
+                        ...prev,
+                        estimated_value: e.target.value
+                      }))}
+                      placeholder="Enter estimated value"
+                    />
+                  </div>
+                )}
 
                 {/* Hide publication dailies for spot purchase */}
                 {tenderType !== 'spot-purchase' && (
