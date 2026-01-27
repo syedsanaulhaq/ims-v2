@@ -170,196 +170,84 @@ export default function PurchaseOrderDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6 print:bg-white">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-start print:hidden">
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => navigate(`/dashboard/purchase-orders?tenderId=${po.tender_id}`)}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to POs
-            </Button>
-            <Button variant="ghost" onClick={() => navigate(`/dashboard/contract-tender?type=${po.tender_type}`)}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Tender
-            </Button>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handlePrint}>
-              <Printer className="w-4 h-4 mr-2" />
-              Print
-            </Button>
-          </div>
-        </div>
-
-        {/* PO Header */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-900">{po.po_number}</h1>
-                <p className="text-slate-600 mt-1">
-                  PO Date: {new Date(po.po_date).toLocaleDateString()}
-                </p>
-              </div>
-              <div className="text-right">
-                <Badge className={`${getStatusColor(po.status)} text-lg px-4 py-2`}>
-                  {po.status.toUpperCase()}
-                </Badge>
-              </div>
+    <>
+      {/* Screen View - Navigation and Edit Controls */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6 print:hidden">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex justify-between items-start">
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => navigate(`/dashboard/purchase-orders?tenderId=${po.tender_id}`)}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to POs
+              </Button>
+              <Button variant="ghost" onClick={() => navigate(`/dashboard/contract-tender?type=${po.tender_type}`)}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Tender
+              </Button>
             </div>
-          </CardHeader>
-        </Card>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handlePrint}>
+                <Printer className="w-4 h-4 mr-2" />
+                Print PO
+              </Button>
+            </div>
+          </div>
 
-        {/* Tender & Vendor Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Status Badge */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Tender Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm text-slate-600">Title</p>
-                <p className="font-semibold text-slate-900">{po.tender_title}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Type</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900">{po.po_number}</h1>
+                  <p className="text-slate-600">Status: <Badge className={getStatusColor(po.status)}>{po.status.toUpperCase()}</Badge></p>
+                </div>
                 <Badge className={getTenderTypeColor(po.tender_type)}>
                   {po.tender_type}
                 </Badge>
               </div>
-              <div>
-                <p className="text-sm text-slate-600">Tender ID</p>
-                <p className="font-mono text-slate-900">{po.tender_id}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Vendor Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm text-slate-600">Vendor Name</p>
-                <p className="font-semibold text-slate-900">{po.vendor_name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Vendor Code</p>
-                <p className="font-mono text-slate-900">{po.vendor_code || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Contact Person</p>
-                <p className="text-slate-900">{po.contact_person || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Phone</p>
-                <p className="text-slate-900">{po.phone || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Email</p>
-                <p className="text-slate-900">{po.email || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Vendor ID</p>
-                <p className="font-mono text-slate-900">{po.vendor_id}</p>
-              </div>
-            </CardContent>
           </Card>
-        </div>
 
-        {/* Line Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Line Items ({po.items.length} items)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-semibold">Item</th>
-                    <th className="text-left py-3 px-4 font-semibold">Category/Group</th>
-                    <th className="text-right py-3 px-4 font-semibold">Qty</th>
-                    <th className="text-right py-3 px-4 font-semibold">Unit Price</th>
-                    <th className="text-right py-3 px-4 font-semibold">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {po.items.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="font-medium text-slate-900">{item.nomenclature}</p>
-                          {item.specifications && (
-                            <p className="text-xs text-slate-500 mt-1">{item.specifications}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-slate-700">{item.category_name}</td>
-                      <td className="py-3 px-4 text-right font-medium">{item.quantity} {item.unit}</td>
-                      <td className="py-3 px-4 text-right font-medium">Rs {item.unit_price.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-right font-bold text-blue-600">
-                        Rs {item.total_price.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t-2 border-slate-300 bg-slate-50">
-                  <tr>
-                    <td colSpan={4} className="py-3 px-4 text-right font-bold">
-                      TOTAL PO VALUE:
-                    </td>
-                    <td className="py-3 px-4 text-right text-xl font-bold text-green-600">
-                      Rs {po.total_amount.toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Status & Remarks */}
-        {!editing ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-slate-600">Created</p>
-                  <p className="font-medium text-slate-900">
-                    {new Date(po.created_at).toLocaleString()}
-                  </p>
+          {/* Status & Remarks Editor */}
+          {!editing ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-slate-600">Created</p>
+                    <p className="font-medium text-slate-900">
+                      {new Date(po.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-600">Last Updated</p>
+                    <p className="font-medium text-slate-900">
+                      {new Date(po.updated_at).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-slate-600">Last Updated</p>
-                  <p className="font-medium text-slate-900">
-                    {new Date(po.updated_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              {po.remarks && (
-                <div>
-                  <p className="text-sm text-slate-600">Remarks</p>
-                  <p className="font-medium text-slate-900">{po.remarks}</p>
-                </div>
-              )}
-              {po.status === 'draft' && (
-                <Button
-                  onClick={() => setEditing(true)}
-                  variant="outline"
-                  className="print:hidden"
-                >
-                  Edit Status & Remarks
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-blue-200 bg-blue-50">
+                {po.remarks && (
+                  <div>
+                    <p className="text-sm text-slate-600">Remarks</p>
+                    <p className="font-medium text-slate-900">{po.remarks}</p>
+                  </div>
+                )}
+                {po.status === 'draft' && (
+                  <Button
+                    onClick={() => setEditing(true)}
+                    variant="outline"
+                  >
+                    Edit Status & Remarks
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-blue-200 bg-blue-50">
             <CardHeader>
               <CardTitle>Edit Status & Remarks</CardTitle>
             </CardHeader>
@@ -408,8 +296,174 @@ export default function PurchaseOrderDetails() {
               </div>
             </CardContent>
           </Card>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Print View - Professional PO Format */}
+      <div className="hidden print:block print:p-8 bg-white">
+        <style>{`
+          @media print {
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+            body {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          }
+        `}</style>
+
+        {/* Header */}
+        <div className="border-b-2 border-black pb-4 mb-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold uppercase tracking-wide">PURCHASE ORDER</h1>
+            <p className="text-sm mt-1">Inventory Management System</p>
+          </div>
+        </div>
+
+        {/* PO Number and Date */}
+        <div className="grid grid-cols-2 gap-8 mb-6">
+          <div>
+            <p className="text-sm font-semibold">PO Number:</p>
+            <p className="text-lg font-bold">{po.po_number}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-semibold">Date:</p>
+            <p className="text-lg font-bold">{new Date(po.po_date).toLocaleDateString('en-GB')}</p>
+          </div>
+        </div>
+
+        {/* Vendor Details */}
+        <div className="mb-6 border border-gray-300 p-4">
+          <p className="text-sm font-bold mb-2 uppercase">To:</p>
+          <p className="text-base font-bold">{po.vendor_name}</p>
+          {po.vendor_code && <p className="text-sm">Vendor Code: {po.vendor_code}</p>}
+          {po.contact_person && <p className="text-sm">Contact Person: {po.contact_person}</p>}
+          {po.phone && <p className="text-sm">Phone: {po.phone}</p>}
+          {po.email && <p className="text-sm">Email: {po.email}</p>}
+        </div>
+
+        {/* Reference */}
+        <div className="mb-4">
+          <p className="text-sm"><strong>Reference:</strong> {po.tender_title}</p>
+          <p className="text-sm"><strong>Tender Type:</strong> {po.tender_type.toUpperCase()}</p>
+        </div>
+
+        {/* Line Items Table */}
+        <div className="mb-6">
+          <table className="w-full border-collapse border border-gray-400 text-sm">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-400 px-2 py-2 text-center" style={{width: '40px'}}>S.No</th>
+                <th className="border border-gray-400 px-3 py-2 text-left">Description of Items</th>
+                <th className="border border-gray-400 px-2 py-2 text-center" style={{width: '60px'}}>Unit</th>
+                <th className="border border-gray-400 px-2 py-2 text-center" style={{width: '70px'}}>Qty</th>
+                <th className="border border-gray-400 px-3 py-2 text-right" style={{width: '100px'}}>Unit Price (Rs)</th>
+                <th className="border border-gray-400 px-3 py-2 text-right" style={{width: '120px'}}>Amount (Rs)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {po.items.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="border border-gray-400 px-2 py-2 text-center">{index + 1}</td>
+                  <td className="border border-gray-400 px-3 py-2">
+                    <div>
+                      <p className="font-medium">{item.nomenclature}</p>
+                      {item.specifications && (
+                        <p className="text-xs text-gray-600 mt-1">{item.specifications}</p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">Category: {item.category_name}</p>
+                    </div>
+                  </td>
+                  <td className="border border-gray-400 px-2 py-2 text-center">{item.unit}</td>
+                  <td className="border border-gray-400 px-2 py-2 text-center">{item.quantity}</td>
+                  <td className="border border-gray-400 px-3 py-2 text-right">{item.unit_price.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="border border-gray-400 px-3 py-2 text-right font-medium">{item.total_price.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+              ))}
+              <tr className="font-bold bg-gray-50">
+                <td colSpan={5} className="border border-gray-400 px-3 py-3 text-right uppercase">Grand Total:</td>
+                <td className="border border-gray-400 px-3 py-3 text-right text-lg">
+                  Rs {po.total_amount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Amount in Words */}
+        <div className="mb-6 border border-gray-300 p-3">
+          <p className="text-sm"><strong>Amount in Words:</strong></p>
+          <p className="text-sm italic">Rupees {convertToWords(po.total_amount)} Only</p>
+        </div>
+
+        {/* Terms and Conditions */}
+        <div className="mb-8">
+          <p className="text-sm font-bold mb-2 uppercase">Terms & Conditions:</p>
+          <ol className="text-xs space-y-1 ml-4 list-decimal">
+            <li>Delivery should be made within the specified time period.</li>
+            <li>Items must conform to the specifications mentioned above.</li>
+            <li>Payment will be processed upon successful delivery and inspection.</li>
+            <li>All disputes are subject to local jurisdiction.</li>
+          </ol>
+        </div>
+
+        {/* Signatures */}
+        <div className="grid grid-cols-3 gap-8 mt-16">
+          <div className="text-center">
+            <div className="border-t border-gray-600 pt-2">
+              <p className="text-xs font-semibold">Prepared By</p>
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="border-t border-gray-600 pt-2">
+              <p className="text-xs font-semibold">Checked By</p>
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="border-t border-gray-600 pt-2">
+              <p className="text-xs font-semibold">Approved By</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-xs text-gray-600 border-t pt-4">
+          <p>This is a system generated Purchase Order</p>
+          <p>Generated on: {new Date().toLocaleString('en-GB')}</p>
+        </div>
+      </div>
+    </>
   );
+}
+
+// Helper function to convert number to words
+function convertToWords(amount: number): string {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+
+  if (amount === 0) return 'Zero';
+
+  const numToWords = (n: number): string => {
+    if (n < 10) return ones[n];
+    if (n < 20) return teens[n - 10];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + numToWords(n % 100) : '');
+    if (n < 100000) return numToWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + numToWords(n % 1000) : '');
+    if (n < 10000000) return numToWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + numToWords(n % 100000) : '');
+    return numToWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + numToWords(n % 10000000) : '');
+  };
+
+  const rupees = Math.floor(amount);
+  const paisa = Math.round((amount - rupees) * 100);
+
+  let words = numToWords(rupees);
+  if (paisa > 0) {
+    words += ' and ' + numToWords(paisa) + ' Paisa';
+  }
+
+  return words;
 }
