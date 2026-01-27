@@ -195,10 +195,11 @@ router.get('/offices', async (req, res) => {
       SELECT 
         intOfficeID,
         strOfficeName,
-        strOfficeShortName,
-        strOfficeAddress,
-        intProvinceID
+        strOfficeDescription,
+        intProvinceID,
+        OfficeCode
       FROM tblOffices
+      WHERE IS_ACT = 1
       ORDER BY strOfficeName
     `);
 
