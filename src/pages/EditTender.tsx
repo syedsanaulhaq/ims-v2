@@ -1270,8 +1270,12 @@ const EditTender: React.FC = () => {
                               <>
                                 <TableCell>
                                   <div>
-                                    <p className="font-medium">{item.category_description || item.category_name || 'N/A'}</p>
-                                    <p className="text-xs text-gray-500">{item.category_name}</p>
+                                    <p className="font-medium">
+                                      {item.category_description && item.category_name 
+                                        ? `${item.category_description} - ${item.category_name}`
+                                        : item.category_name || 'N/A'
+                                      }
+                                    </p>
                                   </div>
                                 </TableCell>
                                 <TableCell>
