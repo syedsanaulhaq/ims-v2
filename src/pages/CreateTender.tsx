@@ -727,10 +727,9 @@ const CreateTender: React.FC = () => {
                         ...prev,
                         submission_deadline: e.target.value
                       }))}
-                      disabled={tenderType === 'annual-tender'}
                     />
                     {tenderType === 'annual-tender' && (
-                      <p className="text-xs text-muted-foreground mt-1">Auto-set to 15 days after publish date</p>
+                      <p className="text-xs text-muted-foreground mt-1">Auto-calculated as 15 days after publish date (editable)</p>
                     )}
                   </div>
                   
