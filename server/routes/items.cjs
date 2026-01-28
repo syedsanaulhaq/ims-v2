@@ -47,6 +47,7 @@ router.get('/', async (req, res) => {
         im.category_id,
         im.sub_category_id,
         c.category_name,
+        c.description as category_description,
         im.status,
         im.created_at
       FROM item_masters im

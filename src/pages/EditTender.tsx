@@ -36,6 +36,7 @@ interface ItemMaster {
   id: string;
   nomenclature: string;
   category_name?: string;
+  category_description?: string;
   sub_category_name?: string;
 }
 
@@ -964,13 +965,16 @@ const EditTender: React.FC = () => {
                   <div>
                     <label className="text-xs font-medium mb-1 block">Category *</label>
                     <SearchableSelect
-                      options={Array.from(new Set(itemMasters
+                      options={Array.from(new Map(itemMasters
                         .filter(item => item.category_name)
-                        .map(item => item.category_name)))
-                        .sort()
-                        .map(category => ({
-                          value: category,
-                          label: category
+                        .map(item => [item.category_name, {
+                          category_name: item.category_name,
+                          category_description: item.category_description
+                        }])).values())
+                        .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
+                        .map(cat => ({
+                          value: cat.category_name,
+                          label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
                         }))}
                       value={selectedCategory}
                       onValueChange={(value) => {
