@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, Trash2, Save, FileText, Upload } from 'lucide-react';
 import {
@@ -1243,11 +1244,19 @@ const CreateTender: React.FC = () => {
                 
                 {/* Category and Item Select - First Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-                  {/* Category Select */}
+                  {/* Category Select with Search */}
                   <div>
                     <label className="text-xs font-medium mb-1 block">Category *</label>
-                    <Select 
-                      value={selectedCategory} 
+                    <SearchableSelect
+                      options={Array.from(new Set(itemMasters
+                        .filter(item => item.category_name)
+                        .map(item => item.category_name)))
+                        .sort()
+                        .map(category => ({
+                          value: category,
+                          label: category
+                        }))}
+                      value={selectedCategory}
                       onValueChange={(value) => {
                         setSelectedCategory(value);
                         setNewItem(prev => ({
@@ -1255,45 +1264,29 @@ const CreateTender: React.FC = () => {
                           item_master_id: ''
                         }));
                       }}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from(new Set(itemMasters
-                          .filter(item => item.category_name)
-                          .map(item => item.category_name)))
-                          .sort()
-                          .map(category => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select category"
+                      searchPlaceholder="Search categories..."
+                      emptyMessage="No categories found"
+                    />
                   </div>
 
-                  {/* Item Master Select - filtered by category */}
+                  {/* Item Master Select with Search - filtered by category */}
                   <div>
                     <label className="text-xs font-medium mb-1 block">Item Master *</label>
-                    <Select 
-                      value={newItem.item_master_id} 
+                    <SearchableSelect
+                      options={itemMasters
+                        .filter(item => item.category_name === selectedCategory)
+                        .map(item => ({
+                          value: item.id,
+                          label: item.nomenclature
+                        }))}
+                      value={newItem.item_master_id}
                       onValueChange={handleItemMasterSelect}
                       disabled={!selectedCategory}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder={selectedCategory ? "Select item" : "Select category first"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {itemMasters
-                          .filter(item => item.category_name === selectedCategory)
-                          .map(item => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.nomenclature}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder={selectedCategory ? "Select item" : "Select category first"}
+                      searchPlaceholder="Search items..."
+                      emptyMessage="No items found"
+                    />
                   </div>
 
                   <div>
