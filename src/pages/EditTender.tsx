@@ -1264,7 +1264,18 @@ const EditTender: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {tenderItems.map((item, index) => (
+                        {(tenderData.tender_type === 'annual-tender' 
+                          ? [...tenderItems].sort((a, b) => {
+                              const categoryA = a.category_description && a.category_name 
+                                ? `${a.category_description} - ${a.category_name}`
+                                : a.category_name || '';
+                              const categoryB = b.category_description && b.category_name 
+                                ? `${b.category_description} - ${b.category_name}`
+                                : b.category_name || '';
+                              return categoryA.localeCompare(categoryB);
+                            })
+                          : tenderItems
+                        ).map((item, index) => (
                           <TableRow key={item.id || index}>
                             {tenderData.tender_type === 'annual-tender' ? (
                               <>
