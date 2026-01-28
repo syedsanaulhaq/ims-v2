@@ -30,6 +30,8 @@ interface TenderItem {
   remarks?: string;
   vendor_id?: string;
   vendor_ids?: string[];
+  category_name?: string;
+  category_description?: string;
 }
 
 interface ItemMaster {
@@ -374,7 +376,9 @@ const EditTender: React.FC = () => {
       setNewItem(prev => ({
         ...prev,
         item_master_id: itemMasterId,
-        nomenclature: selectedItem.nomenclature
+        nomenclature: selectedItem.nomenclature,
+        category_name: selectedItem.category_name,
+        category_description: selectedItem.category_description
       }));
     }
   };
@@ -1239,34 +1243,40 @@ const EditTender: React.FC = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Item</TableHead>
                           {tenderData.tender_type === 'annual-tender' ? (
                             <>
+                              <TableHead>Category</TableHead>
+                              <TableHead>Name of the Article</TableHead>
                               <TableHead>Vendor</TableHead>
-                              <TableHead>Price</TableHead>
+                              <TableHead>Unit Price</TableHead>
+                              <TableHead>Actions</TableHead>
                             </>
                           ) : (
                             <>
+                              <TableHead>Item</TableHead>
                               <TableHead>Quantity</TableHead>
                               <TableHead>Unit Price</TableHead>
                               <TableHead>Total</TableHead>
+                              <TableHead>Specifications</TableHead>
+                              <TableHead>Actions</TableHead>
                             </>
                           )}
-                          <TableHead>Specifications</TableHead>
-                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {tenderItems.map((item, index) => (
                           <TableRow key={item.id || index}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{item.nomenclature}</p>
-                                <p className="text-xs text-gray-500">ID: {item.item_master_id}</p>
-                              </div>
-                            </TableCell>
                             {tenderData.tender_type === 'annual-tender' ? (
                               <>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{item.category_description || item.category_name || 'N/A'}</p>
+                                    <p className="text-xs text-gray-500">{item.category_name}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <p className="font-medium">{item.nomenclature}</p>
+                                </TableCell>
                                 <TableCell>
                                   {item.vendor_ids ? (
                                     <div className="flex flex-wrap gap-1">
@@ -1297,35 +1307,51 @@ const EditTender: React.FC = () => {
                                 <TableCell className="font-medium">
                                   {formatCurrency(item.estimated_unit_price || 0)}
                                 </TableCell>
+                                <TableCell>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleRemoveItem(index)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
                               </>
                             ) : (
                               <>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{item.nomenclature}</p>
+                                    <p className="text-xs text-gray-500">ID: {item.item_master_id}</p>
+                                  </div>
+                                </TableCell>
                                 <TableCell>{item.quantity}</TableCell>
                                 <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
                                 <TableCell className="font-medium">
                                   {formatCurrency(item.total_amount || 0)}
                                 </TableCell>
+                                <TableCell>
+                                  <div className="max-w-xs">
+                                    {item.specifications && (
+                                      <p className="text-xs truncate" title={item.specifications}>
+                                        {item.specifications}
+                                      </p>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleRemoveItem(index)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
                               </>
                             )}
-                            <TableCell>
-                              <div className="max-w-xs">
-                                {item.specifications && (
-                                  <p className="text-xs truncate" title={item.specifications}>
-                                    {item.specifications}
-                                  </p>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleRemoveItem(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
