@@ -161,7 +161,9 @@ const CreateTender: React.FC = () => {
         const itemMastersResponse = await fetch('http://localhost:3001/api/item-masters');
         if (itemMastersResponse.ok) {
           const itemMastersData = await itemMastersResponse.json();
-          setItemMasters(Array.isArray(itemMastersData) ? itemMastersData : itemMastersData.data || []);
+          console.log('📦 Item Masters API response:', itemMastersData);
+          // Handle the {success: true, items: [...]} format
+          setItemMasters(itemMastersData.items || []);
         }
 
         // Fetch Offices
