@@ -50,6 +50,9 @@ interface TenderItem {
   updated_at?: string;
   vendor_ids?: string | string[];
   vendor_id?: string;
+  vendor_name?: string;
+  category_name?: string;
+  category_description?: string;
 }
 
 interface Tender {
@@ -370,37 +373,59 @@ const TenderDetails: React.FC = () => {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div className="flex items-center gap-4">
           <Button onClick={handleBack} variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <FileText className="w-8 h-8" />
-              {tender.title}
-            </h1>
-            <p className="text-gray-600 mt-1">Reference: {tender.reference_number}</p>
-          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {getStatusBadge(tender.status, tender.is_finalized)}
-          <Button onClick={handlePrint} variant="outline" size="sm">
-            <Printer className="w-4 h-4 mr-2" />
-            Print
-          </Button>
-          <Button onClick={handleExport} variant="outline" size="sm">
-            <FileDown className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          {!tender.is_finalized && (
-            <Button onClick={handleEdit} variant="outline" size="sm">
-              <Edit className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
-          )}
-        </div>
+        
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <FileText className="w-8 h-8 text-blue-600" />
+                  <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                    {tender.title}
+                  </h1>
+                </div>
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600">Reference:</span>
+                    <span className="text-sm font-semibold text-gray-900">{tender.reference_number}</span>
+                  </div>
+                  {tender.tender_number && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-600">Tender #:</span>
+                      <span className="text-sm font-semibold text-gray-900">{tender.tender_number}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(tender.status, tender.is_finalized)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={handlePrint} variant="outline" size="sm" className="hidden print:hidden">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print
+                </Button>
+                <Button onClick={handleExport} variant="outline" size="sm" className="hidden print:hidden">
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+                {!tender.is_finalized && (
+                  <Button onClick={handleEdit} variant="default" size="sm" className="hidden print:hidden">
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Finalized Alert */}
@@ -408,7 +433,7 @@ const TenderDetails: React.FC = () => {
         <Alert className="bg-green-50 border-green-200">
           <ShieldCheck className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">
-            This tender has been finalized on {formatDateTime(tender.finalized_at)} 
+            <strong>Finalized:</strong> This tender was finalized on {formatDateTime(tender.finalized_at)} 
             by {tender.finalized_by || 'Unknown'} and has been added to the stock acquisition system.
           </AlertDescription>
         </Alert>
@@ -416,76 +441,76 @@ const TenderDetails: React.FC = () => {
 
       {/* Basic Information */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
+        <CardHeader className="bg-gray-50">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FileText className="w-5 h-5 text-blue-600" />
             Basic Information
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <label className="text-sm font-medium text-gray-500">Title</label>
-              <p className="text-lg font-semibold mt-1">{tender.title}</p>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Title</label>
+              <p className="text-base font-medium text-gray-900">{tender.title}</p>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500">Reference Number</label>
-              <p className="text-lg font-semibold mt-1">{tender.reference_number}</p>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reference Number</label>
+              <p className="text-base font-medium text-gray-900">{tender.reference_number}</p>
             </div>
             {tender.tender_number && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Tender Number</label>
-                <p className="text-lg font-semibold mt-1">{tender.tender_number}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tender Number</label>
+                <p className="text-base font-medium text-gray-900">{tender.tender_number}</p>
               </div>
             )}
-            <div>
-              <label className="text-sm font-medium text-gray-500">Tender Type</label>
-              <p className="text-lg mt-1">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tender Type</label>
+              <p className="text-base font-medium text-gray-900">
                 {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract/Tender'}
               </p>
             </div>
             {tender.tender_spot_type && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Spot Type</label>
-                <p className="text-lg mt-1">{tender.tender_spot_type}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Spot Type</label>
+                <p className="text-base font-medium text-gray-900 capitalize">{tender.tender_spot_type.replace('_', ' ')}</p>
               </div>
             )}
-            <div>
-              <label className="text-sm font-medium text-gray-500">Status</label>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</label>
               <div className="mt-1">
                 {getStatusBadge(tender.status, tender.is_finalized)}
               </div>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500">Estimated Value</label>
-              <p className="text-lg font-semibold text-green-600 mt-1">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estimated Value</label>
+              <p className="text-lg font-bold text-green-600">
                 {formatCurrency(tender.estimated_value)}
               </p>
             </div>
-            {tender.publication_date && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Publication Date</label>
-                <p className="text-lg mt-1">{formatDate(tender.publication_date)}</p>
+            {tender.procurement_method && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procurement Method</label>
+                <p className="text-base font-medium text-gray-900 capitalize">{tender.procurement_method.replace('_', ' ')}</p>
               </div>
             )}
-            {tender.procurement_method && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Procurement Method</label>
-                <p className="text-lg mt-1">{tender.procurement_method}</p>
+            {tender.procedure_adopted && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procedure Adopted</label>
+                <p className="text-base font-medium text-gray-900">{tender.procedure_adopted}</p>
               </div>
             )}
             {tender.individual_total !== null && tender.individual_total !== undefined && tender.tender_type !== 'annual-tender' && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Individual Total</label>
-                <p className="text-lg font-semibold text-blue-600 mt-1">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Individual Total</label>
+                <p className="text-lg font-bold text-blue-600">
                   {formatCurrency(tender.individual_total)}
                 </p>
               </div>
             )}
             {tender.actual_price_total !== null && tender.actual_price_total !== undefined && tender.tender_type !== 'annual-tender' && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Actual Price Total</label>
-                <p className="text-lg font-semibold text-purple-600 mt-1">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Actual Price Total</label>
+                <p className="text-lg font-bold text-purple-600">
                   {formatCurrency(tender.actual_price_total)}
                 </p>
               </div>
@@ -493,9 +518,9 @@ const TenderDetails: React.FC = () => {
           </div>
 
           {tender.description && (
-            <div className="mt-6">
-              <label className="text-sm font-medium text-gray-500">Description</label>
-              <p className="mt-2 text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">
+            <div className="mt-6 pt-6 border-t">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Description</label>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border">
                 {tender.description}
               </p>
             </div>
@@ -505,58 +530,61 @@ const TenderDetails: React.FC = () => {
 
       {/* Important Dates */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
+        <CardHeader className="bg-gray-50">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Calendar className="w-5 h-5 text-blue-600" />
             Important Dates
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tender.publish_date && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Publish Date</label>
-                <p className="text-lg mt-1">{formatDate(tender.publish_date)}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publish Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.publish_date)}</p>
               </div>
             )}
             {tender.publication_date && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Publication Date</label>
-                <p className="text-lg mt-1">{formatDate(tender.publication_date)}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publication Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.publication_date)}</p>
               </div>
             )}
             {tender.advertisement_date && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Advertisement Date</label>
-                <p className="text-lg mt-1">{formatDate(tender.advertisement_date)}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Advertisement Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.advertisement_date)}</p>
               </div>
             )}
             {tender.submission_date && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Submission Date</label>
-                <p className="text-lg mt-1">{formatDate(tender.submission_date)}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submission Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.submission_date)}</p>
               </div>
             )}
-            <div>
-              <label className="text-sm font-medium text-gray-500">Submission Deadline</label>
-              <p className="text-lg font-semibold text-red-600 mt-1">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submission Deadline</label>
+              <p className="text-base font-bold text-red-600">
                 {formatDate(tender.submission_deadline)}
               </p>
             </div>
             {tender.opening_date && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Opening Date</label>
-                <p className="text-lg mt-1">{formatDate(tender.opening_date)}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Opening Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.opening_date)}</p>
               </div>
             )}
-            <div>
-              <label className="text-sm font-medium text-gray-500">Created At</label>
-              <p className="text-lg mt-1">{formatDateTime(tender.created_at)}</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Created At</label>
+              <p className="text-sm text-gray-700">{formatDateTime(tender.created_at)}</p>
             </div>
             {tender.updated_at && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Last Updated</label>
-                <p className="text-lg mt-1">{formatDateTime(tender.updated_at)}</p>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Last Updated</label>
+                <p className="text-sm text-gray-700">{formatDateTime(tender.updated_at)}</p>
               </div>
             )}
           </div>
@@ -564,116 +592,123 @@ const TenderDetails: React.FC = () => {
       </Card>
 
       {/* Procurement Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="w-5 h-5" />
-            Procurement Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tender.procedure_adopted && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Procedure Adopted</label>
-                <p className="text-lg mt-1">{tender.procedure_adopted}</p>
-              </div>
-            )}
-            {tender.procurement_method && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Procurement Method</label>
-                <p className="text-lg mt-1">{tender.procurement_method}</p>
-              </div>
-            )}
-            {tender.publication_daily && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Publication Daily</label>
-                <p className="text-lg mt-1">{tender.publication_daily}</p>
-              </div>
-            )}
-            {tender.vendor_name && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Vendor</label>
-                <p className="text-lg mt-1">{tender.vendor_name}</p>
-              </div>
-            )}
-            {tender.created_by && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Created By</label>
-                <p className="text-lg mt-1">{tender.created_by}</p>
-              </div>
-            )}
-          </div>
+      {(tender.procedure_adopted || tender.procurement_method || tender.publication_daily || tender.vendor_name || tender.created_by || officeNames.length > 0 || wingNames.length > 0 || decNames.length > 0) && (
+        <Card>
+          <CardHeader className="bg-gray-50">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              Procurement &amp; Organization Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tender.procedure_adopted && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procedure Adopted</label>
+                  <p className="text-base font-medium text-gray-900">{tender.procedure_adopted}</p>
+                </div>
+              )}
+              {tender.procurement_method && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procurement Method</label>
+                  <p className="text-base font-medium text-gray-900 capitalize">{tender.procurement_method.replace('_', ' ')}</p>
+                </div>
+              )}
+              {tender.publication_daily && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publication Daily</label>
+                  <p className="text-base font-medium text-gray-900">{tender.publication_daily}</p>
+                </div>
+              )}
+              {tender.vendor_name && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</label>
+                  <p className="text-base font-medium text-gray-900">{tender.vendor_name}</p>
+                </div>
+              )}
+              {tender.created_by && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Created By</label>
+                  <p className="text-base font-medium text-gray-900">{tender.created_by}</p>
+                </div>
+              )}
+            </div>
 
-          {/* Organizational Names */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            {officeNames.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-gray-500 block mb-2">Offices</label>
-                <ul className="space-y-1">
-                  {officeNames.map((name, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="text-blue-600 mt-1">•</span>
-                      <span className="text-sm">{name}</span>
-                    </li>
-                  ))}
-                </ul>
+            {/* Organizational Names */}
+            {(officeNames.length > 0 || wingNames.length > 0 || decNames.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t">
+                {officeNames.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Offices</label>
+                    <ul className="space-y-2">
+                      {officeNames.map((name, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm bg-blue-50 px-3 py-2 rounded border border-blue-200">
+                          <span className="text-blue-600 font-bold">•</span>
+                          <span className="text-gray-700">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {wingNames.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Wings</label>
+                    <ul className="space-y-2">
+                      {wingNames.map((name, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm bg-green-50 px-3 py-2 rounded border border-green-200">
+                          <span className="text-green-600 font-bold">•</span>
+                          <span className="text-gray-700">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {decNames.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">DECs</label>
+                    <ul className="space-y-2">
+                      {decNames.map((name, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm bg-purple-50 px-3 py-2 rounded border border-purple-200">
+                          <span className="text-purple-600 font-bold">•</span>
+                          <span className="text-gray-700">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
-            {wingNames.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-gray-500 block mb-2">Wings</label>
-                <ul className="space-y-1">
-                  {wingNames.map((name, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="text-green-600 mt-1">•</span>
-                      <span className="text-sm">{name}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {decNames.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-gray-500 block mb-2">DECs</label>
-                <ul className="space-y-1">
-                  {decNames.map((name, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      <span className="text-sm">{name}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Document Attachments */}
       {(tender.contract_file_path || tender.loi_file_path || tender.noting_file_path || 
         tender.po_file_path || tender.rfp_file_path || tender.document_path) && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <File className="w-5 h-5" />
+          <CardHeader className="bg-gray-50">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <File className="w-5 h-5 text-blue-600" />
               Document Attachments
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {tender.contract_file_path && (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-blue-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-blue-600" />
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-blue-600" />
+                    </div>
                     <div>
-                      <p className="font-medium">Contract File</p>
-                      <p className="text-sm text-gray-500">{tender.contract_file_path}</p>
+                      <p className="font-semibold text-gray-900">Contract File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.contract_file_path}</p>
                     </div>
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline"
+                    className="bg-white hover:bg-blue-50"
                     onClick={() => handleDownload(tender.contract_file_path!, 'Contract')}
                   >
                     <Download className="w-4 h-4" />
@@ -681,17 +716,20 @@ const TenderDetails: React.FC = () => {
                 </div>
               )}
               {tender.loi_file_path && (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg border border-green-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-green-600" />
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-green-600" />
+                    </div>
                     <div>
-                      <p className="font-medium">LOI File</p>
-                      <p className="text-sm text-gray-500">{tender.loi_file_path}</p>
+                      <p className="font-semibold text-gray-900">LOI File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.loi_file_path}</p>
                     </div>
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline"
+                    className="bg-white hover:bg-green-50"
                     onClick={() => handleDownload(tender.loi_file_path!, 'LOI')}
                   >
                     <Download className="w-4 h-4" />
@@ -699,17 +737,20 @@ const TenderDetails: React.FC = () => {
                 </div>
               )}
               {tender.noting_file_path && (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg border border-purple-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-purple-600" />
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-purple-600" />
+                    </div>
                     <div>
-                      <p className="font-medium">Noting File</p>
-                      <p className="text-sm text-gray-500">{tender.noting_file_path}</p>
+                      <p className="font-semibold text-gray-900">Noting File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.noting_file_path}</p>
                     </div>
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline"
+                    className="bg-white hover:bg-purple-50"
                     onClick={() => handleDownload(tender.noting_file_path!, 'Noting')}
                   >
                     <Download className="w-4 h-4" />
@@ -717,17 +758,20 @@ const TenderDetails: React.FC = () => {
                 </div>
               )}
               {tender.po_file_path && (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg border border-orange-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-orange-600" />
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-orange-600" />
+                    </div>
                     <div>
-                      <p className="font-medium">PO File</p>
-                      <p className="text-sm text-gray-500">{tender.po_file_path}</p>
+                      <p className="font-semibold text-gray-900">PO File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.po_file_path}</p>
                     </div>
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline"
+                    className="bg-white hover:bg-orange-50"
                     onClick={() => handleDownload(tender.po_file_path!, 'PO')}
                   >
                     <Download className="w-4 h-4" />
@@ -735,17 +779,20 @@ const TenderDetails: React.FC = () => {
                 </div>
               )}
               {tender.rfp_file_path && (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-red-100 rounded-lg border border-red-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-red-600" />
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-red-600" />
+                    </div>
                     <div>
-                      <p className="font-medium">RFP File</p>
-                      <p className="text-sm text-gray-500">{tender.rfp_file_path}</p>
+                      <p className="font-semibold text-gray-900">RFP File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.rfp_file_path}</p>
                     </div>
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline"
+                    className="bg-white hover:bg-red-50"
                     onClick={() => handleDownload(tender.rfp_file_path!, 'RFP')}
                   >
                     <Download className="w-4 h-4" />
@@ -753,17 +800,20 @@ const TenderDetails: React.FC = () => {
                 </div>
               )}
               {tender.document_path && (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-gray-600" />
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-gray-600" />
+                    </div>
                     <div>
-                      <p className="font-medium">Document</p>
-                      <p className="text-sm text-gray-500">{tender.document_path}</p>
+                      <p className="font-semibold text-gray-900">Document</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.document_path}</p>
                     </div>
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline"
+                    className="bg-white hover:bg-gray-50"
                     onClick={() => handleDownload(tender.document_path!, 'Document')}
                   >
                     <Download className="w-4 h-4" />
@@ -788,7 +838,7 @@ const TenderDetails: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
-              Tender Items ({tender.items.length})
+              {tender.tender_type === 'spot-purchase' ? 'Spot Purchase Items' : tender.tender_type === 'annual-tender' ? 'Annual Tender Items' : 'Tender Items'} ({tender.items.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -796,42 +846,122 @@ const TenderDetails: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
-                    <TableHead className="w-12">#</TableHead>
-                    <TableHead>Item Name</TableHead>
-                    <TableHead>Unit Price</TableHead>
-                    <TableHead>Specifications</TableHead>
-                    <TableHead>Remarks</TableHead>
-                    {tender.tender_type === 'annual-tender' && <TableHead>Vendor</TableHead>}
+                    {tender.tender_type === 'annual-tender' ? (
+                      <>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Name of the Article</TableHead>
+                        <TableHead>Vendor</TableHead>
+                        <TableHead>Unit Price</TableHead>
+                        <TableHead>Specifications</TableHead>
+                        <TableHead>Remarks</TableHead>
+                      </>
+                    ) : (
+                      <>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>Item Name</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Unit Price</TableHead>
+                        <TableHead>Total Amount</TableHead>
+                        <TableHead>Specifications</TableHead>
+                        <TableHead>Remarks</TableHead>
+                      </>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tender.items.map((item, index) => (
+                  {(tender.tender_type === 'annual-tender' 
+                    ? [...tender.items].sort((a, b) => {
+                        const categoryA = a.category_description && a.category_name 
+                          ? `${a.category_description} - ${a.category_name}`
+                          : a.category_name || '';
+                        const categoryB = b.category_description && b.category_name 
+                          ? `${b.category_description} - ${b.category_name}`
+                          : b.category_name || '';
+                        return categoryA.localeCompare(categoryB);
+                      })
+                    : tender.items
+                  ).map((item, index) => (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell className="font-semibold">{item.nomenclature}</TableCell>
-                      <TableCell>
-                        {item.estimated_unit_price ? formatCurrency(item.estimated_unit_price) : '-'}
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        <div className="truncate" title={item.specifications || ''}>
-                          {item.specifications || '-'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        <div className="truncate" title={item.remarks || ''}>
-                          {item.remarks || '-'}
-                        </div>
-                      </TableCell>
-                      {tender.tender_type === 'annual-tender' && (
-                        <TableCell>
-                          {item.vendor_name ? (
-                            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                              {item.vendor_name}
-                            </span>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
+                      <TableCell className="font-medium text-gray-500">{index + 1}</TableCell>
+                      {tender.tender_type === 'annual-tender' ? (
+                        <>
+                          <TableCell>
+                            <p className="font-medium">
+                              {item.category_description && item.category_name 
+                                ? `${item.category_description} - ${item.category_name}`
+                                : item.category_name || 'N/A'
+                              }
+                            </p>
+                          </TableCell>
+                          <TableCell className="font-semibold">{item.nomenclature}</TableCell>
+                          <TableCell>
+                            {item.vendor_ids || item.vendor_id || item.vendor_name ? (
+                              <div className="flex flex-wrap gap-1">
+                                {(() => {
+                                  if (item.vendor_name) {
+                                    return (
+                                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        {item.vendor_name}
+                                      </span>
+                                    );
+                                  }
+                                  const vendorIds = item.vendor_ids 
+                                    ? (Array.isArray(item.vendor_ids) 
+                                        ? item.vendor_ids 
+                                        : String(item.vendor_ids).split(',').map(id => id.trim()).filter(id => id))
+                                    : (item.vendor_id ? [item.vendor_id] : []);
+                                  
+                                  return vendorIds.length > 0 ? (
+                                    vendorIds.map(vendorId => (
+                                      <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        {getVendorName(vendorId)}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendor</span>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendor</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium text-green-600">
+                            {formatCurrency(item.estimated_unit_price || 0)}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.specifications || ''}>
+                              {item.specifications || '-'}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.remarks || ''}>
+                              {item.remarks || '-'}
+                            </div>
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell className="font-semibold">{item.nomenclature}</TableCell>
+                          <TableCell className="text-center">{item.quantity}</TableCell>
+                          <TableCell className="font-medium text-blue-600">
+                            {formatCurrency(item.estimated_unit_price || 0)}
+                          </TableCell>
+                          <TableCell className="font-semibold text-green-600">
+                            {formatCurrency(item.total_amount || 0)}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.specifications || ''}>
+                              {item.specifications || '-'}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.remarks || ''}>
+                              {item.remarks || '-'}
+                            </div>
+                          </TableCell>
+                        </>
                       )}
                     </TableRow>
                   ))}
@@ -840,25 +970,57 @@ const TenderDetails: React.FC = () => {
             </div>
 
             {/* Items Summary */}
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <div className={`grid gap-4 text-center ${tender.tender_type === 'annual-tender' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-3'}`}>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Items</p>
-                  <p className="text-2xl font-bold text-blue-600">{tender.items.length}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Quantity</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {tender.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
-                  </p>
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className={`grid gap-6 ${tender.tender_type === 'annual-tender' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-4'}`}>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-600 mb-1">Total Items</p>
+                  <p className="text-3xl font-bold text-blue-600">{tender.items.length}</p>
                 </div>
                 {tender.tender_type !== 'annual-tender' && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Value</p>
-                    <p className="text-2xl font-bold text-purple-600">
-                      {formatCurrency(tender.items.reduce((sum, item) => sum + (item.total_amount || 0), 0))}
-                    </p>
-                  </div>
+                  <>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Quantity</p>
+                      <p className="text-3xl font-bold text-green-600">
+                        {tender.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Average Unit Price</p>
+                      <p className="text-3xl font-bold text-purple-600">
+                        {formatCurrency(
+                          tender.items.length > 0
+                            ? tender.items.reduce((sum, item) => sum + (item.estimated_unit_price || 0), 0) / tender.items.length
+                            : 0
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Value</p>
+                      <p className="text-3xl font-bold text-orange-600">
+                        {formatCurrency(tender.items.reduce((sum, item) => sum + (item.total_amount || 0), 0))}
+                      </p>
+                    </div>
+                  </>
+                )}
+                {tender.tender_type === 'annual-tender' && (
+                  <>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Value</p>
+                      <p className="text-3xl font-bold text-green-600">
+                        {formatCurrency(tender.items.reduce((sum, item) => sum + (item.estimated_unit_price || 0), 0))}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Average Price</p>
+                      <p className="text-3xl font-bold text-purple-600">
+                        {formatCurrency(
+                          tender.items.length > 0
+                            ? tender.items.reduce((sum, item) => sum + (item.estimated_unit_price || 0), 0) / tender.items.length
+                            : 0
+                        )}
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
