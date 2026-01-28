@@ -959,203 +959,269 @@ const EditTender: React.FC = () => {
               <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                 <h3 className="text-lg font-medium mb-4">Add New Item</h3>
                 
-                {/* Category and Item Select - First Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-                  {/* Category Select with Search */}
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Category *</label>
-                    <SearchableSelect
-                      options={Array.from(new Map(itemMasters
-                        .filter(item => item.category_name)
-                        .map(item => [item.category_name, {
-                          category_name: item.category_name,
-                          category_description: item.category_description
-                        }])).values())
-                        .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
-                        .map(cat => ({
-                          value: cat.category_name,
-                          label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
-                        }))}
-                      value={selectedCategory}
-                      onValueChange={(value) => {
-                        setSelectedCategory(value);
-                        setNewItem(prev => ({
-                          ...prev,
-                          item_master_id: ''
-                        }));
-                      }}
-                      placeholder="Select category"
-                      searchPlaceholder="Search categories..."
-                      emptyMessage="No categories found"
-                    />
-                  </div>
-
-                  {/* Item Master Select with Search - filtered by category */}
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Item Master *</label>
-                    <SearchableSelect
-                      options={itemMasters
-                        .filter(item => item.category_name === selectedCategory)
-                        .map(item => ({
-                          value: item.id,
-                          label: item.nomenclature
-                        }))}
-                      value={newItem.item_master_id}
-                      onValueChange={handleItemMasterSelect}
-                      disabled={!selectedCategory}
-                      placeholder={selectedCategory ? "Select item" : "Select category first"}
-                      searchPlaceholder="Search items..."
-                      emptyMessage="No items found"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Nomenclature *</label>
-                    <Input
-                      className="h-9"
-                      value={newItem.nomenclature}
-                      onChange={(e) => setNewItem(prev => ({
-                        ...prev,
-                        nomenclature: e.target.value
-                      }))}
-                      placeholder="Item description"
-                    />
-                  </div>
-                </div>
-
-                {/* Second Row - Vendor/Quantity and Price */}
+                {/* Annual Tender Layout */}
                 {tenderData.tender_type === 'annual-tender' ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                    {/* Vendor Single-Select for Annual Tender - Show only participating bidders */}
-                    <div>
-                      <label className="text-xs font-medium mb-1 block">Vendor (Select One)</label>
-                      <Select 
-                        value={Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0 ? newItem.vendor_ids[0] : ''}
-                        onValueChange={(selectedVendorId) => {
-                          // Single-select: store ONE vendor only
-                          // NOTE: Currently single-select. Easy to change to multi-select if needed in future
-                          setNewItem(prev => ({
-                            ...prev,
-                            vendor_ids: [selectedVendorId]
-                          }));
-                        }}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Select vendor..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {bidders.length > 0 ? (
-                            bidders
-                              .filter(vendor => vendor.is_successful)
-                              .map(vendor => (
-                                <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
-                                  {vendor.vendor_name}
-                                </SelectItem>
-                              ))
-                          ) : (
-                            <div className="p-2 text-xs text-gray-500">No vendors available</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <div className="mt-1 text-xs text-gray-600">
-                        {Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0
-                          ? `✅ Vendor selected`
-                          : '⚠️ Select a vendor'}
+                  <>
+                    {/* First Row - Vendor, Category, Name of Article */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                      {/* Vendor Select */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Vendor *</label>
+                        <Select 
+                          value={Array.isArray(newItem.vendor_ids) && newItem.vendor_ids.length > 0 ? newItem.vendor_ids[0] : ''}
+                          onValueChange={(selectedVendorId) => {
+                            setNewItem(prev => ({
+                              ...prev,
+                              vendor_ids: [selectedVendorId]
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select vendor..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bidders.length > 0 ? (
+                              bidders
+                                .filter(vendor => vendor.is_successful)
+                                .map(vendor => (
+                                  <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
+                                    {vendor.vendor_name}
+                                  </SelectItem>
+                                ))
+                            ) : (
+                              <div className="p-2 text-xs text-gray-500">No vendors available</div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Category/Group Select with Search */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Category/Group *</label>
+                        <SearchableSelect
+                          options={Array.from(new Map(itemMasters
+                            .filter(item => item.category_name)
+                            .map(item => [item.category_name, {
+                              category_name: item.category_name,
+                              category_description: item.category_description
+                            }])).values())
+                            .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
+                            .map(cat => ({
+                              value: cat.category_name,
+                              label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
+                            }))}
+                          value={selectedCategory}
+                          onValueChange={(value) => {
+                            setSelectedCategory(value);
+                            setNewItem(prev => ({
+                              ...prev,
+                              item_master_id: ''
+                            }));
+                          }}
+                          placeholder="Select category"
+                          searchPlaceholder="Search categories..."
+                          emptyMessage="No categories found"
+                        />
+                      </div>
+
+                      {/* Name of the Article Select with Search */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Name of the Article *</label>
+                        <SearchableSelect
+                          options={itemMasters
+                            .filter(item => item.category_name === selectedCategory)
+                            .map(item => ({
+                              value: item.id,
+                              label: item.nomenclature
+                            }))}
+                          value={newItem.item_master_id}
+                          onValueChange={handleItemMasterSelect}
+                          disabled={!selectedCategory}
+                          placeholder={selectedCategory ? "Select item" : "Select category first"}
+                          searchPlaceholder="Search items..."
+                          emptyMessage="No items found"
+                        />
                       </div>
                     </div>
 
-                    {/* Unit Price for Annual Tender */}
-                    <div>
-                      <label className="text-xs font-medium mb-1 block">Unit Price</label>
-                      <Input
-                        className="h-9"
-                        type="number"
-                        step="0.01"
-                        value={newItem.estimated_unit_price || ''}
-                        onChange={(e) => setNewItem(prev => ({
-                          ...prev,
-                          estimated_unit_price: parseFloat(e.target.value) || 0
-                        }))}
-                        placeholder="0.00"
-                      />
+                    {/* Second Row - Unit Price, Specifications, Remarks */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                      {/* Unit Price */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                        <Input
+                          className="h-9"
+                          type="number"
+                          step="0.01"
+                          value={newItem.estimated_unit_price || ''}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            estimated_unit_price: parseFloat(e.target.value) || 0
+                          }))}
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Specifications */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Specifications</label>
+                        <Input
+                          className="h-9"
+                          value={newItem.specifications || ''}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            specifications: e.target.value
+                          }))}
+                          placeholder="Technical specifications"
+                        />
+                      </div>
+
+                      {/* Remarks */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Remarks</label>
+                        <Input
+                          className="h-9"
+                          value={newItem.remarks || ''}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            remarks: e.target.value
+                          }))}
+                          placeholder="Additional remarks"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </>
                 ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-                    {/* Quantity for Normal Tender */}
-                    <div>
-                      <label className="text-xs font-medium mb-1 block">Quantity *</label>
-                      <Input
-                        className="h-9"
-                        type="number"
-                        min="1"
-                        value={newItem.quantity}
-                        onChange={(e) => setNewItem(prev => ({
-                          ...prev,
-                          quantity: parseInt(e.target.value) || 1
-                        }))}
-                        placeholder="1"
-                      />
+                  <>
+                    {/* Normal/Spot Tender Layout */}
+                    {/* Category and Item Select - First Row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                      {/* Category/Group Select with Search */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Category/Group *</label>
+                        <SearchableSelect
+                          options={Array.from(new Map(itemMasters
+                            .filter(item => item.category_name)
+                            .map(item => [item.category_name, {
+                              category_name: item.category_name,
+                              category_description: item.category_description
+                            }])).values())
+                            .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
+                            .map(cat => ({
+                              value: cat.category_name,
+                              label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
+                            }))}
+                          value={selectedCategory}
+                          onValueChange={(value) => {
+                            setSelectedCategory(value);
+                            setNewItem(prev => ({
+                              ...prev,
+                              item_master_id: ''
+                            }));
+                          }}
+                          placeholder="Select category"
+                          searchPlaceholder="Search categories..."
+                          emptyMessage="No categories found"
+                        />
+                      </div>
+
+                      {/* Name of the Article Select with Search */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Name of the Article *</label>
+                        <SearchableSelect
+                          options={itemMasters
+                            .filter(item => item.category_name === selectedCategory)
+                            .map(item => ({
+                              value: item.id,
+                              label: item.nomenclature
+                            }))}
+                          value={newItem.item_master_id}
+                          onValueChange={handleItemMasterSelect}
+                          disabled={!selectedCategory}
+                          placeholder={selectedCategory ? "Select item" : "Select category first"}
+                          searchPlaceholder="Search items..."
+                          emptyMessage="No items found"
+                        />
+                      </div>
+
+                      {/* Quantity */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Quantity *</label>
+                        <Input
+                          className="h-9"
+                          type="number"
+                          min="1"
+                          value={newItem.quantity}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            quantity: parseInt(e.target.value) || 1
+                          }))}
+                          placeholder="1"
+                        />
+                      </div>
                     </div>
 
-                    {/* Unit Price for Normal Tender */}
-                    <div>
-                      <label className="text-xs font-medium mb-1 block">Unit Price</label>
-                      <Input
-                        className="h-9"
-                        type="number"
-                        step="0.01"
-                        value={newItem.estimated_unit_price || ''}
-                        onChange={(e) => setNewItem(prev => ({
-                          ...prev,
-                          estimated_unit_price: parseFloat(e.target.value) || 0
-                        }))}
-                        placeholder="0.00"
-                      />
+                    {/* Second Row - Unit Price, Total */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                      {/* Unit Price */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                        <Input
+                          className="h-9"
+                          type="number"
+                          step="0.01"
+                          value={newItem.estimated_unit_price || ''}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            estimated_unit_price: parseFloat(e.target.value) || 0
+                          }))}
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Total */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Total</label>
+                        <Input
+                          className="h-9 bg-gray-100"
+                          value={formatCurrency(newItem.total_amount || 0)}
+                          disabled
+                        />
+                      </div>
                     </div>
 
-                    {/* Total for Normal Tender */}
-                    <div>
-                      <label className="text-xs font-medium mb-1 block">Total</label>
-                      <Input
-                        className="h-9 bg-gray-100"
-                        value={formatCurrency(newItem.total_amount || 0)}
-                        disabled
-                      />
+                    {/* Text areas for longer content */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Specifications</label>
+                        <textarea
+                          className="w-full p-2 border border-input rounded-md resize-none text-sm"
+                          rows={2}
+                          value={newItem.specifications || ''}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            specifications: e.target.value
+                          }))}
+                          placeholder="Technical specifications"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Remarks</label>
+                        <textarea
+                          className="w-full p-2 border border-input rounded-md resize-none text-sm"
+                          rows={2}
+                          value={newItem.remarks || ''}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            remarks: e.target.value
+                          }))}
+                          placeholder="Additional remarks"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
-
-                {/* Text areas for longer content in one row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Specifications (Optional)</label>
-                    <textarea
-                      className="w-full p-2 border border-input rounded-md resize-none text-sm"
-                      rows={2}
-                      value={newItem.specifications || ''}
-                      onChange={(e) => setNewItem(prev => ({
-                        ...prev,
-                        specifications: e.target.value
-                      }))}
-                      placeholder="Technical specifications"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">Remarks (Optional)</label>
-                    <textarea
-                      className="w-full p-2 border border-input rounded-md resize-none text-sm"
-                      rows={2}
-                      value={newItem.remarks || ''}
-                      onChange={(e) => setNewItem(prev => ({
-                        ...prev,
-                        remarks: e.target.value
-                      }))}
-                      placeholder="Additional remarks"
-                    />
-                  </div>
-                </div>
 
                 {/* Add Button at the bottom */}
                 <Button type="button" onClick={handleAddItem} className="w-full">
