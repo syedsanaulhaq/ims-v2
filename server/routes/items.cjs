@@ -233,20 +233,20 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
           .input('status', sql.NVarChar, row.status?.trim() || 'Active')
           .input('minimum_stock_level', sql.Int, row.minimum_stock_level ? parseInt(row.minimum_stock_level) : null)
           .input('maximum_stock_level', sql.Int, row.maximum_stock_level ? parseInt(row.maximum_stock_level) : null)
-          .input('reorder_level', sql.Int, row.reorder_level ? parseInt(row.reorder_level) : null)
+          .input('reorder_point', sql.Int, row.reorder_level ? parseInt(row.reorder_level) : null)
           .input('created_at', sql.DateTime, new Date())
           .input('updated_at', sql.DateTime, new Date())
           .query(`
             INSERT INTO item_masters (
               id, item_code, nomenclature, manufacturer, unit, specifications, description,
               category_id, sub_category_id, status,
-              minimum_stock_level, maximum_stock_level, reorder_level,
+              minimum_stock_level, maximum_stock_level, reorder_point,
               created_at, updated_at
             )
             VALUES (
               @id, @item_code, @nomenclature, @manufacturer, @unit, @specifications, @description,
               @category_id, @sub_category_id, @status,
-              @minimum_stock_level, @maximum_stock_level, @reorder_level,
+              @minimum_stock_level, @maximum_stock_level, @reorder_point,
               @created_at, @updated_at
             )
           `);
