@@ -334,21 +334,21 @@ router.get('/:id/vendors', async (req, res) => {
           tv.id,
           tv.tender_id,
           tv.vendor_id,
+          tv.vendor_name,
           tv.quoted_amount,
           tv.remarks,
           tv.is_awarded,
           tv.is_successful,
-          tv.proposal_file_path,
+          tv.proposal_document_path,
           tv.created_at,
-          v.vendor_name,
           v.vendor_code,
           v.contact_person,
-          v.contact_number,
+          v.phone,
           v.email
         FROM tender_vendors tv
         INNER JOIN vendors v ON tv.vendor_id = v.id
         WHERE tv.tender_id = @tenderId
-        ORDER BY v.vendor_name
+        ORDER BY tv.vendor_name
       `);
 
     // If no vendors found in tender_vendors, check if it's an annual tender with items
@@ -361,7 +361,7 @@ router.get('/:id/vendors', async (req, res) => {
             v.vendor_name,
             v.vendor_code,
             v.contact_person,
-            v.contact_number,
+            v.phone,
             v.email,
             1 as is_successful
           FROM tender_items ti
