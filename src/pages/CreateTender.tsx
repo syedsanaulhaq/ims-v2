@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
+import { CsvUploadModal } from '@/components/CsvUploadModal';
 
 interface TenderItem {
   id?: string;
@@ -147,6 +148,7 @@ const CreateTender: React.FC = () => {
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [bidders, setBidders] = useState<any[]>([]);
+  const [showCsvModal, setShowCsvModal] = useState<boolean>(false);
   const [newItem, setNewItem] = useState<TenderItem>({
     item_master_id: '',
     nomenclature: '',
@@ -351,6 +353,26 @@ const CreateTender: React.FC = () => {
         category_description: selectedItem.category_description
       }));
     }
+  };
+
+  // Handle items imported from CSV modal
+  const handleCsvItemsImport = (items: any[]) => {
+    const newItems: TenderItem[] = items.map((item: any) => ({
+      id: crypto.randomUUID(),
+      item_master_id: item.item_master_id || '',
+      nomenclature: item.nomenclature || '',
+      quantity: 1,
+      estimated_unit_price: item.estimated_unit_price || 0,
+      total_amount: item.estimated_unit_price || 0,
+      specifications: item.specifications || '',
+      remarks: item.remarks || '',
+      vendor_id: item.vendor_id || '',
+      category_name: item.category_name || '',
+      category_description: item.category_description || ''
+    }));
+
+    setTenderItems(prev => [...prev, ...newItems]);
+    alert(`Successfully imported ${newItems.length} items from CSV`);
   };
 
   // Calculate total tender value
@@ -1242,6 +1264,25 @@ const CreateTender: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* CSV Upload Button - Annual Tender Only */}
+              {tenderType === 'annual-tender' && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCsvModal(true)}
+                    disabled={bidders.filter(v => v.is_successful).length === 0}
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Bulk Import from CSV
+                  </Button>
+                  {bidders.filter(v => v.is_successful).length === 0 && (
+                    <p className="text-sm text-amber-600 ml-3">⚠️ Add vendors first</p>
+                  )}
+                </div>
+              )}
+
               {/* Add New Item Form */}
               <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                 <h3 className="text-lg font-medium mb-4">Add New Item</h3>
@@ -1765,6 +1806,14 @@ const CreateTender: React.FC = () => {
           </Card>
         </form>
       </div>
+
+      {/* CSV Upload Modal */}
+      <CsvUploadModal
+        open={showCsvModal}
+        onClose={() => setShowCsvModal(false)}
+        onItemsImported={handleCsvItemsImport}
+        bidders={bidders}
+      />
     </div>
   );
 };

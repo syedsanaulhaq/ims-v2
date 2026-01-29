@@ -56,6 +56,7 @@ const deliveriesRoutes = require('./routes/deliveries.cjs');
 const reorderRequestsRoutes = require('./routes/reorderRequests.cjs');
 const stockReturnsRoutes = require('./routes/stockReturns.cjs');
 const annualTendersRoutes = require('./routes/annualTenders.cjs');
+const tenderItemsRoutes = require('./routes/tender-items.cjs');
 
 app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes); // Legacy mount for /api/session
@@ -77,6 +78,7 @@ app.use('/api/deliveries', deliveriesRoutes);
 app.use('/api/reorder-requests', reorderRequestsRoutes);
 app.use('/api/stock-returns', stockReturnsRoutes);
 app.use('/api/annual-tenders', annualTendersRoutes);
+app.use('/api/tender-items', tenderItemsRoutes);
 
 // ============================================================================
 // Error Handler (To be implemented)
