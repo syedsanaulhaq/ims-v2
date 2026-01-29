@@ -337,7 +337,6 @@ router.get('/:id/items', async (req, res) => {
           ti.nomenclature,
           ti.quantity,
           ti.estimated_unit_price,
-          ti.unit_price,
           ti.vendor_id,
           ti.specifications,
           ti.remarks,
