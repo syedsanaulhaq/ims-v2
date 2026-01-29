@@ -319,6 +319,48 @@ router.get('/:id', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/tenders/:id/items - Get items for a tender
+// ============================================================================
+router.get('/:id/items', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // Get tender items with category and vendor information
+    const itemsResult = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          ti.id,
+          ti.tender_id,
+          ti.item_master_id,
+          ti.nomenclature,
+          ti.quantity,
+          ti.estimated_unit_price,
+          ti.unit_price,
+          ti.vendor_id,
+          ti.specifications,
+          ti.remarks,
+          c.category_name,
+          c.description as category_description,
+          v.vendor_name,
+          v.vendor_code
+        FROM tender_items ti
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id
+        LEFT JOIN categories c ON im.category_id = c.id
+        LEFT JOIN vendors v ON ti.vendor_id = v.id
+        WHERE ti.tender_id = @tenderId
+        ORDER BY c.description, c.category_name, ti.nomenclature
+      `);
+
+    res.json(itemsResult.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching tender items:', error);
+    res.status(500).json({ error: 'Failed to fetch tender items' });
+  }
+});
+
+// ============================================================================
 // GET /api/tenders/:id/vendors - Get vendors/bidders for a tender
 // ============================================================================
 router.get('/:id/vendors', async (req, res) => {
