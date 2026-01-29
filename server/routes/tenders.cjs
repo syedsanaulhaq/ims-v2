@@ -297,10 +297,13 @@ router.get('/:id', async (req, res) => {
           ti.specifications,
           ti.remarks,
           c.category_name,
-          c.description as category_description
+          c.description as category_description,
+          v.vendor_name,
+          v.vendor_code
         FROM tender_items ti
         LEFT JOIN item_masters im ON ti.item_master_id = im.id
         LEFT JOIN categories c ON im.category_id = c.id
+        LEFT JOIN vendors v ON ti.vendor_id = v.id
         WHERE ti.tender_id = @tenderId
         ORDER BY c.description, c.category_name, ti.nomenclature
       `);
