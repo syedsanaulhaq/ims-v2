@@ -282,23 +282,27 @@ router.get('/:id', async (req, res) => {
 
     const tender = tenderResult.recordset[0];
 
-    // Get tender items
+    // Get tender items with category information
     const itemsResult = await pool.request()
       .input('tenderId', sql.UniqueIdentifier, id)
       .query(`
         SELECT 
-          id,
-          tender_id,
-          item_master_id,
-          nomenclature,
-          quantity,
-          estimated_unit_price,
-          vendor_id,
-          specifications,
-          remarks
-        FROM tender_items
-        WHERE tender_id = @tenderId
-        ORDER BY nomenclature
+          ti.id,
+          ti.tender_id,
+          ti.item_master_id,
+          ti.nomenclature,
+          ti.quantity,
+          ti.estimated_unit_price,
+          ti.vendor_id,
+          ti.specifications,
+          ti.remarks,
+          c.category_name,
+          c.description as category_description
+        FROM tender_items ti
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id
+        LEFT JOIN categories c ON im.category_id = c.id
+        WHERE ti.tender_id = @tenderId
+        ORDER BY c.description, c.category_name, ti.nomenclature
       `);
 
     res.json({

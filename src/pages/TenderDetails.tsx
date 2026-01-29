@@ -312,7 +312,6 @@ const TenderDetails: React.FC = () => {
       ['Reference Number', tender.reference_number],
       ['Tender Type', tender.tender_type],
       ['Status', tender.status],
-      ['Estimated Value', formatCurrency(tender.estimated_value)],
       ['Publish Date', formatDate(tender.publish_date)],
       ['Submission Deadline', formatDate(tender.submission_deadline)],
       ['Opening Date', formatDate(tender.opening_date)],
@@ -481,12 +480,7 @@ const TenderDetails: React.FC = () => {
                 {getStatusBadge(tender.status, tender.is_finalized)}
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estimated Value</label>
-              <p className="text-lg font-bold text-green-600">
-                {formatCurrency(tender.estimated_value)}
-              </p>
-            </div>
+
             {tender.procurement_method && (
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procurement Method</label>
@@ -829,7 +823,7 @@ const TenderDetails: React.FC = () => {
       <TenderVendorManagement
         tenderId={tender.id}
         readOnly={true}
-        vendors={[]}
+        vendors={bidders}
       />
 
       {/* Tender Items */}
