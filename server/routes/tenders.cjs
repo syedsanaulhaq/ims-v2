@@ -319,6 +319,68 @@ router.get('/:id', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/tenders/:id/vendors - Get vendors/bidders for a tender
+// ============================================================================
+router.get('/:id/vendors', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // First check if this is a regular tender with tender_vendors table
+    const vendorsResult = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          tv.id,
+          tv.tender_id,
+          tv.vendor_id,
+          tv.quoted_amount,
+          tv.remarks,
+          tv.is_awarded,
+          tv.is_successful,
+          tv.proposal_file_path,
+          tv.created_at,
+          v.vendor_name,
+          v.vendor_code,
+          v.contact_person,
+          v.contact_number,
+          v.email
+        FROM tender_vendors tv
+        INNER JOIN vendors v ON tv.vendor_id = v.id
+        WHERE tv.tender_id = @tenderId
+        ORDER BY v.vendor_name
+      `);
+
+    // If no vendors found in tender_vendors, check if it's an annual tender with items
+    if (vendorsResult.recordset.length === 0) {
+      const itemVendorsResult = await pool.request()
+        .input('tenderId', sql.UniqueIdentifier, id)
+        .query(`
+          SELECT DISTINCT
+            v.id as vendor_id,
+            v.vendor_name,
+            v.vendor_code,
+            v.contact_person,
+            v.contact_number,
+            v.email,
+            1 as is_successful
+          FROM tender_items ti
+          INNER JOIN vendors v ON ti.vendor_id = v.id
+          WHERE ti.tender_id = @tenderId AND ti.vendor_id IS NOT NULL
+          ORDER BY v.vendor_name
+        `);
+      
+      return res.json(itemVendorsResult.recordset);
+    }
+
+    res.json(vendorsResult.recordset);
+  } catch (error) {
+    console.error('❌ Error fetching tender vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch tender vendors' });
+  }
+});
+
+// ============================================================================
 // PUT /api/tenders/:id - Update tender
 // ============================================================================
 router.put('/:id', async (req, res) => {
