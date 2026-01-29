@@ -147,7 +147,7 @@ export default function CreatePurchaseOrder() {
   const fetchTenderItems = async (tenderId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/tender/${tenderId}/items`);
+      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/items`);
       if (!response.ok) throw new Error('Failed to fetch tender items');
       const data = await response.json();
       console.log('📦 Raw tender items from API:', data);
