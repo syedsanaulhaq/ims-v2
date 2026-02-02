@@ -9,7 +9,7 @@ export interface TenderSupabaseRow {
   reference_number: string;
   title: string;
   description?: string;
-  tender_spot_type: 'Contract/Tender' | 'Spot Purchase';
+  tender_spot_type: 'Contract/Tender' | 'Patty Purchase';
   department_id?: string;
   estimated_value: number;
   publish_date: string;
@@ -159,7 +159,7 @@ const transformSupabaseRowToTender = (row: any): Tender => {
     status: row.status || 'Open',
     tender_status: row.tender_status || undefined,
     vendor_id: row.vendor_id,
-    type: (row.tender_spot_type as 'Contract/Tender' | 'Spot Purchase') || 'Contract/Tender',
+    type: (row.tender_spot_type as 'Contract/Tender' | 'Patty Purchase') || 'Contract/Tender',
     documentPath: row.document_path,
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || new Date().toISOString(),
@@ -227,8 +227,8 @@ const transformTenderRequestToSupabaseInsert = async (tender: CreateTenderReques
 };
 
 // Helper function to generate tender number
-const generateTenderNumber = (type: 'Contract/Tender' | 'Spot Purchase'): string => {
-  const prefix = type === 'Spot Purchase' ? 'SP' : 'TN';
+const generateTenderNumber = (type: 'Contract/Tender' | 'Patty Purchase'): string => {
+  const prefix = type === 'Patty Purchase' ? 'SP' : 'TN';
   const year = new Date().getFullYear();
   const timestamp = Date.now().toString().slice(-3);
   return `${prefix}-${year}-${timestamp}`;
@@ -524,7 +524,7 @@ export const tendersSupabaseService = {
         closedTenders: tenders.filter(t => t.status === 'Closed').length,
         totalEstimatedValue: tenders.reduce((sum, t) => sum + (t.estimated_value || 0), 0),
         contractTenders: tenders.filter(t => t.tender_type === 'Contract/Tender').length,
-        spotPurchases: tenders.filter(t => t.tender_type === 'Spot Purchase').length,
+        spotPurchases: tenders.filter(t => t.tender_type === 'Patty Purchase').length,
       };
 
       return {

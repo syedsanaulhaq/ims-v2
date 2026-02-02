@@ -35,12 +35,12 @@ const BasicDetailsSection: React.FC<BasicDetailsSectionProps> = ({
     }
   };
 
-  // For Spot Purchase, use just 'Related Wings/DEC'.
+  // For Patty Purchase, use just 'Related Wings/DEC'.
   const wingsDecLabel = isSpotPurchase ? 'Related Wings/DEC' : 'Tender Related Wings/DEC';
   const wingsDecHeading = isSpotPurchase
-    ? 'Related Wings/DEC\nSelect offices and wings (both required), and optionally select DECs for this spot purchase.'
+    ? 'Related Wings/DEC\nSelect offices and wings (both required), and optionally select DECs for this patty purchase.'
     : 'Tender Related Wings/DEC\nSelect offices and wings (both required), and optionally select DECs for this tender.';
-  const descriptionLabel = isSpotPurchase ? 'Enter the basic information for the spot purchase.' : 'Enter the basic information for the tender.';
+  const descriptionLabel = isSpotPurchase ? 'Enter the basic information for the patty purchase.' : 'Enter the basic information for the tender.';
 
   return (
     <Card>
@@ -52,7 +52,7 @@ const BasicDetailsSection: React.FC<BasicDetailsSectionProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div data-field="title">
             <Label htmlFor="title">Title *</Label>
-            <Input id="title" name="title" placeholder={isSpotPurchase ? 'Spot Purchase Title' : 'Tender Title'} {...form.register("title")} disabled={isLoading || isReadOnly} />
+            <Input id="title" name="title" placeholder={isSpotPurchase ? 'Patty Purchase Title' : 'Tender Title'} {...form.register("title")} disabled={isLoading || isReadOnly} />
             {form.formState.errors.title && (
               <p className="text-sm text-red-600 mt-1">{form.formState.errors.title.message}</p>
             )}
@@ -68,7 +68,7 @@ const BasicDetailsSection: React.FC<BasicDetailsSectionProps> = ({
 
         <div>
           <Label htmlFor="description">Description</Label>
-          <Textarea id="description" placeholder={isSpotPurchase ? 'Spot Purchase Description' : 'Tender Description'} {...form.register("description")} disabled={isLoading || isReadOnly} />
+          <Textarea id="description" placeholder={isSpotPurchase ? 'Patty Purchase Description' : 'Tender Description'} {...form.register("description")} disabled={isLoading || isReadOnly} />
           {form.formState.errors.description && (
             <p className="text-sm text-red-600 mt-1">{form.formState.errors.description.message}</p>
           )}

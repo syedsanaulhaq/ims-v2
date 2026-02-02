@@ -182,11 +182,11 @@ export const useFileUpload = () => {
   };
 };
 
-export const convertFormToTenderRequest = (values: any, type: 'Contract/Tender' | 'Spot Purchase'): CreateTenderRequest => {
-  // For spot purchase, use orderingDate for all date fields
-  const publishDate = type === 'Spot Purchase' ? values.orderingDate : values.publishDate;
-  const submissionDate = type === 'Spot Purchase' ? values.orderingDate : values.submissionDate;
-  const openingDate = type === 'Spot Purchase' ? values.orderingDate : values.openingDate;
+export const convertFormToTenderRequest = (values: any, type: 'Contract/Tender' | 'Patty Purchase'): CreateTenderRequest => {
+  // For patty purchase, use orderingDate for all date fields
+  const publishDate = type === 'Patty Purchase' ? values.orderingDate : values.publishDate;
+  const submissionDate = type === 'Patty Purchase' ? values.orderingDate : values.submissionDate;
+  const openingDate = type === 'Patty Purchase' ? values.orderingDate : values.openingDate;
 
   return {
     tender_spot_type: type,

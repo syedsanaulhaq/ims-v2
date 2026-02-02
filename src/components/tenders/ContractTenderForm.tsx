@@ -266,7 +266,7 @@ const ContractTenderForm: React.FC = () => {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="Contract/Tender">Contract/Tender</SelectItem>
-                          <SelectItem value="Spot Purchase">Spot Purchase</SelectItem>
+                          <SelectItem value="Patty Purchase">Patty Purchase</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

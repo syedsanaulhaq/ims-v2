@@ -37,7 +37,7 @@ interface TenderSummary {
   id: string;
   title: string;
   tenderNumber: string;
-  acquisitionType: 'Contract/Tender' | 'Spot Purchase';
+  acquisitionType: 'Contract/Tender' | 'Patty Purchase';
   status: string;
   totalValue: number;
   itemCount: number;

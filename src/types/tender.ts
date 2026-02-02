@@ -27,7 +27,7 @@ export interface Tender {
   updatedAt: string;
   items: TenderItem[];
   itemCount?: number; // Count of items for list display
-  type: 'Contract/Tender' | 'Spot Purchase';
+  type: 'Contract/Tender' | 'Patty Purchase';
   vendor?: VendorInfo;
   // Pricing mode fields
   individual_total?: 'Individual' | 'Total';
@@ -120,7 +120,7 @@ export interface CreateTenderRequest {
   advertisementDate?: string;
   publicationDailies?: string;
   status?: string; // Added for backend compatibility
-  tender_spot_type: 'Contract/Tender' | 'Spot Purchase';
+  tender_spot_type: 'Contract/Tender' | 'Patty Purchase';
   tenderNumber?: string;
   referenceNumber: string;
   title: string;
@@ -138,7 +138,7 @@ export interface CreateTenderRequest {
   eligibilityCriteria?: string;
   rfp?: string;
   contract?: string;
-  type?: 'Contract/Tender' | 'Spot Purchase';
+  type?: 'Contract/Tender' | 'Patty Purchase';
   items: CreateTenderItemRequest[];
   vendor?: VendorInfo;
   // Multi-select hierarchy fields

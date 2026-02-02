@@ -105,7 +105,7 @@ export default function CreatePurchaseOrder() {
             }
           }
           
-          // Create a map of vendor ID to vendor details (store both cases for matching)
+          // Create a map of vendor ID to vendor details (use only original ID to avoid duplicates)
           const vendorMap: { [key: string]: Vendor } = {};
           vendorsArray.forEach((v: any) => {
             if (v && v.id) {
@@ -113,9 +113,8 @@ export default function CreatePurchaseOrder() {
                 id: v.id,
                 vendor_name: v.vendor_name || v.name || 'Unknown Vendor'
               };
-              // Store using BOTH original and lowercase keys for flexible matching
+              // Store using original ID only (no duplicates)
               vendorMap[String(v.id)] = vendorData;
-              vendorMap[String(v.id).toLowerCase()] = vendorData;
               console.log(`✅ Mapped vendor: ${v.id} => ${v.vendor_name}`);
             }
           });
@@ -153,7 +152,11 @@ export default function CreatePurchaseOrder() {
       const data = await response.json();
       console.log('📦 Raw tender items from API:', data);
       setTenderItems(data);
-      setSelectedItems(new Set()); // Reset selection
+      
+      // Auto-select all items (user can deselect if needed)
+      const allItemIds = data.map((item: TenderItem) => item.id);
+      setSelectedItems(new Set(allItemIds));
+      console.log('✅ Auto-selected all items:', allItemIds);
       
       // Initialize quantities and prices from tender items
       const initialQuantities: { [key: string]: number } = {};
@@ -289,7 +292,8 @@ export default function CreatePurchaseOrder() {
 
       const result = await response.json();
       alert(`✅ PO(s) created successfully!`);
-      navigate('/dashboard/purchase-orders');
+      // Navigate back to tender-specific PO dashboard
+      navigate(selectedTenderId ? `/dashboard/purchase-orders?tenderId=${selectedTenderId}` : '/dashboard/purchase-orders');
     } catch (err) {
       console.error('Error creating POs:', err);
       setError(err instanceof Error ? err.message : 'Failed to create POs');
@@ -629,16 +633,18 @@ export default function CreatePurchaseOrder() {
                       </div>
                     </div>
 
-                    {/* For annual tenders, show items with vendors in table format */}
-                    {selectedTender?.tender_type === 'annual-tender' && (
-                      <div className="border-t border-green-200 pt-4">
-                        <h3 className="text-sm font-semibold text-slate-900 mb-3">Items by Vendor</h3>
+                    {/* Show selected items in table format */}
+                    {selectedItems.size > 0 && (
+                      <div className="border-t border-green-200 pt-4 mt-4">
+                        <h3 className="text-sm font-semibold text-slate-900 mb-3">Selected Items Details</h3>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs border-collapse">
                             <thead className="bg-slate-100 border-b border-slate-200">
                               <tr>
                                 <th className="text-left px-3 py-2 font-semibold text-slate-700">Item</th>
-                                <th className="text-left px-3 py-2 font-semibold text-slate-700">Vendor</th>
+                                {selectedTender?.tender_type === 'annual-tender' && (
+                                  <th className="text-left px-3 py-2 font-semibold text-slate-700">Vendor</th>
+                                )}
                                 <th className="text-center px-3 py-2 font-semibold text-slate-700">Qty</th>
                                 <th className="text-right px-3 py-2 font-semibold text-slate-700">Unit Price</th>
                                 <th className="text-right px-3 py-2 font-semibold text-slate-700">Total</th>
@@ -654,11 +660,13 @@ export default function CreatePurchaseOrder() {
                                 return (
                                   <tr key={itemId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                     <td className="px-3 py-2 text-slate-900 font-medium">{item?.nomenclature}</td>
-                                    <td className="px-3 py-2 text-slate-700">
-                                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
-                                        {vendors[vendorId]?.vendor_name || 'Unassigned'}
-                                      </span>
-                                    </td>
+                                    {selectedTender?.tender_type === 'annual-tender' && (
+                                      <td className="px-3 py-2 text-slate-700">
+                                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                          {vendors[vendorId]?.vendor_name || 'Unassigned'}
+                                        </span>
+                                      </td>
+                                    )}
                                     <td className="px-3 py-2 text-center text-slate-700">{qty}</td>
                                     <td className="px-3 py-2 text-right text-slate-700">Rs {unitPrice.toLocaleString()}</td>
                                     <td className="px-3 py-2 text-right font-semibold text-slate-900">Rs {total.toLocaleString()}</td>
@@ -679,7 +687,7 @@ export default function CreatePurchaseOrder() {
             <div className="flex gap-3 justify-end">
               <Button
                 variant="outline"
-                onClick={() => navigate('/dashboard/purchase-orders')}
+                onClick={() => navigate(selectedTenderId ? `/dashboard/purchase-orders?tenderId=${selectedTenderId}` : '/dashboard/purchase-orders')}
               >
                 Cancel
               </Button>

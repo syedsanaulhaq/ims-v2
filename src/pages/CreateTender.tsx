@@ -310,12 +310,24 @@ const CreateTender: React.FC = () => {
         alert('Please select a vendor for this item');
         return;
       }
-    } else {
-      // Contract and Spot Purchase tenders use single vendor_id from main form
-      if (!tenderData.vendor_id) {
-        alert('Please add vendors in the "Participating Bidders" section and mark one as selected');
+    } else if (tenderType === 'contract') {
+      // Contract tender requires one successful bidder
+      const successfulBidder = bidders.find(b => b.is_successful);
+      if (!successfulBidder) {
+        alert('Please select a successful bidder in the "Participating Bidders" section first');
         return;
       }
+      // Auto-assign the successful bidder to this item
+      newItem.vendor_id = successfulBidder.vendor_id;
+    } else if (tenderType === 'spot-purchase') {
+      // Patty Purchase requires one selected vendor
+      const selectedVendor = bidders.find(b => b.is_successful);
+      if (!selectedVendor) {
+        alert('Please select a vendor in the "Participating Bidders" section first');
+        return;
+      }
+      // Auto-assign the selected vendor to this item
+      newItem.vendor_id = selectedVendor.vendor_id;
     }
 
     const item: TenderItem = {
@@ -394,7 +406,7 @@ const CreateTender: React.FC = () => {
     }).format(amount);
   };
 
-  // Spot Purchase Amount Validation
+  // Patty Purchase Amount Validation
   const getSpotPurchaseValidation = () => {
     if (tenderType !== 'spot-purchase') return { isValid: true, message: '' };
     
@@ -425,7 +437,7 @@ const CreateTender: React.FC = () => {
     if (totalTenderValue > 500000) {
       return {
         isValid: false,
-        message: `Spot Purchase maximum limit is PKR 500,000. You must register a tender for amounts exceeding this limit. Current total: ${formatCurrency(totalTenderValue)}`
+        message: `Patty Purchase maximum limit is PKR 500,000. You must register a tender for amounts exceeding this limit. Current total: ${formatCurrency(totalTenderValue)}`
       };
     }
     
@@ -443,14 +455,29 @@ const CreateTender: React.FC = () => {
       return;
     }
 
-    // For contract and spot purchase tenders, vendor_id is required at tender level
-    // For annual tenders, vendors are selected per-item so no global vendor_id needed
-    if ((tenderType === 'contract' || tenderType === 'spot-purchase') && !tenderData.vendor_id) {
-      alert('Please select a vendor');
-      return;
+    // Vendor validation based on tender type
+    if (tenderType === 'contract') {
+      // Contract tender: Check for successful bidder selection
+      const successfulBidder = bidders.find(b => b.is_successful);
+      if (!successfulBidder) {
+        alert('Please select a successful bidder in the "Participating Bidders" section');
+        return;
+      }
+      // Set the vendor_id from successful bidder for backend
+      tenderData.vendor_id = successfulBidder.vendor_id;
+    } else if (tenderType === 'spot-purchase') {
+      // Patty purchase: Check for selected vendor
+      const selectedVendor = bidders.find(b => b.is_successful);
+      if (!selectedVendor) {
+        alert('Please select a vendor in the "Participating Bidders" section');
+        return;
+      }
+      // Set the vendor_id from selected vendor for backend
+      tenderData.vendor_id = selectedVendor.vendor_id;
     }
+    // Annual tender: No global vendor_id needed (vendors assigned per item)
 
-    // Validate spot purchase amounts
+    // Validate patty purchase amounts
     if (tenderType === 'spot-purchase' && !spotPurchaseValidation.isValid) {
       alert(spotPurchaseValidation.message);
       return;
@@ -554,7 +581,7 @@ const CreateTender: React.FC = () => {
         }
       }
       
-      const successMessage = tenderType === 'spot-purchase' ? 'Spot purchase' : tenderType === 'annual-tender' ? 'Annual tender' : 'Contract tender';
+      const successMessage = tenderType === 'spot-purchase' ? 'Patty purchase' : tenderType === 'annual-tender' ? 'Annual tender' : 'Contract tender';
       alert(`${successMessage} created successfully!`);
       
       let redirectPath = '/dashboard/contract-tender';
@@ -587,15 +614,15 @@ const CreateTender: React.FC = () => {
             navigate(dashboardPath);
           }}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to {tenderType === 'spot-purchase' ? 'Spot Purchases' : tenderType === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
+            Back to {tenderType === 'spot-purchase' ? 'Patty Purchases' : tenderType === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              {tenderType === 'spot-purchase' ? 'Create New Spot Purchase' : 'Create New Contract'}
+              {tenderType === 'spot-purchase' ? 'Create New Patty Purchase' : 'Create New Contract'}
             </h1>
             <p className="text-muted-foreground">
               {tenderType === 'spot-purchase' 
-                ? 'Enter spot purchase details for quick procurement'
+                ? 'Enter patty purchase details for quick procurement'
                 : 'Enter contract tender details and add items for procurement'
               }
             </p>
@@ -634,7 +661,7 @@ const CreateTender: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="contract">Contract Tender</SelectItem>
-                      <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
+                      <SelectItem value="spot-purchase">Patty Purchase</SelectItem>
                       <SelectItem value="annual-tender">Annual Tender</SelectItem>
                     </SelectContent>
                   </Select>
@@ -670,7 +697,7 @@ const CreateTender: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <FileText className="h-5 w-5 mr-2" />
-                {tenderType === 'spot-purchase' ? 'Spot Purchase Information' : 'Tender Information'}
+                {tenderType === 'spot-purchase' ? 'Patty Purchase Information' : 'Tender Information'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -695,7 +722,7 @@ const CreateTender: React.FC = () => {
                     ...prev,
                     title: e.target.value
                   }))}
-                  placeholder={tenderType === 'spot-purchase' ? 'Enter spot purchase title' : 'Enter tender title'}
+                  placeholder={tenderType === 'spot-purchase' ? 'Enter patty purchase title' : 'Enter tender title'}
                 />
               </div>
 
@@ -709,11 +736,11 @@ const CreateTender: React.FC = () => {
                     ...prev,
                     description: e.target.value
                   }))}
-                  placeholder={tenderType === 'spot-purchase' ? 'Enter spot purchase description' : 'Enter tender description'}
+                  placeholder={tenderType === 'spot-purchase' ? 'Enter patty purchase description' : 'Enter tender description'}
                 />
               </div>
 
-              {/* Hide date fields for spot purchase */}
+              {/* Hide date fields for patty purchase */}
               {tenderType !== 'spot-purchase' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -884,7 +911,7 @@ const CreateTender: React.FC = () => {
                   </div>
                 )}
 
-                {/* Hide publication dailies for spot purchase */}
+                {/* Hide publication dailies for patty purchase */}
                 {tenderType !== 'spot-purchase' && (
                   <div>
                     <label className="text-sm font-medium">Publication Dailies</label>
@@ -930,7 +957,7 @@ const CreateTender: React.FC = () => {
                   </Select>
                 </div>
 
-                {/* Hide procedure adopted for spot purchase */}
+                {/* Hide procedure adopted for patty purchase */}
                 {tenderType !== 'spot-purchase' && (
                   <div>
                     <label className="text-sm font-medium">Procedure Adopted</label>
@@ -1044,7 +1071,7 @@ const CreateTender: React.FC = () => {
                 </div>
               )}
 
-              {/* Spot Purchase Documents */}
+              {/* Patty Purchase Documents */}
               {tenderData.tender_type === 'spot-purchase' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
@@ -1220,7 +1247,7 @@ const CreateTender: React.FC = () => {
                 )}
                 {tenderData.tender_type === 'spot-purchase' && (
                   <p className="text-xs text-blue-600 mt-1">
-                    <strong>Spot Purchase:</strong> RFQ, Quotation Response, Comparison Sheet, and PO documents
+                    <strong>Patty Purchase:</strong> RFQ, Quotation Response, Comparison Sheet, and PO documents
                   </p>
                 )}
                 {tenderData.tender_type === 'annual-tender' && (
@@ -1237,6 +1264,7 @@ const CreateTender: React.FC = () => {
             tenderId={location.state?.tenderId}
             vendors={vendors}
             tenderItems={tenderItems}
+            tenderType={tenderType}
             onVendorsChange={(updatedVendors) => {
               console.log('Vendors updated:', updatedVendors);
               // Store the bidders to be saved after tender creation
@@ -1260,7 +1288,7 @@ const CreateTender: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Plus className="h-5 w-5 mr-2" />
-                {tenderType === 'spot-purchase' ? 'Spot Purchase Items' : 'Tender Items'} ({tenderItems.length})
+                {tenderType === 'spot-purchase' ? 'Patty Purchase Items' : 'Tender Items'} ({tenderItems.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1286,6 +1314,62 @@ const CreateTender: React.FC = () => {
               {/* Add New Item Form */}
               <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                 <h3 className="text-lg font-medium mb-4">Add New Item</h3>
+                
+                {/* Contract Tender Layout - Successful Bidder Display */}
+                {tenderType === 'contract' && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <label className="text-xs font-medium text-blue-900 block mb-1">Successful Bidder</label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            className="h-9 bg-white border-blue-300"
+                            value={(() => {
+                              const successfulBidder = bidders.find(b => b.is_successful);
+                              return successfulBidder ? successfulBidder.vendor_name : 'No successful bidder selected yet';
+                            })()}
+                            disabled
+                            readOnly
+                          />
+                          <Badge variant="outline" className="text-xs whitespace-nowrap">
+                            🔒 Locked
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    {!bidders.find(b => b.is_successful) && (
+                      <p className="text-xs text-amber-600 mt-2">⚠️ Please select a successful bidder first in the "Participating Bidders" section above</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Patty Purchase Layout - Successful Bidder Display */}
+                {tenderType === 'spot-purchase' && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <label className="text-xs font-medium text-green-900 block mb-1">Selected Vendor</label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            className="h-9 bg-white border-green-300"
+                            value={(() => {
+                              const selectedVendor = bidders.find(b => b.is_successful);
+                              return selectedVendor ? selectedVendor.vendor_name : 'No vendor selected yet';
+                            })()}
+                            disabled
+                            readOnly
+                          />
+                          <Badge variant="outline" className="text-xs whitespace-nowrap">
+                            🔒 Locked
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    {!bidders.find(b => b.is_successful) && (
+                      <p className="text-xs text-amber-600 mt-2">⚠️ Please select a vendor first in the "Participating Bidders" section above</p>
+                    )}
+                  </div>
+                )}
                 
                 {/* Annual Tender Layout */}
                 {tenderType === 'annual-tender' ? (
@@ -1561,7 +1645,7 @@ const CreateTender: React.FC = () => {
               {tenderItems.length > 0 && (
                 <div>
                   <h3 className="text-lg font-medium mb-4">
-                    {tenderType === 'spot-purchase' ? 'Spot Purchase Items List' : tenderType === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
+                    {tenderType === 'spot-purchase' ? 'Patty Purchase Items List' : tenderType === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
                   </h3>
                   <div className="overflow-x-auto">
                     <Table>
@@ -1742,7 +1826,7 @@ const CreateTender: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Spot Purchase Validation Alert */}
+                    {/* Patty Purchase Validation Alert */}
                     {tenderType === 'spot-purchase' && !spotPurchaseValidation.isValid && (
                       <Alert variant="destructive" className="mt-4">
                         <AlertDescription className="font-medium">
@@ -1751,7 +1835,7 @@ const CreateTender: React.FC = () => {
                       </Alert>
                     )}
                     
-                    {/* Spot Purchase Limits Info */}
+                    {/* Patty Purchase Limits Info */}
                     {tenderType === 'spot-purchase' && tenderData.procurement_methods && spotPurchaseValidation.isValid && (
                       <Alert className="mt-4 bg-green-50 border-green-200">
                         <AlertDescription className="text-green-800">
@@ -1798,7 +1882,7 @@ const CreateTender: React.FC = () => {
                   </Button>
                   <Button type="submit" disabled={loading || !tenderData.title}>
                     <Save className="h-4 w-4 mr-2" />
-                    {loading ? 'Creating...' : `Create ${tenderType === 'spot-purchase' ? 'Spot Purchase' : 'Contract'}`}
+                    {loading ? 'Creating...' : `Create ${tenderType === 'spot-purchase' ? 'Patty Purchase' : 'Contract'}`}
                   </Button>
                 </div>
               </div>

@@ -272,6 +272,88 @@ router.get('/designations', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/offices/:officeId/wings - Get wings for a specific office
+// ============================================================================
+router.get('/offices/:officeId/wings', async (req, res) => {
+  try {
+    const { officeId } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('officeId', sql.Int, officeId)
+      .query(`
+        SELECT 
+          Id,
+          Name,
+          ShortName,
+          FocalPerson,
+          ContactNo,
+          Creator,
+          CreateDate,
+          Modifier,
+          ModifyDate,
+          OfficeID,
+          IS_ACT,
+          HODID,
+          HODName,
+          WingCode,
+          CreatedAt,
+          UpdatedAt
+        FROM WingsInformation 
+        WHERE OfficeID = @officeId AND IS_ACT = 1
+        ORDER BY Name
+      `);
+
+    console.log(`✅ Fetched ${result.recordset.length} wings for office ${officeId}`);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching wings for office:', error);
+    res.status(500).json({ error: 'Failed to fetch wings', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/wings/:wingId/decs - Get DECs for a specific wing
+// ============================================================================
+router.get('/wings/:wingId/decs', async (req, res) => {
+  try {
+    const { wingId } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('wingId', sql.Int, wingId)
+      .query(`
+        SELECT 
+          intAutoID,
+          WingID,
+          DECName,
+          DECAcronym,
+          DECAddress,
+          Location,
+          IS_ACT,
+          DateAdded,
+          DECCode,
+          HODID,
+          HODName,
+          CreatedAt,
+          UpdatedAt,
+          CreatedBy,
+          UpdatedBy,
+          Version
+        FROM DEC_MST 
+        WHERE WingID = @wingId AND IS_ACT = 1
+        ORDER BY DECName
+      `);
+
+    console.log(`✅ Fetched ${result.recordset.length} DECs for wing ${wingId}`);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching DECs for wing:', error);
+    res.status(500).json({ error: 'Failed to fetch DECs', details: error.message });
+  }
+});
+
+// ============================================================================
 // GET /api/health - Health check
 // ============================================================================
 router.get('/health', async (req, res) => {

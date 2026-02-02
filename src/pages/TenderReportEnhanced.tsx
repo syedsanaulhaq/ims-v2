@@ -430,7 +430,7 @@ const TenderReportEnhanced: React.FC = () => {
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tender Type</label>
               <p className="text-base font-medium text-gray-900">
-                {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract/Tender'}
+                {tender.tender_type === 'spot-purchase' ? 'Patty Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract/Tender'}
               </p>
             </div>
             {tender.tender_spot_type && (
@@ -797,7 +797,7 @@ const TenderReportEnhanced: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
-              {tender.tender_type === 'spot-purchase' ? 'Spot Purchase Items' : tender.tender_type === 'annual-tender' ? 'Annual Tender Items' : 'Tender Items'} ({tender.items.length})
+              {tender.tender_type === 'spot-purchase' ? 'Patty Purchase Items' : tender.tender_type === 'annual-tender' ? 'Annual Tender Items' : 'Tender Items'} ({tender.items.length})
             </CardTitle>
           </CardHeader>
           <CardContent>

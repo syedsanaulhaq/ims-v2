@@ -74,10 +74,11 @@ interface TenderVendorManagementProps {
   onPendingProposalsChange?: (hasPending: boolean) => void; // Callback when pending proposals change
   onItemsChange?: (items: any[]) => void; // Callback when items are updated (e.g., vendor removed)
   readOnly?: boolean;
-  maxVendors?: number; // Maximum number of vendors allowed (for spot purchase)
+  maxVendors?: number; // Maximum number of vendors allowed (for patty purchase)
   minVendors?: number; // Minimum number of vendors required (for multiple quotation)
-  procurementMethod?: string; // Procurement method for spot purchase
+  procurementMethod?: string; // Procurement method for patty purchase
   tenderItems?: any[]; // Optional - tender items to check vendor usage
+  tenderType?: string; // Tender type (contract, spot-purchase, annual-tender)
 }
 
 const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
@@ -91,7 +92,8 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   maxVendors,
   minVendors,
   procurementMethod,
-  tenderItems = []
+  tenderItems = [],
+  tenderType
 }) => {
   const [tenderVendors, setTenderVendors] = useState<TenderVendor[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -197,7 +199,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       return;
     }
 
-    // Spot Purchase vendor count validation
+    // Patty Purchase vendor count validation
     if (maxVendors && tenderVendors.length >= maxVendors) {
       if (procurementMethod === 'single_quotation') {
         setError('Single Quotation allows only 1 vendor');
@@ -404,6 +406,17 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   };
 
   const handleMarkSuccessful = (vendorId: string, isSuccessful: boolean) => {
+    // CONTRACT TENDER: Only allow ONE successful bidder
+    if (tenderType === 'contract' && isSuccessful) {
+      const currentSuccessful = tenderVendors.find(tv => tv.is_successful && tv.vendor_id !== vendorId);
+      if (currentSuccessful) {
+        const confirmed = window.confirm(
+          `⚠️ Contract Tender Restriction\n\nContract tenders can only have ONE successful bidder.\n\nCurrently selected: ${currentSuccessful.vendor_name}\n\nDo you want to replace it with the new selection?`
+        );
+        if (!confirmed) return;
+      }
+    }
+
     // If deselecting a vendor, check if they have items assigned and warn
     if (!isSuccessful) {
       const itemsWithVendor = tenderItems.filter(item => {
@@ -428,10 +441,13 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       }
     }
 
-    // Only update frontend state - backend update will happen when tender is saved
+    // Update frontend state
+    // For contract tender: uncheck all others when checking one
     setTenderVendors(tenderVendors.map(tv => ({
       ...tv,
-      is_successful: tv.vendor_id === vendorId ? isSuccessful : tv.is_successful
+      is_successful: tv.vendor_id === vendorId 
+        ? isSuccessful 
+        : (tenderType === 'contract' && isSuccessful ? false : tv.is_successful)
     })));
   };
 
@@ -697,7 +713,19 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                   <TableHead>Bidder Code</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Proposal</TableHead>
-                  <TableHead>Successful Bidder</TableHead>
+                  <TableHead>
+                    Successful Bidder
+                    {tenderType === 'contract' && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        One Only
+                      </Badge>
+                    )}
+                    {tenderType === 'annual-tender' && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        Multiple Allowed
+                      </Badge>
+                    )}
+                  </TableHead>
                   {!readOnly && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>

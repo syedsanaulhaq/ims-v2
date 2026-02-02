@@ -424,7 +424,7 @@ const EditTender: React.FC = () => {
     }).format(amount);
   };
 
-  // Spot Purchase Amount Validation
+  // Patty Purchase Amount Validation
   const getSpotPurchaseValidation = () => {
     if (tenderData.tender_type !== 'spot-purchase') return { isValid: true, message: '' };
     
@@ -455,7 +455,7 @@ const EditTender: React.FC = () => {
     if (totalTenderValue > 500000) {
       return {
         isValid: false,
-        message: `Spot Purchase maximum limit is PKR 500,000. You must register a tender for amounts exceeding this limit. Current total: ${formatCurrency(totalTenderValue)}`
+        message: `Patty Purchase maximum limit is PKR 500,000. You must register a tender for amounts exceeding this limit. Current total: ${formatCurrency(totalTenderValue)}`
       };
     }
     
@@ -533,7 +533,7 @@ const EditTender: React.FC = () => {
       const result = await response.json();
       console.log('✅ Success response:', result);
 
-      alert(`${tenderData.tender_type === 'spot-purchase' ? 'Spot purchase' : tenderData.tender_type === 'annual-tender' ? 'Annual tender' : 'Contract tender'} updated successfully!`);
+      alert(`${tenderData.tender_type === 'spot-purchase' ? 'Patty purchase' : tenderData.tender_type === 'annual-tender' ? 'Annual tender' : 'Contract tender'} updated successfully!`);
       
       let redirectPath = '/dashboard/contract-tender';
       if (tenderData.tender_type === 'spot-purchase') {
@@ -578,15 +578,15 @@ const EditTender: React.FC = () => {
             navigate(dashboardPath);
           }}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchases' : tenderData.tender_type === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
+            Back to {tenderData.tender_type === 'spot-purchase' ? 'Patty Purchases' : tenderData.tender_type === 'annual-tender' ? 'Annual Tenders' : 'Contract Tenders'}
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              {tenderData.tender_type === 'spot-purchase' ? 'Edit Spot Purchase' : tenderData.tender_type === 'annual-tender' ? 'Edit Annual Tender' : 'Edit Contract'}
+              {tenderData.tender_type === 'spot-purchase' ? 'Edit Patty Purchase' : tenderData.tender_type === 'annual-tender' ? 'Edit Annual Tender' : 'Edit Contract'}
             </h1>
             <p className="text-muted-foreground">
               {tenderData.tender_type === 'spot-purchase' 
-                ? 'Update spot purchase details for quick procurement'
+                ? 'Update patty purchase details for quick procurement'
                 : 'Update contract tender details and modify items for procurement'
               }
             </p>
@@ -625,7 +625,7 @@ const EditTender: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="contract">Contract Tender</SelectItem>
-                      <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
+                      <SelectItem value="spot-purchase">Patty Purchase</SelectItem>
                       <SelectItem value="annual-tender">Annual Tender</SelectItem>
                     </SelectContent>
                   </Select>
@@ -661,7 +661,7 @@ const EditTender: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <FileText className="h-5 w-5 mr-2" />
-                {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase Information' : 'Tender Information'}
+                {tenderData.tender_type === 'spot-purchase' ? 'Patty Purchase Information' : 'Tender Information'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -686,7 +686,7 @@ const EditTender: React.FC = () => {
                     ...prev,
                     title: e.target.value
                   }))}
-                  placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase title' : 'Enter tender title'}
+                  placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter patty purchase title' : 'Enter tender title'}
                 />
               </div>
 
@@ -700,7 +700,7 @@ const EditTender: React.FC = () => {
                     ...prev,
                     description: e.target.value
                   }))}
-                  placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter spot purchase description' : 'Enter tender description'}
+                  placeholder={tenderData.tender_type === 'spot-purchase' ? 'Enter patty purchase description' : 'Enter tender description'}
                 />
               </div>
 
@@ -976,7 +976,7 @@ const EditTender: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Plus className="h-5 w-5 mr-2" />
-                {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase Items' : 'Tender Items'} ({tenderItems.length})
+                {tenderData.tender_type === 'spot-purchase' ? 'Patty Purchase Items' : 'Tender Items'} ({tenderItems.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1278,7 +1278,7 @@ const EditTender: React.FC = () => {
               {tenderItems.length > 0 && (
                 <div>
                   <h3 className="text-lg font-medium mb-4">
-                    {tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase Items List' : tenderData.tender_type === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
+                    {tenderData.tender_type === 'spot-purchase' ? 'Patty Purchase Items List' : tenderData.tender_type === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
                   </h3>
                   <div className="overflow-x-auto">
                     <Table>
@@ -1524,7 +1524,7 @@ const EditTender: React.FC = () => {
                   </Button>
                   <Button type="submit" disabled={loading || !tenderData.title}>
                     <Save className="h-4 w-4 mr-2" />
-                    {loading ? 'Updating...' : `Update ${tenderData.tender_type === 'spot-purchase' ? 'Spot Purchase' : 'Contract'}`}
+                    {loading ? 'Updating...' : `Update ${tenderData.tender_type === 'spot-purchase' ? 'Patty Purchase' : 'Contract'}`}
                   </Button>
                 </div>
               </div>

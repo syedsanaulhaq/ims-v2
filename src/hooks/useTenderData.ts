@@ -42,7 +42,7 @@ export const useTenderData = () => {
     closedTenders: tenders.filter(t => t.status === 'Closed').length,
     totalEstimatedValue: tenders.reduce((sum, t) => sum + t.estimatedValue, 0),
     contractTenders: tenders.filter(t => t.type === 'Contract/Tender').length,
-    spotPurchases: tenders.filter(t => t.type === 'Spot Purchase').length,
+    spotPurchases: tenders.filter(t => t.type === 'Patty Purchase').length,
   };
 
   const isApiError = isError;

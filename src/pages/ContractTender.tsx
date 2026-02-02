@@ -78,7 +78,7 @@ interface Tender {
 }
 
 interface ContractTenderProps {
-  initialType?: 'Contract/Tender' | 'Spot Purchase' | 'Annual Tender';
+  initialType?: 'Contract/Tender' | 'Patty Purchase' | 'Annual Tender';
 }
 
 const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
@@ -98,14 +98,14 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   if (queryType === 'annual-tender') {
     effectiveType = 'Annual Tender';
   } else if (queryType === 'spot-purchase') {
-    effectiveType = 'Spot Purchase';
+    effectiveType = 'Patty Purchase';
   } else if (queryType === 'contract') {
     effectiveType = 'Contract/Tender';
   }
 
-  const isSpotPurchase = effectiveType === 'Spot Purchase';
+  const isSpotPurchase = effectiveType === 'Patty Purchase';
   const isAnnualTender = effectiveType === 'Annual Tender';
-  const dashboardTitle = isSpotPurchase ? 'Spot Purchase Management' : isAnnualTender ? 'Annual Tender Management' : 'Contract/Tender Management';
+  const dashboardTitle = isSpotPurchase ? 'Patty Purchase Management' : isAnnualTender ? 'Annual Tender Management' : 'Contract/Tender Management';
   
   // Separate tenders into finalized and non-finalized
   const nonFinalizedTenders = tenders.filter(tender => !tender.is_finalized);
@@ -358,7 +358,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract'}
+                        {tender.tender_type === 'spot-purchase' ? 'Patty Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract'}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatCurrency(tender.estimated_value)}</TableCell>
@@ -476,11 +476,11 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{dashboardTitle}</h1>
-          <p className="text-gray-600">Manage {isSpotPurchase ? 'spot purchases' : isAnnualTender ? 'annual tenders' : 'contract tenders'} and track their progress</p>
+          <p className="text-gray-600">Manage {isSpotPurchase ? 'patty purchases' : isAnnualTender ? 'annual tenders' : 'contract tenders'} and track their progress</p>
         </div>
         <Button onClick={handleCreateNew} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
-          {isSpotPurchase ? 'Spot Purchase' : 'Tender'}
+          {isSpotPurchase ? 'Patty Purchase' : 'Tender'}
         </Button>
       </div>
 
@@ -494,11 +494,11 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">
-                  {isSpotPurchase ? 'Spot Purchases' : isAnnualTender ? 'Annual Tenders' : 'Contract Tenders'}
+                  {isSpotPurchase ? 'Patty Purchases' : isAnnualTender ? 'Annual Tenders' : 'Contract Tenders'}
                 </p>
                 <h3 className="text-2xl font-bold">{tenders.length}</h3>
                 <p className="text-xs text-gray-500">
-                  {isSpotPurchase ? 'Total spot purchases' : isAnnualTender ? 'Total annual tenders' : 'Total tenders'}
+                  {isSpotPurchase ? 'Total patty purchases' : isAnnualTender ? 'Total annual tenders' : 'Total tenders'}
                 </p>
               </div>
             </div>
@@ -513,7 +513,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">
-                  {isSpotPurchase ? 'Active Spot Purchases' : 'Active Tenders'}
+                  {isSpotPurchase ? 'Active Patty Purchases' : 'Active Tenders'}
                 </p>
                 <h3 className="text-2xl font-bold">{nonFinalizedTenders.length}</h3>
                 <p className="text-xs text-gray-500">Currently active</p>
@@ -530,11 +530,11 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">
-                  {isSpotPurchase ? 'Finalized Spot Purchases' : 'Finalized Tenders'}
+                  {isSpotPurchase ? 'Finalized Patty Purchases' : 'Finalized Tenders'}
                 </p>
                 <h3 className="text-2xl font-bold">{finalizedTenders.length}</h3>
                 <p className="text-xs text-gray-500">
-                  {isSpotPurchase ? 'Completed spot purchases' : 'Completed tenders'}
+                  {isSpotPurchase ? 'Completed patty purchases' : 'Completed tenders'}
                 </p>
               </div>
             </div>
@@ -549,7 +549,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">
-                  {isSpotPurchase ? 'Recent Spot Purchases' : 'Recent Tenders'}
+                  {isSpotPurchase ? 'Recent Patty Purchases' : 'Recent Tenders'}
                 </p>
                 <h3 className="text-2xl font-bold">
                   {tenders.filter(t => {
@@ -574,7 +574,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder={isSpotPurchase ? 'Search spot purchases by title, reference number, or description...' : 'Search tenders by title, reference number, or description...'}
+                  placeholder={isSpotPurchase ? 'Search patty purchases by title, reference number, or description...' : 'Search tenders by title, reference number, or description...'}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -604,18 +604,18 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="active" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            {isSpotPurchase ? 'Active Spot Purchases' : 'Active Tenders'} ({nonFinalizedTenders.length})
+            {isSpotPurchase ? 'Active Patty Purchases' : 'Active Tenders'} ({nonFinalizedTenders.length})
           </TabsTrigger>
           <TabsTrigger value="finalized" className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" />
-            {isSpotPurchase ? 'Finalized Spot Purchases' : 'Finalized Tenders'} ({finalizedTenders.length})
+            {isSpotPurchase ? 'Finalized Patty Purchases' : 'Finalized Tenders'} ({finalizedTenders.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="active">
           <TenderTable 
             tenderList={filterTenders(nonFinalizedTenders)} 
-            title={isSpotPurchase ? 'Active Spot Purchases (Can be edited and finalized)' : 'Active Tenders (Can be edited and finalized)'}
+            title={isSpotPurchase ? 'Active Patty Purchases (Can be edited and finalized)' : 'Active Tenders (Can be edited and finalized)'}
             isFinalized={false}
           />
         </TabsContent>
@@ -623,7 +623,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
         <TabsContent value="finalized">
           <TenderTable 
             tenderList={filterTenders(finalizedTenders)} 
-            title={isSpotPurchase ? 'Finalized Spot Purchases (Read-only, added to stock acquisition)' : 'Finalized Tenders (Read-only, added to stock acquisition)'}
+            title={isSpotPurchase ? 'Finalized Patty Purchases (Read-only, added to stock acquisition)' : 'Finalized Tenders (Read-only, added to stock acquisition)'}
             isFinalized={true}
           />
         </TabsContent>
@@ -657,7 +657,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <div>
                   <label className="text-sm font-medium text-gray-500">Type</label>
                   <p className="text-lg">
-                    {selectedTender.tender_type === 'spot-purchase' ? 'Spot Purchase' : 'Contract'}
+                    {selectedTender.tender_type === 'spot-purchase' ? 'Patty Purchase' : 'Contract'}
                   </p>
                 </div>
                 <div>

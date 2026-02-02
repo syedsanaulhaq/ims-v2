@@ -199,6 +199,15 @@ const TenderDetails: React.FC = () => {
       
       const data = await response.json();
       console.log('✅ Fetched tender details:', data);
+      
+      // Calculate total_amount for items if missing
+      if (data.items && Array.isArray(data.items)) {
+        data.items = data.items.map((item: TenderItem) => ({
+          ...item,
+          total_amount: item.total_amount || (item.quantity || 0) * (item.estimated_unit_price || 0)
+        }));
+      }
+      
       setTender(data);
       
       // Fetch bidders for this tender
@@ -465,7 +474,7 @@ const TenderDetails: React.FC = () => {
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tender Type</label>
               <p className="text-base font-medium text-gray-900">
-                {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract/Tender'}
+                {tender.tender_type === 'spot-purchase' ? 'Patty Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract/Tender'}
               </p>
             </div>
             {tender.tender_spot_type && (
@@ -820,11 +829,74 @@ const TenderDetails: React.FC = () => {
       )}
 
       {/* Participating Bidders Section */}
-      <TenderVendorManagement
-        tenderId={tender.id}
-        readOnly={true}
-        vendors={bidders}
-      />
+      {bidders.length > 0 && (
+        <Card>
+          <CardHeader className="bg-gray-50">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <User className="w-5 h-5 text-blue-600" />
+              Participating Bidders ({bidders.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="w-12">#</TableHead>
+                    <TableHead>Bidder Name</TableHead>
+                    <TableHead>Bidder Code</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Remarks</TableHead>
+                    {tender.tender_type !== 'annual-tender' && <TableHead>Proposal</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bidders.map((bidder, index) => (
+                    <TableRow key={bidder.vendor_id} className={bidder.is_successful ? 'bg-green-50' : ''}>
+                      <TableCell className="font-medium text-gray-500">{index + 1}</TableCell>
+                      <TableCell className="font-semibold">
+                        {bidder.vendor_name}
+                        {bidder.is_successful && (
+                          <Badge className="ml-2 bg-green-600">✓ Successful</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{bidder.vendor_code || 'N/A'}</TableCell>
+                      <TableCell>
+                        {bidder.is_successful ? (
+                          <Badge className="bg-green-600">Selected</Badge>
+                        ) : (
+                          <Badge variant="outline">Not Selected</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        <div className="text-sm" title={bidder.remarks || ''}>
+                          {bidder.remarks || '-'}
+                        </div>
+                      </TableCell>
+                      {tender.tender_type !== 'annual-tender' && (
+                        <TableCell>
+                          {bidder.proposal_document_name ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDownload(bidder.proposal_document_path, bidder.proposal_document_name)}
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              Download
+                            </Button>
+                          ) : (
+                            <span className="text-sm text-gray-500">No proposal</span>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tender Items */}
       {tender.items && tender.items.length > 0 && (
@@ -832,7 +904,7 @@ const TenderDetails: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
-              {tender.tender_type === 'spot-purchase' ? 'Spot Purchase Items' : tender.tender_type === 'annual-tender' ? 'Annual Tender Items' : 'Tender Items'} ({tender.items.length})
+              {tender.tender_type === 'spot-purchase' ? 'Patty Purchase Items' : tender.tender_type === 'annual-tender' ? 'Annual Tender Items' : 'Tender Items'} ({tender.items.length})
             </CardTitle>
           </CardHeader>
           <CardContent>

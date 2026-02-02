@@ -103,8 +103,8 @@ const ItemMasterItemsSection: React.FC<ItemMasterItemsSectionProps> = ({ form, i
   };
 
   const totalAmount = calculateTotalAmount();
-  const itemsTitle = isSpotPurchase ? 'Spot Purchase Items' : 'Tender Items';
-  const itemsDesc = isSpotPurchase ? 'Add items from the Item Master for this spot purchase.' : 'Add items from the Item Master for this tender.';
+  const itemsTitle = isSpotPurchase ? 'Patty Purchase Items' : 'Tender Items';
+  const itemsDesc = isSpotPurchase ? 'Add items from the Item Master for this patty purchase.' : 'Add items from the Item Master for this tender.';
   return (
     <Card data-testid="items-section" data-field="items">
       <CardHeader>
