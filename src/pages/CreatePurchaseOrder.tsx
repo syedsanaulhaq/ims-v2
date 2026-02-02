@@ -51,6 +51,7 @@ export default function CreatePurchaseOrder() {
   const [itemVendors, setItemVendors] = useState<{ [key: string]: string }>({});
   const [itemQuantities, setItemQuantities] = useState<{ [key: string]: number }>({});
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [poDetail, setPoDetail] = useState<string>('It is submitted that the following items may kindly be provided to this Commission Secretariat at the earliest to meet the official requirements as per annual tender rates. Furthermore, the supplier may be requested to furnish the corresponding bill/invoice to this office after delivery of the items, so that necessary arrangements for payment can be made in accordance with the prescribed financial rules and procedures.');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -269,6 +270,7 @@ export default function CreatePurchaseOrder() {
         tenderType: selectedTender?.tender_type,
         selectedItems: Array.from(selectedItems),
         poDate,
+        poDetail,
         itemPrices: itemPrices,
         itemVendors: itemVendors, // For annual tenders
         itemQuantities: itemQuantities
@@ -528,14 +530,14 @@ export default function CreatePurchaseOrder() {
               </CardContent>
             </Card>
 
-            {/* Step 3: Vendor & PO Date */}
+            {/* Step 3: Details */}
             <Card>
               <CardHeader>
-                <CardTitle>Step 3: PO Date{selectedTender?.tender_type !== 'annual-tender' && ' & Vendor'}</CardTitle>
+                <CardTitle>Step 3: Details</CardTitle>
                 <CardDescription>
                   {selectedTender?.tender_type === 'annual-tender' 
-                    ? 'Set the PO date (Vendors selected per item)' 
-                    : 'Select the vendor and set the PO date'}
+                    ? 'Set the PO date and supply order details (Vendors selected per item)' 
+                    : 'Select the vendor, set the PO date, and enter supply order details'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -577,6 +579,17 @@ export default function CreatePurchaseOrder() {
                     onChange={(e) => setPoDate(e.target.value)}
                     className="border-slate-300"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Supply Order Details</label>
+                  <textarea
+                    value={poDetail}
+                    onChange={(e) => setPoDetail(e.target.value)}
+                    rows={5}
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter the supply order details that will appear in the PO document..."
+                  />
+                  <p className="text-xs text-slate-500 mt-1">This text will be displayed in the 'Supply Order' section of the PO document.</p>
                 </div>
               </CardContent>
             </Card>

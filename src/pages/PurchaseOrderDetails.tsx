@@ -160,22 +160,53 @@ export default function PurchaseOrderDetails() {
   return (
     <>
       <style>{`
+        @page {
+          size: A4;
+          margin-left: 2in;
+          margin-right: 0.7in;
+          margin-top: 0.5in;
+          margin-bottom: 0.5in;
+        }
         @media print {
-          @page {
-            size: A4;
-            margin: 15mm;
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            height: auto !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          .print-container, .print-container * {
+            visibility: visible !important;
+          }
+          .print-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
           .no-print {
             display: none !important;
           }
+          .print-wrapper {
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+            min-height: 0 !important;
+          }
         }
       `}</style>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 print:bg-white">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 print-wrapper print:min-h-0">
         {/* Navigation and Action Buttons - Hidden on Print */}
         <div className="no-print bg-white border-b border-gray-200 px-6 py-4">
           <div className="max-w-5xl mx-auto flex justify-between items-center">
@@ -254,22 +285,23 @@ export default function PurchaseOrderDetails() {
         )}
 
         {/* Professional PO Format - Visible on Both Screen and Print */}
-        <div className="px-6 py-8 print:p-8">
-          <div className="max-w-5xl mx-auto bg-white shadow-lg print:shadow-none p-12 print:p-0">
+        <div className="px-6 py-8 print:p-0">
+          <div className="print-container mx-auto bg-white shadow-lg" style={{ width: '210mm', paddingLeft: '2in', paddingRight: '0.7in', paddingTop: '0.5in', paddingBottom: '0.5in' }}>
             
             {/* Header Section */}
             <div className="mb-8">
-              <div className="flex justify-between items-start mb-2">
-                <div className="text-sm">
-                  <p>{po.tender_reference_number ? `No.${po.tender_reference_number}` : `No. ${po.po_number}`}</p>
-                </div>
+              <div className="flex justify-end items-start mb-4">
                 <div className="text-sm font-bold uppercase">
                   <p className="underline">MOST IMMEDIATE</p>
                 </div>
               </div>
               
+              <div className="text-center mb-2">
+                <p className="text-sm">{po.tender_reference_number || 'No reference'}</p>
+              </div>
+              
               <div className="text-center mb-6">
-                <h1 className="text-xl font-bold uppercase">ELECTION COMMISSION OF PAKISTAN</h1>
+                <h1 className="text-base font-bold uppercase">ELECTION COMMISSION OF PAKISTAN</h1>
               </div>
 
               <div className="flex justify-end mb-6">
@@ -307,12 +339,12 @@ export default function PurchaseOrderDetails() {
             {/* Body Text */}
             <div className="mb-6 text-sm leading-relaxed" style={{ textAlign: 'justify' }}>
               <p className="indent-12">
-                It is submitted that the following items may kindly be provided to this Commission 
+                {po.po_detail || `It is submitted that the following items may kindly be provided to this Commission 
                 Secretariat at the earliest to meet the official requirements as per annual tender rates 
-                {po.tender_type === 'annual-tender' ? ' 2025-26' : ''}. Furthermore, the supplier may be requested to furnish the 
+                ${po.tender_type === 'annual-tender' ? ' 2025-26' : ''}. Furthermore, the supplier may be requested to furnish the 
                 corresponding bill/invoice to this office after delivery of the items, so that necessary 
                 arrangements for payment can be made in accordance with the prescribed financial rules 
-                and procedures.
+                and procedures.`}
               </p>
             </div>
 
@@ -384,15 +416,14 @@ export default function PurchaseOrderDetails() {
             {/* Signature Section */}
             <div className="mt-16 flex justify-end">
               <div className="text-sm text-center">
-                <p className="font-bold">(M. Adnan Iqbal)</p>
                 <p>Assistant Director (Admn)</p>
                 <p>Tele: 9206967</p>
               </div>
             </div>
 
-            {/* System Footer - Only on Screen */}
-            <div className="mt-8 pt-4 border-t border-gray-300 text-center text-xs text-gray-500 no-print">
-              <p>System Generated Document | Created: {new Date(po.created_at).toLocaleString('en-GB')} | Updated: {new Date(po.updated_at).toLocaleString('en-GB')}</p>
+            {/* Computer Generated Footer */}
+            <div className="mt-8 text-center text-xs text-gray-600">
+              <p>This is the computer generated Supply Order</p>
             </div>
 
           </div>

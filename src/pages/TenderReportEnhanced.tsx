@@ -1,25 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   FileText, 
-  Building, 
+  Calendar, 
+  DollarSign, 
   Package, 
-  Calendar,
-  ArrowLeft,
-  Printer,
+  Building2,
+  User,
   Download,
-  CheckCircle2,
-  DollarSign,
-  TrendingUp,
-  TrendingDown
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  ShieldCheck,
+  File,
+  Printer,
+  FileDown
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { useOfficeHierarchy } from '@/hooks/useOfficeHierarchy';
-import { createNameResolver } from '@/utils/nameResolver';
+import { format } from 'date-fns';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
 
 interface TenderItem {
@@ -44,474 +53,497 @@ interface TenderItem {
   category_description?: string;
 }
 
-interface TenderData {
+interface Tender {
   id: string;
   title: string;
   description?: string;
-  reference_number?: string;
+  reference_number: string;
   tender_number?: string;
   tender_type: string;
-  tender_status?: string;
-  procurement_method?: string;
-  procedure?: string;
-  published_date?: string;
+  tender_spot_type?: string;
+  submission_deadline: string;
   estimated_value: number;
+  status: string;
+  is_finalized: boolean;
+  finalized_at?: string;
+  finalized_by?: string;
+  created_at: string;
+  updated_at?: string;
+  created_by?: string;
+  publish_date?: string;
+  publication_date?: string;
   submission_date?: string;
   opening_date?: string;
-  submission_deadline?: string;
+  advertisement_date?: string;
+  procedure_adopted?: string;
+  procurement_method?: string;
   publication_daily?: string;
-  vendor_name?: string;
-  vendor_code?: string;
+  contract_file_path?: string;
+  loi_file_path?: string;
+  noting_file_path?: string;
+  po_file_path?: string;
+  rfp_file_path?: string;
+  document_path?: string;
   office_ids?: string;
   wing_ids?: string;
   dec_ids?: string;
-  office_names?: string;
-  wing_names?: string;
-  dec_names?: string;
-  created_at: string;
-  updated_at?: string;
-  is_finalized?: boolean;
-  finalized_at?: string;
-  finalized_by?: string;
-  items: TenderItem[];
+  vendor_id?: string;
+  vendor_name?: string;
+  individual_total?: number;
+  actual_price_total?: number;
+  items?: TenderItem[];
 }
 
 const TenderReportEnhanced: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const [tenderData, setTenderData] = useState<TenderData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [tender, setTender] = useState<Tender | null>(null);
   const [bidders, setBidders] = useState<any[]>([]);
-  const { offices, wings, decs, isLoading: hierarchyLoading } = useOfficeHierarchy();
-  const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [officeNames, setOfficeNames] = useState<string[]>([]);
+  const [wingNames, setWingNames] = useState<string[]>([]);
+  const [decNames, setDecNames] = useState<string[]>([]);
 
-  // Fetch tender data and vendors
   useEffect(() => {
     if (id) {
-      loadTenderData(id);
-      fetchVendors();
+      fetchTenderDetails();
     }
   }, [id]);
 
-  const fetchVendors = async () => {
+  useEffect(() => {
+    if (tender) {
+      fetchOrganizationalNames();
+    }
+  }, [tender]);
+
+  const fetchOrganizationalNames = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/vendors');
-      const data = await response.json();
-      setVendors(data);
+      // Fetch all offices, wings, and decs
+      const [officesRes, wingsRes, decsRes] = await Promise.all([
+        fetch('http://localhost:3001/api/offices'),
+        fetch('http://localhost:3001/api/wings'),
+        fetch('http://localhost:3001/api/decs').catch(() => ({ ok: false, json: async () => [] }))
+      ]);
+
+      const offices = officesRes.ok ? await officesRes.json() : [];
+      const wings = wingsRes.ok ? await wingsRes.json() : [];
+      const decs = decsRes.ok ? await decsRes.json() : [];
+
+      console.log('📊 Fetched data:', { offices, wings, decs });
+
+      // Parse the IDs from the tender
+      if (tender?.office_ids && typeof tender.office_ids === 'string') {
+        const officeIds = tender.office_ids.split(',').map(id => id.trim());
+        const names = officeIds
+          .map(id => {
+            const office = offices.find((o: any) => 
+              o.intOfficeID?.toString() === id || 
+              o.id?.toString() === id ||
+              o.Id?.toString() === id
+            );
+            return office?.strOfficeName || office?.name || office?.Name || `Office ID: ${id}`;
+          })
+          .filter(Boolean);
+        setOfficeNames(names);
+      }
+
+      if (tender?.wing_ids && typeof tender.wing_ids === 'string') {
+        const wingIds = tender.wing_ids.split(',').map(id => id.trim());
+        console.log('🔍 Looking for wing IDs:', wingIds);
+        const names = wingIds
+          .map(id => {
+            const wing = wings.find((w: any) => 
+              w.Id?.toString() === id || 
+              w.id?.toString() === id ||
+              w.intWingID?.toString() === id
+            );
+            console.log(`Wing ID ${id} matched:`, wing);
+            return wing?.Name || wing?.name || wing?.strWingName || `Wing ID: ${id}`;
+          })
+          .filter(Boolean);
+        setWingNames(names);
+      }
+
+      if (tender?.dec_ids && typeof tender.dec_ids === 'string') {
+        const decIds = tender.dec_ids.split(',').map(id => id.trim());
+        console.log('🔍 Looking for DEC IDs:', decIds);
+        const names = decIds
+          .map(id => {
+            const dec = decs.find((d: any) => 
+              d.intAutoID?.toString() === id || 
+              d.id?.toString() === id ||
+              d.Id?.toString() === id ||
+              d.intDecID?.toString() === id
+            );
+            console.log(`DEC ID ${id} matched:`, dec);
+            return dec?.DECName || dec?.name || dec?.Name || dec?.strDecName || `DEC ID: ${id}`;
+          })
+          .filter(Boolean);
+        setDecNames(names);
+      }
     } catch (error) {
-      console.error('Error fetching vendors:', error);
+      console.error('Error fetching organizational names:', error);
+    }
+  };
+
+  const fetchTenderDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:3001/api/tenders/${id}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch tender details');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Fetched tender details:', data);
+      setTender(data);
+      
+      // Fetch bidders for this tender
+      try {
+        const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${id}/vendors`);
+        if (biddersResponse.ok) {
+          const biddersData = await biddersResponse.json();
+          console.log('✅ Fetched bidders:', biddersData);
+          setBidders(biddersData);
+        }
+      } catch (err) {
+        console.error('⚠️ Error fetching bidders:', err);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching tender details:', error);
+      alert('Failed to load tender details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number | undefined | null) => {
+    if (amount === null || amount === undefined) return 'N/A';
+    return new Intl.NumberFormat('en-PK', {
+      style: 'currency',
+      currency: 'PKR',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return 'N/A';
+    try {
+      return format(new Date(dateString), 'MMM dd, yyyy');
+    } catch {
+      return dateString;
     }
   };
 
   const getVendorName = (vendorId: string): string => {
-    const vendor = vendors.find(v => 
-      v.id?.toLowerCase() === vendorId?.toLowerCase() ||
-      v.vendor_id?.toLowerCase() === vendorId?.toLowerCase()
-    );
-    return vendor?.vendor_name || vendorId;
+    const bidder = bidders.find(b => b.vendor_id === vendorId);
+    return bidder ? bidder.vendor_name : vendorId;
   };
 
-  const loadTenderData = async (tenderId: string) => {
+  const formatDateTime = (dateString: string | undefined | null) => {
+    if (!dateString) return 'N/A';
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Fetch tender details
-      const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
-      if (!tenderResponse.ok) {
-        throw new Error('Failed to fetch tender data');
-      }
-      const tender = await tenderResponse.json();
-      setTenderData(tender);
-
-      // Fetch bidders/vendors for annual tenders
-      if (tender.tender_type === 'annual-tender') {
-        try {
-          const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
-          if (biddersResponse.ok) {
-            const biddersData = await biddersResponse.json();
-            setBidders(biddersData || []);
-          }
-        } catch (err) {
-          console.error('Error fetching bidders:', err);
-        }
-      }
-    } catch (err) {
-      console.error('Error loading tender data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load tender data');
-    } finally {
-      setIsLoading(false);
+      return format(new Date(dateString), 'MMM dd, yyyy HH:mm:ss');
+    } catch {
+      return dateString;
     }
   };
 
-  // Name resolution using office hierarchy
-  const getResolvedNames = (data: TenderData) => {
-    const nameResolver = createNameResolver(offices, wings, decs);
+  const getStatusBadge = (status: string, isFinalized: boolean) => {
+    if (isFinalized) {
+      return <Badge className="bg-green-600">✓ Finalized</Badge>;
+    }
     
-    const parseIds = (idsString: string) => {
-      if (!idsString) return [];
-      return idsString.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-    };
-
-    const resolveOfficeNames = () => {
-      if (data.office_ids) {
-        const ids = parseIds(data.office_ids);
-        if (ids.length > 0) {
-          return nameResolver.resolveOfficeNames(ids).join(', ');
-        }
-      }
-      return data.office_names || 'N/A';
-    };
-
-    const resolveWingNames = () => {
-      if (data.wing_ids) {
-        const ids = parseIds(data.wing_ids);
-        if (ids.length > 0) {
-          return nameResolver.resolveWingNames(ids).join(', ');
-        }
-      }
-      return data.wing_names || 'N/A';
-    };
-
-    const resolveDecNames = () => {
-      if (data.dec_ids) {
-        const ids = parseIds(data.dec_ids);
-        if (ids.length > 0) {
-          return nameResolver.resolveDecNames(ids).join(', ');
-        }
-      }
-      return data.dec_names || 'N/A';
-    };
-
-    return {
-      officeNames: resolveOfficeNames(),
-      wingNames: resolveWingNames(),
-      decNames: resolveDecNames()
-    };
-  };
-
-  // Formatting functions
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatDateTime = (dateString: string | undefined) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-PK', {
-      style: 'currency',
-      currency: 'PKR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount).replace('PKR', 'Rs');
-  };
-
-  // Calculations
-  const calculateActualTotal = () => {
-    if (!tenderData || !tenderData.items) return 0;
-    if (tenderData.tender_type === 'annual-tender') {
-      return 0; // Annual tenders don't show total value
+    switch (status?.toLowerCase()) {
+      case 'draft':
+        return <Badge variant="outline">Draft</Badge>;
+      case 'published':
+        return <Badge className="bg-blue-600">Published</Badge>;
+      case 'closed':
+        return <Badge className="bg-gray-600">Closed</Badge>;
+      case 'awarded':
+        return <Badge className="bg-purple-600">Awarded</Badge>;
+      case 'cancelled':
+        return <Badge variant="destructive">Cancelled</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
     }
-    return tenderData.items.reduce((sum, item) => sum + (item.total_amount || 0), 0);
   };
 
-  const estimatedValue = tenderData?.estimated_value || 0;
-  const actualValue = calculateActualTotal();
-  const variance = actualValue - estimatedValue;
-  const variancePercentage = estimatedValue > 0 ? (variance / estimatedValue) * 100 : 0;
-
-  // PDF Generation
-  const generatePDF = () => {
-    if (!tenderData) return;
-
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4'
-    });
-
-    // Title
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(tenderData.title || 'Tender Report', 148.5, 20, { align: 'center' });
-
-    // Reference Number
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Reference: ${tenderData.reference_number || tenderData.tender_number || 'N/A'}`, 148.5, 28, { align: 'center' });
-
-    let yPos = 40;
-
-    // Tender Information
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Tender Information', 14, yPos);
-    yPos += 8;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const tenderInfo = [
-      ['Type:', tenderData.tender_type || 'N/A', 'Method:', tenderData.procurement_method || 'N/A'],
-      ['Status:', tenderData.tender_status || 'N/A', 'Estimated Value:', formatCurrency(estimatedValue)],
-      ['Submission:', formatDate(tenderData.submission_date), 'Opening:', formatDate(tenderData.opening_date)]
-    ];
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [],
-      body: tenderInfo,
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 2 },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 40 },
-        1: { cellWidth: 80 },
-        2: { fontStyle: 'bold', cellWidth: 40 },
-        3: { cellWidth: 80 }
-      }
-    });
-
-    yPos = (doc as any).lastAutoTable.finalY + 10;
-
-    // Financial Summary
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Financial Summary', 14, yPos);
-    yPos += 8;
-
-    const financialData = [
-      ['Estimated Value', formatCurrency(estimatedValue)],
-      ['Actual Value', formatCurrency(actualValue)],
-      ['Variance', formatCurrency(variance) + ` (${variancePercentage.toFixed(2)}%)`]
-    ];
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Category', 'Amount']],
-      body: financialData,
-      theme: 'striped',
-      headStyles: { fillColor: [34, 197, 94], textColor: 255 },
-      styles: { fontSize: 10 }
-    });
-
-    yPos = (doc as any).lastAutoTable.finalY + 10;
-
-    // Items Table
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Tender Items', 14, yPos);
-    yPos += 8;
-
-    const itemsData = tenderData.items.map(item => [
-      item.nomenclature || item.item_name || 'N/A',
-      item.quantity.toString(),
-      formatCurrency(item.estimated_unit_price),
-      formatCurrency(calculateItemTotal(item))
-    ]);
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Item Name', 'Quantity', 'Unit Price', 'Total Amount']],
-      body: itemsData,
-      theme: 'grid',
-      headStyles: { fillColor: [34, 197, 94], textColor: 255 },
-      styles: { fontSize: 9 },
-      foot: [[
-        'Total',
-        tenderData.items.reduce((sum, item) => sum + item.quantity, 0).toString(),
-        '',
-        formatCurrency(actualValue)
-      ]],
-      footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] }
-    });
-
-    // Save PDF
-    doc.save(`Tender_Report_${tenderData.reference_number || tenderData.id}.pdf`);
+  const handleDownload = (filePath: string, fileName: string) => {
+    const url = `http://localhost:3001/uploads/tender-files/${filePath}`;
+    window.open(url, '_blank');
   };
 
-  if (isLoading) {
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExport = () => {
+    if (!tender) return;
+
+    // Prepare data for export
+    const csvContent = [
+      ['Tender Details Report'],
+      [],
+      ['Title', tender.title],
+      ['Reference Number', tender.reference_number],
+      ['Tender Type', tender.tender_type],
+      ['Status', tender.status],
+      ['Publish Date', formatDate(tender.publish_date)],
+      ['Submission Deadline', formatDate(tender.submission_deadline)],
+      ['Opening Date', formatDate(tender.opening_date)],
+      ['Description', tender.description || ''],
+      ['Created By', tender.created_by || ''],
+      ['Created Date', formatDateTime(tender.created_at)],
+      [],
+      ['Tender Items'],
+      ['Item', 'Quantity', 'Unit Price', 'Total Amount', 'Specifications', 'Remarks'],
+      ...(tender.items?.map((item) => [
+        item.nomenclature,
+        item.quantity,
+        item.estimated_unit_price || 0,
+        item.total_amount || 0,
+        item.specifications || '',
+        item.remarks || ''
+      ]) || [])
+    ];
+
+    const csvString = csvContent.map(row => 
+      row.map(cell => `"${cell}"`).join(',')
+    ).join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${tender.reference_number || 'tender'}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading tender report...</p>
-          </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p>Loading tender details...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !tenderData) {
+  if (!tender) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <Card className="border-red-200 bg-red-50">
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Tender not found</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col gap-4">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
           <CardContent className="pt-6">
-            <div className="flex items-center space-x-2 text-red-600 mb-4">
-              <FileText className="h-5 w-5" />
-              <h3 className="font-semibold">Error Loading Tender</h3>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <FileText className="w-8 h-8 text-blue-600" />
+                  <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                    {tender.title}
+                  </h1>
+                </div>
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600">Reference:</span>
+                    <span className="text-sm font-semibold text-gray-900">{tender.reference_number}</span>
+                  </div>
+                  {tender.tender_number && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-600">Tender #:</span>
+                      <span className="text-sm font-semibold text-gray-900">{tender.tender_number}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(tender.status, tender.is_finalized)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 print:hidden">
+                <Button onClick={handlePrint} variant="outline" size="sm">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print
+                </Button>
+                <Button onClick={handleExport} variant="outline" size="sm">
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </div>
             </div>
-            <p className="text-red-700 mb-4">{error || 'Tender not found'}</p>
-            <Button onClick={() => navigate('/dashboard/contract-tender')} variant="outline">
-              Back to Tenders
-            </Button>
           </CardContent>
         </Card>
       </div>
-    );
-  }
 
-  const resolvedNames = getResolvedNames(tenderData);
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 print:p-4 print:max-w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between print:hidden">
-        <Button
-          onClick={() => navigate('/dashboard/contract-tender')}
-          variant="outline"
-          className="flex items-center space-x-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back to Tenders</span>
-        </Button>
-        
-        <div className="flex space-x-2">
-          <Button onClick={() => window.print()} variant="outline">
-            <Printer className="w-4 h-4 mr-2" />
-            Print
-          </Button>
-          <Button onClick={generatePDF} variant="default" className="bg-green-600 hover:bg-green-700">
-            <Download className="w-4 h-4 mr-2" />
-            Download PDF
-          </Button>
-        </div>
-      </div>
-
-      {/* Title Section */}
-      <div className="text-center border-b-2 border-green-600 pb-4 print:border-b print:border-gray-300">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          {tenderData.title || 'Tender Report'}
-        </h1>
-        <p className="text-gray-600 text-lg">
-          Reference: {tenderData.reference_number || tenderData.tender_number || 'N/A'}
-        </p>
-        {tenderData.is_finalized && (
-          <Badge className="mt-2 bg-green-100 text-green-800 hover:bg-green-200">
-            <CheckCircle2 className="w-4 h-4 mr-1" />
-            Finalized
-          </Badge>
-        )}
-      </div>
+      {/* Finalized Alert */}
+      {tender.is_finalized && (
+        <Alert className="bg-green-50 border-green-200">
+          <ShieldCheck className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            <strong>Finalized:</strong> This tender was finalized on {formatDateTime(tender.finalized_at)} 
+            by {tender.finalized_by || 'Unknown'} and has been added to the stock acquisition system.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Basic Information */}
-      <Card className="border-green-200">
-        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
-          <CardTitle className="flex items-center space-x-2 text-green-800">
-            <FileText className="h-5 w-5" />
-            <span>Tender Information</span>
+      <Card>
+        <CardHeader className="bg-gray-50">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FileText className="w-5 h-5 text-blue-600" />
+            Basic Information
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Tender Type</label>
-              <p className="text-gray-900 font-medium">{tenderData.tender_type || 'N/A'}</p>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Title</label>
+              <p className="text-base font-medium text-gray-900">{tender.title}</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Reference Number</label>
-              <p className="text-gray-900 font-medium">{tenderData.reference_number || 'N/A'}</p>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reference Number</label>
+              <p className="text-base font-medium text-gray-900">{tender.reference_number}</p>
             </div>
-            {tenderData.tender_number && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Tender Number</label>
-                <p className="text-gray-900 font-medium">{tenderData.tender_number}</p>
+            {tender.tender_number && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tender Number</label>
+                <p className="text-base font-medium text-gray-900">{tender.tender_number}</p>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Status</label>
-              <Badge className={
-                tenderData.tender_status === 'Active' ? 'bg-green-100 text-green-800' :
-                tenderData.tender_status === 'Closed' ? 'bg-red-100 text-red-800' :
-                tenderData.tender_status === 'Draft' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-gray-100 text-gray-800'
-              }>
-                {tenderData.tender_status || 'Unknown'}
-              </Badge>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tender Type</label>
+              <p className="text-base font-medium text-gray-900">
+                {tender.tender_type === 'spot-purchase' ? 'Spot Purchase' : tender.tender_type === 'annual-tender' ? 'Annual Tender' : 'Contract/Tender'}
+              </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Estimated Value</label>
-              <p className="text-gray-900 font-semibold text-green-600">{formatCurrency(estimatedValue)}</p>
+            {tender.tender_spot_type && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Spot Type</label>
+                <p className="text-base font-medium text-gray-900 capitalize">{tender.tender_spot_type.replace('_', ' ')}</p>
+              </div>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</label>
+              <div className="mt-1">
+                {getStatusBadge(tender.status, tender.is_finalized)}
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Item Count</label>
-              <p className="text-gray-900 font-semibold">{tenderData.items?.length || 0} items</p>
-            </div>
+
+            {tender.procurement_method && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procurement Method</label>
+                <p className="text-base font-medium text-gray-900 capitalize">{tender.procurement_method.replace('_', ' ')}</p>
+              </div>
+            )}
+            {tender.procedure_adopted && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procedure Adopted</label>
+                <p className="text-base font-medium text-gray-900">{tender.procedure_adopted}</p>
+              </div>
+            )}
+            {tender.individual_total !== null && tender.individual_total !== undefined && tender.tender_type !== 'annual-tender' && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Individual Total</label>
+                <p className="text-lg font-bold text-blue-600">
+                  {formatCurrency(tender.individual_total)}
+                </p>
+              </div>
+            )}
+            {tender.actual_price_total !== null && tender.actual_price_total !== undefined && tender.tender_type !== 'annual-tender' && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Actual Price Total</label>
+                <p className="text-lg font-bold text-purple-600">
+                  {formatCurrency(tender.actual_price_total)}
+                </p>
+              </div>
+            )}
           </div>
 
-          {tenderData.description && (
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
-              <p className="text-gray-900 bg-gray-50 p-3 rounded-md whitespace-pre-wrap">{tenderData.description}</p>
+          {tender.description && (
+            <div className="mt-6 pt-6 border-t">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Description</label>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border">
+                {tender.description}
+              </p>
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Important Dates */}
-      <Card className="border-blue-200">
-        <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
-          <CardTitle className="flex items-center space-x-2 text-blue-800">
-            <Calendar className="h-5 w-5" />
-            <span>Important Dates</span>
+      <Card>
+        <CardHeader className="bg-gray-50">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Calendar className="w-5 h-5 text-blue-600" />
+            Important Dates
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tenderData.published_date && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Publish Date</label>
-                <p className="text-gray-900">{formatDate(tenderData.published_date)}</p>
+            {tender.publish_date && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publish Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.publish_date)}</p>
               </div>
             )}
-            {tenderData.submission_date && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Submission Date</label>
-                <p className="text-gray-900">{formatDate(tenderData.submission_date)}</p>
+            {tender.publication_date && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publication Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.publication_date)}</p>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Submission Deadline</label>
-              <p className="text-gray-900 font-semibold text-red-600">{formatDate(tenderData.submission_deadline)}</p>
+            {tender.advertisement_date && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Advertisement Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.advertisement_date)}</p>
+              </div>
+            )}
+            {tender.submission_date && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submission Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.submission_date)}</p>
+              </div>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submission Deadline</label>
+              <p className="text-base font-bold text-red-600">
+                {formatDate(tender.submission_deadline)}
+              </p>
             </div>
-            {tenderData.opening_date && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Opening Date</label>
-                <p className="text-gray-900">{formatDate(tenderData.opening_date)}</p>
+            {tender.opening_date && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Opening Date</label>
+                <p className="text-base font-medium text-gray-900">{formatDate(tender.opening_date)}</p>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Created At</label>
-              <p className="text-gray-900">{formatDateTime(tenderData.created_at)}</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Created At</label>
+              <p className="text-sm text-gray-700">{formatDateTime(tender.created_at)}</p>
             </div>
-            {tenderData.updated_at && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Last Updated</label>
-                <p className="text-gray-900">{formatDateTime(tenderData.updated_at)}</p>
+            {tender.updated_at && (
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Last Updated</label>
+                <p className="text-sm text-gray-700">{formatDateTime(tender.updated_at)}</p>
               </div>
             )}
           </div>
@@ -519,360 +551,441 @@ const TenderReportEnhanced: React.FC = () => {
       </Card>
 
       {/* Procurement Details */}
-      <Card className="border-orange-200">
-        <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100">
-          <CardTitle className="flex items-center space-x-2 text-orange-800">
-            <Building className="h-5 w-5" />
-            <span>Procurement Details</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tenderData.procedure && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Procedure Adopted</label>
-                <p className="text-gray-900">{tenderData.procedure}</p>
-              </div>
-            )}
-            {tenderData.procurement_method && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Procurement Method</label>
-                <p className="text-gray-900">{tenderData.procurement_method}</p>
-              </div>
-            )}
-            {tenderData.publication_daily && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Publication Daily</label>
-                <p className="text-gray-900">{tenderData.publication_daily}</p>
-              </div>
-            )}
-            {tenderData.vendor_name && (
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Vendor</label>
-                <p className="text-gray-900">{tenderData.vendor_name}</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {(tender.procedure_adopted || tender.procurement_method || tender.publication_daily || tender.vendor_name || tender.created_by || officeNames.length > 0 || wingNames.length > 0 || decNames.length > 0) && (
+        <Card>
+          <CardHeader className="bg-gray-50">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              Procurement &amp; Organization Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tender.procedure_adopted && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procedure Adopted</label>
+                  <p className="text-base font-medium text-gray-900">{tender.procedure_adopted}</p>
+                </div>
+              )}
+              {tender.procurement_method && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Procurement Method</label>
+                  <p className="text-base font-medium text-gray-900 capitalize">{tender.procurement_method.replace('_', ' ')}</p>
+                </div>
+              )}
+              {tender.publication_daily && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publication Daily</label>
+                  <p className="text-base font-medium text-gray-900">{tender.publication_daily}</p>
+                </div>
+              )}
+              {tender.vendor_name && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</label>
+                  <p className="text-base font-medium text-gray-900">{tender.vendor_name}</p>
+                </div>
+              )}
+              {tender.created_by && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Created By</label>
+                  <p className="text-base font-medium text-gray-900">{tender.created_by}</p>
+                </div>
+              )}
+            </div>
 
-      {/* Financial Summary - Only for non-annual tenders */}
-      {tenderData.tender_type !== 'annual-tender' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-blue-200">
-            <CardHeader className="bg-gradient-to-br from-blue-50 to-blue-100 pb-3">
-              <CardTitle className="flex items-center justify-between text-blue-800 text-base">
-                <span className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Estimated Value
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <p className="text-2xl font-bold text-blue-900">{formatCurrency(estimatedValue)}</p>
-              <p className="text-sm text-gray-600 mt-1">Budgeted Amount</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-green-200">
-            <CardHeader className="bg-gradient-to-br from-green-50 to-green-100 pb-3">
-              <CardTitle className="flex items-center justify-between text-green-800 text-base">
-                <span className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Actual Value
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <p className="text-2xl font-bold text-green-900">{formatCurrency(actualValue)}</p>
-              <p className="text-sm text-gray-600 mt-1">Total Item Cost</p>
-            </CardContent>
-          </Card>
-
-          <Card className={variance >= 0 ? 'border-red-200' : 'border-green-200'}>
-            <CardHeader className={`bg-gradient-to-br pb-3 ${
-              variance >= 0 ? 'from-red-50 to-red-100' : 'from-green-50 to-green-100'
-            }`}>
-              <CardTitle className={`flex items-center justify-between text-base ${
-                variance >= 0 ? 'text-red-800' : 'text-green-800'
-              }`}>
-                <span className="flex items-center gap-2">
-                  {variance >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-                  Variance
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <p className={`text-2xl font-bold ${variance >= 0 ? 'text-red-900' : 'text-green-900'}`}>
-                {formatCurrency(Math.abs(variance))}
-              </p>
-              <p className="text-sm text-gray-600 mt-1">
-                {variancePercentage.toFixed(2)}% {variance >= 0 ? 'Over' : 'Under'} Budget
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+            {/* Organizational Names */}
+            {(officeNames.length > 0 || wingNames.length > 0 || decNames.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t">
+                {officeNames.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Offices</label>
+                    <ul className="space-y-2">
+                      {officeNames.map((name, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm bg-blue-50 px-3 py-2 rounded border border-blue-200">
+                          <span className="text-blue-600 font-bold">•</span>
+                          <span className="text-gray-700">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {wingNames.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Wings</label>
+                    <ul className="space-y-2">
+                      {wingNames.map((name, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm bg-green-50 px-3 py-2 rounded border border-green-200">
+                          <span className="text-green-600 font-bold">•</span>
+                          <span className="text-gray-700">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {decNames.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">DECs</label>
+                    <ul className="space-y-2">
+                      {decNames.map((name, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm bg-purple-50 px-3 py-2 rounded border border-purple-200">
+                          <span className="text-purple-600 font-bold">•</span>
+                          <span className="text-gray-700">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Organizational Information */}
-      <Card className="border-purple-200">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100">
-          <CardTitle className="flex items-center space-x-2 text-purple-800">
-            <Building className="h-5 w-5" />
-            <span>Organizational Details</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Offices</label>
-              <p className="text-gray-900 bg-blue-50 p-3 rounded-md">{resolvedNames.officeNames}</p>
+      {/* Document Attachments */}
+      {(tender.contract_file_path || tender.loi_file_path || tender.noting_file_path || 
+        tender.po_file_path || tender.rfp_file_path || tender.document_path) && (
+        <Card>
+          <CardHeader className="bg-gray-50">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <File className="w-5 h-5 text-blue-600" />
+              Document Attachments
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {tender.contract_file_path && (
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-blue-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Contract File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.contract_file_path}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="bg-white hover:bg-blue-50"
+                    onClick={() => handleDownload(tender.contract_file_path!, 'Contract')}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {tender.loi_file_path && (
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg border border-green-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">LOI File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.loi_file_path}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="bg-white hover:bg-green-50"
+                    onClick={() => handleDownload(tender.loi_file_path!, 'LOI')}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {tender.noting_file_path && (
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg border border-purple-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Noting File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.noting_file_path}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="bg-white hover:bg-purple-50"
+                    onClick={() => handleDownload(tender.noting_file_path!, 'Noting')}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {tender.po_file_path && (
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg border border-orange-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">PO File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.po_file_path}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="bg-white hover:bg-orange-50"
+                    onClick={() => handleDownload(tender.po_file_path!, 'PO')}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {tender.rfp_file_path && (
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-red-100 rounded-lg border border-red-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">RFP File</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.rfp_file_path}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="bg-white hover:bg-red-50"
+                    onClick={() => handleDownload(tender.rfp_file_path!, 'RFP')}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              {tender.document_path && (
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg">
+                      <FileText className="w-6 h-6 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Document</p>
+                      <p className="text-xs text-gray-600 truncate max-w-xs">{tender.document_path}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="bg-white hover:bg-gray-50"
+                    onClick={() => handleDownload(tender.document_path!, 'Document')}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Wings</label>
-              <p className="text-gray-900 bg-green-50 p-3 rounded-md">{resolvedNames.wingNames}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Departments</label>
-              <p className="text-gray-900 bg-purple-50 p-3 rounded-md">{resolvedNames.decNames}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Participating Bidders Section */}
+      <TenderVendorManagement
+        tenderId={tender.id}
+        readOnly={true}
+        vendors={bidders}
+      />
 
       {/* Tender Items */}
-      <Card className="border-green-200">
-        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 print:bg-gray-100">
-          <CardTitle className="flex items-center space-x-2 text-green-800 print:text-gray-900">
-            <Package className="h-5 w-5" />
-            <span>
-              {tenderData.tender_type === 'annual-tender' 
-                ? 'Annual Tender Items' 
-                : tenderData.tender_type === 'spot-purchase'
-                ? 'Spot Purchase Items'
-                : 'Tender Items'
-              } ({tenderData.items?.length || 0})
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 border print:text-sm">
-              <thead className="bg-green-100 print:bg-gray-200">
-                <tr>
-                  {tenderData.tender_type === 'annual-tender' ? (
-                    <>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">#</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Category</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Name of the Article</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Vendor</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Unit Price</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Specifications</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Remarks</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">#</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Item Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Quantity</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Unit Price</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Total Amount</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Specifications</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider print:text-gray-900 print:px-2 print:py-2">Remarks</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {(tenderData.tender_type === 'annual-tender' 
-                  ? [...tenderData.items].sort((a, b) => {
-                      const categoryA = a.category_description && a.category_name 
-                        ? `${a.category_description} - ${a.category_name}`
-                        : a.category_name || '';
-                      const categoryB = b.category_description && b.category_name 
-                        ? `${b.category_description} - ${b.category_name}`
-                        : b.category_name || '';
-                      return categoryA.localeCompare(categoryB);
-                    })
-                  : tenderData.items
-                ).map((item, index) => (
-                  <tr key={item.id || index} className="hover:bg-green-50 print:hover:bg-white">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-500 print:px-2 print:py-1">{index + 1}</td>
-                    {tenderData.tender_type === 'annual-tender' ? (
+      {tender.items && tender.items.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              {tender.tender_type === 'spot-purchase' ? 'Spot Purchase Items' : tender.tender_type === 'annual-tender' ? 'Annual Tender Items' : 'Tender Items'} ({tender.items.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    {tender.tender_type === 'annual-tender' ? (
                       <>
-                        <td className="px-4 py-3 text-sm print:px-2 print:py-1">
-                          <p className="font-medium">
-                            {item.category_description && item.category_name 
-                              ? `${item.category_description} - ${item.category_name}`
-                              : item.category_name || 'N/A'
-                            }
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-semibold print:px-2 print:py-1">{item.nomenclature}</td>
-                        <td className="px-4 py-3 text-sm print:px-2 print:py-1">
-                          {item.vendor_ids || item.vendor_id || item.vendor_name ? (
-                            <div className="flex flex-wrap gap-1">
-                              {(() => {
-                                if (item.vendor_name) {
-                                  return (
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded print:bg-white print:border print:border-gray-300">
-                                      {item.vendor_name}
-                                    </span>
-                                  );
-                                }
-                                const vendorIds = item.vendor_ids 
-                                  ? (Array.isArray(item.vendor_ids) 
-                                      ? item.vendor_ids 
-                                      : String(item.vendor_ids).split(',').map(id => id.trim()).filter(id => id))
-                                  : (item.vendor_id ? [item.vendor_id] : []);
-                                
-                                return vendorIds.length > 0 ? (
-                                  vendorIds.map(vendorId => (
-                                    <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded print:bg-white print:border print:border-gray-300">
-                                      {getVendorName(vendorId)}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded print:bg-white print:border print:border-gray-300">No vendor</span>
-                                );
-                              })()}
-                            </div>
-                          ) : (
-                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded print:bg-white print:border print:border-gray-300">No vendor</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-green-600 print:px-2 print:py-1">
-                          {formatCurrency(item.estimated_unit_price || 0)}
-                        </td>
-                        <td className="px-4 py-3 text-sm max-w-xs print:px-2 print:py-1">
-                          {item.specifications || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm max-w-xs print:px-2 print:py-1">
-                          {item.remarks || '-'}
-                        </td>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Name of the Article</TableHead>
+                        <TableHead>Vendor</TableHead>
+                        <TableHead>Unit Price</TableHead>
+                        <TableHead>Specifications</TableHead>
+                        <TableHead>Remarks</TableHead>
                       </>
                     ) : (
                       <>
-                        <td className="px-4 py-3 text-sm font-semibold print:px-2 print:py-1">{item.nomenclature}</td>
-                        <td className="px-4 py-3 text-sm text-center print:px-2 print:py-1">{item.quantity}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-blue-600 print:px-2 print:py-1">
-                          {formatCurrency(item.estimated_unit_price || 0)}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-green-600 print:px-2 print:py-1">
-                          {formatCurrency(item.total_amount || 0)}
-                        </td>
-                        <td className="px-4 py-3 text-sm max-w-xs print:px-2 print:py-1">
-                          {item.specifications || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm max-w-xs print:px-2 print:py-1">
-                          {item.remarks || '-'}
-                        </td>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>Item Name</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Unit Price</TableHead>
+                        <TableHead>Total Amount</TableHead>
+                        <TableHead>Specifications</TableHead>
+                        <TableHead>Remarks</TableHead>
                       </>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Items Summary */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200 print:bg-gray-100 print:border-gray-300">
-            <div className={`grid gap-6 ${tenderData.tender_type === 'annual-tender' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-4'} print:gap-4`}>
-              <div className="text-center">
-                <p className="text-sm font-medium text-gray-600 mb-1">Total Items</p>
-                <p className="text-3xl font-bold text-blue-600 print:text-2xl">{tenderData.items.length}</p>
-              </div>
-              {tenderData.tender_type !== 'annual-tender' && (
-                <>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-600 mb-1">Total Quantity</p>
-                    <p className="text-3xl font-bold text-green-600 print:text-2xl">
-                      {tenderData.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-600 mb-1">Average Unit Price</p>
-                    <p className="text-3xl font-bold text-purple-600 print:text-2xl">
-                      {formatCurrency(
-                        tenderData.items.length > 0
-                          ? tenderData.items.reduce((sum, item) => sum + (item.estimated_unit_price || 0), 0) / tenderData.items.length
-                          : 0
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(tender.tender_type === 'annual-tender' 
+                    ? [...tender.items].sort((a, b) => {
+                        const categoryA = a.category_description && a.category_name 
+                          ? `${a.category_description} - ${a.category_name}`
+                          : a.category_name || '';
+                        const categoryB = b.category_description && b.category_name 
+                          ? `${b.category_description} - ${b.category_name}`
+                          : b.category_name || '';
+                        return categoryA.localeCompare(categoryB);
+                      })
+                    : tender.items
+                  ).map((item, index) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium text-gray-500">{index + 1}</TableCell>
+                      {tender.tender_type === 'annual-tender' ? (
+                        <>
+                          <TableCell>
+                            <p className="font-medium">
+                              {item.category_description && item.category_name 
+                                ? `${item.category_description} - ${item.category_name}`
+                                : item.category_name || 'N/A'
+                              }
+                            </p>
+                          </TableCell>
+                          <TableCell className="font-semibold">{item.nomenclature}</TableCell>
+                          <TableCell>
+                            {item.vendor_ids || item.vendor_id || item.vendor_name ? (
+                              <div className="flex flex-wrap gap-1">
+                                {(() => {
+                                  if (item.vendor_name) {
+                                    return (
+                                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        {item.vendor_name}
+                                      </span>
+                                    );
+                                  }
+                                  const vendorIds = item.vendor_ids 
+                                    ? (Array.isArray(item.vendor_ids) 
+                                        ? item.vendor_ids 
+                                        : String(item.vendor_ids).split(',').map(id => id.trim()).filter(id => id))
+                                    : (item.vendor_id ? [item.vendor_id] : []);
+                                  
+                                  return vendorIds.length > 0 ? (
+                                    vendorIds.map(vendorId => (
+                                      <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                        {getVendorName(vendorId)}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendor</span>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendor</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium text-green-600">
+                            {formatCurrency(item.estimated_unit_price || 0)}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.specifications || ''}>
+                              {item.specifications || '-'}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.remarks || ''}>
+                              {item.remarks || '-'}
+                            </div>
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell className="font-semibold">{item.nomenclature}</TableCell>
+                          <TableCell className="text-center">{item.quantity}</TableCell>
+                          <TableCell className="font-medium text-blue-600">
+                            {formatCurrency(item.estimated_unit_price || 0)}
+                          </TableCell>
+                          <TableCell className="font-semibold text-green-600">
+                            {formatCurrency(item.total_amount || 0)}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.specifications || ''}>
+                              {item.specifications || '-'}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="text-sm" title={item.remarks || ''}>
+                              {item.remarks || '-'}
+                            </div>
+                          </TableCell>
+                        </>
                       )}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-600 mb-1">Total Value</p>
-                    <p className="text-3xl font-bold text-orange-600 print:text-2xl">
-                      {formatCurrency(tenderData.items.reduce((sum, item) => sum + (item.total_amount || 0), 0))}
-                    </p>
-                  </div>
-                </>
-              )}
-              {tenderData.tender_type === 'annual-tender' && bidders.length > 0 && (
-                <>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-600 mb-1">Total Vendors</p>
-                    <p className="text-3xl font-bold text-purple-600 print:text-2xl">{bidders.length}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-600 mb-1">Successful Bidders</p>
-                    <p className="text-3xl font-bold text-green-600 print:text-2xl">
-                      {bidders.filter(b => b.is_successful).length}
-                    </p>
-                  </div>
-                </>
-              )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Participating Bidders */}
-      {tenderData.tender_type === 'annual-tender' && bidders.length > 0 && (
-        <TenderVendorManagement
-          tenderId={id}
-          vendors={bidders}
-          readOnly={true}
-        />
+            {/* Items Summary */}
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className={`grid gap-6 ${tender.tender_type === 'annual-tender' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-4'}`}>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-600 mb-1">Total Items</p>
+                  <p className="text-3xl font-bold text-blue-600">{tender.items.length}</p>
+                </div>
+                {tender.tender_type !== 'annual-tender' && (
+                  <>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Quantity</p>
+                      <p className="text-3xl font-bold text-green-600">
+                        {tender.items.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Average Unit Price</p>
+                      <p className="text-3xl font-bold text-purple-600">
+                        {formatCurrency(
+                          tender.items.length > 0
+                            ? tender.items.reduce((sum, item) => sum + (item.estimated_unit_price || 0), 0) / tender.items.length
+                            : 0
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Value</p>
+                      <p className="text-3xl font-bold text-orange-600">
+                        {formatCurrency(tender.items.reduce((sum, item) => sum + (item.total_amount || 0), 0))}
+                      </p>
+                    </div>
+                  </>
+                )}
+                {tender.tender_type === 'annual-tender' && (
+                  <>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Total Value</p>
+                      <p className="text-3xl font-bold text-green-600">
+                        {formatCurrency(tender.items.reduce((sum, item) => sum + (item.estimated_unit_price || 0), 0))}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 mb-1">Average Price</p>
+                      <p className="text-3xl font-bold text-purple-600">
+                        {formatCurrency(
+                          tender.items.length > 0
+                            ? tender.items.reduce((sum, item) => sum + (item.estimated_unit_price || 0), 0) / tender.items.length
+                            : 0
+                        )}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
-
-      {/* System Information */}
-      <Card className="border-gray-200 print:hidden">
-        <CardHeader className="bg-gray-50">
-          <CardTitle className="flex items-center space-x-2 text-gray-700">
-            <Calendar className="h-5 w-5" />
-            <span>System Information</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Created At</label>
-              <p className="text-gray-700">{formatDateTime(tenderData.created_at)}</p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Updated At</label>
-              <p className="text-gray-700">{formatDateTime(tenderData.updated_at)}</p>
-            </div>
-            {tenderData.is_finalized && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Finalized At</label>
-                  <p className="text-gray-700">{formatDateTime(tenderData.finalized_at)}</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Finalized By</label>
-                  <p className="text-gray-700">{tenderData.finalized_by || 'N/A'}</p>
-                </div>
-              </>
-            )}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Tender ID</label>
-              <p className="text-gray-700 font-mono text-xs">{tenderData.id}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

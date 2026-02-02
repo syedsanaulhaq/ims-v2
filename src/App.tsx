@@ -103,6 +103,7 @@ import CategoryItemsManager from "./pages/CategoryItemsManager";
 import TenderVendorManagement from "./pages/TenderVendorManagement";
 import VendorProposalsGrid from "./pages/VendorProposalsGrid";
 import CreatePurchaseOrder from "./pages/CreatePurchaseOrder";
+import EditPurchaseOrder from "./pages/EditPurchaseOrder";
 import PurchaseOrderDashboard from "./pages/PurchaseOrderDashboard";
 import PurchaseOrderDetails from "./pages/PurchaseOrderDetails";
 import { useParams } from "react-router-dom";
@@ -288,6 +289,7 @@ function App() {
                   <Route path="purchase-orders" element={<PurchaseOrderDashboard />} />
                   <Route path="create-po" element={<CreatePurchaseOrder />} />
                   <Route path="po/:id" element={<PurchaseOrderDetails />} />
+                  <Route path="po/:id/edit" element={<EditPurchaseOrder />} />
                 </Route>
 
                 {/* Stock Acquisition - Protected */}

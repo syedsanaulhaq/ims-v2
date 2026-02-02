@@ -34,6 +34,7 @@ router.get('/', async (req, res) => {
         po.tender_id,
         po.vendor_id,
         po.po_date,
+        po.po_detail,
         po.total_amount,
         po.status,
         po.remarks,
@@ -128,6 +129,7 @@ router.get('/:id', async (req, res) => {
           po.tender_id,
           po.vendor_id,
           po.po_date,
+          po.po_detail,
           po.total_amount,
           po.status,
           po.remarks,
@@ -195,12 +197,13 @@ router.post('/', async (req, res) => {
 
   try {
     await transaction.begin();
-    const { tenderId, selectedItems, poDate, itemVendors, itemPrices, itemQuantities } = req.body;
+    const { tenderId, selectedItems, poDate, poDetail, itemVendors, itemPrices, itemQuantities } = req.body;
 
     console.log('📦 PO CREATION REQUEST RECEIVED:');
     console.log('   - tenderId:', tenderId);
     console.log('   - selectedItems count:', selectedItems?.length);
     console.log('   - poDate:', poDate);
+    console.log('   - poDetail length:', poDetail?.length);
 
     if (!tenderId || !selectedItems || selectedItems.length === 0 || !poDate) {
       return res.status(400).json({ error: 'Missing required fields: tenderId, selectedItems, poDate' });
@@ -318,14 +321,15 @@ router.post('/', async (req, res) => {
         .input('tender_id', sql.UniqueIdentifier, tenderId)
         .input('vendor_id', sql.UniqueIdentifier, vendorId)
         .input('po_date', sql.DateTime, new Date(poDate))
+        .input('po_detail', sql.NVarChar(sql.MAX), poDetail || null)
         .input('total_amount', sql.Decimal(15, 2), vendorTotal)
         .input('status', sql.NVarChar, 'draft')
         .input('created_at', sql.DateTime, new Date());
 
       const poResult = await poInsert.query(`
-        INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, total_amount, status, created_at, updated_at)
+        INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, po_detail, total_amount, status, created_at, updated_at)
         OUTPUT INSERTED.id
-        VALUES (@po_number, @tender_id, @vendor_id, @po_date, @total_amount, @status, @created_at, GETDATE())
+        VALUES (@po_number, @tender_id, @vendor_id, @po_date, @po_detail, @total_amount, @status, @created_at, GETDATE())
       `);
 
       const poId = poResult.recordset[0].id;
@@ -371,35 +375,48 @@ router.post('/', async (req, res) => {
 });
 
 // ============================================================================
-// PUT /api/purchase-orders/:id - Update PO status
+// PUT /api/purchase-orders/:id - Update PO
 // ============================================================================
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, remarks } = req.body;
+    const { status, remarks, po_date, po_detail } = req.body;
     const pool = getPool();
+
+    console.log('📝 Updating PO:', { id, status, remarks, po_date, po_detail: po_detail ? 'Present' : 'Empty' });
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
     }
 
-    await pool.request()
+    // Build update fields dynamically
+    const updateFields = ['status = @status', 'updated_at = @updated_at'];
+    
+    if (remarks !== undefined) updateFields.push('remarks = @remarks');
+    if (po_date !== undefined) updateFields.push('po_date = @po_date');
+    if (po_detail !== undefined) updateFields.push('po_detail = @po_detail');
+
+    const request = pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('status', sql.NVarChar, status)
-      .input('remarks', sql.NVarChar, remarks || null)
-      .input('updated_at', sql.DateTime, new Date())
-      .query(`
-        UPDATE purchase_orders
-        SET status = @status,
-            remarks = @remarks,
-            updated_at = @updated_at
-        WHERE id = @id
-      `);
+      .input('updated_at', sql.DateTime, new Date());
+
+    if (remarks !== undefined) request.input('remarks', sql.NVarChar, remarks || null);
+    if (po_date !== undefined) request.input('po_date', sql.Date, po_date);
+    if (po_detail !== undefined) request.input('po_detail', sql.NVarChar(sql.MAX), po_detail || null);
+
+    const result = await request.query(`
+      UPDATE purchase_orders
+      SET ${updateFields.join(', ')}
+      WHERE id = @id
+    `);
+
+    console.log('✅ PO updated, rows affected:', result.rowsAffected);
 
     res.json({ message: '✅ Purchase order updated successfully' });
   } catch (error) {
     console.error('❌ Error updating PO:', error);
-    res.status(500).json({ error: 'Failed to update purchase order' });
+    res.status(500).json({ error: 'Failed to update purchase order', details: error.message });
   }
 });
 
