@@ -184,6 +184,17 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ]
   };
 
+  // METADATA MENU - For managing master data
+  const metadataMenuGroup: MenuGroup = {
+    label: "Meta Data Menu",
+    icon: Database,
+    items: [
+      { title: "Categories", icon: Boxes, path: "/dashboard/categories", permission: 'inventory.manage' },
+      { title: "Sub-Categories", icon: Boxes, path: "/dashboard/sub-categories", permission: 'inventory.manage' },
+      { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
+    ]
+  };
+
   // INVENTORY MENU - For inventory managers
   const inventoryMenuGroup: MenuGroup = {
     label: "Inventory Menu",
@@ -191,8 +202,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "Inventory Dashboard", icon: BarChart3, path: "/dashboard/inventory-dashboard", permission: 'inventory.view' },
       { title: "Item Master", icon: Package, path: "/dashboard/item-master", permission: 'inventory.manage' },
-      { title: "Categories", icon: Boxes, path: "/dashboard/categories", permission: 'inventory.manage' },
-      { title: "Sub-Categories", icon: Boxes, path: "/dashboard/sub-categories", permission: 'inventory.manage' },
       { title: "Stock Quantities", icon: BarChart3, path: "/dashboard/inventory-stock-quantities", permission: 'inventory.view' },
       { title: "Stock Alerts", icon: AlertTriangle, path: "/dashboard/inventory-alerts", permission: 'inventory.view' },
       { title: "Pending Verifications", icon: Eye, path: "/dashboard/pending-verifications", permission: 'inventory.manage' },
@@ -205,11 +214,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Procurement Menu",
     icon: Building2,
     items: [
+      { title: "Purchase Orders", icon: ShoppingCart, path: "/dashboard/purchase-orders", permission: 'procurement.manage' },
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Patty Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
       { title: "Review Requests", icon: CheckCircle, path: "/procurement/admin-review", permission: 'procurement.approve' },
-      { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
     ]
   };
 
@@ -298,6 +307,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       const visibleWingItems = wingMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleWingItems.length > 0) {
         groups.push({ ...wingMenuGroup, items: visibleWingItems });
+      }
+    }
+
+    // Show metadata menu if user has inventory or procurement permissions
+    if (canManageInventory || canManageProcurement) {
+      const visibleMetadataItems = metadataMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleMetadataItems.length > 0) {
+        groups.push({ ...metadataMenuGroup, items: visibleMetadataItems });
       }
     }
 
