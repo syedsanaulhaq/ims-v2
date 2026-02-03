@@ -123,7 +123,7 @@ const CurrentInventoryStock: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Current Inventory Stock</h1>
-          <p className="text-gray-600 mt-1">Real-time inventory from purchase order deliveries</p>
+          <p className="text-gray-600 mt-1">Real-time inventory from purchase/supply order deliveries</p>
         </div>
       </div>
 
@@ -253,7 +253,7 @@ const CurrentInventoryStock: React.FC = () => {
                     <p className="text-sm mt-1">
                       {searchTerm || showLowStock
                         ? 'Try adjusting your filters'
-                        : 'Receive deliveries from purchase orders to add items to inventory'}
+                        : 'Receive deliveries from purchase/supply orders to add items to inventory'}
                     </p>
                   </td>
                 </tr>

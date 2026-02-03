@@ -326,7 +326,7 @@ export default function CreatePurchaseOrder() {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Create Purchase Order</h1>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">Create Purchase/Supply Order</h1>
           <p className="text-slate-600">Select items from a tender and enter pricing to create a PO</p>
         </div>
 
@@ -604,7 +604,7 @@ export default function CreatePurchaseOrder() {
                 <CardHeader className="border-b border-green-200">
                   <CardTitle className="flex items-center gap-2 text-green-700">
                     <Check className="w-5 h-5" />
-                    Purchase Order Summary
+                    Purchase/Supply Order Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6">

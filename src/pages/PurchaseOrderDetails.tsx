@@ -73,7 +73,7 @@ export default function PurchaseOrderDetails() {
       setNewRemarks(data.remarks || '');
     } catch (err) {
       console.error('Error fetching PO:', err);
-      setError('Failed to load purchase order');
+      setError('Failed to load purchase/supply order');
     } finally {
       setLoading(false);
     }
@@ -97,7 +97,7 @@ export default function PurchaseOrderDetails() {
 
       setPO(prev => prev ? { ...prev, status: newStatus, remarks: newRemarks } : null);
       setEditing(false);
-      alert('✅ Purchase order updated successfully');
+      alert('✅ Purchase/Supply order updated successfully');
     } catch (err) {
       console.error('Error saving PO:', err);
       alert('Failed to save changes');
@@ -131,7 +131,7 @@ export default function PurchaseOrderDetails() {
         <div className="max-w-4xl mx-auto">
           <Card>
             <CardContent className="pt-6 text-center">
-              <p className="text-slate-600">Loading purchase order details...</p>
+              <p className="text-slate-600">Loading purchase/supply order details...</p>
             </CardContent>
           </Card>
         </div>
@@ -150,7 +150,7 @@ export default function PurchaseOrderDetails() {
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6 flex gap-3">
               <AlertCircle className="text-red-600 flex-shrink-0" />
-              <p className="text-red-600">{error || 'Purchase order not found'}</p>
+              <p className="text-red-600">{error || 'Purchase/Supply order not found'}</p>
             </CardContent>
           </Card>
         </div>

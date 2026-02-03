@@ -111,11 +111,11 @@ export default function EditPurchaseOrder() {
       const result = await response.json();
       console.log('✅ Update successful:', result);
       
-      alert('✅ Purchase order updated successfully');
+      alert('✅ Purchase/Supply order updated successfully');
       navigate(`/dashboard/po/${po.id}`);
     } catch (err) {
       console.error('Error saving PO:', err);
-      alert('❌ Failed to update purchase order: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      alert('❌ Failed to update purchase/supply order: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setSaving(false);
     }
@@ -126,7 +126,7 @@ export default function EditPurchaseOrder() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading purchase order...</p>
+          <p className="text-slate-600">Loading purchase/supply order...</p>
         </div>
       </div>
     );
@@ -139,7 +139,7 @@ export default function EditPurchaseOrder() {
           <CardContent className="pt-6">
             <div className="text-center text-red-600">
               <p className="font-semibold mb-2">Error</p>
-              <p className="text-sm">{error || 'Purchase order not found'}</p>
+              <p className="text-sm">{error || 'Purchase/Supply order not found'}</p>
               <Button
                 className="mt-4"
                 onClick={() => navigate('/dashboard/purchase-orders')}
@@ -160,7 +160,7 @@ export default function EditPurchaseOrder() {
           <CardContent className="pt-6">
             <div className="text-center text-amber-600">
               <p className="font-semibold mb-2">Cannot Edit</p>
-              <p className="text-sm">Only draft purchase orders can be edited.</p>
+              <p className="text-sm">Only draft purchase/supply orders can be edited.</p>
               <Button
                 className="mt-4"
                 onClick={() => navigate(`/dashboard/po/${po.id}`)}
@@ -186,7 +186,7 @@ export default function EditPurchaseOrder() {
                 Back
               </Button>
               <div>
-                <h1 className="text-2xl font-bold text-slate-800">Edit Purchase Order</h1>
+                <h1 className="text-2xl font-bold text-slate-800">Edit Purchase/Supply Order</h1>
                 <p className="text-sm text-slate-600">PO Number: {po.po_number}</p>
               </div>
             </div>
@@ -207,7 +207,7 @@ export default function EditPurchaseOrder() {
           {/* PO Information */}
           <Card>
             <CardHeader>
-              <CardTitle>Purchase Order Information</CardTitle>
+              <CardTitle>Purchase/Supply Order Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

@@ -174,7 +174,7 @@ const InventoryDashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-4xl font-bold text-gray-900">Inventory Dashboard</h1>
-          <p className="text-gray-600 mt-2">Real-time inventory analytics from purchase order deliveries</p>
+          <p className="text-gray-600 mt-2">Real-time inventory analytics from purchase/supply order deliveries</p>
           {summary && (
             <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
@@ -384,7 +384,7 @@ const InventoryDashboard: React.FC = () => {
             >
               <ShoppingCart className="h-8 w-8 text-blue-600" />
               <div className="text-center">
-                <div className="font-semibold">Purchase Orders</div>
+                <div className="font-semibold">Purchase/Supply Orders</div>
                 <div className="text-xs text-gray-500">Manage POs & Deliveries</div>
               </div>
             </Button>

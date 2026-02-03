@@ -66,7 +66,7 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ tab = 'overview' }) => {
       reports: [
         { name: 'Active Vendors', endpoint: '/reports/active-vendors' },
         { name: 'Vendor Ratings', endpoint: '/reports/vendor-ratings' },
-        { name: 'Purchase Orders by Vendor', endpoint: '/reports/po-by-vendor' },
+        { name: 'Purchase/Supply Orders by Vendor', endpoint: '/reports/po-by-vendor' },
         { name: 'Payment History', endpoint: '/reports/payment-history' },
       ]
     }

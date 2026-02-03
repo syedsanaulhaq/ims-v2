@@ -481,7 +481,7 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => navigate(`/dashboard/create-po?tenderId=${tender.id}`)}
-                            title="Create Purchase Orders from this tender"
+                            title="Create Purchase/Supply Orders from this tender"
                           >
                             <ShoppingCart className="h-4 w-4 text-blue-600" />
                           </Button>

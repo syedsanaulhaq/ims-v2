@@ -129,7 +129,7 @@ export default function PurchaseOrderDashboard() {
       setError(null);
     } catch (err) {
       console.error('Error fetching POs:', err);
-      setError('Failed to load purchase orders');
+      setError('Failed to load purchase/supply orders');
     } finally {
       setLoading(false);
     }
@@ -152,10 +152,10 @@ export default function PurchaseOrderDashboard() {
       }
 
       setPurchaseOrders(prev => prev.filter(po => po.id !== id));
-      alert('✅ Purchase order deleted successfully');
+      alert('✅ Purchase/Supply order deleted successfully');
     } catch (err) {
       console.error('Error deleting PO:', err);
-      alert('Failed to delete purchase order');
+      alert('Failed to delete purchase/supply order');
     }
   };
 
@@ -181,10 +181,10 @@ export default function PurchaseOrderDashboard() {
       setPurchaseOrders(prev => prev.map(po => 
         po.id === id ? { ...po, status: 'finalized' } : po
       ));
-      alert('✅ Purchase order finalized successfully');
+      alert('✅ Purchase/Supply order finalized successfully');
     } catch (err) {
       console.error('Error finalizing PO:', err);
-      alert('Failed to finalize purchase order');
+      alert('Failed to finalize purchase/supply order');
     }
   };
 
@@ -271,8 +271,8 @@ export default function PurchaseOrderDashboard() {
                 Back to Tender
               </Button>
             )}
-            <h1 className="text-4xl font-bold text-slate-900 mb-2">Purchase Orders</h1>
-            <p className="text-slate-600">Manage all purchase orders generated from tenders</p>
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Purchase/Supply Orders</h1>
+            <p className="text-slate-600">Manage all purchase/supply orders generated from tenders</p>
           </div>
           <Button 
             onClick={() => navigate(tenderId ? `/dashboard/create-po?tenderId=${tenderId}` : '/dashboard/create-po')}
@@ -386,7 +386,7 @@ export default function PurchaseOrderDashboard() {
         {loading && (
           <Card>
             <CardContent className="pt-6 text-center">
-              <p className="text-slate-600">Loading purchase orders...</p>
+              <p className="text-slate-600">Loading purchase/supply orders...</p>
             </CardContent>
           </Card>
         )}
@@ -404,7 +404,7 @@ export default function PurchaseOrderDashboard() {
         {!loading && purchaseOrders.length === 0 && (
           <Card>
             <CardContent className="pt-6 text-center">
-              <p className="text-slate-600 mb-4">No purchase orders found</p>
+              <p className="text-slate-600 mb-4">No purchase/supply orders found</p>
               <Button onClick={() => navigate(tenderId ? `/dashboard/create-po?tenderId=${tenderId}` : '/dashboard/create-po')} variant="outline">
                 <Plus className="w-4 h-4 mr-2" />
                 Create First PO

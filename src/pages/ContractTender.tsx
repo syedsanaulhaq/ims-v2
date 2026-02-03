@@ -382,7 +382,7 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                               size="sm"
                               onClick={() => navigate(`/dashboard/purchase-orders?tenderId=${tender.id}`)}
                               className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                              title="Manage Purchase Orders related to this tender"
+                              title="Manage Purchase/Supply Orders related to this tender"
                             >
                               <ShoppingCart className="w-4 h-4 mr-1" />
                               Manage PO

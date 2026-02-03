@@ -1129,7 +1129,7 @@ const CreateTender: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">PO (Purchase Order)</label>
+                    <label className="text-sm font-medium">PO (Purchase/Supply Order)</label>
                     <Input
                       type="file"
                       accept=".pdf,.doc,.docx,.xlsx,.xls"

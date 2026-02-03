@@ -249,7 +249,7 @@ const POFulfillmentTracker: React.FC<POFulfillmentTrackerProps> = ({
 
         {items.length === 0 && (
           <div className="p-8 text-center">
-            <p className="text-gray-500">No items found for this purchase order.</p>
+            <p className="text-gray-500">No items found for this purchase/supply order.</p>
           </div>
         )}
       </div>
@@ -331,7 +331,7 @@ const POFulfillmentTracker: React.FC<POFulfillmentTrackerProps> = ({
 
       {showDeliveryHistory && deliveries.length === 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <p className="text-center text-gray-500">No deliveries received yet for this purchase order.</p>
+          <p className="text-center text-gray-500">No deliveries received yet for this purchase/supply order.</p>
         </div>
       )}
     </div>

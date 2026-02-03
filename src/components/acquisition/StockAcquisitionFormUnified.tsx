@@ -306,7 +306,7 @@ export const StockAcquisitionFormUnified: React.FC<StockAcquisitionFormProps> = 
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Purchase Order No.</label>
+                <label className="block text-sm font-medium mb-1">Purchase/Supply Order No.</label>
                 <Input
                   value={formData.purchase_order_no}
                   onChange={(e) => setFormData(prev => ({ ...prev, purchase_order_no: e.target.value }))}

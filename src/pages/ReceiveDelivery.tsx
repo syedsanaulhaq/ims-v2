@@ -88,7 +88,7 @@ const ReceiveDelivery: React.FC = () => {
       setDeliveryItems(pendingItems);
     } catch (err: any) {
       console.error('Error fetching PO details:', err);
-      setError(err.response?.data?.error || 'Failed to load purchase order details');
+      setError(err.response?.data?.error || 'Failed to load purchase/supply order details');
     } finally {
       setLoading(false);
     }
@@ -213,7 +213,7 @@ const ReceiveDelivery: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-slate-600">Loading purchase order...</p>
+          <p className="mt-4 text-slate-600">Loading purchase/supply order...</p>
         </div>
       </div>
     );
@@ -223,7 +223,7 @@ const ReceiveDelivery: React.FC = () => {
     return (
       <div className="p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Purchase order not found</p>
+          <p className="text-red-800">Purchase/Supply order not found</p>
         </div>
       </div>
     );
@@ -249,7 +249,7 @@ const ReceiveDelivery: React.FC = () => {
 
       {/* PO Details Card */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Purchase Order Details</h2>
+        <h2 className="text-lg font-semibold mb-4">Purchase/Supply Order Details</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-sm text-gray-600">Vendor</p>
@@ -445,7 +445,7 @@ const ReceiveDelivery: React.FC = () => {
 
         {deliveryItems.length === 0 && (
           <div className="p-8 text-center">
-            <p className="text-gray-500">All items for this purchase order have been fully received.</p>
+            <p className="text-gray-500">All items for this purchase/supply order have been fully received.</p>
           </div>
         )}
       </div>
