@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 import { 
   AlertTriangle, 
   ArrowLeft, 
@@ -13,7 +14,19 @@ import {
   AlertCircle,
   XCircle
 } from 'lucide-react';
-import { InventoryService, type InventoryItem } from '@/services/inventoryService';
+
+interface InventoryItem {
+  id: string;
+  item_master_id: string;
+  current_quantity: number;
+  last_transaction_date: string;
+  last_transaction_type: string;
+  nomenclature: string;
+  item_code: string;
+  unit: string;
+  specifications: string | null;
+  category_name: string;
+}
 
 interface AlertItem extends InventoryItem {
   alertType: 'critical' | 'urgent' | 'warning';
@@ -28,6 +41,7 @@ const InventoryAlertsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAlertType, setSelectedAlertType] = useState<string>('all');
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     loadItems();
@@ -44,10 +58,17 @@ const InventoryAlertsPage: React.FC = () => {
   const loadItems = async () => {
     try {
       setLoading(true);
-      const result = await InventoryService.getInventoryData();
-      setItems(result.data);
-    } catch (error) {
+      const response = await fetch('http://localhost:3001/api/inventory/current-stock');
+      if (!response.ok) throw new Error('Failed to load inventory data');
+      const data = await response.json();
+      setItems(data.inventory || []);
+    } catch (error: any) {
       console.error('Error loading inventory items:', error);
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to load inventory data',
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -61,19 +82,19 @@ const InventoryAlertsPage: React.FC = () => {
       let alertMessage = '';
 
       // Critical - Out of Stock
-      if (item.current_stock <= 0) {
+      if (item.current_quantity === 0) {
         alertType = 'critical';
         alertMessage = 'OUT OF STOCK - Immediate action required';
       }
-      // Urgent - Below Reorder Point
-      else if (item.reorder_point > 0 && item.current_stock <= item.reorder_point) {
+      // Urgent - Very Low Stock (1-5 units)
+      else if (item.current_quantity > 0 && item.current_quantity <= 5) {
         alertType = 'urgent';
-        alertMessage = `Below reorder point (${item.reorder_point} ${item.unit})`;
+        alertMessage = `Very low stock - Only ${item.current_quantity} ${item.unit} remaining`;
       }
-      // Warning - Low Stock (Below Minimum but above reorder point)
-      else if (item.minimum_stock_level > 0 && item.current_stock <= item.minimum_stock_level) {
+      // Warning - Low Stock (6-10 units)
+      else if (item.current_quantity > 5 && item.current_quantity <= 10) {
         alertType = 'warning';
-        alertMessage = `Low stock - Below minimum level (${item.minimum_stock_level} ${item.unit})`;
+        alertMessage = `Low stock - ${item.current_quantity} ${item.unit} available`;
       }
 
       if (alertType) {
@@ -100,7 +121,8 @@ const InventoryAlertsPage: React.FC = () => {
     // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(item =>
-        item.item_name.toLowerCase().includes(searchTerm.toLowerCase())
+        item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.item_code.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -203,7 +225,7 @@ const InventoryAlertsPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{alertCounts.critical}</div>
-            <p className="text-xs text-red-600">Out of stock items</p>
+            <p className="text-xs text-red-600">Out of stock (0 units)</p>
           </CardContent>
         </Card>
 
@@ -214,7 +236,7 @@ const InventoryAlertsPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{alertCounts.urgent}</div>
-            <p className="text-xs text-orange-600">Below reorder point</p>
+            <p className="text-xs text-orange-600">Very low stock (1-5 units)</p>
           </CardContent>
         </Card>
 
@@ -225,7 +247,7 @@ const InventoryAlertsPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">{alertCounts.warning}</div>
-            <p className="text-xs text-yellow-600">Below minimum level</p>
+            <p className="text-xs text-yellow-600">Low stock (6-10 units)</p>
           </CardContent>
         </Card>
       </div>
@@ -289,16 +311,12 @@ const InventoryAlertsPage: React.FC = () => {
                   <div className="flex items-start gap-3 flex-1">
                     {getAlertIcon(item.alertType)}
                     <div className="flex-1">
-                      <div className="font-medium">{item.item_name}</div>
+                      <div className="font-medium">{item.nomenclature}</div>
+                      <div className="text-xs text-gray-600 mt-0.5">Code: {item.item_code} | Category: {item.category_name}</div>
                       <div className="text-sm mt-1">{item.alertMessage}</div>
                       <div className="text-xs mt-2 space-x-4">
-                        <span>Current: {formatNumber(item.current_stock)} {item.unit}</span>
-                        {item.minimum_stock_level > 0 && (
-                          <span>Min: {formatNumber(item.minimum_stock_level)} {item.unit}</span>
-                        )}
-                        {item.reorder_point > 0 && (
-                          <span>Reorder: {formatNumber(item.reorder_point)} {item.unit}</span>
-                        )}
+                        <span>Current: {formatNumber(item.current_quantity)} {item.unit}</span>
+                        <span className="text-gray-500">Last Updated: {new Date(item.last_transaction_date).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
