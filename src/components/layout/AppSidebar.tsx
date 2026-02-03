@@ -214,7 +214,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Procurement Menu",
     icon: Building2,
     items: [
-      { title: "Purchase Orders", icon: ShoppingCart, path: "/dashboard/purchase-orders", permission: 'procurement.manage' },
+      { title: "Purchase/Supply Orders", icon: ShoppingCart, path: "/dashboard/purchase-orders", permission: 'procurement.manage' },
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Patty Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
