@@ -459,6 +459,191 @@ router.put('/:id/finalize', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/purchase-orders/:id/fulfillment - Get PO fulfillment status
+// ============================================================================
+router.get('/:id/fulfillment', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // Get PO fulfillment details using the view
+    const result = await pool.request()
+      .input('poId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          po_id,
+          po_number,
+          po_date,
+          vendor_name,
+          po_item_id as id,
+          item_master_id as item_id,
+          item_name,
+          ordered_quantity,
+          received_quantity,
+          pending_quantity,
+          unit_price,
+          ordered_value as total_item_value,
+          received_value,
+          (ordered_value - received_value) as pending_value,
+          fulfillment_percentage,
+          delivery_status
+        FROM vw_po_fulfillment_status
+        WHERE po_id = @poId
+        ORDER BY item_name
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found or has no items' });
+    }
+
+    // Calculate overall PO totals
+    const totals = result.recordset.reduce((acc, item) => {
+      acc.totalValue += parseFloat(item.total_item_value) || 0;
+      acc.receivedValue += parseFloat(item.received_value) || 0;
+      acc.pendingValue += parseFloat(item.pending_value) || 0;
+      return acc;
+    }, { totalValue: 0, receivedValue: 0, pendingValue: 0 });
+
+    const overallFulfillment = totals.totalValue > 0 
+      ? ((totals.receivedValue / totals.totalValue) * 100).toFixed(2)
+      : 0;
+
+    res.json({
+      poId: result.recordset[0].po_id,
+      poNumber: result.recordset[0].po_number,
+      poDate: result.recordset[0].po_date,
+      vendorName: result.recordset[0].vendor_name,
+      items: result.recordset,
+      summary: {
+        totalValue: totals.totalValue,
+        receivedValue: totals.receivedValue,
+        pendingValue: totals.pendingValue,
+        overallFulfillment: parseFloat(overallFulfillment)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting PO fulfillment:', error);
+    res.status(500).json({ error: 'Failed to get PO fulfillment status' });
+  }
+});
+
+// ============================================================================
+// GET /api/purchase-orders/:id/delivery-status - Get overall delivery progress
+// ============================================================================
+router.get('/:id/delivery-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // Get PO basic info
+    const poResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          po.id,
+          po.po_number,
+          po.po_date,
+          po.vendor_id,
+          v.vendor_name,
+          po.total_amount,
+          po.status
+        FROM purchase_orders po
+        LEFT JOIN vendors v ON po.vendor_id = v.id
+        WHERE po.id = @id
+      `);
+
+    if (poResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    const po = poResult.recordset[0];
+
+    // Get delivery summary
+    const deliveriesResult = await pool.request()
+      .input('poId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          delivery_id,
+          delivery_number,
+          delivery_date,
+          delivery_personnel,
+          delivery_chalan,
+          received_by,
+          receiving_date,
+          delivery_status,
+          total_items,
+          total_quantity,
+          good_quantity,
+          damaged_quantity,
+          rejected_quantity
+        FROM vw_delivery_summary
+        WHERE po_id = @poId
+        ORDER BY delivery_date DESC
+      `);
+
+    // Get items fulfillment summary
+    const itemsResult = await pool.request()
+      .input('poId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          COUNT(*) as total_items,
+          SUM(CASE WHEN delivery_status = 'completed' THEN 1 ELSE 0 END) as completed_items,
+          SUM(CASE WHEN delivery_status = 'partial' THEN 1 ELSE 0 END) as partial_items,
+          SUM(CASE WHEN delivery_status = 'pending' THEN 1 ELSE 0 END) as pending_items,
+          SUM(quantity) as total_ordered,
+          SUM(ISNULL(received_quantity, 0)) as total_received,
+          SUM(quantity - ISNULL(received_quantity, 0)) as total_pending
+        FROM purchase_order_items
+        WHERE po_id = @poId
+      `);
+
+    const itemsSummary = itemsResult.recordset[0];
+    const receivedPercentage = itemsSummary.total_ordered > 0
+      ? ((itemsSummary.total_received / itemsSummary.total_ordered) * 100).toFixed(2)
+      : 0;
+
+    // Determine overall PO delivery status
+    let overallStatus = 'pending';
+    if (itemsSummary.total_received === 0) {
+      overallStatus = 'pending';
+    } else if (itemsSummary.total_received >= itemsSummary.total_ordered) {
+      overallStatus = 'completed';
+    } else {
+      overallStatus = 'partial';
+    }
+
+    res.json({
+      po: {
+        id: po.id,
+        poNumber: po.po_number,
+        poDate: po.po_date,
+        vendorName: po.vendor_name,
+        totalAmount: po.total_amount,
+        status: po.status
+      },
+      deliveryStatus: {
+        overallStatus,
+        receivedPercentage: parseFloat(receivedPercentage),
+        totalOrdered: itemsSummary.total_ordered,
+        totalReceived: itemsSummary.total_received,
+        totalPending: itemsSummary.total_pending
+      },
+      itemsSummary: {
+        totalItems: itemsSummary.total_items,
+        completedItems: itemsSummary.completed_items,
+        partialItems: itemsSummary.partial_items,
+        pendingItems: itemsSummary.pending_items
+      },
+      deliveries: deliveriesResult.recordset,
+      deliveryCount: deliveriesResult.recordset.length
+    });
+  } catch (error) {
+    console.error('❌ Error getting delivery status:', error);
+    res.status(500).json({ error: 'Failed to get delivery status' });
+  }
+});
+
+// ============================================================================
 // DELETE /api/purchase-orders/:id - Delete PO (only if draft)
 // ============================================================================
 router.delete('/:id', async (req, res) => {

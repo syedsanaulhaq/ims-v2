@@ -323,6 +323,147 @@ router.get('/stock/admin', async (req, res) => {
   }
 });
 
+// ============================================================================
+// GET /api/inventory/current-stock - Get current inventory from deliveries
+// ============================================================================
+router.get('/current-stock', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { search, category_id, low_stock } = req.query;
+
+    let query = `
+      SELECT 
+        cis.id,
+        cis.item_master_id,
+        cis.current_quantity,
+        cis.last_transaction_date,
+        cis.last_transaction_type,
+        cis.last_updated,
+        im.nomenclature,
+        im.item_code,
+        im.unit,
+        im.specifications,
+        c.category_name,
+        c.description as category_description
+      FROM current_inventory_stock cis
+      INNER JOIN item_masters im ON cis.item_master_id = im.id
+      LEFT JOIN categories c ON im.category_id = c.id
+      WHERE 1=1
+    `;
+
+    let request = pool.request();
+
+    if (search) {
+      query += ` AND (im.nomenclature LIKE @search OR im.item_code LIKE @search)`;
+      request = request.input('search', sql.NVarChar, `%${search}%`);
+    }
+
+    if (category_id) {
+      query += ` AND im.category_id = @categoryId`;
+      request = request.input('categoryId', sql.UniqueIdentifier, category_id);
+    }
+
+    if (low_stock === 'true') {
+      query += ` AND cis.current_quantity < 10`;
+    }
+
+    query += ` ORDER BY cis.last_transaction_date DESC, im.nomenclature`;
+
+    const result = await request.query(query);
+    
+    res.json({
+      success: true,
+      inventory: result.recordset,
+      total: result.recordset.length
+    });
+  } catch (error) {
+    console.error('Error fetching current inventory stock:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch current inventory stock',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// GET /api/inventory/current-stock/summary - Get inventory summary stats
+// ============================================================================
+router.get('/current-stock/summary', async (req, res) => {
+  try {
+    const pool = getPool();
+
+    const result = await pool.request().query(`
+      SELECT 
+        COUNT(DISTINCT cis.item_master_id) as total_items,
+        SUM(cis.current_quantity) as total_quantity,
+        COUNT(DISTINCT c.id) as total_categories,
+        (SELECT COUNT(*) FROM current_inventory_stock WHERE current_quantity < 10) as low_stock_items,
+        (SELECT COUNT(*) FROM stock_acquisitions WHERE status = 'completed') as total_acquisitions,
+        MAX(cis.last_updated) as last_updated
+      FROM current_inventory_stock cis
+      INNER JOIN item_masters im ON cis.item_master_id = im.id
+      LEFT JOIN categories c ON im.category_id = c.id
+    `);
+
+    res.json({
+      success: true,
+      summary: result.recordset[0]
+    });
+  } catch (error) {
+    console.error('Error fetching inventory summary:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch inventory summary' 
+    });
+  }
+});
+
+// ============================================================================
+// GET /api/inventory/current-stock/:id/history - Get item transaction history
+// ============================================================================
+router.get('/current-stock/:id/history', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('itemId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          d.delivery_number,
+          d.delivery_date,
+          d.receiving_date,
+          d.delivery_personnel,
+          d.delivery_chalan,
+          po.po_number,
+          di.delivery_qty,
+          di.quality_status,
+          sa.acquisition_number,
+          sa.acquisition_date
+        FROM delivery_items di
+        INNER JOIN deliveries d ON di.delivery_id = d.id
+        INNER JOIN purchase_orders po ON d.po_id = po.id
+        LEFT JOIN stock_acquisitions sa ON sa.delivery_id = d.id
+        WHERE di.item_master_id = @itemId
+          AND d.delivery_status = 'completed'
+          AND di.quality_status = 'good'
+        ORDER BY d.receiving_date DESC
+      `);
+
+    res.json({
+      success: true,
+      history: result.recordset
+    });
+  } catch (error) {
+    console.error('Error fetching item history:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch item history' 
+    });
+  }
+});
+
 console.log('✅ Inventory Routes Loaded');
 
 module.exports = router;

@@ -428,7 +428,7 @@ const Dashboard = () => {
         </Card>
 
         {/* Delivery Management */}
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/stock-acquisition-dashboard')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/contract-tender')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-orange-700">
               <Truck className="h-5 w-5" />
@@ -708,7 +708,7 @@ const Dashboard = () => {
             <Button
               variant="outline"
               className="h-auto p-4 flex flex-col items-center gap-2 hover:bg-green-50 hover:border-green-300"
-              onClick={() => navigate('/dashboard/stock-acquisition-dashboard')}
+              onClick={() => navigate('/dashboard/contract-tender')}
             >
               <Truck className="h-6 w-6 text-green-600" />
               <div className="text-center">

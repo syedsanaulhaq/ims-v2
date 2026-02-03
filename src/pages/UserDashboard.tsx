@@ -29,15 +29,6 @@ const UserDashboard: React.FC = () => {
         hoverColor: 'hover:bg-teal-600'
       },
       {
-        title: 'Stock Acquisition',
-        subtitle: 'Procurement & Tenders',
-        description: 'Manage stock acquisitions and tenders',
-        icon: ClipboardList,
-        path: '/dashboard/stock-acquisition-dashboard',
-        bgColor: 'bg-red-500',
-        hoverColor: 'hover:bg-red-600'
-      },
-      {
         title: 'Stock Issuance',
         subtitle: 'Issue & Distribution',
         description: 'Handle stock issuance requests and approvals',

@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, ArrowLeft, Download, Printer } from 'lucide-react';
+import POFulfillmentTracker from '@/components/po/POFulfillmentTracker';
 
 interface POItem {
   id: number;
@@ -428,6 +429,15 @@ export default function PurchaseOrderDetails() {
 
           </div>
         </div>
+
+        {/* Fulfillment Tracker - Only for Finalized POs */}
+        {po.status === 'finalized' && (
+          <div className="no-print px-6 pb-8">
+            <div className="max-w-5xl mx-auto">
+              <POFulfillmentTracker poId={po.id.toString()} showDeliveryHistory={true} />
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

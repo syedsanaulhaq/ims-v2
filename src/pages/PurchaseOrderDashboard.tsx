@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Eye, Plus, ArrowLeft } from 'lucide-react';
+import { Trash2, Eye, Plus, ArrowLeft, Package, Edit, CheckCircle } from 'lucide-react';
 
 interface PurchaseOrder {
   id: number;
@@ -21,6 +21,10 @@ interface PurchaseOrder {
   tender_type: string;
   vendor_name: string;
   item_count: number;
+  deliveryStatus?: {
+    overallStatus: string;
+    receivedPercentage: number;
+  };
 }
 
 export default function PurchaseOrderDashboard() {
@@ -33,6 +37,8 @@ export default function PurchaseOrderDashboard() {
   
   const [filters, setFilters] = useState({
     status: 'all',
+    tenderType: 'all',
+    deliveryStatus: 'all',
     searchTerm: '',
     startDate: '',
     endDate: ''
@@ -86,7 +92,40 @@ export default function PurchaseOrderDashboard() {
         );
       }
 
-      setPurchaseOrders(data);
+      // Client-side filter by tender type
+      if (filters.tenderType !== 'all') {
+        data = data.filter((po: PurchaseOrder) => 
+          po.tender_type?.toLowerCase() === filters.tenderType.toLowerCase()
+        );
+      }
+
+      // Fetch delivery status for finalized and completed POs
+      const posWithStatus = await Promise.all(
+        data.map(async (po: PurchaseOrder) => {
+          if (po.status === 'finalized' || po.status === 'completed') {
+            try {
+              const statusResponse = await fetch(`http://localhost:3001/api/purchase-orders/${po.id}/delivery-status`);
+              if (statusResponse.ok) {
+                const statusData = await statusResponse.json();
+                return { ...po, deliveryStatus: statusData.deliveryStatus };
+              }
+            } catch (err) {
+              console.error(`Error fetching delivery status for PO ${po.id}:`, err);
+            }
+          }
+          return po;
+        })
+      );
+
+      // Client-side filter by delivery status (after fetching delivery data)
+      let filteredData = posWithStatus;
+      if (filters.deliveryStatus !== 'all') {
+        filteredData = posWithStatus.filter((po: PurchaseOrder) => 
+          po.deliveryStatus?.overallStatus?.toLowerCase() === filters.deliveryStatus.toLowerCase()
+        );
+      }
+
+      setPurchaseOrders(filteredData);
       setError(null);
     } catch (err) {
       console.error('Error fetching POs:', err);
@@ -153,6 +192,12 @@ export default function PurchaseOrderDashboard() {
     switch (status.toLowerCase()) {
       case 'draft':
         return 'bg-gray-100 text-gray-800';
+      case 'finalized':
+        return 'bg-blue-100 text-blue-800';
+      case 'partial':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
       case 'issued':
         return 'bg-blue-100 text-blue-800';
       case 'confirmed':
@@ -177,8 +222,38 @@ export default function PurchaseOrderDashboard() {
     }
   };
 
+  const getDeliveryStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'partial':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'pending':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   const totalAmount = purchaseOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0);
   const draftCount = purchaseOrders.filter(po => po.status === 'draft').length;
+
+  // Group POs by tender type
+  const groupedPOs = purchaseOrders.reduce((groups, po) => {
+    const type = po.tender_type || 'Other';
+    if (!groups[type]) {
+      groups[type] = [];
+    }
+    groups[type].push(po);
+    return groups;
+  }, {} as Record<string, PurchaseOrder[]>);
+
+  const tenderTypeLabels: Record<string, string> = {
+    'contract': 'Contract Tenders',
+    'spot-purchase': 'Spot Purchase',
+    'annual-tender': 'Annual Tenders',
+    'Other': 'Other'
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
@@ -247,13 +322,25 @@ export default function PurchaseOrderDashboard() {
             <CardTitle>Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <Input
                 placeholder="Search PO number, tender, vendor..."
                 value={filters.searchTerm}
                 onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
                 className="border-slate-300"
               />
+
+              <Select value={filters.tenderType} onValueChange={(value) => setFilters(prev => ({ ...prev, tenderType: value }))}>
+                <SelectTrigger className="border-slate-300">
+                  <SelectValue placeholder="Tender Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="contract">Contract</SelectItem>
+                  <SelectItem value="spot-purchase">Spot Purchase</SelectItem>
+                  <SelectItem value="annual-tender">Annual Tender</SelectItem>
+                </SelectContent>
+              </Select>
 
               <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
                 <SelectTrigger className="border-slate-300">
@@ -263,6 +350,18 @@ export default function PurchaseOrderDashboard() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="finalized">Finalized</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={filters.deliveryStatus} onValueChange={(value) => setFilters(prev => ({ ...prev, deliveryStatus: value }))}>
+                <SelectTrigger className="border-slate-300">
+                  <SelectValue placeholder="Delivery Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Delivery</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -314,102 +413,139 @@ export default function PurchaseOrderDashboard() {
           </Card>
         )}
 
-        {/* POs Table */}
+        {/* POs by Tender Type - Grouped Blocks */}
         {!loading && purchaseOrders.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Purchase Orders List</CardTitle>
-              <CardDescription>{purchaseOrders.length} PO(s) found</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-slate-200">
-                    <tr className="bg-slate-50">
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">PO Number</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Tender</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Vendor</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Date</th>
-                      <th className="text-right py-3 px-4 font-semibold text-slate-700">Amount</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Items</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Status</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {purchaseOrders.map((po) => (
-                      <tr key={po.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3 px-4 font-mono font-semibold text-blue-600">{po.po_number}</td>
-                        <td className="py-3 px-4">
-                          <div>
-                            <p className="font-medium text-slate-900">{po.tender_title}</p>
-                            <Badge className={getTenderTypeColor(po.tender_type)}>
-                              {po.tender_type}
-                            </Badge>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-slate-700">{po.vendor_name}</td>
-                        <td className="py-3 px-4 text-slate-700">
-                          {new Date(po.po_date).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4 text-right font-semibold text-slate-900">
-                          Rs {po.total_amount.toLocaleString()}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <Badge variant="secondary">{po.item_count} items</Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge className={getStatusColor(po.status)}>
-                            {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => navigate(`/dashboard/po/${po.id}`)}
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            {po.status === 'draft' && (
-                              <>
+          <div className="space-y-6">
+            {Object.entries(groupedPOs).map(([tenderType, pos]) => (
+              <Card key={tenderType}>
+                <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="flex items-center gap-3">
+                        <Badge className={`${getTenderTypeColor(tenderType)} text-base px-4 py-1`}>
+                          {tenderTypeLabels[tenderType] || tenderType}
+                        </Badge>
+                        <span className="text-slate-600 text-lg font-normal">
+                          ({pos.length} PO{pos.length !== 1 ? 's' : ''})
+                        </span>
+                      </CardTitle>
+                      <CardDescription className="mt-2">
+                        Total Value: Rs {pos.reduce((sum, po) => sum + po.total_amount, 0).toLocaleString()}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="border-b border-slate-200">
+                        <tr className="bg-slate-50">
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">PO Number</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Tender</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Vendor</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Date</th>
+                          <th className="text-right py-3 px-4 font-semibold text-slate-700">Amount</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Items</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Status</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Delivery</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {pos.map((po) => (
+                          <tr key={po.id} className="hover:bg-slate-50 transition">
+                            <td className="py-3 px-4 font-mono font-semibold text-blue-600">{po.po_number}</td>
+                            <td className="py-3 px-4">
+                              <p className="font-medium text-slate-900">{po.tender_title}</p>
+                            </td>
+                            <td className="py-3 px-4 text-slate-700">{po.vendor_name}</td>
+                            <td className="py-3 px-4 text-slate-700">
+                              {new Date(po.po_date).toLocaleDateString()}
+                            </td>
+                            <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                              Rs {po.total_amount.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <Badge variant="secondary">{po.item_count} items</Badge>
+                            </td>
+                            <td className="py-3 px-4">
+                              <Badge className={getStatusColor(po.status)}>
+                                {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-4">
+                              {(po.status === 'finalized' || po.status === 'completed') && po.deliveryStatus ? (
+                                <div className="space-y-1">
+                                  <Badge className={getDeliveryStatusColor(po.deliveryStatus.overallStatus)}>
+                                    {po.deliveryStatus.overallStatus}
+                                  </Badge>
+                                  <div className="text-xs text-slate-600">
+                                    {po.deliveryStatus.receivedPercentage.toFixed(0)}% received
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-sm text-slate-400">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex gap-2 flex-wrap">
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => navigate(`/dashboard/po/${po.id}/edit`)}
-                                  title="Edit PO"
+                                  onClick={() => navigate(`/dashboard/po/${po.id}`)}
+                                  title="View Details"
                                 >
-                                  ✏️ Edit
+                                  <Eye className="w-4 h-4" />
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700"
-                                  onClick={() => handleFinalizePO(po.id)}
-                                  title="Finalize PO"
-                                >
-                                  ✓ Finalize
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => handleDeletePO(po.id)}
-                                  title="Delete PO"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                                {(po.status === 'finalized' || po.status === 'partial') && po.deliveryStatus?.overallStatus !== 'completed' && (
+                                  <Button
+                                    size="sm"
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                    onClick={() => navigate(`/purchase-orders/${po.id}/receive-delivery`)}
+                                    title="Receive Delivery"
+                                  >
+                                    <Package className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {po.status === 'draft' && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => navigate(`/dashboard/po/${po.id}/edit`)}
+                                      title="Edit PO"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="bg-green-600 hover:bg-green-700"
+                                      onClick={() => handleFinalizePO(po.id)}
+                                      title="Finalize PO"
+                                    >
+                                      <CheckCircle className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleDeletePO(po.id)}
+                                      title="Delete PO"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     </div>

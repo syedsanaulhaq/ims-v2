@@ -67,6 +67,7 @@ import UnifiedTenderManagement from "./pages/UnifiedTenderManagement";
 import TenderAcquisitionReport from "./pages/TenderAcquisitionReport";
 import AllInventoryItemsPage from "./pages/AllInventoryItemsPage";
 import StockQuantitiesPage from "./pages/StockQuantitiesPage";
+import CurrentInventoryStock from "./pages/CurrentInventoryStock";
 import ApprovalDashboard from "./components/ApprovalDashboard";
 import ApprovalDashboardRequestBased from "./components/ApprovalDashboardRequestBased";
 import WingApprovalDashboard from "./components/WingApprovalDashboard";
@@ -106,6 +107,7 @@ import CreatePurchaseOrder from "./pages/CreatePurchaseOrder";
 import EditPurchaseOrder from "./pages/EditPurchaseOrder";
 import PurchaseOrderDashboard from "./pages/PurchaseOrderDashboard";
 import PurchaseOrderDetails from "./pages/PurchaseOrderDetails";
+import ReceiveDelivery from "./pages/ReceiveDelivery";
 import { useParams } from "react-router-dom";
 
 const queryClient = new QueryClient();
@@ -201,7 +203,7 @@ function App() {
                   <Route path="procurement-details" element={<ProcurementDetails />} />
                   <Route path="inventory-dashboard" element={<InventoryDashboard />} />
                   <Route path="inventory-all-items" element={<AllInventoryItemsPage />} />
-                  <Route path="inventory-stock-quantities" element={<StockQuantitiesPage />} />
+                  <Route path="inventory-stock-quantities" element={<CurrentInventoryStock />} />
                   <Route path="inventory-alerts" element={<InventoryAlertsPage />} />
                   <Route path="inventory-settings" element={<InventorySettings />} />
                   <Route path="stock-issuance" element={<StockIssuance />} />
@@ -291,6 +293,15 @@ function App() {
                   <Route path="po/:id" element={<PurchaseOrderDetails />} />
                   <Route path="po/:id/edit" element={<EditPurchaseOrder />} />
                 </Route>
+
+                {/* Stock Acquisition (Receive Delivery) - Outside nested routes for clean URL */}
+                <Route path="/purchase-orders/:poId/receive-delivery" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ReceiveDelivery />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
                 {/* Stock Acquisition - Protected */}
                 <Route path="/stock-acquisition" element={

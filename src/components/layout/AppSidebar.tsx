@@ -208,7 +208,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Patty Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
-      { title: "Stock Acquisition", icon: Warehouse, path: "/dashboard/stock-acquisition-dashboard", permission: 'procurement.view' },
       { title: "Review Requests", icon: CheckCircle, path: "/procurement/admin-review", permission: 'procurement.approve' },
       { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
     ]
