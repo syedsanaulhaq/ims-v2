@@ -189,6 +189,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Meta Data Menu",
     icon: Database,
     items: [
+      { title: "Item Master", icon: Package, path: "/dashboard/item-master", permission: 'inventory.manage' },
       { title: "Categories", icon: Boxes, path: "/dashboard/categories", permission: 'inventory.manage' },
       { title: "Sub-Categories", icon: Boxes, path: "/dashboard/sub-categories", permission: 'inventory.manage' },
       { title: "Vendor Management", icon: Building2, path: "/dashboard/vendors", permission: 'procurement.manage' },
@@ -201,7 +202,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Package,
     items: [
       { title: "Inventory Dashboard", icon: BarChart3, path: "/dashboard/inventory-dashboard", permission: 'inventory.view' },
-      { title: "Item Master", icon: Package, path: "/dashboard/item-master", permission: 'inventory.manage' },
       { title: "Stock Quantities", icon: BarChart3, path: "/dashboard/inventory-stock-quantities", permission: 'inventory.view' },
       { title: "Stock Alerts", icon: AlertTriangle, path: "/dashboard/inventory-alerts", permission: 'inventory.view' },
       { title: "Pending Verifications", icon: Eye, path: "/dashboard/pending-verifications", permission: 'inventory.manage' },
@@ -310,14 +310,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show metadata menu if user has inventory or procurement permissions
-    if (canManageInventory || canManageProcurement) {
-      const visibleMetadataItems = metadataMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleMetadataItems.length > 0) {
-        groups.push({ ...metadataMenuGroup, items: visibleMetadataItems });
-      }
-    }
-
     // Show store keeper menu if user is wing store keeper (by permission or role)
     if (canAccessStoreKeeperMenu) {
       const visibleStoreKeeperItems = storeKeeperMenuGroup.items.filter(item => checkPermission(item.permission));
@@ -363,6 +355,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleApprovalItems.length > 0) {
         groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
+      }
+    }
+
+    // Show metadata menu if user has inventory or procurement permissions (before Admin)
+    if (canManageInventory || canManageProcurement) {
+      const visibleMetadataItems = metadataMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleMetadataItems.length > 0) {
+        groups.push({ ...metadataMenuGroup, items: visibleMetadataItems });
       }
     }
 
