@@ -1,10 +1,10 @@
 -- =====================================================
 -- GENERATE INSERT STATEMENTS FROM LOCAL DATABASE
--- Run this on your LOCAL database (SYED-FAZLI-LAPT)
--- Then copy output and run on PRODUCTION
+-- Run this on PRODUCTION database
+-- Pulls data from LOCAL InventoryManagementDB on SYED-FAZLI-LAPT
 -- =====================================================
 
-USE InventoryManagementSystem;
+USE InventoryManagementDB;
 GO
 
 PRINT '========================================';
@@ -29,7 +29,7 @@ SELECT
     CAST(ISNULL(is_dispensable, 0) AS VARCHAR(1)) + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM categories
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.categories
 ORDER BY id;
 GO
 
@@ -54,7 +54,7 @@ SELECT
     QUOTENAME(ISNULL(postal_code, ''), '''') + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM vendors
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.vendors
 ORDER BY id;
 GO
 
@@ -80,7 +80,7 @@ SELECT
     CAST(ISNULL(current_stock, 0) AS VARCHAR(10)) + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM item_masters
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.item_masters
 ORDER BY id;
 GO
 
@@ -100,7 +100,7 @@ SELECT
     QUOTENAME(CAST(last_updated AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM current_inventory_stock
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.current_inventory_stock
 ORDER BY id;
 GO
 
@@ -128,7 +128,7 @@ SELECT
     ISNULL(QUOTENAME(finalized_by, ''''), 'NULL') + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM tenders
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.tenders
 ORDER BY id;
 GO
 
@@ -153,7 +153,7 @@ SELECT
     ISNULL(QUOTENAME(CAST(selection_date AS VARCHAR(30)), ''''), 'NULL') + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM tender_items
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.tender_items
 ORDER BY id;
 GO
 
@@ -190,7 +190,7 @@ SELECT
     ISNULL(QUOTENAME(forwarding_reason, ''''), 'NULL') + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM stock_issuance_requests
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.stock_issuance_requests
 ORDER BY id;
 GO
 
@@ -214,7 +214,7 @@ SELECT
     ISNULL(QUOTENAME(CAST(return_date AS VARCHAR(30)), ''''), 'NULL') + ',' +
     QUOTENAME(CAST(created_at AS VARCHAR(30)), '''') + ',' +
     QUOTENAME(CAST(updated_at AS VARCHAR(30)), '''') + ');'
-FROM stock_issuance_items
+FROM [SYED-FAZLI-LAPT].InventoryManagementDB.dbo.stock_issuance_items
 ORDER BY id;
 GO
 
