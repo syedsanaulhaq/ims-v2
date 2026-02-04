@@ -78,7 +78,7 @@ const WingDashboard = () => {
             .catch(() => []),
           
           // My issued items (wing supervisor's own items)
-          fetch(`${apiBase}/issued-items/user/${user?.user_id}`, { credentials: 'include' })
+          fetch(`${apiBase}/stock-issuance/issued-items?user_id=${user?.user_id}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           

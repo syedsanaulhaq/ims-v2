@@ -62,6 +62,91 @@ router.get('/', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/stock-issuance/pending/count - Get pending approvals count
+// ============================================================================
+router.get('/pending/count', async (req, res) => {
+  try {
+    const pool = getPool();
+
+    const result = await pool.request()
+      .query(`
+        SELECT 
+          COUNT(CASE WHEN approval_status = 'Pending' THEN 1 END) as pending,
+          COUNT(CASE WHEN approval_status = 'Forwarded to Admin' THEN 1 END) as forwarded,
+          COUNT(CASE WHEN approval_status = 'Approved by Supervisor' THEN 1 END) as supervisor_approved
+        FROM stock_issuance_requests
+      `);
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error counting pending:', error);
+    res.status(500).json({ error: 'Failed to count pending' });
+  }
+});
+
+// ============================================================================
+// GET /api/stock-issuance/issued-items - Get issued items (all or by user)
+// ============================================================================
+router.get('/issued-items', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { user_id } = req.query;
+
+    let query = `
+      SELECT 
+        sii.id,
+        sii.request_id,
+        sir.request_number,
+        sii.item_master_id,
+        COALESCE(im.nomenclature, sii.nomenclature) as nomenclature,
+        sii.requested_quantity as issued_quantity,
+        sii.approved_quantity,
+        im.unit,
+        sir.expected_return_date,
+        sir.is_returnable,
+        u.FullName as requester_name,
+        sir.submitted_at as created_at,
+        sir.request_type as purpose
+      FROM stock_issuance_items sii
+      INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
+      LEFT JOIN item_masters im ON sii.item_master_id = im.id
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      WHERE sir.approval_status = 'Approved' OR sir.approval_status = 'Issued'
+    `;
+
+    let request = pool.request();
+
+    if (user_id) {
+      query += ` AND sir.requester_user_id = @userId`;
+      request = request.input('userId', sql.NVarChar(450), user_id);
+    }
+
+    query += ` ORDER BY sir.submitted_at DESC`;
+
+    const result = await request.query(query);
+    
+    // Calculate summary
+    const summary = {
+      total_items: result.recordset.length,
+      total_value: 0,
+      returnable_items: result.recordset.filter(i => i.is_returnable).length,
+      not_returned: result.recordset.length,
+      overdue: 0
+    };
+
+    res.json({ 
+      success: true,
+      data: result.recordset,
+      items: result.recordset,
+      summary
+    });
+  } catch (error) {
+    console.error('Error fetching issued items:', error);
+    res.status(500).json({ error: 'Failed to fetch issued items', details: error.message });
+  }
+});
+
+// ============================================================================
 // GET /api/stock-issuance/:id - Get request details
 // ============================================================================
 router.get('/:id', async (req, res) => {
@@ -254,29 +339,6 @@ router.delete('/:id', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error deleting request:', error);
     res.status(500).json({ error: 'Failed to delete request' });
-  }
-});
-
-// ============================================================================
-// GET /api/stock-issuance/pending-approvals - Get pending approvals count
-// ============================================================================
-router.get('/pending/count', async (req, res) => {
-  try {
-    const pool = getPool();
-
-    const result = await pool.request()
-      .query(`
-        SELECT 
-          COUNT(CASE WHEN approval_status = 'Pending' THEN 1 END) as pending,
-          COUNT(CASE WHEN approval_status = 'Forwarded to Admin' THEN 1 END) as forwarded,
-          COUNT(CASE WHEN approval_status = 'Approved by Supervisor' THEN 1 END) as supervisor_approved
-        FROM stock_issuance_requests
-      `);
-
-    res.json(result.recordset[0]);
-  } catch (error) {
-    console.error('Error counting pending:', error);
-    res.status(500).json({ error: 'Failed to count pending' });
   }
 });
 

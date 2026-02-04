@@ -97,6 +97,54 @@ router.get('/admin/pending', requireAuth, requirePermission('stock_request.view_
 });
 
 // ============================================================================
+// GET /api/approvals/my-pending - Get pending approvals for current user
+// ============================================================================
+router.get('/my-pending', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const userId = req.session.userId;
+
+    // Check if user is a supervisor (has view_wing permission)
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT u.Id, w.Id as wing_id
+        FROM AspNetUsers u
+        LEFT JOIN UsersWingInformation w ON u.Id = w.UserId
+        WHERE u.Id = @userId
+      `);
+
+    if (userResult.recordset.length === 0) {
+      return res.json({ requests: [], data: [] });
+    }
+
+    const user = userResult.recordset[0];
+    if (!user.wing_id) {
+      return res.json({ requests: [], data: [] });
+    }
+
+    // Get pending supervisory approvals for this user's wing
+    const result = await pool.request()
+      .input('wingId', sql.Int, user.wing_id)
+      .query(`
+        SELECT * FROM vw_pending_supervisor_approvals
+        WHERE requester_wing_id = @wingId
+        ORDER BY is_urgent DESC, pending_hours DESC
+      `);
+
+    console.log(`📋 Found ${result.recordset.length} pending approvals for user ${userId}`);
+    res.json({ 
+      requests: result.recordset, 
+      data: result.recordset,
+      total: result.recordset.length 
+    });
+  } catch (error) {
+    console.error('❌ Error fetching my pending approvals:', error);
+    res.status(500).json({ error: 'Failed to fetch pending approvals', details: error.message });
+  }
+});
+
+// ============================================================================
 // GET /api/approvals/request/:requestId - Get request details with items
 // ============================================================================
 router.get('/request/:requestId', async (req, res) => {

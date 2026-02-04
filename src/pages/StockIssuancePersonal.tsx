@@ -29,6 +29,7 @@ import { Office as ERPOffice, Wing as ERPWing, DEC as ERPDEC } from '@/types/off
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PermissionGate } from '@/components/PermissionGate';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface InventoryItem {
   id: string;
@@ -114,8 +115,8 @@ const StockIssuancePersonal: React.FC = () => {
               id: item.id || `inventory-${item.item_master_id}`,
               item_master_id: item.item_master_id,  // Add this field
               intOfficeID: item.id,
-              nomenclature: item.item_name || 'Unknown Item',
-              description: item.description || '',
+              nomenclature: item.nomenclature || item.item_name || 'Unknown Item',
+              description: item.category_description || item.description || '',
               current_stock: item.current_quantity || 0,
               minimum_stock_level: item.minimum_stock_level || 0,
               weighted_avg_price: 0,
@@ -148,7 +149,8 @@ const StockIssuancePersonal: React.FC = () => {
       setIsLoading(true);
       
       // Fetch the existing request data
-      const response = await fetch(`http://localhost:3001/api/stock-issuance/requests/${requestId}`, {
+      const apiBase = getApiBaseUrl();
+      const response = await fetch(`${apiBase}/stock-issuance/requests/${requestId}`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -305,6 +307,7 @@ const StockIssuancePersonal: React.FC = () => {
         // Update existing request
         console.log('📝 Updating existing request:', id);
         
+        const apiBase = getApiBaseUrl();
         const updateData = {
           purpose,
           urgency_level: urgencyLevel,
@@ -320,7 +323,7 @@ const StockIssuancePersonal: React.FC = () => {
           }))
         };
 
-        const response = await fetch(`http://localhost:3001/api/stock-issuance/requests/${id}`, {
+        const response = await fetch(`${apiBase}/stock-issuance/requests/${id}`, {
           method: 'PUT',
           credentials: 'include',
           headers: {

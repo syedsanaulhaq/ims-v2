@@ -17,6 +17,8 @@ import {
 import { formatDateDMY } from '@/utils/dateUtils';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getApiBaseUrl } from '@/services/invmisApi';
+import { useSession } from '@/contexts/SessionContext';
 
 interface IssuedItem {
   ledger_id: string;
@@ -48,6 +50,7 @@ interface Summary {
 }
 
 export default function MyIssuedItems() {
+  const { user } = useSession();
   const [items, setItems] = useState<IssuedItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<IssuedItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -55,9 +58,6 @@ export default function MyIssuedItems() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  
-  // TODO: Get from auth context
-  const currentUserId = '4dae06b7-17cd-480b-81eb-da9c76ad5728';
 
   useEffect(() => {
     fetchMyIssuedItems();
@@ -70,14 +70,17 @@ export default function MyIssuedItems() {
   const fetchMyIssuedItems = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/issued-items/user/${currentUserId}`);
+      const apiBase = getApiBaseUrl();
+      const response = await fetch(`${apiBase}/stock-issuance/issued-items?user_id=${user?.user_id}`, {
+        credentials: 'include'
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch issued items');
       }
 
       const data = await response.json();
-      setItems(data.items || []);
+      setItems(data.items || data.data || []);
       setSummary(data.summary);
       
     } catch (err: any) {

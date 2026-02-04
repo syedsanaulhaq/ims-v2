@@ -150,14 +150,14 @@ const StockIssuanceWing: React.FC = () => {
       if (inventory && inventory.length > 0) {
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
-          .filter(item => item.intCurrentStock > 0) // Only items with stock
+          .filter(item => (item.current_quantity || item.intCurrentStock || 0) > 0) // Only items with stock
           .map((item) => ({
-            id: `inventory-${item.intOfficeID}-${item.intItemMasterID}`,
-            intOfficeID: item.intOfficeID,
-            nomenclature: item.item_masters?.nomenclature || 'Unknown Item',
-            current_stock: item.intCurrentStock,
-            minimum_stock_level: item.intMinimumLevel,
-            weighted_avg_price: item.fltUnitPrice,
+            id: `inventory-${item.id}`,
+            intOfficeID: item.id,
+            nomenclature: item.nomenclature || item.item_masters?.nomenclature || 'Unknown Item',
+            current_stock: item.current_quantity || item.intCurrentStock || 0,
+            minimum_stock_level: item.intMinimumLevel || 0,
+            weighted_avg_price: item.fltUnitPrice || 0,
             primary_Location: item.strStockLocation || 'Main Warehouse'
           }));
 

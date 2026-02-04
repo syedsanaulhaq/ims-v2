@@ -1,5 +1,7 @@
 // Local inventory service for SQL Server backend
-const BASE_URL = 'http://localhost:3001/api';
+import { getApiBaseUrl } from './invmisApi';
+
+const getBaseUrl = () => `${getApiBaseUrl()}/inventory`;
 
 export interface InventoryItem {
   intOfficeID: string;
@@ -56,15 +58,26 @@ export interface UpdateInventoryItem extends Partial<CreateInventoryItem> {}
 
 export const inventoryLocalService = {
   async getAll(): Promise<InventoryItem[]> {
-    const response = await fetch(`${BASE_URL}/inventory-stock`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch inventory: ${response.statusText}`);
+    try {
+      const response = await fetch(`${getBaseUrl()}/current-stock`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch inventory: ${response.statusText}`);
+      }
+      const data = await response.json();
+      // Return the inventory array from the response structure
+      return data.inventory || data.data || [];
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      throw error;
     }
-    return response.json();
   },
 
   async getById(id: string): Promise<InventoryItem> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}`);
+    const response = await fetch(`${getBaseUrl()}/current-stock/${id}`, {
+      credentials: 'include'
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch inventory item: ${response.statusText}`);
     }
@@ -72,19 +85,23 @@ export const inventoryLocalService = {
   },
 
   async getByOffice(officeId: string): Promise<InventoryItem[]> {
-    const response = await fetch(`${BASE_URL}/inventory-stock?officeId=${officeId}`);
+    const response = await fetch(`${getBaseUrl()}/current-stock?officeId=${officeId}`, {
+      credentials: 'include'
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch office inventory: ${response.statusText}`);
     }
-    return response.json();
+    const data = await response.json();
+    return data.inventory || data.data || [];
   },
 
   async create(item: CreateInventoryItem): Promise<InventoryItem> {
-    const response = await fetch(`${BASE_URL}/inventory-stock`, {
+    const response = await fetch(`${getBaseUrl()}/current-stock`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(item),
     });
     
@@ -97,11 +114,12 @@ export const inventoryLocalService = {
   },
 
   async update(id: string, item: UpdateInventoryItem): Promise<InventoryItem> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/current-stock/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(item),
     });
     
@@ -114,8 +132,9 @@ export const inventoryLocalService = {
   },
 
   async remove(id: string): Promise<boolean> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}`, {
+    const response = await fetch(`${getBaseUrl()}/current-stock/${id}`, {
       method: 'DELETE',
+      credentials: 'include'
     });
     
     if (!response.ok) {
@@ -133,11 +152,12 @@ export const inventoryLocalService = {
     reference_id?: string;
     remarks?: string;
   }): Promise<any> {
-    const response = await fetch(`${BASE_URL}/inventory-stock/${id}/transaction`, {
+    const response = await fetch(`${getBaseUrl()}/current-stock/${id}/transaction`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(transaction),
     });
     
@@ -151,10 +171,14 @@ export const inventoryLocalService = {
 
   // Legacy compatibility methods for existing code
   async getOffices(): Promise<any[]> {
-    const response = await fetch(`${BASE_URL}/offices`);
+    const apiBase = getApiBaseUrl();
+    const response = await fetch(`${apiBase}/offices`, {
+      credentials: 'include'
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch offices: ${response.statusText}`);
     }
-    return response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data?.offices || data?.data || []);
   },
 };

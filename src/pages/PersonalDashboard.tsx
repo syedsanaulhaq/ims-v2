@@ -41,41 +41,34 @@ const PersonalDashboard = () => {
         const [
           requestsRes,
           issuedItemsRes,
-          approvalsRes,
-          notificationsRes
+          approvalsRes
         ] = await Promise.all([
           // My stock issuance requests
-          fetch(`${apiBase}/my-requests`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => []),
+          fetch(`${apiBase}/approvals/my-requests/${user?.user_id}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : { requests: [] })
+            .catch(() => ({ requests: [] })),
           
           // My issued items (items currently in my possession)
-          fetch(`${apiBase}/issued-items/user/${user?.user_id}`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => []),
+          fetch(`${apiBase}/stock-issuance/issued-items?user_id=${user?.user_id}`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : { data: [] })
+            .catch(() => ({ data: [] })),
           
-          // My pending approvals (if I'm an approver)
-          fetch(`${apiBase}/approvals/my-pending`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => []),
-          
-          // My notifications
-          fetch(`${apiBase}/my-notifications?limit=10`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .catch(() => [])
+          // My pending approvals (if I'm an approver) - supervisor approvals
+          fetch(`${apiBase}/approvals/supervisor/pending`, { credentials: 'include' })
+            .then(res => res.ok ? res.json() : { data: [] })
+            .catch(() => ({ data: [] }))
         ]);
 
         console.log('Personal Dashboard Data:', {
           requests: requestsRes,
           issuedItems: issuedItemsRes,
-          approvals: approvalsRes,
-          notifications: notificationsRes
+          approvals: approvalsRes
         });
 
         setMyRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
-        setMyIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
-        setMyPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
-        setMyNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
+        setMyIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || issuedItemsRes?.items || []));
+        setMyPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || approvalsRes?.requests || []));
+        setMyNotifications([]);
 
       } catch (error) {
         console.error('Error fetching personal dashboard data:', error);
