@@ -53,7 +53,7 @@ const RoleManagement: React.FC = () => {
   const fetchRoles = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/ims/roles`, {
+      const response = await fetch(`${API_BASE_URL}/api/permissions/roles`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -69,7 +69,7 @@ const RoleManagement: React.FC = () => {
 
   const fetchPermissions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/ims/permissions`, {
+      const response = await fetch(`${API_BASE_URL}/api/permissions`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -98,7 +98,7 @@ const RoleManagement: React.FC = () => {
 
   const fetchRolePermissions = async (roleId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/ims/roles/${roleId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/permissions/roles/${roleId}`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -129,7 +129,7 @@ const RoleManagement: React.FC = () => {
     try {
       if (editingRole) {
         // Update existing role permissions
-        const response = await fetch(`${API_BASE_URL}/api/ims/roles/${editingRole.role_id}/permissions`, {
+        const response = await fetch(`${API_BASE_URL}/api/permissions/roles/${editingRole.role_id}/permissions`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -140,7 +140,7 @@ const RoleManagement: React.FC = () => {
         alert('Role updated successfully!');
       } else {
         // Create new role
-        const response = await fetch(`${API_BASE_URL}/api/ims/roles`, {
+        const response = await fetch(`${API_BASE_URL}/api/permissions/roles`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

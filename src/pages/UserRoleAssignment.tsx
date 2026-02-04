@@ -100,7 +100,7 @@ const UserRoleAssignment: React.FC = () => {
       if (appliedRole) params.append('role_name', appliedRole);
 
       const queryString = params.toString();
-      const urlToFetch = `${API_BASE_URL}/api/ims/users${queryString ? '?' + queryString : ''}`;
+      const urlToFetch = `${API_BASE_URL}/api/permissions/users${queryString ? '?' + queryString : ''}`;
       console.log('🔍 FILTER DEBUG: Fetching users with URL:', urlToFetch);
       console.log('🔍 FILTER DEBUG: Applied filters:', { appliedSearch, appliedOffice, appliedWing, appliedRole });
       console.log('🔍 FILTER DEBUG: Query string:', queryString);
@@ -143,7 +143,7 @@ const UserRoleAssignment: React.FC = () => {
 
   const fetchRoles = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/ims/roles`, {
+      const response = await fetch(`${API_BASE_URL}/api/permissions/roles`, {
         credentials: 'include',
       });
 
@@ -239,7 +239,7 @@ const UserRoleAssignment: React.FC = () => {
         scope_wing_id: assignForm.scope_wing_id || null
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/ims/users/${selectedUser.user_id}/roles`, {
+      const response = await fetch(`${API_BASE_URL}/api/permissions/users/${selectedUser.user_id}/roles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -266,7 +266,7 @@ const UserRoleAssignment: React.FC = () => {
     if (!confirm('Are you sure you want to revoke this role?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/ims/users/${userId}/roles/${userRoleId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/permissions/users/${userId}/roles/${userRoleId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
