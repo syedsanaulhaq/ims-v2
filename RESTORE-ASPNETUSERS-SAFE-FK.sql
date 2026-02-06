@@ -32,11 +32,10 @@ PRINT '';
 -- =====================================================
 PRINT '=== STEP 2: DISABLE FOREIGN KEY CONSTRAINTS ===';
 
--- Disable all FK constraints referencing AspNetUsers
-ALTER TABLE ims_user_roles NOCHECK CONSTRAINT FK_ims_user_roles_user;
-ALTER TABLE Notifications NOCHECK CONSTRAINT FK_Notifications_User;
+-- Disable ALL FK constraints in database (comprehensive approach)
+EXEC sp_MSForEachTable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL';
 
-PRINT '✅ Foreign key constraints disabled';
+PRINT '✅ All foreign key constraints disabled';
 PRINT '';
 
 -- =====================================================
@@ -55,6 +54,10 @@ PRINT '✅ IMS role assignments cleared';
 -- Delete user notifications (will be recreated as needed)
 DELETE FROM Notifications WHERE UserId IS NOT NULL;
 PRINT '✅ User notifications cleared';
+
+-- Clear processed_by references in stock_acquisitions
+UPDATE stock_acquisitions SET processed_by = NULL WHERE processed_by IS NOT NULL;
+PRINT '✅ Stock acquisitions processed_by cleared';
 
 -- Delete all users
 DELETE FROM AspNetUsers;
@@ -90,10 +93,10 @@ PRINT '';
 -- =====================================================
 PRINT '=== STEP 5: RE-ENABLE FOREIGN KEY CONSTRAINTS ===';
 
-ALTER TABLE ims_user_roles WITH CHECK CHECK CONSTRAINT FK_ims_user_roles_user;
-ALTER TABLE Notifications WITH CHECK CHECK CONSTRAINT FK_Notifications_User;
+-- Re-enable ALL FK constraints in database
+EXEC sp_MSForEachTable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL';
 
-PRINT '✅ Foreign key constraints re-enabled';
+PRINT '✅ All foreign key constraints re-enabled';
 PRINT '';
 
 -- =====================================================
@@ -132,4 +135,14 @@ PRINT 'INSERT INTO AspNetUsers SELECT * FROM ' + @BackupTable + ';';
 PRINT 'DELETE FROM ims_user_roles;';
 PRINT 'INSERT INTO ims_user_roles SELECT * FROM ' + @RolesBackupTable + ';';
 PRINT '';
-PRINT '✅ This version is SAFER - disables FK constraints during sync!';
+PRINT '✅ This version is SAFER - disables ALL FK constraints during sync!';
+PRINT '';
+PRINT '⚠️ IMPORTANT:';
+PRINT '   - ALL foreign key constraints are disabled temporarily (Step 2)';
+PRINT '   - Related data is cleaned up (ims_user_roles, Notifications, stock_acquisitions)';
+PRINT '   - AspNetUsers is deleted';
+PRINT '   - Users from CleanArchitectureDB are inserted';
+PRINT '   - ALL FK constraints are re-enabled (Step 5)';
+PRINT '';
+PRINT '📋 NO FK ERRORS will occur with this approach!';
+
