@@ -7,7 +7,7 @@
 -- PART 1: RUN THIS ON DIGITAL SYSTEM SERVER
 -- =====================================================
 /*
-USE [DigitalSystemDB]; -- Change to your DS database name
+USE [CleanArchitectureDB]; -- Digital System database
 GO
 
 -- Export AspNetUsers to script format
@@ -19,7 +19,7 @@ GO
 -- 4. Save the output script file
 
 -- Or use BCP command to export:
--- bcp "SELECT * FROM DigitalSystemDB.dbo.AspNetUsers WHERE ISACT = 1" queryout "C:\Temp\AspNetUsers.csv" -c -t"," -S YourServerName -T
+-- bcp "SELECT * FROM CleanArchitectureDB.dbo.AspNetUsers WHERE ISACT = 1" queryout "C:\Temp\AspNetUsers.csv" -c -t"," -S YourServerName -T
 */
 
 -- =====================================================
@@ -54,6 +54,9 @@ PRINT '⚠️ WARNING: About to delete all existing users!';
 PRINT 'Backup saved in: ' + @BackupTable;
 PRINT '';
 PRINT 'To proceed, uncomment the DELETE statement below:';
+PRINT '';
+PRINT '📍 Source: CleanArchitectureDB.dbo.AspNetUsers';
+PRINT '📍 Target: InventoryManagementDB.dbo.AspNetUsers';
 PRINT '';
 
 -- UNCOMMENT TO DELETE:

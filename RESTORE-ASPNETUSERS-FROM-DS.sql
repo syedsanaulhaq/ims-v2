@@ -46,21 +46,20 @@ PRINT '=== STEP 3: COPY USERS FROM DIGITAL SYSTEM ===';
 PRINT '';
 
 -- CONFIGURE THIS: Set your Digital System database name
-DECLARE @DSDatabase NVARCHAR(128) = 'DigitalSystemDB'; -- ⚠️ CHANGE THIS TO YOUR DS DATABASE NAME!
+DECLARE @DSDatabase NVARCHAR(128) = 'CleanArchitectureDB';
 
-PRINT '⚠️ IMPORTANT: Update @DSDatabase variable above to your actual DS database name!';
-PRINT 'Current value: ' + @DSDatabase;
+PRINT 'Source database: ' + @DSDatabase;
+PRINT 'Target database: InventoryManagementDB';
 PRINT '';
-PRINT '👉 If DS database is on same server, uncomment and run the INSERT below:';
+PRINT '👉 Ready to copy users from CleanArchitectureDB';
+PRINT '   Uncomment the INSERT statement below to execute:';
 PRINT '';
 
 -- UNCOMMENT TO EXECUTE:
 /*
-EXEC('
 INSERT INTO InventoryManagementDB.dbo.AspNetUsers
-SELECT * FROM [' + @DSDatabase + '].dbo.AspNetUsers
-WHERE ISACT = 1
-');
+SELECT * FROM [CleanArchitectureDB].dbo.AspNetUsers
+WHERE ISACT = 1;
 
 DECLARE @NewCount INT;
 SELECT @NewCount = COUNT(*) FROM AspNetUsers;
@@ -86,20 +85,19 @@ PRINT '╔═══════════════════════�
 PRINT '║   INSTRUCTIONS                                         ║';
 PRINT '╚════════════════════════════════════════════════════════╝';
 PRINT '';
-PRINT '1. Update @DSDatabase variable with your Digital System database name';
- PRINT '   (Line 38: DECLARE @DSDatabase NVARCHAR(128) = ''YourDSDatabase'';)';
+PRINT '✅ Script configured for: CleanArchitectureDB → InventoryManagementDB';
 PRINT '';
-PRINT '2. Review the backup table name above (safety backup created)';
+PRINT '1. Review the backup table name above (safety backup already created)';
 PRINT '';
-PRINT '3. Uncomment the INSERT statement (remove /* and */)';
+PRINT '2. Uncomment the INSERT statement (remove /* and */)';
 PRINT '';
-PRINT '4. Run this script again to copy users from DS database';
+PRINT '3. Run this script again to copy users from CleanArchitectureDB';
 PRINT '';
-PRINT '5. After sync, test SSO login from Digital System';
+PRINT '4. After sync, test SSO login from Digital System';
 PRINT '';
-PRINT '📍 If DS database is on a DIFFERENT server:';
+PRINT '📍 If CleanArchitectureDB is on a DIFFERENT server:';
 PRINT '   - Create a linked server first, OR';
-PRINT '   - Export AspNetUsers from DS and import to IMS manually';
+PRINT '   - Use MANUAL-ASPNETUSERS-IMPORT.sql for export/import approach';
 PRINT '';
 
 -- Show backup table for recovery if needed
