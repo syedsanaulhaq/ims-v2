@@ -296,6 +296,296 @@ router.get('/session', async (req, res) => {
   }
 });
 
+// ============================================================================
+// POST /api/auth/ds-authenticate - Digital System SSO Authentication
+// ============================================================================
+// This endpoint is called by the .NET Digital System application for SSO
+router.post('/ds-authenticate', async (req, res) => {
+  console.log('🔐 DS Authentication Request Received');
+  try {
+    const { UserName, Password } = req.body;
+    const pool = getPool();
+
+    if (!UserName || !Password) {
+      console.log('❌ Missing UserName or Password');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing username or password'
+      });
+    }
+
+    console.log(`🔍 Authenticating user: ${UserName}`);
+
+    // Query user from AspNetUsers
+    const userResult = await pool.request()
+      .input('username', sql.NVarChar, UserName)
+      .query(`
+        SELECT 
+          Id, FullName, CNIC, UserName, Email, PhoneNumber,
+          Password, PasswordHash,
+          intOfficeID, intWingID, intProvinceID, intDivisionID,
+          intDistrictID, intBranchID, intDesignationID,
+          Role, UID, ISACT, Gender, ProfilePhoto, LastLoggedIn
+        FROM AspNetUsers 
+        WHERE UserName = @username AND ISACT = 1
+      `);
+
+    if (userResult.recordset.length === 0) {
+      console.log('❌ User not found or inactive');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+
+    const user = userResult.recordset[0];
+    console.log(`✅ User found: ${user.FullName} (${user.UserName})`);
+
+    // Password verification with multiple strategies
+    let isPasswordValid = false;
+    const passwordToCheck = user.PasswordHash || user.Password;
+
+    if (!passwordToCheck) {
+      console.log('❌ No password hash found');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+
+    // Strategy 1: Check plain text Password field
+    if (user.Password && user.Password === Password) {
+      console.log('✅ Password matched (plain text)');
+      isPasswordValid = true;
+    }
+
+    // Strategy 2: ASP.NET Identity hash
+    if (!isPasswordValid && (passwordToCheck.startsWith('AQA') || passwordToCheck.length > 60)) {
+      try {
+        isPasswordValid = aspnetIdentity.validatePassword(Password, passwordToCheck);
+        console.log(`ASP.NET Identity verification: ${isPasswordValid ? '✅' : '❌'}`);
+      } catch (err) {
+        console.log(`⚠️ ASP.NET verification error: ${err.message}`);
+      }
+    }
+
+    // Strategy 3: Bcrypt hash
+    if (!isPasswordValid && passwordToCheck.startsWith('$2')) {
+      try {
+        isPasswordValid = await bcrypt.compare(Password, passwordToCheck);
+        console.log(`Bcrypt verification: ${isPasswordValid ? '✅' : '❌'}`);
+      } catch (err) {
+        console.log(`⚠️ Bcrypt error: ${err.message}`);
+      }
+    }
+
+    // Strategy 4: Plain text in PasswordHash
+    if (!isPasswordValid && passwordToCheck === Password) {
+      isPasswordValid = true;
+    }
+
+    if (!isPasswordValid) {
+      console.log('❌ Invalid password - verification failed');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password'
+      });
+    }
+
+    console.log('✅ Password verified successfully');
+
+    // Update last login
+    await pool.request()
+      .input('userId', sql.NVarChar, user.Id)
+      .input('lastLogin', sql.DateTime2, new Date())
+      .query('UPDATE AspNetUsers SET LastLoggedIn = @lastLogin WHERE Id = @userId');
+
+    // Generate JWT token
+    const config = require('../config/env.cjs');
+    const token = jwt.sign(
+      {
+        sub: user.Id,
+        unique_name: user.UserName,
+        email: user.Email,
+        full_name: user.FullName,
+        cnic: user.CNIC,
+        office_id: user.intOfficeID,
+        wing_id: user.intWingID,
+        province_id: user.intProvinceID,
+        division_id: user.intDivisionID,
+        district_id: user.intDistrictID,
+        branch_id: user.intBranchID,
+        designation_id: user.intDesignationID,
+        role: user.Role,
+        uid: user.UID,
+        is_active: user.ISACT,
+        gender: user.Gender
+      },
+      config.JWT_SECRET,
+      {
+        issuer: config.JWT_ISSUER,
+        audience: config.JWT_AUDIENCE,
+        expiresIn: '24h'
+      }
+    );
+
+    // Store user in session
+    req.session.userId = user.Id;
+    req.session.user = {
+      Id: user.Id,
+      FullName: user.FullName,
+      UserName: user.UserName,
+      Email: user.Email,
+      Role: user.Role,
+      intOfficeID: user.intOfficeID,
+      intWingID: user.intWingID,
+      intBranchID: user.intBranchID,
+      intDesignationID: user.intDesignationID
+    };
+
+    // Get IMS roles and permissions
+    const imsData = await getUserImsData(user.Id);
+    if (imsData) {
+      req.session.user.ims_roles = imsData.roles;
+      req.session.user.ims_permissions = imsData.permissions;
+      req.session.user.is_super_admin = imsData.is_super_admin;
+    }
+
+    console.log('✅ Token generated and session created');
+
+    // Return token (Capital 'T' matches .NET TokenResponse class)
+    res.status(200).json({
+      Token: token,
+      success: true,
+      message: 'Authentication successful',
+      user: req.session.user
+    });
+  } catch (error) {
+    console.error('❌ DS Authentication Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// GET /sso-login - SSO Login Handler (receives token from Digital System)
+// ============================================================================
+// This endpoint receives the JWT token from DS and creates an IMS session
+router.get('/sso-login', async (req, res) => {
+  try {
+    const { token } = req.query;
+    console.log('🔐 SSO Login attempt received');
+    const pool = getPool();
+    const config = require('../config/env.cjs');
+
+    if (!token) {
+      console.error('❌ SSO Login failed: No token provided');
+      return res.status(400).send(`
+        <html>
+          <head><title>SSO Login Failed</title></head>
+          <body style="font-family: Arial; padding: 50px; text-align: center;">
+            <h1 style="color: #dc2626;">❌ Login Failed</h1>
+            <p>No authentication token provided.</p>
+            <p><a href="http://172.20.150.34/Account/Login">Return to Digital System Login</a></p>
+          </body>
+        </html>
+      `);
+    }
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, config.JWT_SECRET, {
+        issuer: config.JWT_ISSUER,
+        audience: config.JWT_AUDIENCE
+      });
+      console.log('✅ JWT token verified successfully');
+      console.log('👤 User from token:', decoded.full_name);
+    } catch (jwtError) {
+      console.error('❌ JWT verification failed:', jwtError.message);
+      return res.status(401).send(`
+        <html>
+          <head><title>SSO Login Failed</title></head>
+          <body style="font-family: Arial; padding: 50px; text-align: center;">
+            <h1 style="color: #dc2626;">❌ Authentication Failed</h1>
+            <p>Invalid or expired token.</p>
+            <p><a href="http://172.20.150.34/Account/Login">Return to Digital System Login</a></p>
+          </body>
+        </html>
+      `);
+    }
+
+    // Extract user info from token
+    const userId = decoded.sub;
+    
+    // Verify user in database
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query('SELECT Id, FullName, Email, Role, ISACT FROM AspNetUsers WHERE Id = @userId');
+
+    if (result.recordset.length === 0 || !result.recordset[0].ISACT) {
+      console.error('❌ User not found or inactive');
+      return res.status(403).send(`
+        <html>
+          <head><title>Account Inactive</title></head>
+          <body style="font-family: Arial; padding: 50px; text-align: center;">
+            <h1 style="color: #dc2626;">❌ Account Inactive</h1>
+            <p>Your account has been deactivated.</p>
+            <p>Please contact your administrator.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    const dbUser = result.recordset[0];
+    
+    // Create session
+    req.session.userId = userId;
+    req.session.user = {
+      Id: dbUser.Id,
+      FullName: dbUser.FullName,
+      UserName: decoded.unique_name,
+      Email: dbUser.Email,
+      Role: dbUser.Role,
+      intOfficeID: decoded.office_id,
+      intWingID: decoded.wing_id,
+      intBranchID: decoded.branch_id,
+      intDesignationID: decoded.designation_id
+    };
+
+    // Assign default permissions if needed
+    await assignDefaultPermissionsToSSOUser(userId);
+    
+    // Get IMS roles and permissions
+    const imsData = await getUserImsData(userId);
+    if (imsData) {
+      req.session.user.ims_roles = imsData.roles;
+      req.session.user.ims_permissions = imsData.permissions;
+      req.session.user.is_super_admin = imsData.is_super_admin;
+    }
+
+    console.log('✅ SSO Session created for:', dbUser.FullName);
+
+    // Redirect to IMS frontend
+    res.redirect('/');
+  } catch (error) {
+    console.error('❌ SSO Login Error:', error);
+    res.status(500).send(`
+      <html>
+        <head><title>SSO Login Error</title></head>
+        <body style="font-family: Arial; padding: 50px; text-align: center;">
+          <h1 style="color: #dc2626;">❌ Login Error</h1>
+          <p>An error occurred during login.</p>
+          <p><a href="http://172.20.150.34/Account/Login">Return to Digital System Login</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
 console.log('✅ Auth Routes Loaded');
 
 module.exports = router;

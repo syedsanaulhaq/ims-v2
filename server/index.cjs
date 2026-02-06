@@ -60,6 +60,7 @@ const tenderItemsRoutes = require('./routes/tender-items.cjs');
 
 app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes); // Legacy mount for /api/session
+app.use('/sso-login', authRoutes); // Mount SSO login directly (not under /api/auth)
 app.use('/api/users', usersRoutes);
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/permissions', permissionsRoutes);
