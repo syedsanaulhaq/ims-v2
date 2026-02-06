@@ -9,6 +9,7 @@ const { getPool, sql } = require('../db/connection.cjs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const aspnetIdentity = require('aspnet-identity-pw');
+const aspnetHasher = require('../utils/aspnetPasswordHasher.cjs');
 
 // Required helpers
 async function getUserImsData(userId) {
@@ -375,11 +376,11 @@ router.post('/ds-authenticate', async (req, res) => {
         console.log(`   Hash full value: ${passwordToCheck}`);
         console.log(`   Password: ${Password}`);
         console.log(`   Password length: ${Password.length}`);
-        console.log(`   Calling validatePassword()...`);
+        console.log(`   Calling custom hasher...'`);
         
-        // Try the aspnet-identity-pw library
-        isPasswordValid = aspnetIdentity.validatePassword(Password, passwordToCheck);
-        console.log(`   Library result: ${isPasswordValid ? '✅ Password matched!' : '❌ Password did not match'}`);
+        // Try custom ASP.NET Identity V3 hasher (supports both UTF-8 and UTF-16LE)
+        isPasswordValid = aspnetHasher.verifyPassword(Password, passwordToCheck);
+        console.log(`   Custom hasher result: ${isPasswordValid ? '✅ Password matched!' : '❌ Password did not match'}`);
         
         // If library fails, try alternative: check if Password field matches
         if (!isPasswordValid && user.Password) {
