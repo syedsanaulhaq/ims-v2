@@ -33,7 +33,17 @@ DECLARE @CurrentCount INT;
 SELECT @CurrentCount = COUNT(*) FROM AspNetUsers;
 PRINT 'Current user count: ' + CAST(@CurrentCount AS VARCHAR);
 
--- Delete all users (backup was made in Step 1)
+-- First, delete dependent records in ims_user_roles (FK constraint)
+DECLARE @RolesCount INT;
+SELECT @RolesCount = COUNT(*) FROM ims_user_roles;
+IF @RolesCount > 0
+BEGIN
+    PRINT 'Removing ' + CAST(@RolesCount AS VARCHAR) + ' IMS role assignments...';
+    DELETE FROM ims_user_roles;
+    PRINT '✅ IMS role assignments cleared';
+END
+
+-- Now delete all users (backup was made in Step 1)
 DELETE FROM AspNetUsers;
 
 PRINT '✅ Deleted all users from IMS database';
