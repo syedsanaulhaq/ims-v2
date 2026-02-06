@@ -379,11 +379,23 @@ router.post('/ds-authenticate', async (req, res) => {
     if (!isPasswordValid && (passwordToCheck.startsWith('AQA') || passwordToCheck.length > 60)) {
       try {
         console.log('🔍 Attempting ASP.NET Identity verification...');
-        console.log(`   Hash starts with: ${passwordToCheck.substring(0, 10)}`);
+        console.log(`   Hash length: ${passwordToCheck.length}`);
+        console.log(`   Hash full value: ${passwordToCheck}`);
+        console.log(`   Password: ${Password}`);
         console.log(`   Password length: ${Password.length}`);
         console.log(`   Calling validatePassword()...`);
+        
+        // Try the aspnet-identity-pw library
         isPasswordValid = aspnetIdentity.validatePassword(Password, passwordToCheck);
-        console.log(`   Result: ${isPasswordValid ? '✅ Password matched!' : '❌ Password did not match'}`);
+        console.log(`   Library result: ${isPasswordValid ? '✅ Password matched!' : '❌ Password did not match'}`);
+        
+        // If library fails, try alternative: check if Password field matches
+        if (!isPasswordValid && user.Password) {
+          if (user.Password === Password) {
+            console.log(`   ✅ Plain Password field matched!`);
+            isPasswordValid = true;
+          }
+        }
       } catch (err) {
         console.error(`❌ ASP.NET verification error: ${err.message}`);
         console.error(`   Error stack: ${err.stack}`);
