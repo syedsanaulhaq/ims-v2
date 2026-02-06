@@ -362,10 +362,15 @@ router.post('/ds-authenticate', async (req, res) => {
     // Strategy 2: ASP.NET Identity hash
     if (!isPasswordValid && (passwordToCheck.startsWith('AQA') || passwordToCheck.length > 60)) {
       try {
+        console.log('🔍 Attempting ASP.NET Identity verification...');
+        console.log(`   Hash starts with: ${passwordToCheck.substring(0, 10)}`);
+        console.log(`   Password length: ${Password.length}`);
+        console.log(`   Calling validatePassword()...`);
         isPasswordValid = aspnetIdentity.validatePassword(Password, passwordToCheck);
-        console.log(`ASP.NET Identity verification: ${isPasswordValid ? '✅' : '❌'}`);
+        console.log(`   Result: ${isPasswordValid ? '✅ Password matched!' : '❌ Password did not match'}`);
       } catch (err) {
-        console.log(`⚠️ ASP.NET verification error: ${err.message}`);
+        console.error(`❌ ASP.NET verification error: ${err.message}`);
+        console.error(`   Error stack: ${err.stack}`);
       }
     }
 
@@ -462,10 +467,14 @@ router.post('/ds-authenticate', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ DS Authentication Error:', error);
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    console.error('   Error name:', error.name);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
-      error: error.message
+      error: error.message,
+      debug: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
