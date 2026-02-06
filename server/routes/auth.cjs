@@ -302,12 +302,28 @@ router.get('/session', async (req, res) => {
 // This endpoint is called by the .NET Digital System application for SSO
 router.post('/ds-authenticate', async (req, res) => {
   console.log('🔐 DS Authentication Request Received');
+  console.log('   Content-Type:', req.get('Content-Type'));
+  console.log('   Body:', req.body);
+  console.log('   Body type:', typeof req.body);
+  
   try {
+    // Check if body exists
+    if (!req.body || typeof req.body !== 'object') {
+      console.log('❌ Request body is missing or invalid');
+      console.log('   Headers:', req.headers);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request body. Ensure Content-Type is application/json'
+      });
+    }
+
     const { UserName, Password } = req.body;
     const pool = getPool();
 
     if (!UserName || !Password) {
       console.log('❌ Missing UserName or Password');
+      console.log('   Received UserName:', UserName);
+      console.log('   Received Password:', Password ? '[REDACTED]' : 'undefined');
       return res.status(400).json({
         success: false,
         message: 'Missing username or password'
