@@ -69,7 +69,7 @@ const RoleManagement: React.FC = () => {
 
   const fetchPermissions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/permissions`, {
+      const response = await fetch(`${API_BASE_URL}/api/permissions/all`, {
         credentials: 'include',
       });
       if (response.ok) {
