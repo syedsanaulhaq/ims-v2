@@ -376,6 +376,157 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// ============================================================================
+// GET /api/my-notifications - Get user notifications
+// ============================================================================
+router.get('/my-notifications', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    console.log(`📬 Fetching notifications for user: ${userId}`);
+    
+    const { unreadOnly = false, limit = 50 } = req.query;
+    const pool = getPool();
+
+    if (!pool) {
+      return res.json({ success: false, error: 'Database not available' });
+    }
+
+    // Query that combines regular notifications with verification requests
+    const result = await pool.request()
+      .input('UserId', sql.NVarChar, userId)
+      .input('UnreadOnly', sql.Bit, unreadOnly === 'true')
+      .query(`
+        SELECT TOP 50 * FROM (
+          -- Regular notifications from Notifications table
+          SELECT 
+            CAST(Id AS NVARCHAR(450)) AS Id,
+            UserId,
+            Title,
+            Message,
+            Type,
+            ActionUrl,
+            ActionText,
+            IsRead,
+            CreatedAt,
+            ReadAt,
+            'notification' AS SourceType
+          FROM Notifications
+          WHERE UserId = @UserId 
+            AND (@UnreadOnly = 0 OR IsRead = 0)
+          UNION ALL
+          -- Supervisor pending requests as notifications (for wing supervisors)
+          SELECT
+            CAST('VER-PEND-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
+            @UserId AS UserId,
+            'Verification Request: ' + ISNULL(ivr.item_nomenclature, CAST(ivr.item_master_id AS NVARCHAR)) AS Title,
+            ('Requested By: ' + ISNULL(ivr.requested_by_name, 'Unknown') + CHAR(13) + CHAR(10) +
+             'Requested Qty: ' + CAST(ivr.requested_quantity AS NVARCHAR) + CHAR(13) + CHAR(10) +
+             'Wing: ' + ISNULL(ivr.wing_name, 'Unknown')) AS Message,
+            'info' AS Type,
+            '/dashboard/pending-verifications' AS ActionUrl,
+            'Open Pending' AS ActionText,
+            0 AS IsRead,
+            ivr.requested_at AS CreatedAt,
+            NULL AS ReadAt,
+            'supervisor-pending' AS SourceType
+          FROM inventory_verification_requests ivr
+          JOIN ims_user_roles ur ON ur.scope_wing_id = ivr.wing_id AND ur.user_id = @UserId
+          JOIN ims_roles r ON r.id = ur.role_id
+          WHERE r.role_name = 'WING_SUPERVISOR'
+            AND ivr.verification_status = 'pending'
+          UNION ALL
+          -- Requester pending requests as notifications (for the requester)
+          SELECT
+            CAST('REQ-PEND-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
+            ivr.requested_by_user_id AS UserId,
+            'Verification Requested: ' + ISNULL(ivr.item_nomenclature, CAST(ivr.item_master_id AS NVARCHAR)) AS Title,
+            ('Requested Qty: ' + CAST(ivr.requested_quantity AS NVARCHAR) + CHAR(13) + CHAR(10) +
+             'Wing: ' + ISNULL(ivr.wing_name, 'Unknown')) AS Message,
+            'info' AS Type,
+            '/dashboard/verification-history' AS ActionUrl,
+            'View Request Details' AS ActionText,
+            0 AS IsRead,
+            ivr.requested_at AS CreatedAt,
+            NULL AS ReadAt,
+            'requester-pending' AS SourceType
+          FROM inventory_verification_requests ivr
+          WHERE ivr.requested_by_user_id = @UserId
+            AND ivr.verification_status = 'pending'
+          UNION ALL
+          -- Verification requests as notifications (only show verified ones to requester)
+          SELECT 
+            CAST('VER-' + CAST(ivr.id AS NVARCHAR(450)) AS NVARCHAR(450)) AS Id,
+            ivr.requested_by_user_id AS UserId,
+            'Verification Complete: ' + ISNULL(ivr.item_nomenclature, CAST(ivr.item_master_id AS NVARCHAR)) AS Title,
+            CASE 
+              WHEN ivr.verification_status = 'verified_available' 
+                THEN '✅ Available - Physical Count: ' + CAST(ISNULL(ivr.physical_count, ivr.available_quantity) AS NVARCHAR) + 
+                     CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
+                     CASE WHEN ivr.verification_notes IS NOT NULL AND ivr.verification_notes != '' 
+                       THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
+                       ELSE '' 
+                     END
+              WHEN ivr.verification_status = 'verified_partial' 
+                THEN '⚠️ Partially Available - Physical Count: ' + CAST(ISNULL(ivr.physical_count, ivr.available_quantity) AS NVARCHAR) + 
+                     CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
+                     CASE WHEN ivr.verification_notes IS NOT NULL AND ivr.verification_notes != '' 
+                       THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
+                       ELSE '' 
+                     END
+              WHEN ivr.verification_status = 'verified_unavailable' 
+                THEN '❌ Unavailable - Physical Count: ' + CAST(ISNULL(ivr.physical_count, 0) AS NVARCHAR) + 
+                     CHAR(13) + CHAR(10) + 'Verified By: ' + ISNULL(ivr.verified_by_name, 'Unknown') +
+                     CASE WHEN ivr.verification_notes IS NOT NULL AND ivr.verification_notes != '' 
+                       THEN CHAR(13) + CHAR(10) + 'Notes: ' + ivr.verification_notes 
+                       ELSE '' 
+                     END
+              ELSE ivr.verification_status
+            END AS Message,
+            CASE 
+              WHEN ivr.verification_status = 'verified_available' THEN 'success'
+              WHEN ivr.verification_status = 'verified_partial' THEN 'warning'
+              WHEN ivr.verification_status = 'verified_unavailable' THEN 'error'
+              ELSE 'info'
+            END AS Type,
+            '/dashboard/verification-history' AS ActionUrl,
+            'View Details' AS ActionText,
+            0 AS IsRead,
+            ivr.verified_at AS CreatedAt,
+            NULL AS ReadAt,
+            'verification' AS SourceType
+          FROM inventory_verification_requests ivr
+          WHERE ivr.requested_by_user_id = @UserId 
+            AND ivr.verification_status IN ('verified_available', 'verified_partial', 'verified_unavailable')
+            AND ivr.verified_at IS NOT NULL
+        ) AS CombinedNotifications
+        ORDER BY CreatedAt DESC
+      `);
+
+    res.json({
+      success: true,
+      notifications: result.recordset
+    });
+
+    const verificationCount = result.recordset.filter(n => n.SourceType === 'verification').length;
+    const supervisorPendingCount = result.recordset.filter(n => n.SourceType === 'supervisor-pending').length;
+    const requesterPendingCount = result.recordset.filter(n => n.SourceType === 'requester-pending').length;
+    const regularCount = result.recordset.filter(n => n.SourceType === 'notification').length;
+    
+    console.log(`✅ Returned ${result.recordset.length} total notifications for user ${userId}`);
+    console.log(`   - ${regularCount} regular notifications`);
+    console.log(`   - ${verificationCount} verification notifications`);
+    console.log(`   - ${supervisorPendingCount} supervisor pending notifications`);
+    console.log(`   - ${requesterPendingCount} requester pending notifications`);
+  } catch (error) {
+    console.error('❌ Error fetching my notifications:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch notifications',
+      details: error.message
+    });
+  }
+});
+
 console.log('✅ Disposals and Utility Routes Loaded');
 
 module.exports = router;
