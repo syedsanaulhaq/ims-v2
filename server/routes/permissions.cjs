@@ -577,6 +577,34 @@ router.post('/users/:userId/roles', requireAuth, requirePermission('users.assign
   }
 });
 
+// ============================================================================
+// DELETE /api/permissions/users/:userId/roles/:roleId - Revoke role from user
+// ============================================================================
+router.delete('/users/:userId/roles/:roleId', requireAuth, requirePermission('users.assign_roles'), async (req, res) => {
+  try {
+    const { userId, roleId } = req.params;
+    const pool = getPool();
+
+    // Delete the role assignment
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        DELETE FROM ims_user_roles
+        WHERE user_id = @userId AND role_id = @roleId
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Role assignment not found' });
+    }
+
+    res.json({ success: true, message: 'Role revoked successfully' });
+  } catch (error) {
+    console.error('❌ Error revoking role:', error);
+    res.status(500).json({ error: 'Failed to revoke role', details: error.message });
+  }
+});
+
 console.log('✅ Permissions Routes Loaded');
 
 module.exports = router;
