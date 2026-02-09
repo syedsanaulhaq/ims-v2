@@ -64,34 +64,82 @@ async function getUserImsData(userId) {
   }
 }
 
-async function assignDefaultPermissionsToSSOUser(userId) {
+// ============================================================================
+// Map DS Role to IMS Sub-Roles
+// ============================================================================
+// Converts Digital System roles to IMS-specific roles
+function mapDSRoleToImsRoles(dsRole) {
+  const roleMap = {
+    'Administrator': ['IMS_SUPER_ADMIN'],
+    'Admin': ['IMS_ADMIN'],
+    'Supervisor': ['WING_SUPERVISOR'],
+    'StoreKeeper': ['WING_STORE_KEEPER', 'CUSTOM_WING_STORE_KEEPER'],
+    'Store Keeper': ['WING_STORE_KEEPER'],
+    'Wing Store Keeper': ['WING_STORE_KEEPER'],
+    'Procurement': ['PROCUREMENT_OFFICER'],
+    'Auditor': ['AUDITOR'],
+    'User': ['GENERAL_USER']
+  };
+  
+  // Check for exact match first
+  if (roleMap[dsRole]) {
+    return roleMap[dsRole];
+  }
+  
+  // Check for case-insensitive match
+  const lowerRole = dsRole?.toLowerCase() || '';
+  for (const [key, value] of Object.entries(roleMap)) {
+    if (key.toLowerCase() === lowerRole) {
+      return value;
+    }
+  }
+  
+  // Default to GENERAL_USER
+  console.log(`⚠️  No DS→IMS role mapping found for "${dsRole}", defaulting to GENERAL_USER`);
+  return ['GENERAL_USER'];
+}
+
+async function assignDefaultPermissionsToSSOUser(userId, dsRole) {
   try {
     const pool = getPool();
     
     // Check if user already has any IMS roles assigned
     const roleCheck = await pool.request()
       .input('userId', sql.NVarChar, userId)
-      .query('SELECT id FROM ims_user_roles WHERE user_id = @userId');
+      .query('SELECT id FROM ims_user_roles WHERE user_id = @userId AND is_active = 1');
     
     if (roleCheck.recordset.length === 0) {
-      // Get the GENERAL_USER role ID
-      const roleResult = await pool.request()
-        .query("SELECT id FROM ims_roles WHERE role_name = 'GENERAL_USER'");
+      // Map DS role to IMS role(s)
+      const imsRoleNames = mapDSRoleToImsRoles(dsRole);
       
-      if (roleResult.recordset.length > 0) {
-        const roleId = roleResult.recordset[0].id;
-        
-        // Assign GENERAL_USER role to the user
-        await pool.request()
-          .input('userId', sql.NVarChar, userId)
-          .input('roleId', sql.UniqueIdentifier, roleId)
-          .query(`
-            INSERT INTO ims_user_roles (user_id, role_id, scope_type, is_active, assigned_at)
-            VALUES (@userId, @roleId, 'GLOBAL', 1, GETDATE())
-          `);
-        
-        console.log(`✅ Assigned GENERAL_USER role to user: ${userId}`);
+      console.log(`🔄 Mapping DS Role "${dsRole}" → IMS Roles: ${imsRoleNames.join(', ')}`);
+      
+      // Get IMS role IDs
+      for (const roleName of imsRoleNames) {
+        try {
+          const roleResult = await pool.request()
+            .query(`SELECT id FROM ims_roles WHERE role_name = '${roleName}' AND is_active = 1`);
+          
+          if (roleResult.recordset.length > 0) {
+            const roleId = roleResult.recordset[0].id;
+            
+            // Assign IMS role to user
+            await pool.request()
+              .input('userId', sql.NVarChar, userId)
+              .input('roleId', sql.UniqueIdentifier, roleId)
+              .query(`
+                INSERT INTO ims_user_roles (id, user_id, role_id, scope_type, is_active, assigned_at)
+                VALUES (NEWID(), @userId, @roleId, 'GLOBAL', 1, GETDATE())
+              `);
+            
+            console.log(`✅ Assigned IMS role "${roleName}" to user: ${userId}`);
+          }
+        } catch (error) {
+          console.error(`Error assigning IMS role "${roleName}":`, error);
+        }
       }
+    } else {
+      console.log(`ℹ️  User ${userId} already has ${roleCheck.recordset.length} active IMS role(s), skipping auto-assignment`);
     }
   } catch (error) {
     console.error('Error assigning default permissions:', error);
@@ -561,8 +609,10 @@ router.get('/sso-login', async (req, res) => {
       intDesignationID: decoded.designation_id || null
     };
 
-    // Assign default permissions if needed
-    await assignDefaultPermissionsToSSOUser(userId);
+    // Assign default permissions if needed (map DS role to IMS roles)
+    const dsRole = dbUser?.Role || role || 'User';
+    console.log(`🔐 SSO User DS Role: "${dsRole}"`);
+    await assignDefaultPermissionsToSSOUser(userId, dsRole);
     
     // Get IMS roles and permissions
     const imsData = await getUserImsData(userId);
