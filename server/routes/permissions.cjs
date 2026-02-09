@@ -511,7 +511,7 @@ router.get('/users', requireAuth, async (req, res) => {
 // ============================================================================
 // POST /api/permissions/users/:userId/roles - Assign role to user
 // ============================================================================
-router.post('/users/:userId/roles', requireAuth, requirePermission('users.manage'), async (req, res) => {
+router.post('/users/:userId/roles', requireAuth, requirePermission('users.assign_roles'), async (req, res) => {
   try {
     const { userId } = req.params;
     const { role_id, scope_type, scope_wing_id, notes } = req.body;
