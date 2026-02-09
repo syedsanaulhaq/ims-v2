@@ -585,14 +585,25 @@ router.delete('/users/:userId/roles/:roleId', requireAuth, requirePermission('us
     const { userId, roleId } = req.params;
     const pool = getPool();
 
-    // Delete the role assignment
-    const result = await pool.request()
-      .input('userId', sql.NVarChar(450), userId)
-      .input('roleId', sql.UniqueIdentifier, roleId)
+    // Delete the role assignment (roleId could be either the role_id or user_role_id from the ID column)
+    // Try deleting by user_role_id first (if roleId is actually the assignment ID)
+    let result = await pool.request()
+      .input('userRoleId', sql.UniqueIdentifier, roleId)
       .query(`
         DELETE FROM ims_user_roles
-        WHERE user_id = @userId AND role_id = @roleId
+        WHERE id = @userRoleId
       `);
+
+    // If nothing was deleted, try deleting by role_id and user_id combination
+    if (result.rowsAffected[0] === 0) {
+      result = await pool.request()
+        .input('userId', sql.NVarChar(450), userId)
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`
+          DELETE FROM ims_user_roles
+          WHERE user_id = @userId AND role_id = @roleId
+        `);
+    }
 
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: 'Role assignment not found' });
