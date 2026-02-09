@@ -8,7 +8,6 @@ const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const aspnetIdentity = require('aspnet-identity-pw');
 const aspnetHasher = require('../utils/aspnetPasswordHasher.cjs');
 
 // Required helpers
@@ -134,24 +133,16 @@ router.post('/login', async (req, res) => {
     const user = result.recordset[0];
     let isPasswordValid = false;
 
-    // Strategy 1: Check plain text Password field
-    if (user.Password && user.Password === password) {
-      console.log('✅ Password matched in plain text');
-      isPasswordValid = true;
-    }
-
-    // Strategy 2: Check ASP.NET Identity hash
-    if (!isPasswordValid && user.PasswordHash) {
+    // Strategy 1: Check ASP.NET Identity hash (prefer hash over plain text)
+    if (user.PasswordHash && (user.PasswordHash.startsWith('AQA') || user.PasswordHash.length > 60)) {
       try {
-        if (user.PasswordHash.startsWith('AQA') || user.PasswordHash.length > 60) {
-          isPasswordValid = aspnetIdentity.validatePassword(password, user.PasswordHash);
-        }
+        isPasswordValid = aspnetHasher.verifyPassword(password, user.PasswordHash);
       } catch (error) {
         console.error('ASP.NET hash comparison error:', error.message);
       }
     }
 
-    // Strategy 3: Try bcrypt
+    // Strategy 2: Try bcrypt
     if (!isPasswordValid && user.PasswordHash && user.PasswordHash.startsWith('$2')) {
       try {
         isPasswordValid = await bcrypt.compare(password, user.PasswordHash);
@@ -160,8 +151,14 @@ router.post('/login', async (req, res) => {
       }
     }
 
-    // Strategy 4: Plain text in PasswordHash
+    // Strategy 3: Plain text in PasswordHash
     if (!isPasswordValid && user.PasswordHash === password) {
+      isPasswordValid = true;
+    }
+
+    // Strategy 4: Plain text Password field (legacy fallback)
+    if (!isPasswordValid && user.Password && user.Password === password) {
+      console.log('✅ Password matched in plain text');
       isPasswordValid = true;
     }
 
