@@ -68,6 +68,7 @@ async function getUserImsData(userId) {
 // Map DS Role to IMS Sub-Roles
 // ============================================================================
 // Converts Digital System roles to IMS-specific roles
+// SECURITY: Unknown DS roles default to GENERAL_USER (least privilege principle)
 function mapDSRoleToImsRoles(dsRole) {
   const roleMap = {
     'Administrator': ['IMS_SUPER_ADMIN'],
@@ -94,8 +95,9 @@ function mapDSRoleToImsRoles(dsRole) {
     }
   }
   
-  // Default to GENERAL_USER
-  console.log(`⚠️  No DS→IMS role mapping found for "${dsRole}", defaulting to GENERAL_USER`);
+  // ⚠️  SECURITY: No mapping found → Default to GENERAL_USER (least privilege)
+  // This ensures unknown/unmapped roles don't accidentally get admin access
+  console.log(`⚠️  No DS→IMS role mapping found for "${dsRole}", defaulting to GENERAL_USER (least privilege)`);
   return ['GENERAL_USER'];
 }
 
