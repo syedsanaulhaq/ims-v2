@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Eye, Plus, ArrowLeft, Package, Edit, CheckCircle } from 'lucide-react';
+import { Trash2, Eye, Plus, ArrowLeft, Package, Edit, CheckCircle, FileText } from 'lucide-react';
+import ReceivingReport from '@/components/reports/ReceivingReport';
 
 interface PurchaseOrder {
   id: number;
@@ -34,6 +35,8 @@ export default function PurchaseOrderDashboard() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showReceivingReport, setShowReceivingReport] = useState(false);
+  const [selectedPO, setSelectedPO] = useState<any>(null);
   
   const [filters, setFilters] = useState({
     status: 'all',
@@ -185,6 +188,20 @@ export default function PurchaseOrderDashboard() {
     } catch (err) {
       console.error('Error finalizing PO:', err);
       alert('Failed to finalize purchase/supply order');
+    }
+  };
+
+  const handleShowReceivingReport = async (po: PurchaseOrder) => {
+    // Fetch full PO details including items
+    try {
+      const response = await fetch(`http://localhost:3001/api/purchase-orders/${po.id}`);
+      if (!response.ok) throw new Error('Failed to fetch PO details');
+      const fullPO = await response.json();
+      setSelectedPO(fullPO);
+      setShowReceivingReport(true);
+    } catch (err) {
+      console.error('Error fetching PO details:', err);
+      alert('Failed to load purchase order details');
     }
   };
 
@@ -507,6 +524,19 @@ export default function PurchaseOrderDashboard() {
                                     <Package className="w-4 h-4" />
                                   </Button>
                                 )}
+                                {(po.status === 'finalized' || po.status === 'partial' || po.status === 'completed') && 
+                                 po.deliveryStatus?.overallStatus && 
+                                 po.deliveryStatus.overallStatus !== 'pending' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-green-50 hover:bg-green-100 border-green-300"
+                                    onClick={() => handleShowReceivingReport(po)}
+                                    title="View Receiving Report"
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 {po.status === 'draft' && (
                                   <>
                                     <Button
@@ -548,6 +578,17 @@ export default function PurchaseOrderDashboard() {
           </div>
         )}
       </div>
+
+      {/* Receiving Report Modal */}
+      {showReceivingReport && selectedPO && (
+        <ReceivingReport 
+          po={selectedPO} 
+          onClose={() => {
+            setShowReceivingReport(false);
+            setSelectedPO(null);
+          }} 
+        />
+      )}
     </div>
   );
 }

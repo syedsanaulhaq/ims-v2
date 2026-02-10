@@ -1,0 +1,27 @@
+// Test multiple password variations
+const { verifyPassword } = require('./server/utils/aspnetPasswordHasher.cjs');
+
+const hash = 'AQAAAAEAACcQAAAAELIMrfMcvIr1nnDmLUCHwqLBIGBYant+Qo2sWWvwCN38eL0+0+3z0vFqGPJwT4TI/w==';
+
+const passwords = [
+  'P@ssword@1',
+  'Password@1',
+  'password@1',
+  'P@ssw0rd@1',
+  'Passw0rd@1'
+];
+
+console.log('Testing Multiple Password Variations');
+console.log('=====================================');
+console.log('Hash:', hash);
+console.log('');
+
+for (const pwd of passwords) {
+  console.log(`\n--- Testing: "${pwd}" ---`);
+  const result = verifyPassword(pwd, hash);
+  console.log(`Result: ${result ? '✅ MATCH!' : '❌ No match'}`);
+  if (result) {
+    console.log('\n🎉 FOUND THE CORRECT PASSWORD!');
+    break;
+  }
+}
