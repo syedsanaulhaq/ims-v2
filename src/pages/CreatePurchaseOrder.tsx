@@ -409,6 +409,13 @@ export default function CreatePurchaseOrder() {
 
                 {!loading && tenderItems.length > 0 && (
                   <>
+                    {/* Debug: Log vendor state */}
+                    {console.log('📦 Rendering items table. Vendor state:', {
+                      vendorCount: Object.keys(vendors).length,
+                      vendorIds: Object.keys(vendors),
+                      vendors: vendors,
+                      itemVendors: itemVendors
+                    })}
                     <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="flex items-center gap-3">
                         <Checkbox
@@ -469,18 +476,33 @@ export default function CreatePurchaseOrder() {
                                         const vendorId = itemVendors[item.id];
                                         const vendor = vendors[vendorId];
                                         
+                                        console.log(`🔍 Vendor display for item ${item.id}:`, {
+                                          vendorId,
+                                          vendor,
+                                          totalVendors: Object.keys(vendors).length,
+                                          allVendorIds: Object.keys(vendors)
+                                        });
+                                        
                                         if (vendor?.vendor_name) {
                                           return <span className="text-green-700 font-medium">✅ {vendor.vendor_name}</span>;
                                         } else {
-                                          return <span className="text-orange-600 text-xs">⚠️ Not found</span>;
+                                          return <span className="text-orange-600 text-xs" title={`Vendor ID: ${vendorId}`}>⚠️ Not found ({vendorId})</span>;
                                         }
                                       })()
                                     ) : (
-                                      <span className="text-red-600 text-xs">❌ None</span>
+                                      <span className="text-red-600 text-xs" title="No vendor assigned">❌ None</span>
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-slate-500 text-xs">-</span>
+                                  (() => {
+                                    const vendorId = itemVendors[item.id];
+                                    const vendor = vendorId ? vendors[vendorId] : null;
+                                    return vendor?.vendor_name ? (
+                                      <span className="text-slate-700 text-xs">{vendor.vendor_name}</span>
+                                    ) : (
+                                      <span className="text-slate-400 text-xs italic">No vendor</span>
+                                    );
+                                  })()
                                 )}
                               </td>
 
