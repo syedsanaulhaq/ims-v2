@@ -25,6 +25,7 @@ interface TenderItem {
   vendor_ids?: string; // For annual tenders with multiple vendors
   category_name?: string;
   unit_price?: number; // For annual tenders
+  specifications?: string; // Tender specifications (read-only reference)
 }
 
 interface Vendor {
@@ -50,6 +51,7 @@ export default function CreatePurchaseOrder() {
   const [itemPrices, setItemPrices] = useState<{ [key: string]: number }>({});
   const [itemVendors, setItemVendors] = useState<{ [key: string]: string }>({});
   const [itemQuantities, setItemQuantities] = useState<{ [key: string]: number }>({});
+  const [itemSpecifications, setItemSpecifications] = useState<{ [key: string]: string }>({});
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [poDetail, setPoDetail] = useState<string>('It is submitted that the following items may kindly be provided to this Commission Secretariat at the earliest to meet the official requirements as per annual tender rates. Furthermore, the supplier may be requested to furnish the corresponding bill/invoice to this office after delivery of the items, so that necessary arrangements for payment can be made in accordance with the prescribed financial rules and procedures.');
   const [loading, setLoading] = useState(false);
@@ -276,7 +278,8 @@ export default function CreatePurchaseOrder() {
         poDetail,
         itemPrices: itemPrices,
         itemVendors: itemVendors, // For annual tenders
-        itemQuantities: itemQuantities
+        itemQuantities: itemQuantities,
+        itemSpecifications: itemSpecifications // PO-specific specifications
       };
       console.log('🚀 SENDING PO CREATION REQUEST:', payload);
       const response = await fetch('http://localhost:3001/api/purchase-orders', {
@@ -432,6 +435,7 @@ export default function CreatePurchaseOrder() {
                             <th className="px-3 py-2 text-left"><input type="checkbox" onChange={(e) => handleSelectAll(e.target.checked)} /></th>
                             <th className="px-3 py-2 text-left font-semibold text-slate-700">Item</th>
                             <th className="px-3 py-2 text-left font-semibold text-slate-700">Vendor</th>
+                            <th className="px-3 py-2 text-left font-semibold text-slate-700">Specification</th>
                             <th className="px-3 py-2 text-center font-semibold text-slate-700">Qty</th>
                             <th className="px-3 py-2 text-right font-semibold text-slate-700">Unit Price (Rs)</th>
                             <th className="px-3 py-2 text-right font-semibold text-slate-700">Total (Rs)</th>
@@ -478,6 +482,24 @@ export default function CreatePurchaseOrder() {
                                 ) : (
                                   <span className="text-slate-500 text-xs">-</span>
                                 )}
+                              </td>
+
+                              {/* Specification Input */}
+                              <td className="px-3 py-3">
+                                <Input
+                                  type="text"
+                                  placeholder={item.specifications || "Enter specification..."}
+                                  disabled={!selectedItems.has(item.id)}
+                                  value={itemSpecifications[item.id] || ''}
+                                  onChange={(e) => {
+                                    setItemSpecifications({
+                                      ...itemSpecifications,
+                                      [item.id]: e.target.value
+                                    });
+                                  }}
+                                  className="h-8 text-xs w-48"
+                                  title={item.specifications ? `Tender spec: ${item.specifications}` : 'No tender specification'}
+                                />
                               </td>
 
                               {/* Quantity Input */}

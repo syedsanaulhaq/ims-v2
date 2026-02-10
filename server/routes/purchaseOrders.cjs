@@ -197,13 +197,14 @@ router.post('/', async (req, res) => {
 
   try {
     await transaction.begin();
-    const { tenderId, selectedItems, poDate, poDetail, itemVendors, itemPrices, itemQuantities } = req.body;
+    const { tenderId, selectedItems, poDate, poDetail, itemVendors, itemPrices, itemQuantities, itemSpecifications } = req.body;
 
     console.log('📦 PO CREATION REQUEST RECEIVED:');
     console.log('   - tenderId:', tenderId);
     console.log('   - selectedItems count:', selectedItems?.length);
     console.log('   - poDate:', poDate);
     console.log('   - poDetail length:', poDetail?.length);
+    console.log('   - itemSpecifications:', itemSpecifications ? Object.keys(itemSpecifications).length + ' items' : 'none');
 
     if (!tenderId || !selectedItems || selectedItems.length === 0 || !poDate) {
       return res.status(400).json({ error: 'Missing required fields: tenderId, selectedItems, poDate' });
@@ -239,6 +240,7 @@ router.post('/', async (req, res) => {
     const itemPricesMap = itemPrices || {};
     const itemVendorsMap = itemVendors || {};
     const itemQuantitiesMap = itemQuantities || {};
+    const itemSpecificationsMap = itemSpecifications || {};
 
     for (const itemId of selectedItems) {
       // Fetch tender_items with all details
@@ -283,7 +285,8 @@ router.post('/', async (req, res) => {
           ...item,
           unit_price: unitPrice,
           quantity: quantity,
-          vendor_id: itemVendorId
+          vendor_id: itemVendorId,
+          po_specification: itemSpecificationsMap[itemId] || null
         });
       }
     }
@@ -343,7 +346,7 @@ router.post('/', async (req, res) => {
           .input('quantity', sql.Decimal(10, 2), item.quantity || 1)
           .input('unit_price', sql.Decimal(15, 2), item.unit_price || 0)
           .input('total_price', sql.Decimal(15, 2), itemTotal)
-          .input('specifications', sql.NVarChar, item.specifications || null)
+          .input('specifications', sql.NVarChar, item.po_specification || item.specifications || null)
           .input('created_at', sql.DateTime, new Date())
           .query(`
             INSERT INTO purchase_order_items (po_id, item_master_id, quantity, unit_price, total_price, specifications, created_at)
