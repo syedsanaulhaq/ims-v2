@@ -686,9 +686,8 @@ export default function CreatePurchaseOrder() {
                             <thead className="bg-slate-100 border-b border-slate-200">
                               <tr>
                                 <th className="text-left px-3 py-2 font-semibold text-slate-700">Item</th>
-                                {selectedTender?.tender_type === 'annual-tender' && (
-                                  <th className="text-left px-3 py-2 font-semibold text-slate-700">Vendor</th>
-                                )}
+                                <th className="text-left px-3 py-2 font-semibold text-slate-700">Vendor</th>
+                                <th className="text-left px-3 py-2 font-semibold text-slate-700">Specification</th>
                                 <th className="text-center px-3 py-2 font-semibold text-slate-700">Qty</th>
                                 <th className="text-right px-3 py-2 font-semibold text-slate-700">Unit Price</th>
                                 <th className="text-right px-3 py-2 font-semibold text-slate-700">Total</th>
@@ -701,16 +700,18 @@ export default function CreatePurchaseOrder() {
                                 const qty = itemQuantities[itemId] || 1;
                                 const unitPrice = itemPrices[itemId] || 0;
                                 const total = qty * unitPrice;
+                                const specification = itemSpecifications[itemId] || item?.specifications || '-';
                                 return (
                                   <tr key={itemId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                     <td className="px-3 py-2 text-slate-900 font-medium">{item?.nomenclature}</td>
-                                    {selectedTender?.tender_type === 'annual-tender' && (
-                                      <td className="px-3 py-2 text-slate-700">
-                                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
-                                          {vendors[vendorId]?.vendor_name || 'Unassigned'}
-                                        </span>
-                                      </td>
-                                    )}
+                                    <td className="px-3 py-2 text-slate-700">
+                                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                        {vendors[vendorId]?.vendor_name || 'Unassigned'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-slate-700 text-sm max-w-xs truncate" title={specification}>
+                                      {specification}
+                                    </td>
                                     <td className="px-3 py-2 text-center text-slate-700">{qty}</td>
                                     <td className="px-3 py-2 text-right text-slate-700">Rs {unitPrice.toLocaleString()}</td>
                                     <td className="px-3 py-2 text-right font-semibold text-slate-900">Rs {total.toLocaleString()}</td>
