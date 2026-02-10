@@ -136,6 +136,7 @@ const EditTender: React.FC = () => {
     nomenclature: '',
     quantity: 1,
     estimated_unit_price: 0,
+    total_amount: 0,
     specifications: '',
     remarks: '',
     vendor_ids: []
@@ -167,9 +168,15 @@ const EditTender: React.FC = () => {
           tender_type: tender.tender_type || 'contract',
           status: tender.status || 'draft',
           vendor_id: tender.vendor_id || '',
-          office_ids: tender.office_ids ? tender.office_ids.split(',').filter(id => id) : [],
-          wing_ids: tender.wing_ids ? tender.wing_ids.split(',').filter(id => id) : [],
-          dec_ids: tender.dec_ids ? tender.dec_ids.split(',').filter(id => id) : [],
+          office_ids: tender.office_ids
+            ? tender.office_ids.split(',').map((id: string) => id.trim()).filter(id => id)
+            : [],
+          wing_ids: tender.wing_ids
+            ? tender.wing_ids.split(',').map((id: string) => id.trim()).filter(id => id)
+            : [],
+          dec_ids: tender.dec_ids
+            ? tender.dec_ids.split(',').map((id: string) => id.trim()).filter(id => id)
+            : [],
           publication_daily: tender.publication_daily || '',
           procurement_method: tender.procurement_method || '',
           procedure_adopted: tender.procedure_adopted || ''
@@ -177,14 +184,21 @@ const EditTender: React.FC = () => {
 
         // Load tender items
         if (tender.items && Array.isArray(tender.items)) {
-          // Convert vendor_ids from string to array if needed for annual tenders
+          // Normalize annual tender vendor selection into vendor_ids array
           const processedItems = tender.items.map(item => {
-            if (tender.tender_type === 'annual-tender' && item.vendor_ids && typeof item.vendor_ids === 'string') {
-              // Convert comma-separated string to array
-              return {
-                ...item,
-                vendor_ids: item.vendor_ids.split(',').map(id => id.trim()).filter(id => id)
-              };
+            if (tender.tender_type === 'annual-tender') {
+              if (item.vendor_ids && typeof item.vendor_ids === 'string') {
+                return {
+                  ...item,
+                  vendor_ids: item.vendor_ids.split(',').map(id => id.trim()).filter(id => id)
+                };
+              }
+              if (!item.vendor_ids && item.vendor_id) {
+                return {
+                  ...item,
+                  vendor_ids: [item.vendor_id]
+                };
+              }
             }
             return item;
           });
@@ -360,6 +374,7 @@ const EditTender: React.FC = () => {
       nomenclature: '',
       quantity: 1,
       estimated_unit_price: 0,
+      total_amount: 0,
       specifications: '',
       remarks: '',
       vendor_ids: []
@@ -858,22 +873,6 @@ const EditTender: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {tenderData.tender_type !== 'annual-tender' && (
-                  <div>
-                    <label className="text-sm font-medium">Estimated Value *</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={tenderData.estimated_value}
-                      onChange={(e) => setTenderData(prev => ({
-                        ...prev,
-                        estimated_value: e.target.value
-                      }))}
-                      placeholder="Enter estimated value"
-                    />
-                  </div>
-                )}
-
                 {tenderData.tender_type !== 'spot-purchase' && (
                   <div>
                     <label className="text-sm font-medium">Publication Daily</label>
@@ -1290,6 +1289,7 @@ const EditTender: React.FC = () => {
                               <TableHead>Name of the Article</TableHead>
                               <TableHead>Vendor</TableHead>
                               <TableHead>Unit Price</TableHead>
+                              <TableHead>Total</TableHead>
                               <TableHead>Actions</TableHead>
                             </>
                           ) : (
@@ -1362,6 +1362,9 @@ const EditTender: React.FC = () => {
                                 </TableCell>
                                 <TableCell className="font-medium">
                                   {formatCurrency(item.estimated_unit_price || 0)}
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {formatCurrency(item.total_amount ?? ((item.quantity || 1) * (item.estimated_unit_price || 0)))}
                                 </TableCell>
                                 <TableCell>
                                   <Button

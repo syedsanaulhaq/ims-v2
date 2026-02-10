@@ -9,6 +9,18 @@ const { v4: uuidv4 } = require('uuid');
 const { getPool, sql } = require('../db/connection.cjs');
 const upload = require('../middleware/fileUpload.cjs');
 
+const normalizeIdList = (value) => {
+  if (Array.isArray(value)) {
+    const ids = value.map((id) => String(id).trim()).filter(Boolean);
+    return ids.length > 0 ? ids.join(',') : null;
+  }
+  if (typeof value === 'string') {
+    const ids = value.split(',').map((id) => id.trim()).filter(Boolean);
+    return ids.length > 0 ? ids.join(',') : null;
+  }
+  return null;
+};
+
 // ============================================================================
 // POST /api/tenders - Create new tender with items and documents
 // ============================================================================
@@ -39,6 +51,10 @@ router.post('/', upload.fields([
       items = itemsFromBody;
       tenderData = tenderDataFromBody;
     }
+
+    tenderData.office_ids = normalizeIdList(tenderData.office_ids);
+    tenderData.wing_ids = normalizeIdList(tenderData.wing_ids);
+    tenderData.dec_ids = normalizeIdList(tenderData.dec_ids);
 
     console.log('✅ POST /api/tenders - Creating new tender');
     console.log('📊 Tender type:', tenderData.tender_type);
@@ -265,6 +281,13 @@ router.get('/:id', async (req, res) => {
           estimated_value,
           publish_date,
           submission_deadline,
+          opening_date,
+          office_ids,
+          wing_ids,
+          dec_ids,
+          publication_daily,
+          procurement_method,
+          procedure_adopted,
           is_finalized,
           finalized_at,
           finalized_by,
@@ -293,6 +316,7 @@ router.get('/:id', async (req, res) => {
           ti.nomenclature,
           ti.quantity,
           ti.estimated_unit_price,
+          ti.total_amount,
           ti.vendor_id,
           ti.specifications,
           ti.remarks,
@@ -425,30 +449,126 @@ router.get('/:id/vendors', async (req, res) => {
 // PUT /api/tenders/:id - Update tender
 // ============================================================================
 router.put('/:id', async (req, res) => {
+  const pool = getPool();
+  const transaction = new sql.Transaction(pool);
+
   try {
+    await transaction.begin();
     const { id } = req.params;
-    const { title, description, status, estimated_value } = req.body;
-    const pool = getPool();
+    const { items = [], ...tenderData } = req.body;
 
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .input('title', sql.NVarChar, title)
-      .input('description', sql.NVarChar, description)
-      .input('status', sql.NVarChar, status)
-      .input('estimated_value', sql.Decimal(15, 2), estimated_value)
-      .input('updated_at', sql.DateTime, new Date())
-      .query(`
-        UPDATE tenders
-        SET title = @title,
-            description = @description,
-            status = @status,
-            estimated_value = @estimated_value,
-            updated_at = @updated_at
-        WHERE id = @id
-      `);
+    tenderData.office_ids = normalizeIdList(tenderData.office_ids);
+    tenderData.wing_ids = normalizeIdList(tenderData.wing_ids);
+    tenderData.dec_ids = normalizeIdList(tenderData.dec_ids);
 
+    const tenderFields = [
+      'reference_number', 'title', 'description', 'estimated_value', 'publish_date',
+      'publication_date', 'submission_date', 'submission_deadline', 'opening_date',
+      'status', 'document_path', 'created_by', 'advertisement_date', 'procedure_adopted',
+      'procurement_method', 'publication_daily', 'contract_file_path', 'loi_file_path',
+      'noting_file_path', 'po_file_path', 'rfp_file_path', 'tender_number', 'tender_type',
+      'office_ids', 'wing_ids', 'dec_ids', 'tender_spot_type', 'vendor_id', 'tender_status',
+      'individual_total', 'actual_price_total'
+    ];
+
+    const updateRequest = transaction.request();
+    updateRequest.input('id', sql.UniqueIdentifier, id);
+    updateRequest.input('updated_at', sql.DateTime, new Date());
+
+    let updateQuery = 'UPDATE tenders SET updated_at = @updated_at';
+
+    for (const field of tenderFields) {
+      if (tenderData[field] !== undefined) {
+        updateQuery += `, ${field} = @${field}`;
+        let value = tenderData[field];
+        let sqlType = sql.NVarChar;
+
+        if (field.endsWith('_date') || field.endsWith('_deadline')) {
+          sqlType = sql.DateTime;
+          value = value ? new Date(value) : null;
+        } else if (field.endsWith('_value') || field.endsWith('_total') || field === 'quantity') {
+          sqlType = sql.Decimal(15, 2);
+          value = value ? parseFloat(value) : null;
+        } else if (field.endsWith('_id')) {
+          sqlType = sql.UniqueIdentifier;
+        }
+
+        updateRequest.input(field, sqlType, value);
+      }
+    }
+
+    updateQuery += ' WHERE id = @id';
+    await updateRequest.query(updateQuery);
+
+    if (Array.isArray(items)) {
+      await transaction.request()
+        .input('tender_id', sql.UniqueIdentifier, id)
+        .query('DELETE FROM tender_items WHERE tender_id = @tender_id');
+
+      if (items.length > 0) {
+        const tender_type = tenderData.tender_type || 'contract';
+        const awardedVendorId = tenderData.vendor_id || tenderData.awarded_vendor_id;
+        const now = new Date();
+
+        for (const item of items) {
+          const itemRequest = transaction.request();
+          itemRequest.input('id', sql.UniqueIdentifier, uuidv4());
+          itemRequest.input('tender_id', sql.UniqueIdentifier, id);
+          itemRequest.input('created_at', sql.DateTime2, now);
+          itemRequest.input('updated_at', sql.DateTime2, now);
+
+          let itemVendorId = null;
+          if (tender_type === 'annual-tender') {
+            const vendorFromList = Array.isArray(item.vendor_ids) ? item.vendor_ids[0] : null;
+            itemVendorId = item.vendor_id || vendorFromList || null;
+          } else if (['contract', 'spot-purchase'].includes(tender_type)) {
+            itemVendorId = awardedVendorId || item.vendor_id || null;
+          }
+
+          itemRequest.input('vendor_id', sql.UniqueIdentifier, itemVendorId || null);
+
+          let itemInsertQuery = 'INSERT INTO tender_items (id, tender_id, created_at, updated_at, vendor_id';
+          let itemValuesQuery = 'VALUES (@id, @tender_id, @created_at, @updated_at, @vendor_id';
+
+          const itemFields = [
+            'item_master_id', 'nomenclature', 'quantity', 'quantity_received',
+            'estimated_unit_price', 'actual_unit_price', 'total_amount',
+            'specifications', 'remarks', 'status'
+          ];
+
+          for (const field of itemFields) {
+            if (item[field] !== undefined) {
+              itemInsertQuery += `, ${field}`;
+              itemValuesQuery += `, @${field}`;
+              let value = item[field];
+              let sqlType = sql.NVarChar;
+
+              if (['quantity', 'quantity_received', 'estimated_unit_price', 'actual_unit_price', 'total_amount'].includes(field)) {
+                if (field === 'quantity' || field === 'quantity_received') {
+                  sqlType = sql.Int;
+                  value = value ? parseInt(value, 10) : null;
+                } else {
+                  sqlType = sql.Decimal(15, 2);
+                  value = value ? parseFloat(value) : null;
+                }
+              } else if (field === 'item_master_id') {
+                sqlType = sql.UniqueIdentifier;
+              }
+
+              itemRequest.input(field, sqlType, value);
+            }
+          }
+
+          itemInsertQuery += ') ' + itemValuesQuery + ')';
+          await itemRequest.query(itemInsertQuery);
+        }
+      }
+    }
+
+    await transaction.commit();
     res.json({ message: '✅ Tender updated successfully' });
   } catch (error) {
+    await transaction.rollback();
     console.error('❌ Error updating tender:', error);
     res.status(500).json({ error: 'Failed to update tender' });
   }
