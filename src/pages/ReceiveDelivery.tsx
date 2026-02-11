@@ -8,6 +8,7 @@ interface POItem {
   id: string;
   item_id: string;
   item_name: string;
+  specifications?: string;
   ordered_quantity: number;
   received_quantity: number;
   pending_quantity: number;
@@ -415,10 +416,15 @@ const ReceiveDelivery: React.FC = () => {
 
                 return (
                   <tr key={deliveryItem.po_item_id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">
                         {deliveryItem.item_name}
                       </div>
+                      {poItem.specifications && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {poItem.specifications}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {poItem.ordered_quantity}

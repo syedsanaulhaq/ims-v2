@@ -474,25 +474,27 @@ router.get('/:id/fulfillment', async (req, res) => {
       .input('poId', sql.UniqueIdentifier, id)
       .query(`
         SELECT 
-          po_id,
-          po_number,
-          po_date,
-          vendor_name,
-          po_item_id as id,
-          item_master_id as item_id,
-          item_name,
-          ordered_quantity,
-          received_quantity,
-          pending_quantity,
-          unit_price,
-          ordered_value as total_item_value,
-          received_value,
-          (ordered_value - received_value) as pending_value,
-          fulfillment_percentage,
-          delivery_status
-        FROM vw_po_fulfillment_status
-        WHERE po_id = @poId
-        ORDER BY item_name
+          vw.po_id,
+          vw.po_number,
+          vw.po_date,
+          vw.vendor_name,
+          vw.po_item_id as id,
+          vw.item_master_id as item_id,
+          vw.item_name,
+          poi.specifications,
+          vw.ordered_quantity,
+          vw.received_quantity,
+          vw.pending_quantity,
+          vw.unit_price,
+          vw.ordered_value as total_item_value,
+          vw.received_value,
+          (vw.ordered_value - vw.received_value) as pending_value,
+          vw.fulfillment_percentage,
+          vw.delivery_status
+        FROM vw_po_fulfillment_status vw
+        LEFT JOIN purchase_order_items poi ON vw.po_item_id = poi.id
+        WHERE vw.po_id = @poId
+        ORDER BY vw.item_name
       `);
 
     if (result.recordset.length === 0) {
