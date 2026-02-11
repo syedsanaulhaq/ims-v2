@@ -51,6 +51,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -76,9 +87,10 @@ interface AppSidebarProps {
 const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { state } = useSidebar();
+  const { state, open } = useSidebar();
   const { user } = useSession();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const isCollapsed = state === 'collapsed';
   
   // Permission hooks
   const { hasPermission: canManageRoles } = usePermission('roles.manage');
@@ -424,12 +436,20 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       style={{ backgroundColor: '#0d8b81' }}
     >
       <SidebarHeader className="p-4 border-b border-teal-600 bg-teal-700">
-        <div className="flex items-center justify-start bg-teal-700">
-          <img
-            src="/ecp-logo.png"
-            alt="ECP Logo"
-            className="w-auto object-contain"
-          />
+        <div className="flex items-center justify-center bg-teal-700">
+          {isCollapsed ? (
+            <img
+              src="/ecp-logo-small.png"
+              alt="ECP Logo"
+              className="w-10 h-10 object-contain"
+            />
+          ) : (
+            <img
+              src="/ecp-logo.png"
+              alt="ECP Logo"
+              className="w-auto object-contain"
+            />
+          )}
         </div>
       </SidebarHeader>
 
@@ -443,59 +463,101 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
             return (
               <Collapsible 
                 key={group.label} 
-                open={isGroupOpen}
+                open={isGroupOpen && !isCollapsed}
                 onOpenChange={(isOpen) => handleMenuGroupChange(group.label, isOpen)}
                 className="space-y-0"
               >
-                <CollapsibleTrigger asChild>
-                  <button 
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-600 transition-colors duration-150 text-white justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-teal-600/50">
-                        <GroupIcon className="w-5 h-5 flex-shrink-0" />
-                      </div>
-                      <span className="text-sm font-bold text-white">
-                        {group.label.replace(' Menu', '')}
-                      </span>
-                    </div>
-                    <ChevronRight className={`w-4 h-4 text-white transition-transform duration-300 ${
-                      isGroupOpen ? 'rotate-90' : ''
-                    }`} />
-                  </button>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent className="transition-all duration-200">
-                  <SidebarGroup className="p-0">
-                    <SidebarGroupContent>
-                      <SidebarMenu className="space-y-0">
-                        {group.items.map((item) => (
-                          <SidebarMenuItem key={item.path}>
-                            <SidebarMenuButton
-                              asChild
-                              isActive={isActive(item.path)}
-                              className={`px-4 py-2.5 text-white transition-colors duration-150 mx-2 ${
-                                isActive(item.path)
-                                  ? '!bg-teal-500/60 !rounded-lg !text-white'
-                                  : '!rounded-none !bg-transparent hover:!bg-teal-600'
+                {isCollapsed ? (
+                  <HoverCard openDelay={200} closeDelay={200}>
+                    <HoverCardTrigger asChild>
+                      <button 
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-600 transition-colors duration-150 text-white justify-center"
+                      >
+                        <div className="p-2 rounded-lg bg-teal-600/50">
+                          <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                        </div>
+                      </button>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="right" align="start" className="bg-teal-700 border-teal-600 p-0 w-56" sideOffset={0}>
+                      <div className="py-1">
+                        <div className="px-3 py-2 text-sm font-bold text-white border-b border-teal-600">
+                          {group.label.replace(' Menu', '')}
+                        </div>
+                        {group.items.map((item) => {
+                          const ItemIcon = item.icon;
+                          return (
+                            <Link
+                              key={item.path}
+                              to={item.path}
+                              className={`flex items-center gap-3 px-3 py-2 text-sm text-white hover:bg-teal-600 transition-colors ${
+                                isActive(item.path) ? 'bg-teal-500/60' : ''
                               }`}
                             >
-                              <Link
-                                to={item.path}
-                                className="flex items-center gap-3 ml-6"
-                              >
-                                <span className="text-white text-lg">–</span>
-                                <span className="text-sm font-normal text-white">
-                                  {item.title}
-                                </span>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
-                      </SidebarMenu>
-                    </SidebarGroupContent>
-                  </SidebarGroup>
-                </CollapsibleContent>
+                              <ItemIcon className="w-4 h-4 flex-shrink-0" />
+                              <span>{item.title}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                ) : (
+                  <>
+                    <CollapsibleTrigger asChild>
+                      <button 
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-600 transition-colors duration-150 text-white justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-teal-600/50">
+                            <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                          </div>
+                          <span className="text-sm font-bold text-white">
+                            {group.label.replace(' Menu', '')}
+                          </span>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 text-white transition-transform duration-300 ${
+                          isGroupOpen ? 'rotate-90' : ''
+                        }`} />
+                      </button>
+                    </CollapsibleTrigger>
+
+                    <CollapsibleContent className="transition-all duration-200">
+                      <SidebarGroup className="p-0">
+                        <SidebarGroupContent>
+                          <SidebarMenu className="space-y-0">
+                            {group.items.map((item) => {
+                              const ItemIcon = item.icon;
+                              return (
+                                <SidebarMenuItem key={item.path}>
+                                  <SidebarMenuButton
+                                    asChild
+                                    isActive={isActive(item.path)}
+                                    className={`px-4 py-2.5 text-white transition-colors duration-150 mx-2 ${
+                                      isActive(item.path)
+                                        ? '!bg-teal-500/60 !rounded-lg !text-white'
+                                        : '!rounded-none !bg-transparent hover:!bg-teal-600'
+                                    }`}
+                                    tooltip={isCollapsed ? item.title : undefined}
+                                  >
+                                    <Link
+                                      to={item.path}
+                                      className="flex items-center gap-3 ml-6"
+                                    >
+                                      <span className="text-white text-lg">–</span>
+                                      <span className="text-sm font-normal text-white">
+                                        {item.title}
+                                      </span>
+                                    </Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              );
+                            })}
+                          </SidebarMenu>
+                        </SidebarGroupContent>
+                      </SidebarGroup>
+                    </CollapsibleContent>
+                  </>
+                )}
               </Collapsible>
             );
           })}
@@ -508,10 +570,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={handleLogout}
-                  className="w-full px-4 py-3 text-white hover:bg-red-700 cursor-pointer transition-colors duration-150 rounded-none"
+                  className={`w-full px-4 py-3 text-white hover:bg-red-700 cursor-pointer transition-colors duration-150 rounded-none ${
+                    isCollapsed ? 'justify-center' : ''
+                  }`}
                 >
                   <LogOut className="w-5 h-5 flex-shrink-0" />
-                  <span className="text-sm font-normal">Logout</span>
+                  {!isCollapsed && <span className="text-sm font-normal">Logout</span>}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

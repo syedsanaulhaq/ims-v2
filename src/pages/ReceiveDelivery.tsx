@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import { useSession } from '@/contexts/SessionContext';
+import { Upload, FileText } from 'lucide-react';
 
 interface POItem {
   id: string;
@@ -21,6 +22,7 @@ interface DeliveryItem {
   quantity: number;
   quality_status: 'good' | 'damaged' | 'rejected' | 'partial';
   remarks?: string;
+  serial_numbers?: string[];
 }
 
 interface PurchaseOrder {
@@ -82,7 +84,8 @@ const ReceiveDelivery: React.FC = () => {
           item_name: item.item_name,
           quantity: 0,
           quality_status: 'good' as const,
-          remarks: ''
+          remarks: '',
+          serial_numbers: []
         }));
       
       setDeliveryItems(pendingItems);
@@ -98,6 +101,26 @@ const ReceiveDelivery: React.FC = () => {
     const updated = [...deliveryItems];
     updated[index] = { ...updated[index], [field]: value };
     setDeliveryItems(updated);
+  };
+
+  const handleSerialNumberInput = (index: number, input: string) => {
+    // Split by newlines and filter empty lines
+    const serialNumbers = input.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    updateDeliveryItem(index, 'serial_numbers', serialNumbers);
+  };
+
+  const handleCSVImport = (index: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      // Parse CSV - handle both comma and newline separated values
+      const serialNumbers = text
+        .split(/[,\n]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      updateDeliveryItem(index, 'serial_numbers', serialNumbers);
+    };
+    reader.readAsText(file);
   };
 
   const handleCreateDelivery = async () => {
@@ -145,7 +168,8 @@ const ReceiveDelivery: React.FC = () => {
           item_master_id: item.item_id,
           quantity_delivered: item.quantity,
           quality_status: item.quality_status,
-          remarks: item.remarks
+          remarks: item.remarks,
+          serial_numbers: item.serial_numbers || []
         }))
       };
 
@@ -379,6 +403,9 @@ const ReceiveDelivery: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Remarks
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Serial Numbers
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -435,6 +462,48 @@ const ReceiveDelivery: React.FC = () => {
                         placeholder="Optional"
                         className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <textarea
+                            value={(deliveryItem.serial_numbers || []).join('\n')}
+                            onChange={(e) => handleSerialNumberInput(index, e.target.value)}
+                            placeholder="Enter serial numbers (one per line)"
+                            rows={3}
+                            className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                          <input
+                            type="file"
+                            accept=".csv,.txt"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleCSVImport(index, file);
+                              e.target.value = ''; // Reset file input
+                            }}
+                            className="hidden"
+                            id={`csv-upload-${index}`}
+                          />
+                          <label
+                            htmlFor={`csv-upload-${index}`}
+                            className="cursor-pointer px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg flex items-center gap-1 text-sm"
+                            title="Import from CSV"
+                          >
+                            <Upload className="w-4 h-4" />
+                            CSV
+                          </label>
+                        </div>
+                        {deliveryItem.serial_numbers && deliveryItem.serial_numbers.length > 0 && (
+                          <div className="text-xs text-gray-600">
+                            {deliveryItem.serial_numbers.length} serial number(s) entered
+                            {deliveryItem.quantity > 0 && deliveryItem.serial_numbers.length !== deliveryItem.quantity && (
+                              <span className="text-amber-600 ml-1">
+                                (Expected: {deliveryItem.quantity})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

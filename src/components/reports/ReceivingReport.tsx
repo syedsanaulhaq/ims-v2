@@ -55,6 +55,17 @@ interface DeliveryItem {
   total_value: number;
 }
 
+interface SerialNumber {
+  id: string;
+  delivery_id: string;
+  delivery_item_id: string;
+  item_master_id: string;
+  serial_number: string;
+  notes?: string;
+  item_name: string;
+  item_code: string;
+}
+
 interface Delivery {
   id: string;
   delivery_number: string;
@@ -82,6 +93,7 @@ interface ReceivingReportProps {
 export default function ReceivingReport({ po, onClose }: ReceivingReportProps) {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [deliveryItems, setDeliveryItems] = useState<Record<string, DeliveryItem[]>>({});
+  const [serialNumbers, setSerialNumbers] = useState<Record<string, SerialNumber[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,6 +127,24 @@ export default function ReceivingReport({ po, onClose }: ReceivingReportProps) {
       }, {} as Record<string, DeliveryItem[]>);
 
       setDeliveryItems(itemsMap);
+
+      // Fetch serial numbers for each delivery
+      const serialPromises = deliveriesData.map(async (delivery: Delivery) => {
+        const serialResponse = await fetch(`http://localhost:3001/api/deliveries/${delivery.id}/serial-numbers`);
+        if (!serialResponse.ok) return { deliveryId: delivery.id, serials: [] };
+        return {
+          deliveryId: delivery.id,
+          serials: await serialResponse.json()
+        };
+      });
+
+      const serialResults = await Promise.all(serialPromises);
+      const serialMap = serialResults.reduce((acc, { deliveryId, serials }) => {
+        acc[deliveryId] = serials;
+        return acc;
+      }, {} as Record<string, SerialNumber[]>);
+
+      setSerialNumbers(serialMap);
       setError(null);
     } catch (err) {
       console.error('Error fetching deliveries:', err);
@@ -375,6 +405,38 @@ export default function ReceivingReport({ po, onClose }: ReceivingReportProps) {
                       </tfoot>
                     </table>
                   </div>
+
+                  {/* Serial Numbers Section */}
+                  {serialNumbers[delivery.id] && serialNumbers[delivery.id].length > 0 && (
+                    <div className="bg-blue-50 p-4 border-t border-slate-300">
+                      <h4 className="font-semibold text-sm mb-2 text-blue-900">Serial Numbers</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Group serial numbers by item */}
+                        {Array.from(new Set(serialNumbers[delivery.id].map(sn => sn.item_master_id))).map(itemId => {
+                          const itemSerials = serialNumbers[delivery.id].filter(sn => sn.item_master_id === itemId);
+                          const firstSerial = itemSerials[0];
+                          return (
+                            <div key={itemId} className="bg-white rounded p-3 border border-blue-200">
+                              <p className="font-medium text-sm text-gray-900 mb-1">{firstSerial.item_name}</p>
+                              <p className="text-xs text-gray-500 mb-2">Code: {firstSerial.item_code}</p>
+                              <div className="flex flex-wrap gap-1">
+                                {itemSerials.map((sn, idx) => (
+                                  <span 
+                                    key={sn.id} 
+                                    className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                    title={sn.notes || ''}
+                                  >
+                                    {sn.serial_number}
+                                  </span>
+                                ))}
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">{itemSerials.length} serial number(s)</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

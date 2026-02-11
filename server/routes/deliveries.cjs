@@ -402,6 +402,31 @@ router.post('/for-po/:poId', async (req, res) => {
               @delivery_qty, @quality_status, @remarks, GETDATE()
             )
           `);
+
+        // Add serial numbers if provided
+        if (item.serial_numbers && Array.isArray(item.serial_numbers) && item.serial_numbers.length > 0) {
+          for (const serialNumber of item.serial_numbers) {
+            if (serialNumber && serialNumber.trim().length > 0) {
+              await transaction.request()
+                .input('id', sql.UniqueIdentifier, require('uuid').v4())
+                .input('delivery_id', sql.UniqueIdentifier, deliveryId)
+                .input('delivery_item_id', sql.UniqueIdentifier, itemId)
+                .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+                .input('serial_number', sql.NVarChar, serialNumber.trim())
+                .input('notes', sql.NVarChar, item.remarks || null)
+                .query(`
+                  INSERT INTO delivery_item_serial_numbers (
+                    id, delivery_id, delivery_item_id, item_master_id, 
+                    serial_number, notes, created_at
+                  )
+                  VALUES (
+                    @id, @delivery_id, @delivery_item_id, @item_master_id,
+                    @serial_number, @notes, GETDATE()
+                  )
+                `);
+            }
+          }
+        }
       }
 
       await transaction.commit();
@@ -536,6 +561,37 @@ router.get('/:id/items', async (req, res) => {
   } catch (error) {
     console.error('Error fetching delivery items:', error);
     res.status(500).json({ error: 'Failed to fetch delivery items', details: error.message });
+  }
+});
+
+// GET /api/deliveries/:id/serial-numbers - Get serial numbers for a delivery
+router.get('/:id/serial-numbers', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await getPool().request()
+      .input('deliveryId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT 
+          disn.id,
+          disn.delivery_id,
+          disn.delivery_item_id,
+          disn.item_master_id,
+          disn.serial_number,
+          disn.notes,
+          disn.created_at,
+          im.nomenclature AS item_name,
+          im.item_code
+        FROM delivery_item_serial_numbers disn
+        INNER JOIN item_masters im ON disn.item_master_id = im.id
+        WHERE disn.delivery_id = @deliveryId
+        ORDER BY im.nomenclature, disn.serial_number
+      `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching serial numbers:', error);
+    res.status(500).json({ error: 'Failed to fetch serial numbers', details: error.message });
   }
 });
 
