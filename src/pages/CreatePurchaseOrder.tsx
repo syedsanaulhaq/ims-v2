@@ -39,6 +39,9 @@ interface ItemPrice {
 }
 
 export default function CreatePurchaseOrder() {
+  // VERSION CHECK: PO with Vendor+Specification in summary - Feb 11, 2026 - v1.2.0
+  console.log('🔧 CreatePurchaseOrder loaded - Version 1.2.0 (Vendor+Spec in Summary)');
+  
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tenderIdFromUrl = searchParams.get('tenderId');
