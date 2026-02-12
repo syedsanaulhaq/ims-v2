@@ -5,11 +5,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Configure multer for challan file upload
+// Configure multer for challan file upload with field support
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, '../uploads/challans');
-    // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -35,6 +34,37 @@ const upload = multer({
     }
   }
 });
+
+// Middleware to wrap multer and ensure form fields are properly parsed
+const handleDeliveryUpload = (req, res, next) => {
+  upload.single('challan_file')(req, res, function(err) {
+    console.log('🔧 handleDeliveryUpload middleware - Processing request');
+    console.log('   Content-Type:', req.headers['content-type']);
+    console.log('   req.body after multer:', req.body ? Object.keys(req.body) : 'undefined');
+    console.log('   req.file:', req.file ? req.file.filename : 'no file');
+    
+    if (err instanceof multer.MulterError) {
+      console.error('❌ Multer error:', err.message);
+      return res.status(400).json({ error: 'File upload error: ' + err.message });
+    } else if (err) {
+      console.error('❌ Upload error:', err.message);
+      return res.status(400).json({ error: err.message });
+    }
+    
+    // Ensure req.body exists and contains form fields
+    if (!req.body) {
+      console.warn('⚠️  req.body is undefined, initializing as empty object');
+      req.body = {};
+    }
+    
+    // If no body data and no file, warn the caller
+    if ((!req.body || Object.keys(req.body).length === 0) && !req.file) {
+      console.warn('⚠️  No form data or file received in request');
+    }
+    
+    next();
+  });
+};
 
 // GET /api/deliveries - List all deliveries
 router.get('/', async (req, res) => {
@@ -118,9 +148,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/deliveries - Create new delivery
-router.post('/', async (req, res) => {
+router.post('/', handleDeliveryUpload, async (req, res) => {
   try {
-    const { tender_id, po_id, delivery_items, delivery_date } = req.body;
+    const bodyData = req.body || {};
+    const { tender_id, po_id, delivery_items, delivery_date } = bodyData;
 
     if (!tender_id || !delivery_items || delivery_items.length === 0) {
       return res.status(400).json({ error: 'Tender ID and delivery items are required' });
@@ -172,7 +203,8 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { delivery_date, delivery_items } = req.body;
+    const bodyData = req.body || {};
+    const { delivery_date, delivery_items } = bodyData;
 
     const transaction = new sql.Transaction(getPool());
     await transaction.begin();
@@ -312,6 +344,8 @@ router.get('/by-po/:poId', async (req, res) => {
           d.po_number,
           d.delivery_date,
           d.delivery_status,
+          d.delivery_personnel,
+          d.delivery_chalan,
           d.received_by,
           d.receiving_date,
           d.notes,
@@ -332,7 +366,8 @@ router.get('/by-po/:poId', async (req, res) => {
         WHERE d.po_id = @poId
         GROUP BY 
           d.id, d.delivery_number, d.po_id, d.po_number, d.delivery_date,
-          d.delivery_status, d.received_by, d.receiving_date, d.notes, d.created_at,
+          d.delivery_status, d.delivery_personnel, d.delivery_chalan, d.received_by, 
+          d.receiving_date, d.notes, d.created_at,
           po.po_number, v.vendor_name, u.UserName
         ORDER BY d.delivery_date DESC, d.created_at DESC
       `);
@@ -345,28 +380,58 @@ router.get('/by-po/:poId', async (req, res) => {
 });
 
 // POST /api/purchase-orders/:poId/deliveries - Create delivery against a PO
-router.post('/for-po/:poId', upload.single('challan_file'), async (req, res) => {
+router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
   try {
     const { poId } = req.params;
+    
+    // Log incoming data for debugging
+    console.log('📦 POST /for-po/:poId - Delivery creation request');
+    console.log('   PO ID:', poId);
+    console.log('   req.body:', req.body ? 'exists' : 'undefined');
+    console.log('   req.body keys:', req.body ? Object.keys(req.body) : []);
+    console.log('   req.file:', req.file ? req.file.filename : 'no file');
+    
+    // Safely extract fields
+    const bodyData = req.body || {};
     const { 
       delivery_date,
       delivery_personnel,
       delivery_chalan,
-      delivered_by,
-      receiving_location,
       notes,
-      items: itemsJson // Will be JSON string from FormData
-    } = req.body;
+      items: itemsJson
+    } = bodyData;
     
-    // Parse items if it's a JSON string (from FormData)
-    const items = typeof itemsJson === 'string' ? JSON.parse(itemsJson) : itemsJson;
-    
-    // Get uploaded file path
-    const challanFilePath = req.file ? `/uploads/challans/${req.file.filename}` : null;
-
-    if (!items || items.length === 0) {
+    // Validate required fields
+    if (!delivery_date) {
+      return res.status(400).json({ error: 'Delivery date is required' });
+    }
+    if (!delivery_personnel) {
+      return res.status(400).json({ error: 'Delivery personnel is required' });
+    }
+    if (!delivery_chalan) {
+      return res.status(400).json({ error: 'Delivery challan is required' });
+    }
+    if (!itemsJson) {
       return res.status(400).json({ error: 'Delivery items are required' });
     }
+    
+    // Parse items - handle both string and object formats
+    let items;
+    try {
+      items = typeof itemsJson === 'string' ? JSON.parse(itemsJson) : itemsJson;
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Delivery items array must not be empty' });
+      }
+    } catch (parseError) {
+      console.error('❌ Failed to parse items JSON:', parseError.message);
+      return res.status(400).json({ 
+        error: 'Invalid items format',
+        details: parseError.message
+      });
+    }
+    
+    // Get uploaded file path if exists
+    const challanFilePath = req.file ? `/uploads/challans/${req.file.filename}` : null;
 
     const pool = getPool();
     const transaction = new sql.Transaction(pool);
@@ -492,7 +557,8 @@ router.post('/for-po/:poId', upload.single('challan_file'), async (req, res) => 
 router.post('/:id/receive', async (req, res) => {
   try {
     const { id } = req.params;
-    const { received_by, receiving_date, notes } = req.body;
+    const bodyData = req.body || {};
+    const { received_by, receiving_date, notes } = bodyData;
 
     if (!received_by) {
       return res.status(400).json({ error: 'received_by is required' });

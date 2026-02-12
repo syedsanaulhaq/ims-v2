@@ -11,6 +11,8 @@ interface Delivery {
   po_number: string;
   delivery_date: string;
   delivery_status: string;
+  delivery_personnel?: string;
+  delivery_chalan?: string;
   received_by: string;
   receiving_date: string;
   received_by_name?: string;
@@ -106,93 +108,57 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
             </div>
           ) : (
             <div className="space-y-4">
-              {deliveries.map((delivery) => (
-                <Card key={delivery.id} className="border-l-4 border-l-blue-500">
-                  <CardContent className="pt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Left Column */}
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-semibold text-slate-900">
-                              {delivery.delivery_number}
-                            </h3>
-                            <Badge className={getStatusBadge(delivery.delivery_status)}>
-                              {delivery.delivery_status}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="w-4 h-4 text-gray-500" />
-                          <span className="text-gray-600">Delivery Date:</span>
-                          <span className="font-medium">
-                            {new Date(delivery.delivery_date).toLocaleDateString()}
-                          </span>
-                        </div>
-
-                        {delivery.receiving_date && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="w-4 h-4 text-gray-500" />
-                            <span className="text-gray-600">Received Date:</span>
-                            <span className="font-medium">
-                              {new Date(delivery.receiving_date).toLocaleDateString()}
-                            </span>
-                          </div>
-                        )}
-
-                        {delivery.received_by_name && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <User className="w-4 h-4 text-gray-500" />
-                            <span className="text-gray-600">Received By:</span>
-                            <span className="font-medium">{delivery.received_by_name}</span>
-                          </div>
-                        )}
-
-                        {delivery.notes && (
-                          <div className="text-sm">
-                            <span className="text-gray-600">Notes:</span>
-                            <p className="text-gray-800 mt-1">{delivery.notes}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Right Column - Summary */}
-                      <div className="space-y-3">
-                        <div className="bg-slate-50 rounded-lg p-4">
-                          <h4 className="text-sm font-semibold text-slate-700 mb-3">Delivery Summary</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Total Items:</span>
-                              <Badge variant="secondary">{delivery.item_count}</Badge>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Total Quantity:</span>
-                              <span className="font-semibold">{delivery.total_quantity}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-green-600">Good:</span>
-                              <span className="font-semibold text-green-700">{delivery.good_quantity}</span>
-                            </div>
-                            {delivery.damaged_quantity > 0 && (
-                              <div className="flex justify-between items-center text-sm">
-                                <span className="text-yellow-600">Damaged:</span>
-                                <span className="font-semibold text-yellow-700">{delivery.damaged_quantity}</span>
-                              </div>
-                            )}
-                            {delivery.rejected_quantity > 0 && (
-                              <div className="flex justify-between items-center text-sm">
-                                <span className="text-red-600">Rejected:</span>
-                                <span className="font-semibold text-red-700">{delivery.rejected_quantity}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {/* Table Layout */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b-2 border-slate-300">
+                      <th className="px-3 py-2 text-left font-semibold text-slate-900">Delivery #</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-900">Delivery Date</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-900">Personnel</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-900">Challan No</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-900">Status</th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-900">Total Qty</th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-900">Good</th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-900">Damaged</th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-900">Rejected</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveries.map((delivery) => (
+                      <tr key={delivery.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-2 font-medium text-slate-900">{delivery.delivery_number}</td>
+                        <td className="px-3 py-2 text-gray-700">
+                          {new Date(delivery.delivery_date).toLocaleDateString()}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700">
+                          {delivery.delivery_personnel || '-'}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700">
+                          {delivery.delivery_chalan || '-'}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <Badge className={getStatusBadge(delivery.delivery_status)}>
+                            {delivery.delivery_status}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                          {delivery.total_quantity}
+                        </td>
+                        <td className="px-3 py-2 text-right text-green-600 font-semibold">
+                          {delivery.good_quantity}
+                        </td>
+                        <td className="px-3 py-2 text-right text-yellow-600 font-semibold">
+                          {delivery.damaged_quantity}
+                        </td>
+                        <td className="px-3 py-2 text-right text-red-600 font-semibold">
+                          {delivery.rejected_quantity}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Summary Footer */}
               <div className="bg-blue-50 rounded-lg p-4 mt-6">
