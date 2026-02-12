@@ -421,6 +421,7 @@ router.get('/by-po/:poId', async (req, res) => {
     const poId = rawPoId.trim();
     
     console.log('🔍 Fetching deliveries for PO:', poId);
+    console.log('   PO ID raw:', rawPoId, 'length:', rawPoId.length);
     
     // Validate poId format
     if (!poId || !isValidUUID(poId)) {
@@ -499,6 +500,7 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
     // Log incoming data for debugging
     console.log('📦 POST /for-po/:poId - Delivery creation request');
     console.log('   PO ID:', poId);
+    console.log('   PO ID raw:', rawPoId, 'length:', rawPoId.length);
     console.log('   req.body:', req.body ? 'exists' : 'undefined');
     console.log('   req.body keys:', req.body ? Object.keys(req.body) : []);
     console.log('   req.file:', req.file ? req.file.filename : 'no file');
