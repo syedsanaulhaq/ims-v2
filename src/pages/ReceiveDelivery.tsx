@@ -24,6 +24,7 @@ interface DeliveryItem {
   quality_status: 'good' | 'damaged' | 'rejected' | 'partial';
   remarks?: string;
   serial_numbers?: string[];
+  serial_numbers_input?: string;
 }
 
 interface PurchaseOrder {
@@ -86,7 +87,8 @@ const ReceiveDelivery: React.FC = () => {
           quantity: 0,
           quality_status: 'good' as const,
           remarks: '',
-          serial_numbers: []
+          serial_numbers: [],
+          serial_numbers_input: ''
         }));
       
       setDeliveryItems(pendingItems);
@@ -105,9 +107,17 @@ const ReceiveDelivery: React.FC = () => {
   };
 
   const handleSerialNumberInput = (index: number, input: string) => {
-    // Split by newlines and filter empty lines
+    // Preserve raw input for editing UX; parse separately for payload
     const serialNumbers = input.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-    updateDeliveryItem(index, 'serial_numbers', serialNumbers);
+    setDeliveryItems((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        serial_numbers_input: input,
+        serial_numbers: serialNumbers
+      };
+      return updated;
+    });
   };
 
   const handleCSVImport = (index: number, file: File) => {
@@ -119,7 +129,15 @@ const ReceiveDelivery: React.FC = () => {
         .split(/[,\n]+/)
         .map(s => s.trim())
         .filter(s => s.length > 0);
-      updateDeliveryItem(index, 'serial_numbers', serialNumbers);
+      setDeliveryItems((prev) => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          serial_numbers_input: serialNumbers.join('\n'),
+          serial_numbers: serialNumbers
+        };
+        return updated;
+      });
     };
     reader.readAsText(file);
   };
@@ -384,28 +402,28 @@ const ReceiveDelivery: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Item Name
+                  Item
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ordered
+                  Ordr
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Received
+                  Recd
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Pending
+                  Pend
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Receiving Qty *
+                  Recv Qty
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quality Status *
+                  Qty Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Remarks
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Serial Numbers
+                  SNo
                 </th>
               </tr>
             </thead>
@@ -473,7 +491,7 @@ const ReceiveDelivery: React.FC = () => {
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
                           <textarea
-                            value={(deliveryItem.serial_numbers || []).join('\n')}
+                            value={deliveryItem.serial_numbers_input ?? ''}
                             onChange={(e) => handleSerialNumberInput(index, e.target.value)}
                             placeholder="Enter serial numbers (one per line)"
                             rows={3}
