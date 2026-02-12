@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Eye, Plus, ArrowLeft, Package, Edit, CheckCircle, FileText } from 'lucide-react';
+import { Trash2, Eye, Plus, ArrowLeft, Package, Edit, CheckCircle, FileText, Truck } from 'lucide-react';
 import ReceivingReport from '@/components/reports/ReceivingReport';
+import DeliveryListModal from '@/components/delivery/DeliveryListModal';
 
 interface PurchaseOrder {
   id: number;
@@ -37,6 +38,8 @@ export default function PurchaseOrderDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [showReceivingReport, setShowReceivingReport] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
+  const [showDeliveryList, setShowDeliveryList] = useState(false);
+  const [selectedPOForDeliveries, setSelectedPOForDeliveries] = useState<PurchaseOrder | null>(null);
   
   const [filters, setFilters] = useState({
     status: 'all',
@@ -203,6 +206,11 @@ export default function PurchaseOrderDashboard() {
       console.error('Error fetching PO details:', err);
       alert('Failed to load purchase order details');
     }
+  };
+
+  const handleShowDeliveries = (po: PurchaseOrder) => {
+    setSelectedPOForDeliveries(po);
+    setShowDeliveryList(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -514,6 +522,17 @@ export default function PurchaseOrderDashboard() {
                                 >
                                   <Eye className="w-4 h-4" />
                                 </Button>
+                                {(po.status === 'finalized' || po.status === 'partial' || po.status === 'completed') && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-purple-50 hover:bg-purple-100 border-purple-300"
+                                    onClick={() => handleShowDeliveries(po)}
+                                    title="View Deliveries"
+                                  >
+                                    <Truck className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 {(po.status === 'finalized' || po.status === 'partial') && po.deliveryStatus?.overallStatus !== 'completed' && (
                                   <Button
                                     size="sm"
@@ -587,6 +606,19 @@ export default function PurchaseOrderDashboard() {
             setShowReceivingReport(false);
             setSelectedPO(null);
           }} 
+        />
+      )}
+
+      {/* Delivery List Modal */}
+      {showDeliveryList && selectedPOForDeliveries && (
+        <DeliveryListModal
+          poId={selectedPOForDeliveries.id.toString()}
+          poNumber={selectedPOForDeliveries.po_number}
+          vendorName={selectedPOForDeliveries.vendor_name}
+          onClose={() => {
+            setShowDeliveryList(false);
+            setSelectedPOForDeliveries(null);
+          }}
         />
       )}
     </div>
