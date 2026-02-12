@@ -459,7 +459,7 @@ router.get('/by-po/:poId', async (req, res) => {
         FROM deliveries d
         LEFT JOIN purchase_orders po ON d.po_id = po.id
         LEFT JOIN vendors v ON po.vendor_id = v.id
-        LEFT JOIN AspNetUsers u ON d.received_by = u.Id
+        LEFT JOIN AspNetUsers u ON CAST(d.received_by AS NVARCHAR(450)) = u.Id
         LEFT JOIN delivery_items di ON d.id = di.delivery_id
         WHERE d.po_id = @poId
         GROUP BY 
