@@ -207,7 +207,7 @@ router.post('/', handleDeliveryUpload, async (req, res) => {
   }
 });
 
-// PUT /api/deliveries/:id - Update delivery
+// PUT /api/deliveries/:id - Update delivery (delete old items and recreate)
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -221,37 +221,79 @@ router.put('/:id', async (req, res) => {
     }
     
     const bodyData = req.body || {};
-    const { delivery_date, delivery_items } = bodyData;
+    const { 
+      po_id,
+      po_number,
+      delivery_date, 
+      delivery_personnel,
+      delivery_chalan,
+      notes,
+      delivery_items 
+    } = bodyData;
+
+    console.log('🔄 Updating delivery:', id);
+    console.log('   PO ID:', po_id);
+    console.log('   Delivery Date:', delivery_date);
+    console.log('   Personnel:', delivery_personnel);
+    console.log('   Challan:', delivery_chalan);
 
     const transaction = new sql.Transaction(getPool());
     await transaction.begin();
 
     try {
-      // Update delivery
+      // Update delivery header with all fields
       await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
+        .input('po_id', sql.UniqueIdentifier, po_id || null)
+        .input('po_number', sql.NVarChar, po_number || null)
         .input('delivery_date', sql.DateTime2, delivery_date || new Date())
+        .input('delivery_personnel', sql.NVarChar, delivery_personnel || null)
+        .input('delivery_chalan', sql.NVarChar, delivery_chalan || null)
+        .input('notes', sql.NVarChar, notes || null)
         .query(`
           UPDATE deliveries 
-          SET delivery_date = @delivery_date, updated_at = GETDATE()
+          SET 
+            po_id = @po_id,
+            po_number = @po_number,
+            delivery_date = @delivery_date,
+            delivery_personnel = @delivery_personnel,
+            delivery_chalan = @delivery_chalan,
+            notes = @notes,
+            updated_at = GETDATE()
           WHERE id = @id
         `);
 
-      // Update delivery items if provided
-      if (delivery_items && Array.isArray(delivery_items)) {
+      // Delete old delivery items
+      await transaction.request()
+        .input('delivery_id', sql.UniqueIdentifier, id)
+        .query(`DELETE FROM delivery_items WHERE delivery_id = @delivery_id`);
+
+      // Insert new delivery items if provided
+      if (delivery_items && Array.isArray(delivery_items) && delivery_items.length > 0) {
         for (const item of delivery_items) {
+          const itemId = item.id || require('uuid').v4();
           await transaction.request()
-            .input('id', sql.UniqueIdentifier, item.id)
-            .input('delivery_qty', sql.Decimal(18, 2), item.delivery_qty)
+            .input('id', sql.UniqueIdentifier, itemId)
+            .input('delivery_id', sql.UniqueIdentifier, id)
+            .input('item_master_id', sql.UniqueIdentifier, item.item_master_id || null)
+            .input('item_name', sql.NVarChar, item.item_name || '')
+            .input('delivery_qty', sql.Decimal(18, 2), item.delivery_qty || 0)
+            .input('unit', sql.NVarChar, item.unit || '')
+            .input('quality_status', sql.NVarChar, item.quality_status || 'good')
+            .input('remarks', sql.NVarChar, item.remarks || null)
             .query(`
-              UPDATE delivery_items 
-              SET delivery_qty = @delivery_qty
-              WHERE id = @id
+              INSERT INTO delivery_items (
+                id, delivery_id, item_master_id, item_name, delivery_qty, unit, quality_status, remarks, created_at, updated_at
+              )
+              VALUES (
+                @id, @delivery_id, @item_master_id, @item_name, @delivery_qty, @unit, @quality_status, @remarks, GETDATE(), GETDATE()
+              )
             `);
         }
       }
 
       await transaction.commit();
+      console.log('✅ Delivery updated successfully');
       res.json({ success: true, message: 'Delivery updated successfully' });
     } catch (error) {
       await transaction.rollback();
@@ -539,6 +581,16 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
 
       // Create delivery
       const deliveryId = require('uuid').v4();
+      
+      console.log('📋 Delivery Details:');
+      console.log('   Delivery ID:', deliveryId);
+      console.log('   Delivery Number:', deliveryNumber);
+      console.log('   PO ID:', poId);
+      console.log('   PO Number:', po_number);
+      console.log('   Tender ID:', tender_id);
+      console.log('   Personnel:', delivery_personnel);
+      console.log('   Challan:', delivery_chalan);
+      
       await transaction.request()
         .input('id', sql.UniqueIdentifier, deliveryId)
         .input('delivery_number', sql.NVarChar, deliveryNumber)
@@ -614,9 +666,14 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
 
       await transaction.commit();
       
+      console.log('✅ Delivery created successfully');
+      console.log('   ID:', deliveryId);
+      console.log('   PO ID saved:', poId);
+      
       res.json({ 
         success: true, 
         id: deliveryId,
+        po_id: poId,
         delivery_number: deliveryNumber,
         message: 'Delivery created successfully' 
       });
@@ -625,8 +682,12 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
       throw error;
     }
   } catch (error) {
-    console.error('Error creating PO delivery:', error);
-    res.status(500).json({ error: 'Failed to create delivery', details: error.message });
+    console.error('❌ Error creating PO delivery:', error.message);
+    console.error('   Details:', error.originalError?.message || error);
+    res.status(500).json({ 
+      error: 'Failed to create delivery', 
+      details: error.message 
+    });
   }
 });
 
