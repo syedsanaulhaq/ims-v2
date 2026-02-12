@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { X, Package, Calendar, FileText, User } from 'lucide-react';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface Delivery {
   id: string;
@@ -44,14 +45,21 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
   const fetchDeliveries = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/deliveries/by-po/${poId}`);
-      if (!response.ok) throw new Error('Failed to fetch deliveries');
+      console.log('📦 DeliveryListModal - Fetching deliveries for PO:', poId);
+      const response = await fetch(`${getApiBaseUrl()}/deliveries/by-po/${poId}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to fetch deliveries`);
+      }
+      
       const data = await response.json();
+      console.log('✅ Deliveries loaded:', data.length);
       setDeliveries(data);
       setError(null);
-    } catch (err) {
-      console.error('Error fetching deliveries:', err);
-      setError('Failed to load deliveries');
+    } catch (err: any) {
+      console.error('❌ Error fetching deliveries:', err.message);
+      setError(`Failed to load deliveries: ${err.message}`);
     } finally {
       setLoading(false);
     }

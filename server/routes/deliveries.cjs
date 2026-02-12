@@ -333,6 +333,8 @@ router.get('/by-tender/:tenderId', async (req, res) => {
 router.get('/by-po/:poId', async (req, res) => {
   try {
     const { poId } = req.params;
+    
+    console.log('🔍 Fetching deliveries for PO:', poId);
 
     const result = await getPool().request()
       .input('poId', sql.UniqueIdentifier, poId)
@@ -344,20 +346,20 @@ router.get('/by-po/:poId', async (req, res) => {
           d.po_number,
           d.delivery_date,
           d.delivery_status,
-          d.delivery_personnel,
-          d.delivery_chalan,
+          ISNULL(d.delivery_personnel, '') AS delivery_personnel,
+          ISNULL(d.delivery_chalan, '') AS delivery_chalan,
           d.received_by,
           d.receiving_date,
           d.notes,
           d.created_at,
-          po.po_number AS po_ref,
-          v.vendor_name,
-          u.UserName AS received_by_name,
-          COUNT(di.id) AS item_count,
-          SUM(di.delivery_qty) AS total_quantity,
-          SUM(CASE WHEN di.quality_status = 'good' THEN di.delivery_qty ELSE 0 END) AS good_quantity,
-          SUM(CASE WHEN di.quality_status = 'damaged' THEN di.delivery_qty ELSE 0 END) AS damaged_quantity,
-          SUM(CASE WHEN di.quality_status = 'rejected' THEN di.delivery_qty ELSE 0 END) AS rejected_quantity
+          ISNULL(po.po_number, '') AS po_ref,
+          ISNULL(v.vendor_name, '') AS vendor_name,
+          ISNULL(u.UserName, '') AS received_by_name,
+          ISNULL(COUNT(di.id), 0) AS item_count,
+          ISNULL(SUM(di.delivery_qty), 0) AS total_quantity,
+          ISNULL(SUM(CASE WHEN di.quality_status = 'good' THEN di.delivery_qty ELSE 0 END), 0) AS good_quantity,
+          ISNULL(SUM(CASE WHEN di.quality_status = 'damaged' THEN di.delivery_qty ELSE 0 END), 0) AS damaged_quantity,
+          ISNULL(SUM(CASE WHEN di.quality_status = 'rejected' THEN di.delivery_qty ELSE 0 END), 0) AS rejected_quantity
         FROM deliveries d
         LEFT JOIN purchase_orders po ON d.po_id = po.id
         LEFT JOIN vendors v ON po.vendor_id = v.id
@@ -372,9 +374,11 @@ router.get('/by-po/:poId', async (req, res) => {
         ORDER BY d.delivery_date DESC, d.created_at DESC
       `);
 
+    console.log('✅ Deliveries fetched successfully:', result.recordset.length);
     res.json(result.recordset);
   } catch (error) {
-    console.error('Error fetching PO deliveries:', error);
+    console.error('❌ Error fetching PO deliveries:', error.message);
+    console.error('   Stack:', error.stack);
     res.status(500).json({ error: 'Failed to fetch PO deliveries', details: error.message });
   }
 });
