@@ -51,6 +51,7 @@ const ReceiveDelivery: React.FC = () => {
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
   const [deliveryPersonnel, setDeliveryPersonnel] = useState('');
   const [deliveryChalan, setDeliveryChalan] = useState('');
+  const [challanFile, setChallanFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -176,26 +177,32 @@ const ReceiveDelivery: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      // Create delivery
-      const deliveryPayload = {
-        delivery_date: deliveryDate,
-        delivery_personnel: deliveryPersonnel,
-        delivery_chalan: deliveryChalan,
-        notes,
-        items: itemsToDeliver.map(item => ({
-          po_item_id: item.po_item_id,
-          item_master_id: item.item_id,
-          quantity_delivered: item.quantity,
-          quality_status: item.quality_status,
-          remarks: item.remarks,
-          serial_numbers: item.serial_numbers || []
-        }))
-      };
+      // Create delivery with FormData to support file upload
+      const formData = new FormData();
+      formData.append('delivery_date', deliveryDate);
+      formData.append('delivery_personnel', deliveryPersonnel);
+      formData.append('delivery_chalan', deliveryChalan);
+      formData.append('notes', notes);
+      
+      // Add challan file if selected
+      if (challanFile) {
+        formData.append('challan_file', challanFile);
+      }
+      
+      // Add items as JSON string
+      const itemsData = itemsToDeliver.map(item => ({
+        po_item_id: item.po_item_id,
+        item_master_id: item.item_id,
+        quantity_delivered: item.quantity,
+        quality_status: item.quality_status,
+        remarks: item.remarks,
+        serial_numbers: item.serial_numbers || []
+      }));
+      formData.append('items', JSON.stringify(itemsData));
 
       const createResponse = await fetch(`${getApiBaseUrl()}/deliveries/for-po/${poId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(deliveryPayload)
+        body: formData // Don't set Content-Type, let browser set it with boundary
       });
       if (!createResponse.ok) throw new Error('Failed to create delivery');
       const createData = await createResponse.json();
@@ -372,6 +379,29 @@ const ReceiveDelivery: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               required
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Challan Scanned Copy
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => setChallanFile(e.target.files?.[0] || null)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              {challanFile && (
+                <button
+                  type="button"
+                  onClick={() => setChallanFile(null)}
+                  className="px-3 py-2 text-red-600 hover:text-red-800 text-sm"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Upload scanned challan image or PDF (max 10MB)</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

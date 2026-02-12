@@ -6,6 +6,7 @@
 
 const express = require('express');
 const session = require('express-session');
+const path = require('path');
 const config = require('./config/env.cjs');
 const { initializePool } = require('./db/connection.cjs');
 const corsMiddleware = require('./middleware/cors.cjs');
@@ -35,6 +36,9 @@ app.use(corsMiddleware);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(requestLogger);
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================================================
 // Routes (To be implemented from original backend-server.cjs)

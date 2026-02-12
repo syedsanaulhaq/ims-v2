@@ -1,6 +1,40 @@
 const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for challan file upload
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../uploads/challans');
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'challan-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files (JPEG, PNG) and PDF are allowed!'));
+    }
+  }
+});
 
 // GET /api/deliveries - List all deliveries
 router.get('/', async (req, res) => {
@@ -311,7 +345,7 @@ router.get('/by-po/:poId', async (req, res) => {
 });
 
 // POST /api/purchase-orders/:poId/deliveries - Create delivery against a PO
-router.post('/for-po/:poId', async (req, res) => {
+router.post('/for-po/:poId', upload.single('challan_file'), async (req, res) => {
   try {
     const { poId } = req.params;
     const { 
@@ -321,8 +355,14 @@ router.post('/for-po/:poId', async (req, res) => {
       delivered_by,
       receiving_location,
       notes,
-      items // [{ po_item_id, item_master_id, quantity_delivered, quality_status, remarks }]
+      items: itemsJson // Will be JSON string from FormData
     } = req.body;
+    
+    // Parse items if it's a JSON string (from FormData)
+    const items = typeof itemsJson === 'string' ? JSON.parse(itemsJson) : itemsJson;
+    
+    // Get uploaded file path
+    const challanFilePath = req.file ? `/uploads/challans/${req.file.filename}` : null;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'Delivery items are required' });
@@ -366,17 +406,18 @@ router.post('/for-po/:poId', async (req, res) => {
         .input('delivery_date', sql.DateTime2, delivery_date || new Date())
         .input('delivery_personnel', sql.NVarChar, delivery_personnel || null)
         .input('delivery_chalan', sql.NVarChar, delivery_chalan || null)
+        .input('chalan_file_path', sql.NVarChar, challanFilePath)
         .input('delivery_status', sql.VarChar, 'pending')
         .input('notes', sql.NVarChar, notes || null)
         .query(`
           INSERT INTO deliveries (
             id, delivery_number, po_id, po_number, tender_id, 
-            delivery_date, delivery_personnel, delivery_chalan, 
+            delivery_date, delivery_personnel, delivery_chalan, chalan_file_path,
             delivery_status, notes, created_at, updated_at
           )
           VALUES (
             @id, @delivery_number, @po_id, @po_number, @tender_id,
-            @delivery_date, @delivery_personnel, @delivery_chalan,
+            @delivery_date, @delivery_personnel, @delivery_chalan, @chalan_file_path,
             @delivery_status, @notes, GETDATE(), GETDATE()
           )
         `);
