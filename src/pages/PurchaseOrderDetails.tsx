@@ -362,36 +362,41 @@ export default function PurchaseOrderDetails() {
             <div className="mb-6">
               <table className="w-full border-collapse border border-black text-xs">
                 <thead>
-                  <tr className="border border-black">
-                    <th className="border border-black px-2 py-2 text-center font-bold" style={{width: '45px'}}>Sno</th>
-                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '220px'}}>Item</th>
-                    <th className="border border-black px-2 py-2 text-center font-bold" style={{width: '65px'}}>Qty</th>
-                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '85px'}}>Unit Price</th>
+                  <tr className="border border-black bg-gray-50">
+                    <th className="border border-black px-2 py-2 text-center font-bold" style={{width: '50px'}}>Sl. No.</th>
+                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '240px'}}>Item</th>
+                    <th className="border border-black px-2 py-2 text-center font-bold" style={{width: '70px'}}>Quantity</th>
+                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '90px'}}>Tender Rate</th>
                     <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '95px'}}>Cost</th>
+                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '100px'}}>Tender Serial #</th>
                   </tr>
                 </thead>
                 <tbody>
                   {po.items.map((item, index) => (
                     <tr key={item.id} className="border border-black">
-                      <td className="border border-black px-2 py-2 text-center">{index + 1}</td>
+                      <td className="border border-black px-2 py-2 text-center">{index + 1}.</td>
                       <td className="border border-black px-3 py-2">
                         {item.nomenclature}
                         {item.specifications && (
                           <span className="text-xs block text-gray-600 mt-1">({item.specifications})</span>
                         )}
                       </td>
-                      <td className="border border-black px-2 py-2 text-center">{item.quantity}</td>
+                      <td className="border border-black px-2 py-2 text-center">{item.quantity} {item.unit}</td>
                       <td className="border border-black px-3 py-2 text-center">Rs.{item.unit_price.toFixed(2).replace(/\.00$/, '')}/-</td>
                       <td className="border border-black px-3 py-2 text-center">Rs.{item.total_price.toLocaleString('en-PK')}/-</td>
+                      <td className="border border-black px-3 py-2 text-center text-xs">
+                        {po.tender_type === 'annual-tender' ? 'Sl. in Group-II' : 'N/A'}
+                      </td>
                     </tr>
                   ))}
                   
                   {/* Totals Section */}
-                  <tr className="border border-black">
-                    <td colSpan={4} className="border border-black px-3 py-2 text-right font-bold">Total:</td>
-                    <td className="border border-black px-3 py-2 text-center font-bold">
+                  <tr className="border border-black font-bold">
+                    <td colSpan={4} className="border border-black px-3 py-2 text-right">Total:</td>
+                    <td className="border border-black px-3 py-2 text-center">
                       Rs.{po.total_amount.toLocaleString('en-PK')}/-
                     </td>
+                    <td className="border border-black"></td>
                   </tr>
                   <tr className="border border-black">
                     <td colSpan={4} className="border border-black px-3 py-2 text-right font-bold">GST:</td>
