@@ -32,6 +32,14 @@ DECLARE @delivery_id UNIQUEIDENTIFIER = 'PASTE_ID_HERE';
 
 BEGIN TRANSACTION;
 BEGIN TRY
+    -- Delete stock acquisitions (must be first due to FK constraint)
+    IF OBJECT_ID('stock_acquisitions', 'U') IS NOT NULL
+    BEGIN
+        DELETE FROM stock_acquisitions 
+        WHERE delivery_id = @delivery_id;
+        PRINT '✅ Deleted stock acquisitions';
+    END
+
     -- Delete serial numbers
     IF OBJECT_ID('delivery_item_serial_numbers', 'U') IS NOT NULL
     BEGIN
