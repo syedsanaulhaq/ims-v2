@@ -113,6 +113,14 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate id format
+    if (!id || !isValidUUID(id)) {
+      return res.status(400).json({ 
+        error: 'Invalid delivery ID format', 
+        details: 'Delivery ID must be a valid UUID' 
+      });
+    }
 
     // Get delivery
     const deliveryResult = await getPool().request()
@@ -203,6 +211,15 @@ router.post('/', handleDeliveryUpload, async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate id format
+    if (!id || !isValidUUID(id)) {
+      return res.status(400).json({ 
+        error: 'Invalid delivery ID format', 
+        details: 'Delivery ID must be a valid UUID' 
+      });
+    }
+    
     const bodyData = req.body || {};
     const { delivery_date, delivery_items } = bodyData;
 
@@ -250,6 +267,14 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate id format
+    if (!id || !isValidUUID(id)) {
+      return res.status(400).json({ 
+        error: 'Invalid delivery ID format', 
+        details: 'Delivery ID must be a valid UUID' 
+      });
+    }
 
     const transaction = new sql.Transaction(getPool());
     await transaction.begin();
@@ -281,6 +306,14 @@ router.delete('/:id', async (req, res) => {
 router.put('/:id/finalize', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate id format
+    if (!id || !isValidUUID(id)) {
+      return res.status(400).json({ 
+        error: 'Invalid delivery ID format', 
+        details: 'Delivery ID must be a valid UUID' 
+      });
+    }
 
     await getPool().request()
       .input('id', sql.UniqueIdentifier, id)
@@ -326,6 +359,16 @@ router.get('/by-tender/:tenderId', async (req, res) => {
 });
 
 // ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+// Validate if string is a valid UUID
+const isValidUUID = (uuid) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+
+// ============================================================================
 // PO-BASED DELIVERY ENDPOINTS
 // ============================================================================
 
@@ -335,6 +378,15 @@ router.get('/by-po/:poId', async (req, res) => {
     const { poId } = req.params;
     
     console.log('🔍 Fetching deliveries for PO:', poId);
+    
+    // Validate poId format
+    if (!poId || !isValidUUID(poId)) {
+      console.warn('⚠️  Invalid PO ID format:', poId);
+      return res.status(400).json({ 
+        error: 'Invalid PO ID format', 
+        details: 'PO ID must be a valid UUID' 
+      });
+    }
 
     const result = await getPool().request()
       .input('poId', sql.UniqueIdentifier, poId)
@@ -378,8 +430,20 @@ router.get('/by-po/:poId', async (req, res) => {
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching PO deliveries:', error.message);
-    console.error('   Stack:', error.stack);
-    res.status(500).json({ error: 'Failed to fetch PO deliveries', details: error.message });
+    console.error('   Details:', error.originalError?.message || error.message);
+    
+    // Check if it's a conversion error
+    if (error.message && error.message.includes('Conversion failed')) {
+      return res.status(400).json({ 
+        error: 'Invalid PO ID format', 
+        details: 'PO ID must be a valid UUID format' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch PO deliveries', 
+      details: error.message 
+    });
   }
 });
 
@@ -394,6 +458,15 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
     console.log('   req.body:', req.body ? 'exists' : 'undefined');
     console.log('   req.body keys:', req.body ? Object.keys(req.body) : []);
     console.log('   req.file:', req.file ? req.file.filename : 'no file');
+    
+    // Validate poId format
+    if (!poId || !isValidUUID(poId)) {
+      console.warn('⚠️  Invalid PO ID format:', poId);
+      return res.status(400).json({ 
+        error: 'Invalid PO ID format', 
+        details: 'PO ID must be a valid UUID' 
+      });
+    }
     
     // Safely extract fields
     const bodyData = req.body || {};
@@ -561,6 +634,15 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
 router.post('/:id/receive', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate id format
+    if (!id || !isValidUUID(id)) {
+      return res.status(400).json({ 
+        error: 'Invalid delivery ID format', 
+        details: 'Delivery ID must be a valid UUID' 
+      });
+    }
+    
     const bodyData = req.body || {};
     const { received_by, receiving_date, notes } = bodyData;
 
