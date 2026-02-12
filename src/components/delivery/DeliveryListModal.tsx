@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Package, Calendar, FileText, User } from 'lucide-react';
+import { X, Package, Calendar, FileText, User, Edit2, Trash2 } from 'lucide-react';
 import { getApiBaseUrl } from '@/services/invmisApi';
+import EditDeliveryModal from './EditDeliveryModal';
 
 interface Delivery {
   id: string;
@@ -37,6 +38,8 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingDelivery, setEditingDelivery] = useState<Delivery | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDeliveries();
@@ -74,6 +77,26 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
     return statusColors[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const handleDelete = async (deliveryId: string) => {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/deliveries/${deliveryId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete delivery');
+      }
+
+      console.log('✅ Delivery deleted successfully');
+      setDeliveries(deliveries.filter(d => d.id !== deliveryId));
+      setDeleteConfirm(null);
+    } catch (err: any) {
+      console.error('❌ Error deleting delivery:', err.message);
+      alert(`Failed to delete delivery: ${err.message}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -83,6 +106,16 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  if (editingDelivery) {
+    return (
+      <EditDeliveryModal
+        delivery={editingDelivery}
+        onClose={() => setEditingDelivery(null)}
+        onSuccess={fetchDeliveries}
+      />
     );
   }
 
@@ -130,39 +163,89 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
                       <th className="px-3 py-2 text-right font-semibold text-slate-900">Good</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-900">Damaged</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-900">Rejected</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-900">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {deliveries.map((delivery) => (
-                      <tr key={delivery.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                        <td className="px-3 py-2 font-medium text-slate-900">{delivery.delivery_number}</td>
-                        <td className="px-3 py-2 text-gray-700">
-                          {new Date(delivery.delivery_date).toLocaleDateString()}
-                        </td>
-                        <td className="px-3 py-2 text-gray-700">
-                          {delivery.delivery_personnel || '-'}
-                        </td>
-                        <td className="px-3 py-2 text-gray-700">
-                          {delivery.delivery_chalan || '-'}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <Badge className={getStatusBadge(delivery.delivery_status)}>
-                            {delivery.delivery_status}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2 text-right font-semibold text-slate-900">
-                          {delivery.total_quantity}
-                        </td>
-                        <td className="px-3 py-2 text-right text-green-600 font-semibold">
-                          {delivery.good_quantity}
-                        </td>
-                        <td className="px-3 py-2 text-right text-yellow-600 font-semibold">
-                          {delivery.damaged_quantity}
-                        </td>
-                        <td className="px-3 py-2 text-right text-red-600 font-semibold">
-                          {delivery.rejected_quantity}
-                        </td>
-                      </tr>
+                      <React.Fragment key={delivery.id}>
+                        <tr className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                          <td className="px-3 py-2 font-medium text-slate-900">{delivery.delivery_number}</td>
+                          <td className="px-3 py-2 text-gray-700">
+                            {new Date(delivery.delivery_date).toLocaleDateString()}
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">
+                            {delivery.delivery_personnel || '-'}
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">
+                            {delivery.delivery_chalan || '-'}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <Badge className={getStatusBadge(delivery.delivery_status)}>
+                              {delivery.delivery_status}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                            {delivery.total_quantity}
+                          </td>
+                          <td className="px-3 py-2 text-right text-green-600 font-semibold">
+                            {delivery.good_quantity}
+                          </td>
+                          <td className="px-3 py-2 text-right text-yellow-600 font-semibold">
+                            {delivery.damaged_quantity}
+                          </td>
+                          <td className="px-3 py-2 text-right text-red-600 font-semibold">
+                            {delivery.rejected_quantity}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <div className="flex gap-2 justify-center">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingDelivery(delivery)}
+                                className="text-blue-600 hover:bg-blue-50"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeleteConfirm(delivery.id)}
+                                className="text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                        {deleteConfirm === delivery.id && (
+                          <tr className="bg-red-50 border-b border-gray-200">
+                            <td colSpan={10} className="px-3 py-3">
+                              <div className="flex items-center justify-between">
+                                <p className="text-red-600 font-medium">
+                                  Are you sure you want to delete this delivery?
+                                </p>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setDeleteConfirm(null)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="bg-red-600 hover:bg-red-700"
+                                    onClick={() => handleDelete(delivery.id)}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
