@@ -417,7 +417,8 @@ const isValidUUID = (uuid) => {
 // GET /api/purchase-orders/:poId/deliveries - Get all deliveries for a PO
 router.get('/by-po/:poId', async (req, res) => {
   try {
-    const { poId } = req.params;
+    const rawPoId = req.params.poId || '';
+    const poId = rawPoId.trim();
     
     console.log('🔍 Fetching deliveries for PO:', poId);
     
@@ -492,7 +493,8 @@ router.get('/by-po/:poId', async (req, res) => {
 // POST /api/purchase-orders/:poId/deliveries - Create delivery against a PO
 router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
   try {
-    const { poId } = req.params;
+    const rawPoId = req.params.poId || '';
+    const poId = rawPoId.trim();
     
     // Log incoming data for debugging
     console.log('📦 POST /for-po/:poId - Delivery creation request');
