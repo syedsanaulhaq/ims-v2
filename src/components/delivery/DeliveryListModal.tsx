@@ -88,7 +88,9 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
         throw new Error(errorData.error || 'Failed to delete delivery');
       }
 
+      const result = await response.json();
       console.log('✅ Delivery deleted successfully');
+      alert(result.message || 'Delivery deleted. Items are now available for re-delivery.');
       setDeliveries(deliveries.filter(d => d.id !== deliveryId));
       setDeleteConfirm(null);
     } catch (err: any) {
@@ -222,9 +224,14 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
                           <tr className="bg-red-50 border-b border-gray-200">
                             <td colSpan={10} className="px-3 py-3">
                               <div className="flex items-center justify-between">
-                                <p className="text-red-600 font-medium">
-                                  Are you sure you want to delete this delivery?
-                                </p>
+                                <div>
+                                  <p className="text-red-600 font-medium">
+                                    ⚠️ Delete this delivery?
+                                  </p>
+                                  <p className="text-xs text-red-500 mt-1">
+                                    This will remove all received items and stock acquisitions. Items will return to pending status.
+                                  </p>
+                                </div>
                                 <div className="flex gap-2">
                                   <Button
                                     size="sm"

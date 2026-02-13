@@ -322,27 +322,61 @@ router.delete('/:id', async (req, res) => {
     await transaction.begin();
 
     try {
-      // Delete delivery items
-      await transaction.request()
+      console.log(`🗑️  Deleting delivery: ${id}`);
+
+      // Step 1: Delete stock acquisitions (FK constraint)
+      const stockResult = await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .query(`DELETE FROM stock_acquisitions WHERE delivery_id = @id`);
+      console.log(`   - Deleted ${stockResult.rowsAffected[0]} stock acquisition(s)`);
+
+      // Step 2: Delete serial numbers (if they exist)
+      if (await tableExists(transaction, 'delivery_item_serial_numbers')) {
+        const serialResult = await transaction.request()
+          .input('id', sql.UniqueIdentifier, id)
+          .query(`DELETE FROM delivery_item_serial_numbers WHERE delivery_id = @id`);
+        console.log(`   - Deleted ${serialResult.rowsAffected[0]} serial number(s)`);
+      }
+
+      // Step 3: Delete delivery items
+      const itemsResult = await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
         .query(`DELETE FROM delivery_items WHERE delivery_id = @id`);
+      console.log(`   - Deleted ${itemsResult.rowsAffected[0]} delivery item(s)`);
 
-      // Delete delivery
-      await transaction.request()
+      // Step 4: Delete delivery
+      const deliveryResult = await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
         .query(`DELETE FROM deliveries WHERE id = @id`);
+      console.log(`   - Deleted ${deliveryResult.rowsAffected[0]} delivery record(s)`);
 
       await transaction.commit();
-      res.json({ success: true, message: 'Delivery deleted successfully' });
+      console.log('✅ Delivery deleted successfully with all related records');
+      res.json({ 
+        success: true, 
+        message: 'Delivery deleted successfully. Items are now available for re-delivery.' 
+      });
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
   } catch (error) {
-    console.error('Error deleting delivery:', error);
+    console.error('❌ Error deleting delivery:', error);
     res.status(500).json({ error: 'Failed to delete delivery' });
   }
 });
+
+// Helper function to check if table exists
+async function tableExists(transaction, tableName) {
+  const result = await transaction.request()
+    .input('tableName', sql.NVarChar, tableName)
+    .query(`
+      SELECT COUNT(*) as count 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_NAME = @tableName
+    `);
+  return result.recordset[0].count > 0;
+}
 
 // PUT /api/deliveries/:id/finalize - Finalize delivery
 router.put('/:id/finalize', async (req, res) => {
