@@ -304,8 +304,8 @@ const CreateTender: React.FC = () => {
     }
 
     // Validate vendor selection based on tender type
-    if (tenderType === 'annual-tender') {
-      // Annual tender requires vendor_id for each item
+    if (tenderType === 'annual-tender' || tenderType === 'spot-purchase') {
+      // Annual tender and Petty Purchase require vendor_id for each item
       if (!newItem.vendor_id) {
         alert('Please select a vendor for this item');
         return;
@@ -319,15 +319,6 @@ const CreateTender: React.FC = () => {
       }
       // Auto-assign the successful bidder to this item
       newItem.vendor_id = successfulBidder.vendor_id;
-    } else if (tenderType === 'spot-purchase') {
-      // Patty Purchase requires one selected vendor
-      const selectedVendor = bidders.find(b => b.is_successful);
-      if (!selectedVendor) {
-        alert('Please select a vendor in the "Participating Bidders" section first');
-        return;
-      }
-      // Auto-assign the selected vendor to this item
-      newItem.vendor_id = selectedVendor.vendor_id;
     }
 
     const item: TenderItem = {
@@ -1343,34 +1334,6 @@ const CreateTender: React.FC = () => {
                   </div>
                 )}
 
-                {/* Patty Purchase Layout - Successful Bidder Display */}
-                {tenderType === 'spot-purchase' && (
-                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <label className="text-xs font-medium text-green-900 block mb-1">Selected Vendor</label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            className="h-9 bg-white border-green-300"
-                            value={(() => {
-                              const selectedVendor = bidders.find(b => b.is_successful);
-                              return selectedVendor ? selectedVendor.vendor_name : 'No vendor selected yet';
-                            })()}
-                            disabled
-                            readOnly
-                          />
-                          <Badge variant="outline" className="text-xs whitespace-nowrap">
-                            🔒 Locked
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    {!bidders.find(b => b.is_successful) && (
-                      <p className="text-xs text-amber-600 mt-2">⚠️ Please select a vendor first in the "Participating Bidders" section above</p>
-                    )}
-                  </div>
-                )}
-                
                 {/* Annual Tender Layout */}
                 {tenderType === 'annual-tender' ? (
                   <>
@@ -1504,9 +1467,39 @@ const CreateTender: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {/* Normal/Spot Tender Layout */}
-                    {/* Category and Item Select - First Row */}
+                    {/* Spot Purchase/Petty Purchase - Same Layout as Annual Tender */}
+                    {/* First Row - Vendor, Category, Name of Article */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+                      {/* Vendor Select - Same as Annual Tender */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Vendor *</label>
+                        <Select 
+                          value={newItem.vendor_id || ''}
+                          onValueChange={(selectedVendorId) => {
+                            console.log(`✅ Vendor selected: ${selectedVendorId}`);
+                            setNewItem(prev => ({
+                              ...prev,
+                              vendor_id: selectedVendorId
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select vendor..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bidders.length > 0 ? (
+                              bidders.map(vendor => (
+                                <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
+                                  {vendor.vendor_name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="p-2 text-xs text-gray-500">No vendors available</div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       {/* Category/Group Select with Search */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
@@ -1554,25 +1547,9 @@ const CreateTender: React.FC = () => {
                           emptyMessage="No items found"
                         />
                       </div>
-
-                      {/* Quantity */}
-                      <div>
-                        <label className="text-xs font-medium mb-1 block">Quantity *</label>
-                        <Input
-                          className="h-9"
-                          type="number"
-                          min="1"
-                          value={newItem.quantity}
-                          onChange={(e) => setNewItem(prev => ({
-                            ...prev,
-                            quantity: parseInt(e.target.value) || 1
-                          }))}
-                          placeholder="1"
-                        />
-                      </div>
                     </div>
 
-                    {/* Second Row - Unit Price, Total */}
+                    {/* Second Row - Unit Price, Specifications, Remarks */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
                       {/* Unit Price */}
                       <div>
@@ -1590,24 +1567,11 @@ const CreateTender: React.FC = () => {
                         />
                       </div>
 
-                      {/* Total */}
-                      <div>
-                        <label className="text-xs font-medium mb-1 block">Total</label>
-                        <Input
-                          className="h-9 bg-gray-100"
-                          value={formatCurrency(newItem.total_amount || 0)}
-                          disabled
-                        />
-                      </div>
-                    </div>
-
-                    {/* Text areas for longer content */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      {/* Specifications */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Specifications</label>
-                        <textarea
-                          className="w-full p-2 border border-input rounded-md resize-none text-sm"
-                          rows={2}
+                        <Input
+                          className="h-9"
                           value={newItem.specifications || ''}
                           onChange={(e) => setNewItem(prev => ({
                             ...prev,
@@ -1617,11 +1581,11 @@ const CreateTender: React.FC = () => {
                         />
                       </div>
 
+                      {/* Remarks */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Remarks</label>
-                        <textarea
-                          className="w-full p-2 border border-input rounded-md resize-none text-sm"
-                          rows={2}
+                        <Input
+                          className="h-9"
                           value={newItem.remarks || ''}
                           onChange={(e) => setNewItem(prev => ({
                             ...prev,
