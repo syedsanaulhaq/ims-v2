@@ -957,6 +957,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     {/* Add Vendor Modal */}
     {showAddVendorModal && (
       <AddVendorModal
+        open={showAddVendorModal}
         onClose={() => setShowAddVendorModal(false)}
         onSuccess={(vendorData) => {
           console.log('✅ Vendor created:', vendorData);

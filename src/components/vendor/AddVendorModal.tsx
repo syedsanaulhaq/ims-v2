@@ -1,15 +1,25 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { X } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 import { getApiBaseUrl } from '@/services/invmisApi';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 interface AddVendorModalProps {
+  open?: boolean;
   onClose: () => void;
   onSuccess: (vendorData: any) => void;
 }
 
-export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalProps) {
+export default function AddVendorModal({ open = true, onClose, onSuccess }: AddVendorModalProps) {
   const [formData, setFormData] = useState({
     vendor_name: '',
     vendor_code: '',
@@ -63,31 +73,31 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white flex justify-between items-center border-b px-6 py-4 z-10">
-          <h2 className="text-xl font-bold text-slate-900">Add New Vendor</h2>
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add New Vendor</DialogTitle>
+          <DialogDescription>
+            Create a new vendor to add as a bidder
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Vendor Name */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <Label htmlFor="vendor_name">
                 Vendor Name <span className="text-red-500">*</span>
-              </label>
+              </Label>
               <Input
+                id="vendor_name"
                 value={formData.vendor_name}
                 onChange={(e) => setFormData(prev => ({ ...prev, vendor_name: e.target.value }))}
                 placeholder="Enter vendor name"
@@ -98,10 +108,9 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
 
             {/* Vendor Code */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Vendor Code
-              </label>
+              <Label htmlFor="vendor_code">Vendor Code</Label>
               <Input
+                id="vendor_code"
                 value={formData.vendor_code}
                 onChange={(e) => setFormData(prev => ({ ...prev, vendor_code: e.target.value }))}
                 placeholder="e.g., VEN-001"
@@ -111,10 +120,9 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
 
             {/* Contact Person */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Contact Person
-              </label>
+              <Label htmlFor="contact_person">Contact Person</Label>
               <Input
+                id="contact_person"
                 value={formData.contact_person}
                 onChange={(e) => setFormData(prev => ({ ...prev, contact_person: e.target.value }))}
                 placeholder="Primary contact name"
@@ -124,10 +132,9 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Email
-              </label>
+              <Label htmlFor="email">Email</Label>
               <Input
+                id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
@@ -138,10 +145,9 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
 
             {/* Phone */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Phone
-              </label>
+              <Label htmlFor="phone">Phone</Label>
               <Input
+                id="phone"
                 value={formData.phone}
                 onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                 placeholder="+92-XXX-XXXXXXX"
@@ -151,10 +157,9 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
 
             {/* City */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                City
-              </label>
+              <Label htmlFor="city">City</Label>
               <Input
+                id="city"
                 value={formData.city}
                 onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
                 placeholder="City name"
@@ -165,10 +170,9 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
 
           {/* Address - Full Width */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Address
-            </label>
+            <Label htmlFor="address">Address</Label>
             <Input
+              id="address"
               value={formData.address}
               onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
               placeholder="Complete address"
@@ -178,10 +182,9 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
 
           {/* Country */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Country
-            </label>
+            <Label htmlFor="country">Country</Label>
             <Input
+              id="country"
               value={formData.country}
               onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
               placeholder="Country"
@@ -190,7 +193,7 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
           </div>
 
           {/* Buttons */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+          <div className="flex justify-end gap-3 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
@@ -208,7 +211,7 @@ export default function AddVendorModal({ onClose, onSuccess }: AddVendorModalPro
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
