@@ -41,6 +41,7 @@ import {
   X
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import AddVendorModal from '@/components/vendor/AddVendorModal';
 
 interface Vendor {
   id: string;
@@ -73,6 +74,7 @@ interface TenderVendorManagementProps {
   onSuccessfulVendorChange?: (vendorId: string | null) => void; // Callback when successful vendor is selected
   onPendingProposalsChange?: (hasPending: boolean) => void; // Callback when pending proposals change
   onItemsChange?: (items: any[]) => void; // Callback when items are updated (e.g., vendor removed)
+  onVendorAdded?: () => void; // Callback when a new vendor is created to refresh vendor list
   readOnly?: boolean;
   maxVendors?: number; // Maximum number of vendors allowed (for patty purchase)
   minVendors?: number; // Minimum number of vendors required (for multiple quotation)
@@ -88,6 +90,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   onSuccessfulVendorChange,
   onPendingProposalsChange,
   onItemsChange,
+  onVendorAdded,
   readOnly = false,
   maxVendors,
   minVendors,
@@ -102,6 +105,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   const [uploadingProposal, setUploadingProposal] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddVendorModal, setShowAddVendorModal] = useState(false);
   
   // Store pending proposal files for vendors (before tender is saved)
   const [pendingProposals, setPendingProposals] = useState<{ [vendorId: string]: File }>({});
@@ -581,23 +585,35 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="vendor">Bidder *</Label>
-                    <Select 
-                      value={formData.vendor_id} 
-                      onValueChange={(value) => setFormData({...formData, vendor_id: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a bidder" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vendors
-                          .filter(v => !tenderVendors.some(tv => tv.vendor_id === v.id))
-                          .map(vendor => (
-                            <SelectItem key={vendor.id} value={vendor.id}>
-                              {vendor.vendor_name} {vendor.vendor_code && `(${vendor.vendor_code})`}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select 
+                        value={formData.vendor_id} 
+                        onValueChange={(value) => setFormData({...formData, vendor_id: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a bidder" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vendors
+                            .filter(v => !tenderVendors.some(tv => tv.vendor_id === v.id))
+                            .map(vendor => (
+                              <SelectItem key={vendor.id} value={vendor.id}>
+                                {vendor.vendor_name} {vendor.vendor_code && `(${vendor.vendor_code})`}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAddVendorModal(true)}
+                        className="flex-shrink-0"
+                        title="Add new vendor"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div>
@@ -936,6 +952,24 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         </Dialog>
       </CardContent>
     </Card>
+
+    {/* Add Vendor Modal */}
+    {showAddVendorModal && (
+      <AddVendorModal
+        onClose={() => setShowAddVendorModal(false)}
+        onSuccess={(vendorData) => {
+          console.log('✅ Vendor created:', vendorData);
+          // Notify parent to refresh vendors list
+          if (onVendorAdded) {
+            onVendorAdded();
+          }
+          // Auto-select the newly created vendor
+          setFormData(prev => ({ ...prev, vendor_id: vendorData.id }));
+          setShowAddVendorModal(false);
+        }}
+      />
+    )}
+  </>
   );
 };
 

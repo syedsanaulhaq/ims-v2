@@ -206,6 +206,36 @@ const CreateTender: React.FC = () => {
     fetchInitialData();
   }, []);
 
+  // Helper function to refresh item masters
+  const fetchItemMasters = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/item-masters');
+      if (response.ok) {
+        const data = await response.json();
+        setItemMasters(data.items || []);
+      }
+    } catch (err) {
+      console.error('Error fetching item masters:', err);
+    }
+  };
+
+  // Helper function to refresh vendors
+  const fetchVendors = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/vendors');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.vendors && Array.isArray(data.vendors)) {
+          setVendors(data.vendors);
+        } else if (Array.isArray(data)) {
+          setVendors(data);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching vendors:', err);
+    }
+  };
+
   // Fetch wings when offices are selected
   useEffect(() => {
     const fetchWingsForOffices = async () => {
@@ -1272,6 +1302,10 @@ const CreateTender: React.FC = () => {
                 ...prev,
                 vendor_id: vendorId || ''
               }));
+            }}
+            onVendorAdded={() => {
+              console.log('New vendor created, refreshing vendor list...');
+              fetchVendors();
             }}
             maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
             minVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
