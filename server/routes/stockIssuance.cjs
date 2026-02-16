@@ -342,6 +342,188 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ============================================================================
+// POST /api/stock-issuance/historical - Create historical issuance (admin only)
+// ============================================================================
+// Creates a complete issuance record for past/historical transactions
+// Bypasses the normal approval workflow
+router.post('/historical', async (req, res) => {
+  const transaction = pool.request();
+  
+  try {
+    const pool = getPool();
+    const {
+      request_type,
+      requested_by_id,
+      requested_for_wing_id,
+      request_date,
+      approval_date,
+      issuance_date,
+      purpose,
+      remarks,
+      items,
+    } = req.body;
+
+    // Validation
+    if (!request_type || !purpose || !items || items.length === 0) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (request_type === 'personal' && !requested_by_id) {
+      return res.status(400).json({ error: 'Person is required for personal requests' });
+    }
+
+    if (request_type === 'wing' && !requested_for_wing_id) {
+      return res.status(400).json({ error: 'Wing is required for wing requests' });
+    }
+
+    // Begin transaction
+    const requestId = uuidv4();
+    const issuanceId = uuidv4();
+    const currentUserId = req.session?.userId || null; // Admin who is creating this record
+
+    // Step 1: Create the issuance request (already approved)
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, requestId)
+      .input('request_number', sql.NVarChar, `HIST-${Date.now()}`)
+      .input('requester_user_id', sql.NVarChar(450), request_type === 'personal' ? requested_by_id : null)
+      .input('requester_wing_id', sql.Int, request_type === 'wing' ? parseInt(requested_for_wing_id) : null)
+      .input('request_type', sql.NVarChar(50), request_type)
+      .input('purpose', sql.NVarChar, purpose)
+      .input('approval_status', sql.NVarChar(50), 'approved')
+      .input('approval_date', sql.DateTime, new Date(approval_date))
+      .input('approved_by', sql.NVarChar(450), currentUserId)
+      .input('remarks', sql.NVarChar, remarks || null)
+      .input('created_at', sql.DateTime, new Date(request_date))
+      .input('updated_at', sql.DateTime, new Date(approval_date))
+      .query(`
+        INSERT INTO stock_issuance_requests (
+          id, request_number, requester_user_id, requester_wing_id, 
+          request_type, purpose, approval_status, approval_date, 
+          approved_by, remarks, created_at, updated_at
+        )
+        VALUES (
+          @id, @request_number, @requester_user_id, @requester_wing_id,
+          @request_type, @purpose, @approval_status, @approval_date,
+          @approved_by, @remarks, @created_at, @updated_at
+        )
+      `);
+
+    // Step 2: Insert request items
+    for (const item of items) {
+      const itemId = uuidv4();
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, itemId)
+        .input('request_id', sql.UniqueIdentifier, requestId)
+        .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+        .input('quantity_requested', sql.Int, item.quantity_requested)
+        .input('quantity_approved', sql.Int, item.quantity_approved)
+        .input('remarks', sql.NVarChar, item.remarks || null)
+        .query(`
+          INSERT INTO stock_issuance_items (
+            id, request_id, item_master_id, quantity_requested, 
+            quantity_approved, remarks
+          )
+          VALUES (
+            @id, @request_id, @item_master_id, @quantity_requested,
+            @quantity_approved, @remarks
+          )
+        `);
+    }
+
+    // Step 3: Create the issuance record
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, issuanceId)
+      .input('request_id', sql.UniqueIdentifier, requestId)
+      .input('issuance_number', sql.NVarChar, `ISS-HIST-${Date.now()}`)
+      .input('issued_by', sql.NVarChar(450), currentUserId)
+      .input('issued_to_user_id', sql.NVarChar(450), request_type === 'personal' ? requested_by_id : null)
+      .input('issued_to_wing_id', sql.Int, request_type === 'wing' ? parseInt(requested_for_wing_id) : null)
+      .input('issuance_date', sql.DateTime, new Date(issuance_date))
+      .input('status', sql.NVarChar(50), 'issued')
+      .input('remarks', sql.NVarChar, `Historical entry: ${remarks || purpose}`)
+      .input('created_at', sql.DateTime, new Date(issuance_date))
+      .query(`
+        INSERT INTO stock_issuances (
+          id, request_id, issuance_number, issued_by, issued_to_user_id,
+          issued_to_wing_id, issuance_date, status, remarks, created_at
+        )
+        VALUES (
+          @id, @request_id, @issuance_number, @issued_by, @issued_to_user_id,
+          @issued_to_wing_id, @issuance_date, @status, @remarks, @created_at
+        )
+      `);
+
+    // Step 4: Insert issuance items and update stock
+    for (const item of items) {
+      const issuanceItemId = uuidv4();
+      
+      // Insert issuance item
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, issuanceItemId)
+        .input('issuance_id', sql.UniqueIdentifier, issuanceId)
+        .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+        .input('quantity_issued', sql.Int, item.quantity_issued)
+        .input('remarks', sql.NVarChar, item.remarks || null)
+        .query(`
+          INSERT INTO stock_issuance_issued_items (
+            id, issuance_id, item_master_id, quantity_issued, remarks
+          )
+          VALUES (
+            @id, @issuance_id, @item_master_id, @quantity_issued, @remarks
+          )
+        `);
+
+      // Deduct from stock (FIFO)
+      let remainingQty = item.quantity_issued;
+      const stockResult = await pool.request()
+        .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+        .query(`
+          SELECT id, quantity_available
+          FROM stock_acquisitions
+          WHERE item_master_id = @item_master_id
+            AND quantity_available > 0
+          ORDER BY delivery_date ASC
+        `);
+
+      for (const stock of stockResult.recordset) {
+        if (remainingQty <= 0) break;
+
+        const deductQty = Math.min(remainingQty, stock.quantity_available);
+        
+        await pool.request()
+          .input('id', sql.UniqueIdentifier, stock.id)
+          .input('deduct', sql.Int, deductQty)
+          .query(`
+            UPDATE stock_acquisitions
+            SET quantity_available = quantity_available - @deduct
+            WHERE id = @id
+          `);
+
+        remainingQty -= deductQty;
+      }
+
+      if (remainingQty > 0) {
+        throw new Error(`Insufficient stock for item: ${item.item_master_id}`);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Historical issuance created successfully',
+      requestId,
+      issuanceId,
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating historical issuance:', error);
+    res.status(500).json({ 
+      error: 'Failed to create historical issuance',
+      details: error.message 
+    });
+  }
+});
+
 console.log('✅ Stock Issuance Routes Loaded');
 
 module.exports = router;
