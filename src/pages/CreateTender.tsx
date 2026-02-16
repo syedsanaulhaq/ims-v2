@@ -19,6 +19,8 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import TenderVendorManagement from '@/components/tenders/TenderVendorManagement';
 import { CsvUploadModal } from '@/components/CsvUploadModal';
+import AddCategoryModal from '@/components/tender/AddCategoryModal';
+import AddItemModal from '@/components/tender/AddItemModal';
 
 interface TenderItem {
   id?: string;
@@ -148,6 +150,8 @@ const CreateTender: React.FC = () => {
   const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [bidders, setBidders] = useState<any[]>([]);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showCsvModal, setShowCsvModal] = useState<boolean>(false);
   const [newItem, setNewItem] = useState<TenderItem>({
     item_master_id: '',
@@ -1372,49 +1376,74 @@ const CreateTender: React.FC = () => {
                       {/* Category/Group Select with Search */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
-                        <SearchableSelect
-                          options={Array.from(new Map(itemMasters
-                            .filter(item => item.category_name)
-                            .map(item => [item.category_name, {
-                              category_name: item.category_name,
-                              category_description: item.category_description
-                            }])).values())
-                            .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
-                            .map(cat => ({
-                              value: cat.category_name,
-                              label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
-                            }))}
-                          value={selectedCategory}
-                          onValueChange={(value) => {
-                            setSelectedCategory(value);
-                            setNewItem(prev => ({
-                              ...prev,
-                              item_master_id: ''
-                            }));
-                          }}
-                          placeholder="Select category"
-                          searchPlaceholder="Search categories..."
-                          emptyMessage="No categories found"
-                        />
+                        <div className="flex gap-2">
+                          <SearchableSelect
+                            options={Array.from(new Map(itemMasters
+                              .filter(item => item.category_name)
+                              .map(item => [item.category_name, {
+                                category_name: item.category_name,
+                                category_description: item.category_description
+                              }])).values())
+                              .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
+                              .map(cat => ({
+                                value: cat.category_name,
+                                label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
+                              }))}
+                            value={selectedCategory}
+                            onValueChange={(value) => {
+                              setSelectedCategory(value);
+                              setNewItem(prev => ({
+                                ...prev,
+                                item_master_id: ''
+                              }));
+                            }}
+                            placeholder="Select category"
+                            searchPlaceholder="Search categories..."
+                            emptyMessage="No categories found"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAddCategoryModal(true)}
+                            className="h-9 px-3 flex-shrink-0"
+                            title="Add new category"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Name of the Article Select with Search */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Name of the Article *</label>
-                        <SearchableSelect
-                          options={itemMasters
-                            .filter(item => item.category_name === selectedCategory)
-                            .map(item => ({
-                              value: item.id,
-                              label: item.nomenclature
-                            }))}
-                          value={newItem.item_master_id}
-                          onValueChange={handleItemMasterSelect}
-                          disabled={!selectedCategory}
-                          placeholder={selectedCategory ? "Select item" : "Select category first"}
-                          searchPlaceholder="Search items..."
-                          emptyMessage="No items found"
-                        />
+                        <div className="flex gap-2">
+                          <SearchableSelect
+                            options={itemMasters
+                              .filter(item => item.category_name === selectedCategory)
+                              .map(item => ({
+                                value: item.id,
+                                label: item.nomenclature
+                              }))}
+                            value={newItem.item_master_id}
+                            onValueChange={handleItemMasterSelect}
+                            disabled={!selectedCategory}
+                            placeholder={selectedCategory ? "Select item" : "Select category first"}
+                            searchPlaceholder="Search items..."
+                            emptyMessage="No items found"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAddItemModal(true)}
+                            disabled={!selectedCategory}
+                            className="h-9 px-3 flex-shrink-0"
+                            title="Add new item"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
@@ -1503,49 +1532,74 @@ const CreateTender: React.FC = () => {
                       {/* Category/Group Select with Search */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
-                        <SearchableSelect
-                          options={Array.from(new Map(itemMasters
-                            .filter(item => item.category_name)
-                            .map(item => [item.category_name, {
-                              category_name: item.category_name,
-                              category_description: item.category_description
-                            }])).values())
-                            .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
-                            .map(cat => ({
-                              value: cat.category_name,
-                              label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
-                            }))}
-                          value={selectedCategory}
-                          onValueChange={(value) => {
-                            setSelectedCategory(value);
-                            setNewItem(prev => ({
-                              ...prev,
-                              item_master_id: ''
-                            }));
-                          }}
-                          placeholder="Select category"
-                          searchPlaceholder="Search categories..."
-                          emptyMessage="No categories found"
-                        />
+                        <div className="flex gap-2">
+                          <SearchableSelect
+                            options={Array.from(new Map(itemMasters
+                              .filter(item => item.category_name)
+                              .map(item => [item.category_name, {
+                                category_name: item.category_name,
+                                category_description: item.category_description
+                              }])).values())
+                              .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
+                              .map(cat => ({
+                                value: cat.category_name,
+                                label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
+                              }))}
+                            value={selectedCategory}
+                            onValueChange={(value) => {
+                              setSelectedCategory(value);
+                              setNewItem(prev => ({
+                                ...prev,
+                                item_master_id: ''
+                              }));
+                            }}
+                            placeholder="Select category"
+                            searchPlaceholder="Search categories..."
+                            emptyMessage="No categories found"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAddCategoryModal(true)}
+                            className="h-9 px-3 flex-shrink-0"
+                            title="Add new category"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Name of the Article Select with Search */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Name of the Article *</label>
-                        <SearchableSelect
-                          options={itemMasters
-                            .filter(item => item.category_name === selectedCategory)
-                            .map(item => ({
-                              value: item.id,
-                              label: item.nomenclature
-                            }))}
-                          value={newItem.item_master_id}
-                          onValueChange={handleItemMasterSelect}
-                          disabled={!selectedCategory}
-                          placeholder={selectedCategory ? "Select item" : "Select category first"}
-                          searchPlaceholder="Search items..."
-                          emptyMessage="No items found"
-                        />
+                        <div className="flex gap-2">
+                          <SearchableSelect
+                            options={itemMasters
+                              .filter(item => item.category_name === selectedCategory)
+                              .map(item => ({
+                                value: item.id,
+                                label: item.nomenclature
+                              }))}
+                            value={newItem.item_master_id}
+                            onValueChange={handleItemMasterSelect}
+                            disabled={!selectedCategory}
+                            placeholder={selectedCategory ? "Select item" : "Select category first"}
+                            searchPlaceholder="Search items..."
+                            emptyMessage="No items found"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAddItemModal(true)}
+                            disabled={!selectedCategory}
+                            className="h-9 px-3 flex-shrink-0"
+                            title="Add new item"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
@@ -1862,6 +1916,41 @@ const CreateTender: React.FC = () => {
         onItemsImported={handleCsvItemsImport}
         bidders={bidders}
       />
+
+      {/* Add Category Modal */}
+      {showAddCategoryModal && (
+        <AddCategoryModal
+          onClose={() => setShowAddCategoryModal(false)}
+          onSuccess={(categoryData) => {
+            console.log('Category created:', categoryData);
+            // Refresh item masters to get new category
+            fetchItemMasters();
+            setShowAddCategoryModal(false);
+          }}
+        />
+      )}
+
+      {/* Add Item Modal */}
+      {showAddItemModal && (
+        <AddItemModal
+          selectedCategory={selectedCategory}
+          onClose={() => setShowAddItemModal(false)}
+          onSuccess={(itemData) => {
+            console.log('Item created:', itemData);
+            // Refresh item masters to get new item
+            fetchItemMasters();
+            // Auto-select the new item
+            if (itemData.id) {
+              setNewItem(prev => ({
+                ...prev,
+                item_master_id: itemData.id,
+                nomenclature: itemData.nomenclature || ''
+              }));
+            }
+            setShowAddItemModal(false);
+          }}
+        />
+      )}
     </div>
   );
 };
