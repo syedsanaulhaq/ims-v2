@@ -537,6 +537,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
