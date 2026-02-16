@@ -35,6 +35,7 @@ export default function AddVendorModal({ open = true, onClose, onSuccess }: AddV
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     
     if (!formData.vendor_name) {
       setError('Vendor name is required');
@@ -74,7 +75,10 @@ export default function AddVendorModal({ open = true, onClose, onSuccess }: AddV
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Add New Vendor</DialogTitle>
           <DialogDescription>
@@ -197,7 +201,11 @@ export default function AddVendorModal({ open = true, onClose, onSuccess }: AddV
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+              }}
               disabled={loading}
             >
               Cancel
