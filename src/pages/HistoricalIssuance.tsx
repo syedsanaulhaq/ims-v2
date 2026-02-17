@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getApiBaseUrl } from '@/services/invmisApi';
+import { useOffices } from '@/hooks/useOffices';
 
 interface IssuanceItem {
   item_master_id: string;
@@ -23,17 +24,27 @@ interface IssuanceItem {
 interface User {
   Id: string;
   UserName: string;
+  FullName?: string;
   Email?: string;
+  intOfficeID?: number;
+  intWingID?: number;
 }
 
 interface Wing {
   Id: number;
   Name: string;
   ShortName?: string;
+  OfficeID?: number;
+}
+
+interface Office {
+  intOfficeID: number;
+  strOfficeName: string;
 }
 
 export default function HistoricalIssuance() {
   const navigate = useNavigate();
+  const { offices, wings, loadWings } = useOffices();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -50,9 +61,12 @@ export default function HistoricalIssuance() {
     remarks: '',
   });
 
+  // Hierarchical selection state
+  const [selectedOfficeId, setSelectedOfficeId] = useState<number | null>(null);
+  const [selectedWingId, setSelectedWingId] = useState<number | null>(null);
+
   // Dropdown data
   const [users, setUsers] = useState<User[]>([]);
-  const [wings, setWings] = useState<Wing[]>([]);
   const [itemMasters, setItemMasters] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   
@@ -69,20 +83,20 @@ export default function HistoricalIssuance() {
     fetchInitialData();
   }, []);
 
+  // Load wings when office is selected
+  useEffect(() => {
+    if (selectedOfficeId) {
+      loadWings(selectedOfficeId);
+    }
+  }, [selectedOfficeId]);
+
   const fetchInitialData = async () => {
     try {
-      // Fetch users
+      // Fetch all users
       const usersResponse = await fetch(`${getApiBaseUrl()}/auth/users`);
       if (usersResponse.ok) {
         const usersData = await usersResponse.json();
         setUsers(Array.isArray(usersData) ? usersData : []);
-      }
-
-      // Fetch wings
-      const wingsResponse = await fetch(`${getApiBaseUrl()}/wings`);
-      if (wingsResponse.ok) {
-        const wingsData = await wingsResponse.json();
-        setWings(Array.isArray(wingsData) ? wingsData : wingsData.data || []);
       }
 
       // Fetch item masters
@@ -131,15 +145,36 @@ export default function HistoricalIssuance() {
     setItems(items.filter((_, i) => i !== index));
   };
 
+  // Filtered data based on hierarchical selection
+  const filteredWings = selectedOfficeId 
+    ? wings.filter(w => w.OfficeID === selectedOfficeId)
+    : [];
+
+  const filteredUsers = selectedWingId
+    ? users.filter(u => u.intWingID === selectedWingId)
+    : selectedOfficeId
+    ? users.filter(u => u.intOfficeID === selectedOfficeId)
+    : users;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(false);
 
     // Validation
-    if (formData.request_type === 'personal' && !formData.requested_by_id) {
-      setError('Please select a person');
+    if (!selectedOfficeId) {
+      setError('Please select an office');
       return;
+    }
+    if (formData.request_type === 'personal') {
+      if (!selectedWingId) {
+        setError('Please select a wing');
+        return;
+      }
+      if (!formData.requested_by_id) {
+        setError('Please select a person');
+        return;
+      }
     }
     if (formData.request_type === 'wing' && !formData.requested_for_wing_id) {
       setError('Please select a wing');
@@ -239,12 +274,16 @@ export default function HistoricalIssuance() {
                 <Label>Request Type *</Label>
                 <Select
                   value={formData.request_type}
-                  onValueChange={(value) => setFormData(prev => ({
-                    ...prev,
-                    request_type: value,
-                    requested_by_id: '',
-                    requested_for_wing_id: '',
-                  }))}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      request_type: value,
+                      requested_by_id: '',
+                      requested_for_wing_id: '',
+                    }));
+                    setSelectedOfficeId(null);
+                    setSelectedWingId(null);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -256,38 +295,51 @@ export default function HistoricalIssuance() {
                 </Select>
               </div>
 
-              {/* Requestor Selection */}
-              {formData.request_type === 'personal' ? (
-                <div>
-                  <Label>Requested By (Person) *</Label>
-                  <Select
-                    value={formData.requested_by_id}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, requested_by_id: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select person..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.map(user => (
-                        <SelectItem key={user.Id} value={user.Id}>
-                          {user.UserName} {user.Email && `(${user.Email})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
+              {/* Office Selection */}
+              <div>
+                <Label>Office *</Label>
+                <Select
+                  value={selectedOfficeId?.toString() || ''}
+                  onValueChange={(value) => {
+                    const officeId = parseInt(value);
+                    setSelectedOfficeId(officeId);
+                    setSelectedWingId(null);
+                    setFormData(prev => ({
+                      ...prev,
+                      requested_by_id: '',
+                      requested_for_wing_id: '',
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select office..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {offices.map(office => (
+                      <SelectItem key={office.intOfficeID} value={office.intOfficeID.toString()}>
+                        {office.strOfficeName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Wing Selection - For both Personal and Wing requests */}
+              {formData.request_type === 'wing' ? (
                 <div>
                   <Label>Wing *</Label>
                   <Select
                     value={formData.requested_for_wing_id}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, requested_for_wing_id: value }))}
+                    disabled={!selectedOfficeId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select wing..." />
+                      <SelectValue placeholder={selectedOfficeId ? "Select wing..." : "Select office first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {wings.map(wing => (
+                      {filteredWings.map(wing => (
                         <SelectItem key={wing.Id} value={wing.Id.toString()}>
                           {wing.Name} {wing.ShortName && `(${wing.ShortName})`}
                         </SelectItem>
@@ -295,6 +347,54 @@ export default function HistoricalIssuance() {
                     </SelectContent>
                   </Select>
                 </div>
+              ) : (
+                <>
+                  {/* Wing Selection for Personal Request */}
+                  <div>
+                    <Label>Wing *</Label>
+                    <Select
+                      value={selectedWingId?.toString() || ''}
+                      onValueChange={(value) => {
+                        const wingId = parseInt(value);
+                        setSelectedWingId(wingId);
+                        setFormData(prev => ({ ...prev, requested_by_id: '' }));
+                      }}
+                      disabled={!selectedOfficeId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={selectedOfficeId ? "Select wing..." : "Select office first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredWings.map(wing => (
+                          <SelectItem key={wing.Id} value={wing.Id.toString()}>
+                            {wing.Name} {wing.ShortName && `(${wing.ShortName})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Person Selection */}
+                  <div>
+                    <Label>Requested By (Person) *</Label>
+                    <Select
+                      value={formData.requested_by_id}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, requested_by_id: value }))}
+                      disabled={!selectedWingId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={selectedWingId ? "Select person..." : "Select wing first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredUsers.map(user => (
+                          <SelectItem key={user.Id} value={user.Id}>
+                            {user.FullName || user.UserName} {user.Email && `(${user.Email})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
             </div>
 
