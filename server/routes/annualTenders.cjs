@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
         start_date,
         end_date,
         status,
+        tender_type,
         total_budget,
         remarks,
         created_by,

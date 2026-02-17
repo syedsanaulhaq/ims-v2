@@ -102,7 +102,7 @@ export default function OpeningBalanceEntry() {
           const regularTenders = (Array.isArray(tendersData) ? tendersData : [])
             .filter((t: any) => {
               const isFinalized = t.is_finalized === true || t.is_finalized === 1;
-              console.log(`Tender ${t.reference_number}: is_finalized=${t.is_finalized}, status=${t.status}`);
+              console.log(`Tender ${t.reference_number}: is_finalized=${t.is_finalized}, status=${t.status}, tender_type=${t.tender_type}`);
               return isFinalized;
             })
             .map((t: any) => ({
@@ -110,6 +110,7 @@ export default function OpeningBalanceEntry() {
               tender_number: t.reference_number || 'N/A',
               tender_title: `[Contract] ${t.title || 'Untitled'}`,
               tender_date: t.publish_date || t.created_at,
+              tender_type: t.tender_type || 'contract', // Include tender type
             }));
           allTenders.push(...regularTenders);
           console.log('✅ Loaded finalized contract tenders:', regularTenders.length);
@@ -133,7 +134,7 @@ export default function OpeningBalanceEntry() {
               const isFinalized = t.is_finalized === true || t.is_finalized === 1;
               const statusLower = (t.status || '').toLowerCase();
               const isActive = statusLower === 'active' || statusLower === 'completed' || statusLower === 'finalized';
-              console.log(`Annual Tender ${t.tender_number}: status=${t.status}, is_finalized=${t.is_finalized}`);
+              console.log(`Annual Tender ${t.tender_number}: status=${t.status}, is_finalized=${t.is_finalized}, tender_type=${t.tender_type}`);
               return isFinalized || isActive;
             })
             .map((t: any) => ({
@@ -141,6 +142,7 @@ export default function OpeningBalanceEntry() {
               tender_number: t.tender_number || 'N/A',
               tender_title: `[Annual] ${t.title || 'Untitled'}`,
               tender_date: t.start_date || t.created_at,
+              tender_type: t.tender_type || 'Annual Tender', // Include tender type
             }));
           allTenders.push(...annualTenders);
           console.log('✅ Loaded active annual tenders:', annualTenders.length);
@@ -174,21 +176,15 @@ export default function OpeningBalanceEntry() {
     setSelectedTenderId(tenderId);
     const selectedTender = tenders.find(t => t.id === tenderId);
     if (selectedTender) {
-      // Auto-detect source type from tender
-      let sourceType: 'TENDER' | 'PURCHASE' | 'DONATION' | 'OTHER' = 'TENDER';
-      
-      if (selectedTender.tender_title.includes('[Annual]')) {
-        sourceType = 'TENDER'; // Annual tenders are TENDER type
-      } else if (selectedTender.tender_title.includes('[Contract]')) {
-        sourceType = 'TENDER'; // Contract tenders are also TENDER type
-      }
+      // Use the actual tender type from the tender
+      const sourceType = selectedTender.tender_type || 'TENDER';
       
       setFormData(prev => ({
         ...prev,
         tender_id: tenderId,
         tender_reference: selectedTender.tender_number,
         tender_title: selectedTender.tender_title,
-        source_type: sourceType, // Auto-set based on tender type
+        source_type: sourceType, // Use actual tender type
       }));
 
       // Fetch items for this tender
@@ -230,7 +226,7 @@ export default function OpeningBalanceEntry() {
         setCategories(tenderCategories);
         
         console.log('✅ Filtered to tender items:', filteredItems.length, 'categories:', tenderCategories.length);
-        console.log('🏷️ Source type auto-set to:', sourceType);
+        console.log('🏷️ Source type set to:', sourceType);
       } catch (err) {
         console.error('❌ Error fetching tender items:', err);
       } finally {
