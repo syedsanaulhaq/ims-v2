@@ -19,59 +19,100 @@ PRINT '====================================================================';
 PRINT '';
 PRINT 'STEP 1: Updating stock_acquisitions table for quantity tracking...';
 
--- Add columns if they don't exist
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'item_master_id')
+-- Check if stock_acquisitions table exists, create if not
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'stock_acquisitions')
 BEGIN
-    ALTER TABLE stock_acquisitions 
-    ADD item_master_id UNIQUEIDENTIFIER NULL;
-    PRINT '  ✓ Added item_master_id column';
+    CREATE TABLE stock_acquisitions (
+        id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+        acquisition_number NVARCHAR(50) UNIQUE,
+        po_id UNIQUEIDENTIFIER NULL,
+        delivery_id UNIQUEIDENTIFIER NULL,
+        item_master_id UNIQUEIDENTIFIER NULL,
+        total_items INT NULL,
+        total_quantity DECIMAL(15,2) NULL,
+        total_value DECIMAL(15,2) NULL,
+        quantity_received DECIMAL(15,2) DEFAULT 0,
+        quantity_issued DECIMAL(15,2) DEFAULT 0,
+        quantity_available AS (quantity_received - quantity_issued) PERSISTED,
+        unit_cost DECIMAL(15,2) NULL,
+        delivery_date DATE NULL,
+        acquisition_date DATETIME2 DEFAULT GETDATE(),
+        processed_by UNIQUEIDENTIFIER NULL,
+        status VARCHAR(20) DEFAULT 'completed',
+        notes NVARCHAR(MAX),
+        created_at DATETIME2 DEFAULT GETDATE(),
+        updated_at DATETIME2 DEFAULT GETDATE()
+    );
+    PRINT '  ✓ Created stock_acquisitions table with all columns';
+END
+ELSE
+BEGIN
+    PRINT '  ℹ stock_acquisitions table exists, adding columns...';
+    
+    -- Add columns if they don't exist
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'item_master_id')
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD item_master_id UNIQUEIDENTIFIER NULL;
+        PRINT '  ✓ Added item_master_id column';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_received')
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD quantity_received DECIMAL(15,2) NULL DEFAULT 0;
+        PRINT '  ✓ Added quantity_received column';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_issued')
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD quantity_issued DECIMAL(15,2) NULL DEFAULT 0;
+        PRINT '  ✓ Added quantity_issued column';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD quantity_available AS (ISNULL(quantity_received, 0) - ISNULL(quantity_issued, 0)) PERSISTED;
+        PRINT '  ✓ Added quantity_available computed column';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'delivery_date')
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD delivery_date DATE NULL;
+        PRINT '  ✓ Added delivery_date column';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'unit_cost')
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD unit_cost DECIMAL(15,2) NULL;
+        PRINT '  ✓ Added unit_cost column';
+    END
 END
 
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_received')
-BEGIN
-    ALTER TABLE stock_acquisitions 
-    ADD quantity_received DECIMAL(15,2) NOT NULL DEFAULT 0;
-    PRINT '  ✓ Added quantity_received column';
-END
+PRINT '  ✅ stock_acquisitions table columns added successfully';
 
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_issued')
-BEGIN
-    ALTER TABLE stock_acquisitions 
-    ADD quantity_issued DECIMAL(15,2) NOT NULL DEFAULT 0;
-    PRINT '  ✓ Added quantity_issued column';
-END
+GO
 
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
-BEGIN
-    ALTER TABLE stock_acquisitions 
-    ADD quantity_available AS (quantity_received - quantity_issued) PERSISTED;
-    PRINT '  ✓ Added quantity_available computed column';
-END
-
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'delivery_date')
-BEGIN
-    ALTER TABLE stock_acquisitions 
-    ADD delivery_date DATE NULL;
-    PRINT '  ✓ Added delivery_date column';
-END
-
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'unit_cost')
-BEGIN
-    ALTER TABLE stock_acquisitions 
-    ADD unit_cost DECIMAL(15,2) NULL;
-    PRINT '  ✓ Added unit_cost column';
-END
-
--- Add foreign key constraint if not exists
+-- Add foreign key constraint if not exists (separate batch)
 IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_StockAcq_ItemMaster')
 BEGIN
-    ALTER TABLE stock_acquisitions
-    ADD CONSTRAINT FK_StockAcq_ItemMaster 
-    FOREIGN KEY (item_master_id) REFERENCES item_masters(id);
-    PRINT '  ✓ Added foreign key constraint to item_masters';
+    -- Check if item_masters table exists before adding FK
+    IF EXISTS (SELECT * FROM sys.tables WHERE name = 'item_masters')
+    BEGIN
+        ALTER TABLE stock_acquisitions
+        ADD CONSTRAINT FK_StockAcq_ItemMaster 
+        FOREIGN KEY (item_master_id) REFERENCES item_masters(id);
+        PRINT '  ✓ Added foreign key constraint to item_masters';
+    END
+    ELSE
+    BEGIN
+        PRINT '  ⚠ item_masters table not found, skipping FK constraint';
+    END
 END
+ELSE
+    PRINT '  ℹ Foreign key constraint already exists';
 
--- Add index for FIFO queries
+GO
+
+-- Add index for FIFO queries (separate batch)
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_StockAcq_ItemMaster_Date')
 BEGIN
     CREATE INDEX IX_StockAcq_ItemMaster_Date 
@@ -79,8 +120,13 @@ BEGIN
     WHERE quantity_available > 0;
     PRINT '  ✓ Added index for FIFO queries';
 END
+ELSE
+    PRINT '  ℹ Index already exists';
+
+GO
 
 PRINT '  ✅ stock_acquisitions table updated successfully';
+PRINT '';
 
 -- ============================================================================
 -- STEP 2: Create opening_balance_entries table
@@ -138,6 +184,8 @@ BEGIN
 END
 ELSE
     PRINT '  ℹ opening_balance_entries table already exists';
+
+GO
 
 -- ============================================================================
 -- STEP 3: Create stored procedure to process opening balance to stock
