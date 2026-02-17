@@ -171,11 +171,21 @@ export default function OpeningBalanceEntry() {
     setSelectedTenderId(tenderId);
     const selectedTender = tenders.find(t => t.id === tenderId);
     if (selectedTender) {
+      // Auto-detect source type from tender
+      let sourceType: 'TENDER' | 'PURCHASE' | 'DONATION' | 'OTHER' = 'TENDER';
+      
+      if (selectedTender.tender_title.includes('[Annual]')) {
+        sourceType = 'TENDER'; // Annual tenders are TENDER type
+      } else if (selectedTender.tender_title.includes('[Contract]')) {
+        sourceType = 'TENDER'; // Contract tenders are also TENDER type
+      }
+      
       setFormData(prev => ({
         ...prev,
         tender_id: tenderId,
         tender_reference: selectedTender.tender_number,
         tender_title: selectedTender.tender_title,
+        source_type: sourceType, // Auto-set based on tender type
       }));
 
       // Fetch items for this tender
@@ -217,6 +227,7 @@ export default function OpeningBalanceEntry() {
         setCategories(tenderCategories);
         
         console.log('✅ Filtered to tender items:', filteredItems.length, 'categories:', tenderCategories.length);
+        console.log('🏷️ Source type auto-set to:', sourceType);
       } catch (err) {
         console.error('❌ Error fetching tender items:', err);
       } finally {
@@ -470,10 +481,16 @@ export default function OpeningBalanceEntry() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Source Type */}
               <div>
-                <Label>Source Type *</Label>
+                <Label>
+                  Source Type *
+                  {tenderMode === 'existing' && selectedTenderId && (
+                    <span className="text-xs text-muted-foreground ml-2">(Auto-set from tender)</span>
+                  )}
+                </Label>
                 <Select
                   value={formData.source_type}
                   onValueChange={(value: any) => setFormData(prev => ({ ...prev, source_type: value }))}
+                  disabled={tenderMode === 'existing' && !!selectedTenderId}
                 >
                   <SelectTrigger>
                     <SelectValue />
