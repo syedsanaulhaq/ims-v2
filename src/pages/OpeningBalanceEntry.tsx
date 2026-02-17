@@ -129,9 +129,12 @@ export default function OpeningBalanceEntry() {
           
           const annualTenders = (Array.isArray(annualTendersData) ? annualTendersData : [])
             .filter((t: any) => {
-              const isActive = t.status === 'active' || t.status === 'completed' || t.status === 'finalized';
-              console.log(`Annual Tender ${t.tender_number}: status=${t.status}`);
-              return isActive;
+              // Check for finalized status (case-insensitive) or is_finalized flag
+              const isFinalized = t.is_finalized === true || t.is_finalized === 1;
+              const statusLower = (t.status || '').toLowerCase();
+              const isActive = statusLower === 'active' || statusLower === 'completed' || statusLower === 'finalized';
+              console.log(`Annual Tender ${t.tender_number}: status=${t.status}, is_finalized=${t.is_finalized}`);
+              return isFinalized || isActive;
             })
             .map((t: any) => ({
               id: t.id,
