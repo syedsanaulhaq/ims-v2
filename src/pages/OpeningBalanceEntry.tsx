@@ -479,44 +479,17 @@ export default function OpeningBalanceEntry() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Source Type */}
-              <div>
-                <Label>
-                  Source Type *
-                  {tenderMode === 'existing' && selectedTenderId && (
-                    <span className="text-xs text-muted-foreground ml-2">(Auto-set from tender)</span>
-                  )}
-                </Label>
-                <Select
-                  value={formData.source_type}
-                  onValueChange={(value: any) => setFormData(prev => ({ ...prev, source_type: value }))}
-                  disabled={tenderMode === 'existing' && !!selectedTenderId}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TENDER">Tender/Contract</SelectItem>
-                    <SelectItem value="PURCHASE">Direct Purchase</SelectItem>
-                    <SelectItem value="DONATION">Donation</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Acquisition Date */}
-              <div>
-                <Label>Original Purchase Date *</Label>
-                <Input
-                  type="date"
-                  value={formData.acquisition_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, acquisition_date: e.target.value }))}
-                  min="2020-01-01"
-                  max={new Date().toISOString().split('T')[0]}
-                  required
-                />
-              </div>
+            {/* Acquisition Date */}
+            <div>
+              <Label>Original Purchase Date *</Label>
+              <Input
+                type="date"
+                value={formData.acquisition_date}
+                onChange={(e) => setFormData(prev => ({ ...prev, acquisition_date: e.target.value }))}
+                min="2020-01-01"
+                max={new Date().toISOString().split('T')[0]}
+                required
+              />
             </div>
 
             {/* Remarks */}
