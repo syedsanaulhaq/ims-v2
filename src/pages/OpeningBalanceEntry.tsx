@@ -90,13 +90,19 @@ export default function OpeningBalanceEntry() {
       // ONLY FINALIZED/COMPLETED tenders
       const allTenders: Tender[] = [];
       
-      // Fetch regular/contract tenders (is_finalized = true)
+      // Fetch regular/contract tenders
       try {
-        const tendersResponse = await fetch(`${getApiBaseUrl()}/tenders?status=finalized`);
+        const tendersResponse = await fetch(`${getApiBaseUrl()}/tenders`);
         if (tendersResponse.ok) {
           const tendersData = await tendersResponse.json();
+          console.log('📥 Raw contract tenders data:', tendersData);
+          
           const regularTenders = (Array.isArray(tendersData) ? tendersData : [])
-            .filter((t: any) => t.is_finalized === true || t.is_finalized === 1)  // Double-check finalized status
+            .filter((t: any) => {
+              const isFinalized = t.is_finalized === true || t.is_finalized === 1;
+              console.log(`Tender ${t.reference_number}: is_finalized=${t.is_finalized}, status=${t.status}`);
+              return isFinalized;
+            })
             .map((t: any) => ({
               id: t.id,
               tender_number: t.reference_number || 'N/A',
@@ -105,18 +111,26 @@ export default function OpeningBalanceEntry() {
             }));
           allTenders.push(...regularTenders);
           console.log('✅ Loaded finalized contract tenders:', regularTenders.length);
+        } else {
+          console.warn('⚠️ Contract tenders API failed:', tendersResponse.status);
         }
       } catch (err) {
-        console.warn('⚠️ Failed to fetch contract tenders:', err);
+        console.error('❌ Failed to fetch contract tenders:', err);
       }
 
-      // Fetch annual tenders (status = 'active' or 'finalized')
+      // Fetch annual tenders
       try {
-        const annualTendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders?status=active`);
+        const annualTendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders`);
         if (annualTendersResponse.ok) {
           const annualTendersData = await annualTendersResponse.json();
+          console.log('📥 Raw annual tenders data:', annualTendersData);
+          
           const annualTenders = (Array.isArray(annualTendersData) ? annualTendersData : [])
-            .filter((t: any) => t.status === 'active' || t.status === 'completed' || t.status === 'finalized')
+            .filter((t: any) => {
+              const isActive = t.status === 'active' || t.status === 'completed' || t.status === 'finalized';
+              console.log(`Annual Tender ${t.tender_number}: status=${t.status}`);
+              return isActive;
+            })
             .map((t: any) => ({
               id: t.id,
               tender_number: t.tender_number || 'N/A',
@@ -125,9 +139,11 @@ export default function OpeningBalanceEntry() {
             }));
           allTenders.push(...annualTenders);
           console.log('✅ Loaded active annual tenders:', annualTenders.length);
+        } else {
+          console.warn('⚠️ Annual tenders API failed:', annualTendersResponse.status);
         }
       } catch (err) {
-        console.warn('⚠️ Failed to fetch annual tenders:', err);
+        console.error('❌ Failed to fetch annual tenders:', err);
       }
 
       // Sort by date (most recent first)
@@ -139,6 +155,10 @@ export default function OpeningBalanceEntry() {
 
       setTenders(allTenders);
       console.log('✅ Total finalized tenders loaded:', allTenders.length);
+      
+      if (allTenders.length === 0) {
+        console.warn('⚠️ No finalized tenders found. Use "Manual Reference Entry" instead.');
+      }
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load form data');
@@ -334,7 +354,7 @@ export default function OpeningBalanceEntry() {
                   </SelectTrigger>
                   <SelectContent>
                     {tenders.length === 0 ? (
-                      <SelectItem value="none" disabled>No tenders found</SelectItem>
+                      <SelectItem value="none" disabled>No finalized tenders found</SelectItem>
                     ) : (
                       tenders.map((tender) => (
                         <SelectItem key={tender.id} value={tender.id}>
@@ -344,6 +364,12 @@ export default function OpeningBalanceEntry() {
                     )}
                   </SelectContent>
                 </Select>
+                {tenders.length === 0 && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+                    <div className="font-semibold mb-1">💡 No finalized tenders available</div>
+                    <div>Switch to <strong>"Enter Manual Reference"</strong> above to enter historical tender references.</div>
+                  </div>
+                )}
                 {selectedTenderId && (
                   <div className="mt-3 text-sm text-blue-700">
                     <div><strong>Reference:</strong> {formData.tender_reference}</div>
