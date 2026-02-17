@@ -54,6 +54,8 @@ export default function OpeningBalanceEntry() {
   const [itemMasters, setItemMasters] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
+  const [tenderItems, setTenderItems] = useState<any[]>([]); // Items from selected tender
+  const [loadingTenderItems, setLoadingTenderItems] = useState(false);
   
   // Items to add
   const [items, setItems] = useState<OpeningBalanceItem[]>([]);
@@ -165,7 +167,7 @@ export default function OpeningBalanceEntry() {
     }
   };
 
-  const handleTenderSelection = (tenderId: string) => {
+  const handleTenderSelection = async (tenderId: string) => {
     setSelectedTenderId(tenderId);
     const selectedTender = tenders.find(t => t.id === tenderId);
     if (selectedTender) {
@@ -175,20 +177,73 @@ export default function OpeningBalanceEntry() {
         tender_reference: selectedTender.tender_number,
         tender_title: selectedTender.tender_title,
       }));
+
+      // Fetch items for this tender
+      setLoadingTenderItems(true);
+      try {
+        // Try annual tender first
+        let tenderItemsData: any[] = [];
+        
+        // Check if it's an annual tender
+        if (selectedTender.tender_title.includes('[Annual]')) {
+          const response = await fetch(`${getApiBaseUrl()}/annual-tenders/${tenderId}`);
+          if (response.ok) {
+            const data = await response.json();
+            // Annual tenders have groups with items
+            tenderItemsData = (data.groups || []).flatMap((g: any) => g.items || []);
+            console.log('📦 Loaded annual tender items:', tenderItemsData.length);
+          }
+        } else {
+          // Contract tender
+          const response = await fetch(`${getApiBaseUrl()}/tenders/${tenderId}/items`);
+          if (response.ok) {
+            const data = await response.json();
+            tenderItemsData = Array.isArray(data) ? data : [];
+            console.log('📦 Loaded contract tender items:', tenderItemsData.length);
+          }
+        }
+
+        // Match with item_masters to get full details
+        const tenderItemIds = new Set(tenderItemsData.map((ti: any) => ti.item_master_id || ti.item_id));
+        const filteredItems = itemMasters.filter(im => tenderItemIds.has(im.id));
+        
+        setTenderItems(filteredItems);
+        
+        // Update categories based on tender items
+        const tenderCategories = [...new Set(filteredItems
+          .filter((item: any) => item.category_name)
+          .map((item: any) => item.category_name)
+        )].sort() as string[];
+        setCategories(tenderCategories);
+        
+        console.log('✅ Filtered to tender items:', filteredItems.length, 'categories:', tenderCategories.length);
+      } catch (err) {
+        console.error('❌ Error fetching tender items:', err);
+      } finally {
+        setLoadingTenderItems(false);
+      }
     }
   };
 
   const handleTenderModeChange = (mode: 'existing' | 'manual') => {
     setTenderMode(mode);
     if (mode === 'manual') {
-      // Clear tender selection
+      // Clear tender selection and reload all items
       setSelectedTenderId('');
+      setTenderItems([]);
       setFormData(prev => ({
         ...prev,
         tender_id: null,
         tender_reference: '',
         tender_title: '',
       }));
+      
+      // Restore all categories
+      const allCategories = [...new Set(itemMasters
+        .filter((item: any) => item.category_name)
+        .map((item: any) => item.category_name)
+      )].sort() as string[];
+      setCategories(allCategories);
     }
   };
 
@@ -284,9 +339,14 @@ export default function OpeningBalanceEntry() {
     }
   };
 
-  const filteredItems = selectedCategory
-    ? itemMasters.filter(item => item.category_name === selectedCategory)
+  // Use tender-specific items when tender is selected, otherwise use all items
+  const availableItems = (tenderMode === 'existing' && selectedTenderId && tenderItems.length > 0)
+    ? tenderItems
     : itemMasters;
+
+  const filteredItems = selectedCategory
+    ? availableItems.filter(item => item.category_name === selectedCategory)
+    : availableItems;
 
   const totalReceived = items.reduce((sum, item) => sum + item.quantity_received, 0);
   const totalIssued = items.reduce((sum, item) => sum + item.quantity_already_issued, 0);
@@ -457,7 +517,25 @@ export default function OpeningBalanceEntry() {
         {/* Add Items Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Items & Quantities</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              <span>Items & Quantities</span>
+              {tenderMode === 'existing' && selectedTenderId && (
+                <Badge variant="outline" className="text-xs font-normal">
+                  📦 Showing only items from selected tender
+                </Badge>
+              )}
+            </CardTitle>
+            {loadingTenderItems && (
+              <p className="text-sm text-gray-500">Loading tender items...</p>
+            )}
+            {tenderMode === 'existing' && selectedTenderId && tenderItems.length === 0 && !loadingTenderItems && (
+              <Alert className="mt-2 bg-amber-50 border-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 text-sm">
+                  No items found for this tender. The tender may not have items assigned yet.
+                </AlertDescription>
+              </Alert>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Add Item Form */}
