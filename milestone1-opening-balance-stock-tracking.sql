@@ -49,7 +49,7 @@ ELSE
 BEGIN
     PRINT '  ℹ stock_acquisitions table exists, adding columns...';
     
-    -- Add columns if they don't exist
+    -- Add base columns first (no computed columns)
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'item_master_id')
     BEGIN
         ALTER TABLE stock_acquisitions ADD item_master_id UNIQUEIDENTIFIER NULL;
@@ -60,22 +60,16 @@ BEGIN
 
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_received')
     BEGIN
-        ALTER TABLE stock_acquisitions ADD quantity_received DECIMAL(15,2) NULL;
+        ALTER TABLE stock_acquisitions ADD quantity_received DECIMAL(15,2) NULL DEFAULT 0;
         PRINT '  ✓ Added quantity_received column';
-        
-        -- Set default value for existing rows
-        UPDATE stock_acquisitions SET quantity_received = 0 WHERE quantity_received IS NULL;
     END
     ELSE
         PRINT '  ℹ quantity_received column already exists';
 
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_issued')
     BEGIN
-        ALTER TABLE stock_acquisitions ADD quantity_issued DECIMAL(15,2) NULL;
+        ALTER TABLE stock_acquisitions ADD quantity_issued DECIMAL(15,2) NULL DEFAULT 0;
         PRINT '  ✓ Added quantity_issued column';
-        
-        -- Set default value for existing rows
-        UPDATE stock_acquisitions SET quantity_issued = 0 WHERE quantity_issued IS NULL;
     END
     ELSE
         PRINT '  ℹ quantity_issued column already exists';
@@ -95,44 +89,58 @@ BEGIN
     END
     ELSE
         PRINT '  ℹ unit_cost column already exists';
-        
-    -- Add computed column AFTER base columns exist
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
-    BEGIN
-        ALTER TABLE stock_acquisitions ADD quantity_available AS (ISNULL(quantity_received, 0) - ISNULL(quantity_issued, 0)) PERSISTED;
-        PRINT '  ✓ Added quantity_available computed column';
-    END
-    ELSE
-        PRINT '  ℹ quantity_available column already exists';
 END
-
-PRINT '  ✅ stock_acquisitions table columns added successfully';
 
 GO
 
--- Add foreign key constraint if not exists (separate batch)
-IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_StockAcq_ItemMaster')
+-- Update existing rows with default values (separate batch after columns are committed)
+IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_received')
 BEGIN
-    -- Check if item_masters table exists before adding FK
-    IF EXISTS (SELECT * FROM sys.tables WHERE name = 'item_masters')
-    BEGIN
-        ALTER TABLE stock_acquisitions
-        ADD CONSTRAINT FK_StockAcq_ItemMaster 
-        FOREIGN KEY (item_master_id) REFERENCES item_masters(id);
-        PRINT '  ✓ Added foreign key constraint to item_masters';
-    END
-    ELSE
-    BEGIN
-        PRINT '  ⚠ item_masters table not found, skipping FK constraint';
-    END
+    UPDATE stock_acquisitions SET quantity_received = 0 WHERE quantity_received IS NULL;
+    PRINT '  ✓ Initialized quantity_received defaults';
+END
+
+IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_issued')
+BEGIN
+    UPDATE stock_acquisitions SET quantity_issued = 0 WHERE quantity_issued IS NULL;
+    PRINT '  ✓ Initialized quantity_issued defaults';
+END
+
+GO
+
+-- Add computed column (separate batch after base columns are committed)
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
+    AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_received')
+    AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_issued')
+BEGIN
+    ALTER TABLE stock_acquisitions ADD quantity_available AS (ISNULL(quantity_received, 0) - ISNULL(quantity_issued, 0)) PERSISTED;
+    PRINT '  ✓ Added quantity_available computed column';
 END
 ELSE
-    PRINT '  ℹ Foreign key constraint already exists';
+    PRINT '  ℹ quantity_available column already exists or base columns missing';
 
 GO
 
--- Add index for FIFO queries (separate batch)
+-- Add foreign key constraint (separate batch after item_master_id is committed)
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_StockAcq_ItemMaster')
+    AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'item_master_id')
+    AND EXISTS (SELECT * FROM sys.tables WHERE name = 'item_masters')
+BEGIN
+    ALTER TABLE stock_acquisitions
+    ADD CONSTRAINT FK_StockAcq_ItemMaster 
+    FOREIGN KEY (item_master_id) REFERENCES item_masters(id);
+    PRINT '  ✓ Added foreign key constraint to item_masters';
+END
+ELSE
+    PRINT '  ℹ Foreign key constraint already exists or prerequisites missing';
+
+GO
+
+-- Add indexes (separate batch after all columns are committed)
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_StockAcq_ItemMaster_Date')
+    AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'item_master_id')
+    AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'delivery_date')
+    AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
 BEGIN
     CREATE INDEX IX_StockAcq_ItemMaster_Date 
     ON stock_acquisitions(item_master_id, delivery_date)
@@ -140,7 +148,7 @@ BEGIN
     PRINT '  ✓ Added index for FIFO queries';
 END
 ELSE
-    PRINT '  ℹ Index already exists';
+    PRINT '  ℹ Index already exists or columns not ready';
 
 GO
 
