@@ -90,88 +90,57 @@ export default function OpeningBalanceEntry() {
         setCategories(uniqueCategories);
       }
 
-      // Fetch existing tenders from BOTH regular tenders and annual tenders
-      // ONLY FINALIZED/COMPLETED tenders
-      const allTenders: Tender[] = [];
-      
-      // Fetch regular/contract tenders
+      // Fetch ALL tenders from unified tenders table (contract, spot-purchase, annual-tender)
+      // ONLY FINALIZED tenders
       try {
         const tendersResponse = await fetch(`${getApiBaseUrl()}/tenders`);
         if (tendersResponse.ok) {
           const tendersData = await tendersResponse.json();
-          console.log('📥 Raw contract tenders data:', tendersData);
+          console.log('📥 Raw tenders data:', tendersData);
           
-          const regularTenders = (Array.isArray(tendersData) ? tendersData : [])
+          const finalizedTenders = (Array.isArray(tendersData) ? tendersData : [])
             .filter((t: any) => {
               const isFinalized = t.is_finalized === true || t.is_finalized === 1;
-              console.log(`Tender ${t.reference_number}: is_finalized=${t.is_finalized}, status=${t.status}, tender_type=${t.tender_type}`);
+              console.log(`Tender ${t.reference_number}: type=${t.tender_type}, is_finalized=${t.is_finalized}`);
               return isFinalized;
             })
-            .map((t: any) => ({
-              id: t.id,
-              tender_number: t.reference_number || 'N/A',
-              tender_title: `[Contract] ${t.title || 'Untitled'}`,
-              tender_date: t.publish_date || t.created_at,
-              tender_type: t.tender_type || 'contract', // Include tender type
-            }));
-          allTenders.push(...regularTenders);
-          console.log('✅ Loaded finalized contract tenders:', regularTenders.length);
-        } else {
-          console.warn('⚠️ Contract tenders API failed:', tendersResponse.status);
-        }
-      } catch (err) {
-        console.error('❌ Failed to fetch contract tenders:', err);
-      }
-
-      // Fetch annual tenders
-      try {
-        const annualTendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders`);
-        if (annualTendersResponse.ok) {
-          const annualTendersData = await annualTendersResponse.json();
-          console.log('📥 Raw annual tenders data:', annualTendersData);
-          
-          const annualTenders = (Array.isArray(annualTendersData) ? annualTendersData : [])
-            .filter((t: any) => {
-              // Check for finalized status (case-insensitive) or is_finalized flag
-              const isFinalized = t.is_finalized === true || t.is_finalized === 1;
-              const statusLower = (t.status || '').toLowerCase();
-              const isActive = statusLower === 'active' || statusLower === 'completed' || statusLower === 'finalized';
-              console.log(`Annual Tender ${t.tender_number}: status=${t.status}, is_finalized=${t.is_finalized}, tender_type=${t.tender_type}`);
-              return isFinalized || isActive;
+            .map((t: any) => {
+              // Create display label based on tender type
+              let typeLabel = 'Contract';
+              if (t.tender_type === 'spot-purchase') typeLabel = 'Spot Purchase';
+              else if (t.tender_type === 'annual-tender') typeLabel = 'Annual';
+              
+              return {
+                id: t.id,
+                tender_number: t.reference_number || 'N/A',
+                tender_title: `[${typeLabel}] ${t.title || 'Untitled'}`,
+                tender_date: t.publish_date || t.created_at,
+                tender_type: t.tender_type || 'contract',
+              };
             })
-            .map((t: any) => ({
-              id: t.id,
-              tender_number: t.tender_number || 'N/A',
-              tender_title: `[Annual] ${t.title || 'Untitled'}`,
-              tender_date: t.start_date || t.created_at,
-              tender_type: t.tender_type || 'Annual Tender', // Include tender type
-            }));
-          allTenders.push(...annualTenders);
-          console.log('✅ Loaded active annual tenders:', annualTenders.length);
+            .sort((a, b) => {
+              // Sort by date (most recent first)
+              const dateA = new Date(a.tender_date || 0).getTime();
+              const dateB = new Date(b.tender_date || 0).getTime();
+              return dateB - dateA;
+            });
+
+          setTenders(finalizedTenders);
+          console.log('✅ Total finalized tenders loaded:', finalizedTenders.length);
+          
+          // Extract unique tender types
+          const uniqueTypes = [...new Set(finalizedTenders.map((t: any) => t.tender_type).filter(Boolean))].sort();
+          setTenderTypes(uniqueTypes);
+          console.log('📋 Available tender types:', uniqueTypes);
+          
+          if (finalizedTenders.length === 0) {
+            console.warn('⚠️ No finalized tenders found. Use "Manual Reference Entry" instead.');
+          }
         } else {
-          console.warn('⚠️ Annual tenders API failed:', annualTendersResponse.status);
+          console.warn('⚠️ Tenders API failed:', tendersResponse.status);
         }
       } catch (err) {
-        console.error('❌ Failed to fetch annual tenders:', err);
-      }
-
-      // Sort by date (most recent first)
-      allTenders.sort((a, b) => {
-        const dateA = new Date(a.tender_date || 0).getTime();
-        const dateB = new Date(b.tender_date || 0).getTime();
-        return dateB - dateA;
-      });
-
-      setTenders(allTenders);
-      console.log('✅ Total finalized tenders loaded:', allTenders.length);
-      
-      // Extract unique tender types
-      const uniqueTypes = [...new Set(allTenders.map((t: any) => t.tender_type).filter(Boolean))].sort();
-      setTenderTypes(uniqueTypes);
-      console.log('📋 Available tender types:', uniqueTypes);
-      
-      if (allTenders.length === 0) {
-        console.warn('⚠️ No finalized tenders found. Use "Manual Reference Entry" instead.');
+        console.error('❌ Failed to fetch tenders:', err);
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -194,46 +163,33 @@ export default function OpeningBalanceEntry() {
         source_type: sourceType, // Use actual tender type
       }));
 
-      // Fetch items for this tender
+      // Fetch items for this tender from unified tenders table
       setLoadingTenderItems(true);
       try {
-        // Try annual tender first
-        let tenderItemsData: any[] = [];
-        
-        // Check if it's an annual tender
-        if (selectedTender.tender_title.includes('[Annual]')) {
-          const response = await fetch(`${getApiBaseUrl()}/annual-tenders/${tenderId}`);
-          if (response.ok) {
-            const data = await response.json();
-            // Annual tenders have groups with items
-            tenderItemsData = (data.groups || []).flatMap((g: any) => g.items || []);
-            console.log('📦 Loaded annual tender items:', tenderItemsData.length);
-          }
-        } else {
-          // Contract tender
-          const response = await fetch(`${getApiBaseUrl()}/tenders/${tenderId}/items`);
-          if (response.ok) {
-            const data = await response.json();
-            tenderItemsData = Array.isArray(data) ? data : [];
-            console.log('📦 Loaded contract tender items:', tenderItemsData.length);
-          }
-        }
+        const response = await fetch(`${getApiBaseUrl()}/tenders/${tenderId}/items`);
+        if (response.ok) {
+          const tenderItemsData = await response.json();
+          const itemsArray = Array.isArray(tenderItemsData) ? tenderItemsData : [];
+          console.log(`📦 Loaded ${selectedTender.tender_type} tender items:`, itemsArray.length);
 
-        // Match with item_masters to get full details
-        const tenderItemIds = new Set(tenderItemsData.map((ti: any) => ti.item_master_id || ti.item_id));
-        const filteredItems = itemMasters.filter(im => tenderItemIds.has(im.id));
-        
-        setTenderItems(filteredItems);
-        
-        // Update categories based on tender items
-        const tenderCategories = [...new Set(filteredItems
-          .filter((item: any) => item.category_name)
-          .map((item: any) => item.category_name)
-        )].sort() as string[];
-        setCategories(tenderCategories);
-        
-        console.log('✅ Filtered to tender items:', filteredItems.length, 'categories:', tenderCategories.length);
-        console.log('🏷️ Source type set to:', sourceType);
+          // Match with item_masters to get full details
+          const tenderItemIds = new Set(itemsArray.map((ti: any) => ti.item_master_id || ti.item_id));
+          const filteredItems = itemMasters.filter(im => tenderItemIds.has(im.id));
+          
+          setTenderItems(filteredItems);
+          
+          // Update categories based on tender items
+          const tenderCategories = [...new Set(filteredItems
+            .filter((item: any) => item.category_name)
+            .map((item: any) => item.category_name)
+          )].sort() as string[];
+          setCategories(tenderCategories);
+          
+          console.log('✅ Filtered to tender items:', filteredItems.length, 'categories:', tenderCategories.length);
+          console.log('🏷️ Source type set to:', sourceType);
+        } else {
+          console.warn('⚠️ Failed to fetch tender items');
+        }
       } catch (err) {
         console.error('❌ Error fetching tender items:', err);
       } finally {
