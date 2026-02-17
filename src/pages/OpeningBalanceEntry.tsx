@@ -38,6 +38,7 @@ export default function OpeningBalanceEntry() {
   
   // Tender selection mode
   const [tenderMode, setTenderMode] = useState<'existing' | 'manual'>('existing');
+  const [selectedTenderType, setSelectedTenderType] = useState<string>(''); // Filter by tender type
   const [selectedTenderId, setSelectedTenderId] = useState('');
   
   // Form data
@@ -54,6 +55,7 @@ export default function OpeningBalanceEntry() {
   const [itemMasters, setItemMasters] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [tenders, setTenders] = useState<Tender[]>([]);
+  const [tenderTypes, setTenderTypes] = useState<string[]>([]); // Unique tender types
   const [tenderItems, setTenderItems] = useState<any[]>([]); // Items from selected tender
   const [loadingTenderItems, setLoadingTenderItems] = useState(false);
   
@@ -163,6 +165,11 @@ export default function OpeningBalanceEntry() {
       setTenders(allTenders);
       console.log('✅ Total finalized tenders loaded:', allTenders.length);
       
+      // Extract unique tender types
+      const uniqueTypes = [...new Set(allTenders.map((t: any) => t.tender_type).filter(Boolean))].sort();
+      setTenderTypes(uniqueTypes);
+      console.log('📋 Available tender types:', uniqueTypes);
+      
       if (allTenders.length === 0) {
         console.warn('⚠️ No finalized tenders found. Use "Manual Reference Entry" instead.');
       }
@@ -239,6 +246,7 @@ export default function OpeningBalanceEntry() {
     setTenderMode(mode);
     if (mode === 'manual') {
       // Clear tender selection and reload all items
+      setSelectedTenderType(''); // Reset type filter
       setSelectedTenderId('');
       setTenderItems([]);
       setFormData(prev => ({
@@ -416,34 +424,72 @@ export default function OpeningBalanceEntry() {
 
             {/* Existing Tender Selection */}
             {tenderMode === 'existing' && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <Label>Select Existing Tender *</Label>
-                <Select value={selectedTenderId} onValueChange={handleTenderSelection}>
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-4">
+                {/* Tender Type Filter */}
+                <div>
+                  <Label>Tender Type *</Label>
+                  <Select 
+                    value={selectedTenderType} 
+                    onValueChange={(value) => {
+                      setSelectedTenderType(value);
+                      setSelectedTenderId(''); // Reset tender selection when type changes
+                      setTenderItems([]); // Clear items
+                      setFormData(prev => ({ ...prev, tender_id: null, tender_reference: '', tender_title: '' }));
+                    }}
+                  >
+                    <SelectTrigger className="mt-2 bg-white">
+                      <SelectValue placeholder="Select tender type first..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenderTypes.length === 0 ? (
+                        <SelectItem value="none" disabled>No tender types available</SelectItem>
+                      ) : (
+                        tenderTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Tender Selection (shows only when type is selected) */}
+                {selectedTenderType && (
+                  <div>
+                    <Label>Select Tender *</Label>
+                    <Select value={selectedTenderId} onValueChange={handleTenderSelection}>
                   <SelectTrigger className="mt-2 bg-white">
                     <SelectValue placeholder="Choose a tender..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {tenders.length === 0 ? (
-                      <SelectItem value="none" disabled>No finalized tenders found</SelectItem>
+                    {tenders.filter(t => t.tender_type === selectedTenderType).length === 0 ? (
+                      <SelectItem value="none" disabled>No tenders found for this type</SelectItem>
                     ) : (
-                      tenders.map((tender) => (
-                        <SelectItem key={tender.id} value={tender.id}>
-                          {tender.tender_number} - {tender.tender_title}
-                        </SelectItem>
-                      ))
+                      tenders
+                        .filter(t => t.tender_type === selectedTenderType)
+                        .map((tender) => (
+                          <SelectItem key={tender.id} value={tender.id}>
+                            {tender.tender_number} - {tender.tender_title}
+                          </SelectItem>
+                        ))
                     )}
                   </SelectContent>
                 </Select>
-                {tenders.length === 0 && (
-                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
-                    <div className="font-semibold mb-1">💡 No finalized tenders available</div>
-                    <div>Switch to <strong>"Enter Manual Reference"</strong> above to enter historical tender references.</div>
-                  </div>
-                )}
-                {selectedTenderId && (
+                  {selectedTenderId && (
                   <div className="mt-3 text-sm text-blue-700">
                     <div><strong>Reference:</strong> {formData.tender_reference}</div>
                     <div><strong>Title:</strong> {formData.tender_title}</div>
+                  </div>
+                )}
+                  </div>
+                )}
+
+                {/* No tenders warning */}
+                {!selectedTenderType && tenderTypes.length === 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+                    <div className="font-semibold mb-1">💡 No finalized tenders available</div>
+                    <div>Switch to <strong>"Enter Manual Reference"</strong> above to enter historical tender references.</div>
                   </div>
                 )}
               </div>
