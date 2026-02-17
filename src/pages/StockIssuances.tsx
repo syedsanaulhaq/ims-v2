@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ interface IssuanceItemForm {
 }
 
 const StockIssuances = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { inventoryItems } = useInventoryData();
   const { offices, getParentOfficeName } = useOffices();
@@ -308,9 +310,9 @@ const StockIssuances = () => {
         <div>
           <h1 className="text-3xl font-bold">Stock Issuances</h1>
           <p className="text-muted-foreground mt-2">Manage stock issuances to different departments</p>
-        </div>
-        <Button onClick={() => setShowIssuanceForm(true)} className="flex items-center space-x-2">
+        </div>navigate('/dashboard/historical-issuance')} className="flex items-center space-x-2">
           <Plus className="h-4 w-4" />
+          <span>New HistoricalName="h-4 w-4" />
           <span>Stock Issuance</span>
         </Button>
       </div>
