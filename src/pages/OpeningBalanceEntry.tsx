@@ -87,39 +87,44 @@ export default function OpeningBalanceEntry() {
       }
 
       // Fetch existing tenders from BOTH regular tenders and annual tenders
+      // ONLY FINALIZED/COMPLETED tenders
       const allTenders: Tender[] = [];
       
-      // Fetch regular/contract tenders
+      // Fetch regular/contract tenders (is_finalized = true)
       try {
-        const tendersResponse = await fetch(`${getApiBaseUrl()}/tenders`);
+        const tendersResponse = await fetch(`${getApiBaseUrl()}/tenders?status=finalized`);
         if (tendersResponse.ok) {
           const tendersData = await tendersResponse.json();
-          const regularTenders = (Array.isArray(tendersData) ? tendersData : []).map((t: any) => ({
-            id: t.id,
-            tender_number: t.reference_number || 'N/A',
-            tender_title: `[Contract] ${t.title || 'Untitled'}`,
-            tender_date: t.publish_date || t.created_at,
-          }));
+          const regularTenders = (Array.isArray(tendersData) ? tendersData : [])
+            .filter((t: any) => t.is_finalized === true || t.is_finalized === 1)  // Double-check finalized status
+            .map((t: any) => ({
+              id: t.id,
+              tender_number: t.reference_number || 'N/A',
+              tender_title: `[Contract] ${t.title || 'Untitled'}`,
+              tender_date: t.publish_date || t.created_at,
+            }));
           allTenders.push(...regularTenders);
-          console.log('✅ Loaded contract tenders:', regularTenders.length);
+          console.log('✅ Loaded finalized contract tenders:', regularTenders.length);
         }
       } catch (err) {
         console.warn('⚠️ Failed to fetch contract tenders:', err);
       }
 
-      // Fetch annual tenders
+      // Fetch annual tenders (status = 'active' or 'finalized')
       try {
-        const annualTendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders`);
+        const annualTendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders?status=active`);
         if (annualTendersResponse.ok) {
           const annualTendersData = await annualTendersResponse.json();
-          const annualTenders = (Array.isArray(annualTendersData) ? annualTendersData : []).map((t: any) => ({
-            id: t.id,
-            tender_number: t.tender_number || 'N/A',
-            tender_title: `[Annual] ${t.title || 'Untitled'}`,
-            tender_date: t.start_date || t.created_at,
-          }));
+          const annualTenders = (Array.isArray(annualTendersData) ? annualTendersData : [])
+            .filter((t: any) => t.status === 'active' || t.status === 'completed' || t.status === 'finalized')
+            .map((t: any) => ({
+              id: t.id,
+              tender_number: t.tender_number || 'N/A',
+              tender_title: `[Annual] ${t.title || 'Untitled'}`,
+              tender_date: t.start_date || t.created_at,
+            }));
           allTenders.push(...annualTenders);
-          console.log('✅ Loaded annual tenders:', annualTenders.length);
+          console.log('✅ Loaded active annual tenders:', annualTenders.length);
         }
       } catch (err) {
         console.warn('⚠️ Failed to fetch annual tenders:', err);
@@ -133,7 +138,7 @@ export default function OpeningBalanceEntry() {
       });
 
       setTenders(allTenders);
-      console.log('✅ Total tenders loaded:', allTenders.length);
+      console.log('✅ Total finalized tenders loaded:', allTenders.length);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load form data');
