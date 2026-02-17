@@ -140,11 +140,9 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_StockAcq_ItemMaster_Date')
     AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'item_master_id')
     AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'delivery_date')
-    AND EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
 BEGIN
     CREATE INDEX IX_StockAcq_ItemMaster_Date 
-    ON stock_acquisitions(item_master_id, delivery_date)
-    WHERE quantity_available > 0;
+    ON stock_acquisitions(item_master_id, delivery_date);
     PRINT '  ✓ Added index for FIFO queries';
 END
 ELSE
