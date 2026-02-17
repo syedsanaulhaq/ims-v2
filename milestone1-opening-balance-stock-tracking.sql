@@ -55,36 +55,55 @@ BEGIN
         ALTER TABLE stock_acquisitions ADD item_master_id UNIQUEIDENTIFIER NULL;
         PRINT '  ✓ Added item_master_id column';
     END
+    ELSE
+        PRINT '  ℹ item_master_id column already exists';
 
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_received')
     BEGIN
-        ALTER TABLE stock_acquisitions ADD quantity_received DECIMAL(15,2) NULL DEFAULT 0;
+        ALTER TABLE stock_acquisitions ADD quantity_received DECIMAL(15,2) NULL;
         PRINT '  ✓ Added quantity_received column';
+        
+        -- Set default value for existing rows
+        UPDATE stock_acquisitions SET quantity_received = 0 WHERE quantity_received IS NULL;
     END
+    ELSE
+        PRINT '  ℹ quantity_received column already exists';
 
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_issued')
     BEGIN
-        ALTER TABLE stock_acquisitions ADD quantity_issued DECIMAL(15,2) NULL DEFAULT 0;
+        ALTER TABLE stock_acquisitions ADD quantity_issued DECIMAL(15,2) NULL;
         PRINT '  ✓ Added quantity_issued column';
+        
+        -- Set default value for existing rows
+        UPDATE stock_acquisitions SET quantity_issued = 0 WHERE quantity_issued IS NULL;
     END
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
-    BEGIN
-        ALTER TABLE stock_acquisitions ADD quantity_available AS (ISNULL(quantity_received, 0) - ISNULL(quantity_issued, 0)) PERSISTED;
-        PRINT '  ✓ Added quantity_available computed column';
-    END
+    ELSE
+        PRINT '  ℹ quantity_issued column already exists';
 
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'delivery_date')
     BEGIN
         ALTER TABLE stock_acquisitions ADD delivery_date DATE NULL;
         PRINT '  ✓ Added delivery_date column';
     END
+    ELSE
+        PRINT '  ℹ delivery_date column already exists';
 
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'unit_cost')
     BEGIN
         ALTER TABLE stock_acquisitions ADD unit_cost DECIMAL(15,2) NULL;
         PRINT '  ✓ Added unit_cost column';
     END
+    ELSE
+        PRINT '  ℹ unit_cost column already exists';
+        
+    -- Add computed column AFTER base columns exist
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'quantity_available')
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD quantity_available AS (ISNULL(quantity_received, 0) - ISNULL(quantity_issued, 0)) PERSISTED;
+        PRINT '  ✓ Added quantity_available computed column';
+    END
+    ELSE
+        PRINT '  ℹ quantity_available column already exists';
 END
 
 PRINT '  ✅ stock_acquisitions table columns added successfully';
@@ -162,7 +181,7 @@ BEGIN
         
         -- Audit Trail
         entry_date DATETIME2 DEFAULT GETDATE(),
-        entered_by UNIQUEIDENTIFIER NOT NULL,
+        entered_by NVARCHAR(450) NOT NULL,             -- Changed to NVARCHAR to match AspNetUsers.Id
         remarks NVARCHAR(1000),
         
         -- Status
