@@ -1,0 +1,515 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle, Package } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
+interface OpeningBalanceItem {
+  item_master_id: string;
+  nomenclature: string;
+  category_name?: string;
+  quantity_received: number;
+  quantity_already_issued: number;
+  quantity_available: number;
+  unit_cost: number;
+}
+
+export default function OpeningBalanceEntry() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  
+  // Form data
+  const [formData, setFormData] = useState({
+    tender_reference: '',
+    tender_title: '',
+    source_type: 'TENDER' as 'TENDER' | 'PURCHASE' | 'DONATION' | 'OTHER',
+    acquisition_date: '2020-01-01', // Default to 2020
+    remarks: '',
+  });
+
+  // Dropdown data
+  const [itemMasters, setItemMasters] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  
+  // Items to add
+  const [items, setItems] = useState<OpeningBalanceItem[]>([]);
+  const [newItem, setNewItem] = useState({
+    item_master_id: '',
+    quantity_received: 0,
+    quantity_already_issued: 0,
+    unit_cost: 0,
+  });
+  const [selectedCategory, setSelectedCategory] = useState('');
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      // Fetch item masters
+      const itemsResponse = await fetch(`${getApiBaseUrl()}/item-masters`);
+      if (itemsResponse.ok) {
+        const itemsData = await itemsResponse.json();
+        const itemsList = itemsData.items || [];
+        setItemMasters(itemsList);
+        
+        // Extract unique categories
+        const uniqueCategories = [...new Set(itemsList
+          .filter((item: any) => item.category_name)
+          .map((item: any) => item.category_name)
+        )].sort() as string[];
+        setCategories(uniqueCategories);
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to load form data');
+    }
+  };
+
+  const handleAddItem = () => {
+    if (!newItem.item_master_id || newItem.quantity_received <= 0) {
+      alert('Please select an item and enter valid quantities');
+      return;
+    }
+
+    const selectedItem = itemMasters.find(im => im.id === newItem.item_master_id);
+    if (!selectedItem) return;
+
+    const quantity_available = newItem.quantity_received - newItem.quantity_already_issued;
+    
+    if (quantity_available < 0) {
+      alert('Quantity already issued cannot exceed quantity received!');
+      return;
+    }
+
+    const openingBalanceItem: OpeningBalanceItem = {
+      item_master_id: newItem.item_master_id,
+      nomenclature: selectedItem.nomenclature,
+      category_name: selectedItem.category_name,
+      quantity_received: newItem.quantity_received,
+      quantity_already_issued: newItem.quantity_already_issued,
+      quantity_available: quantity_available,
+      unit_cost: newItem.unit_cost,
+    };
+
+    setItems([...items, openingBalanceItem]);
+    setNewItem({ 
+      item_master_id: '', 
+      quantity_received: 0, 
+      quantity_already_issued: 0, 
+      unit_cost: 0 
+    });
+    setSelectedCategory('');
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    // Validation
+    if (!formData.tender_reference.trim()) {
+      setError('Please enter tender/purchase reference');
+      return;
+    }
+    if (items.length === 0) {
+      setError('Please add at least one item');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const payload = {
+        ...formData,
+        items: items,
+      };
+
+      const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/opening-balance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create opening balance entries');
+      }
+
+      setSuccess(true);
+      setTimeout(() => {
+        navigate('/dashboard/stock-acquisitions');
+      }, 2000);
+    } catch (err: any) {
+      console.error('Error creating opening balance:', err);
+      setError(err.message || 'Failed to create opening balance entries');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredItems = selectedCategory
+    ? itemMasters.filter(item => item.category_name === selectedCategory)
+    : itemMasters;
+
+  const totalReceived = items.reduce((sum, item) => sum + item.quantity_received, 0);
+  const totalIssued = items.reduce((sum, item) => sum + item.quantity_already_issued, 0);
+  const totalAvailable = items.reduce((sum, item) => sum + item.quantity_available, 0);
+  const totalValue = items.reduce((sum, item) => sum + (item.quantity_received * item.unit_cost), 0);
+
+  return (
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="flex items-center mb-6">
+        <Button variant="ghost" onClick={() => navigate('/dashboard/stock-acquisitions')} className="mr-4">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold">Opening Balance Entry</h1>
+          <p className="text-sm text-gray-600 mt-1">Record existing stock from past tenders/purchases (2020 onwards)</p>
+        </div>
+      </div>
+
+      {success && (
+        <Alert className="mb-4 bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            Opening balance entries created successfully! Redirecting...
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Source Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Source Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Source Type */}
+              <div>
+                <Label>Source Type *</Label>
+                <Select
+                  value={formData.source_type}
+                  onValueChange={(value: any) => setFormData(prev => ({ ...prev, source_type: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TENDER">Tender/Contract</SelectItem>
+                    <SelectItem value="PURCHASE">Direct Purchase</SelectItem>
+                    <SelectItem value="DONATION">Donation</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tender Reference */}
+              <div>
+                <Label>Tender/Purchase Reference *</Label>
+                <Input
+                  value={formData.tender_reference}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tender_reference: e.target.value }))}
+                  placeholder="e.g., TENDER-2023-001, PO-2022-045"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Tender Title */}
+              <div>
+                <Label>Title/Description</Label>
+                <Input
+                  value={formData.tender_title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tender_title: e.target.value }))}
+                  placeholder="e.g., Laptops and Office Equipment 2023"
+                />
+              </div>
+
+              {/* Acquisition Date */}
+              <div>
+                <Label>Original Purchase Date *</Label>
+                <Input
+                  type="date"
+                  value={formData.acquisition_date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, acquisition_date: e.target.value }))}
+                  min="2020-01-01"
+                  max={new Date().toISOString().split('T')[0]}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Remarks */}
+            <div>
+              <Label>Remarks</Label>
+              <Textarea
+                value={formData.remarks}
+                onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
+                placeholder="Additional notes about this stock..."
+                rows={2}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Add Items Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Items & Quantities</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Add Item Form */}
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <Label className="text-xs">Category</Label>
+                <Select
+                  value={selectedCategory}
+                  onValueChange={(value) => {
+                    setSelectedCategory(value);
+                    setNewItem(prev => ({ ...prev, item_master_id: '' }));
+                  }}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs">Item *</Label>
+                <Select
+                  value={newItem.item_master_id}
+                  onValueChange={(value) => setNewItem(prev => ({ ...prev, item_master_id: value }))}
+                  disabled={!selectedCategory}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder={selectedCategory ? "Select..." : "Category first"} />
+                 </SelectTrigger>
+                  <SelectContent>
+                    {filteredItems.map(item => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.nomenclature}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs">Qty Received *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={newItem.quantity_received || ''}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, quantity_received: parseInt(e.target.value) || 0 }))}
+                  className="h-9"
+                  placeholder="Total"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs">Qty Issued</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={newItem.quantity_already_issued || ''}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, quantity_already_issued: parseInt(e.target.value) || 0 }))}
+                  className="h-9"
+                  placeholder="Already"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs">Unit Cost</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newItem.unit_cost || ''}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, unit_cost: parseFloat(e.target.value) || 0 }))}
+                  className="h-9"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="h-9 w-full"
+                  variant="outline"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            {/* Items List */}
+            {items.length > 0 && (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-right">Received</TableHead>
+                      <TableHead className="text-right">Issued</TableHead>
+                      <TableHead className="text-right">Available</TableHead>
+                      <TableHead className="text-right">Unit Cost</TableHead>
+                      <TableHead className="text-right">Total Value</TableHead>
+                      <TableHead className="w-[80px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{item.nomenclature}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{item.category_name || 'N/A'}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{item.quantity_received}</TableCell>
+                        <TableCell className="text-right">{item.quantity_already_issued}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-semibold text-green-600">{item.quantity_available}</span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.unit_cost > 0 ? item.unit_cost.toLocaleString('en-PK', { minimumFractionDigits: 2 }) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(item.quantity_received * item.unit_cost).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveItem(index)}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Totals Row */}
+                    <TableRow className="bg-gray-50 font-semibold">
+                      <TableCell colSpan={2}>TOTALS</TableCell>
+                      <TableCell className="text-right">{totalReceived}</TableCell>
+                      <TableCell className="text-right">{totalIssued}</TableCell>
+                      <TableCell className="text-right text-green-600">{totalAvailable}</TableCell>
+                      <TableCell></TableCell>
+                      <TableCell className="text-right">
+                        {totalValue.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-gray-600">Total Items</div>
+                      <div className="text-2xl font-bold">{items.length}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-gray-600">Total Received</div>
+                      <div className="text-2xl font-bold">{totalReceived}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-gray-600">Available Now</div>
+                      <div className="text-2xl font-bold text-green-600">{totalAvailable}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-gray-600">Total Value</div>
+                      <div className="text-2xl font-bold">
+                        {totalValue.toLocaleString('en-PK', { minimumFractionDigits: 0 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
+
+            {items.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                No items added yet. Use the form above to add items.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Submit Section */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-600">
+                  Ready to create opening balance for {items.length} item(s)
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  ⚠️ This will add {totalAvailable} units to available stock
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/dashboard/stock-acquisitions')}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading || items.length === 0}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {loading ? 'Creating...' : 'Create Opening Balance'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </form>
+    </div>
+  );
+}

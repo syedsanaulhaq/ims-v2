@@ -55,6 +55,7 @@ const itemRoutes = require('./routes/items.cjs');
 const categoryRoutes = require('./routes/categories.cjs');
 const inventoryRoutes = require('./routes/inventory.cjs');
 const stockIssuanceRoutes = require('./routes/stockIssuance.cjs');
+const stockAcquisitionsRoutes = require('./routes/stockAcquisitions.cjs');
 const reportsRoutes = require('./routes/reports.cjs');
 const utilsRoutes = require('./routes/utils.cjs');
 const deliveriesRoutes = require('./routes/deliveries.cjs');
@@ -77,6 +78,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/sub-categories', categoryRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/stock-issuance', stockIssuanceRoutes);
+app.use('/api/stock-acquisitions', stockAcquisitionsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api', utilsRoutes); // Single mount point for all utility routes
 app.use('/api/deliveries', deliveriesRoutes);
