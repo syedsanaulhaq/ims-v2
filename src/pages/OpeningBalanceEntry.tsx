@@ -86,18 +86,54 @@ export default function OpeningBalanceEntry() {
         setCategories(uniqueCategories);
       }
 
-      // Fetch existing tenders
-      const tendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders`);
-      if (tendersResponse.ok) {
-        const tendersData = await tendersResponse.json();
-        const tendersList = (tendersData.tenders || []).map((t: any) => ({
-          id: t.id,
-          tender_number: t.tender_number || t.contract_number || 'N/A',
-          tender_title: t.tender_title || t.title || 'Untitled',
-          tender_date: t.tender_date || t.created_at,
-        }));
-        setTenders(tendersList);
+      // Fetch existing tenders from BOTH regular tenders and annual tenders
+      const allTenders: Tender[] = [];
+      
+      // Fetch regular/contract tenders
+      try {
+        const tendersResponse = await fetch(`${getApiBaseUrl()}/tenders`);
+        if (tendersResponse.ok) {
+          const tendersData = await tendersResponse.json();
+          const regularTenders = (Array.isArray(tendersData) ? tendersData : []).map((t: any) => ({
+            id: t.id,
+            tender_number: t.reference_number || 'N/A',
+            tender_title: `[Contract] ${t.title || 'Untitled'}`,
+            tender_date: t.publish_date || t.created_at,
+          }));
+          allTenders.push(...regularTenders);
+          console.log('✅ Loaded contract tenders:', regularTenders.length);
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to fetch contract tenders:', err);
       }
+
+      // Fetch annual tenders
+      try {
+        const annualTendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders`);
+        if (annualTendersResponse.ok) {
+          const annualTendersData = await annualTendersResponse.json();
+          const annualTenders = (Array.isArray(annualTendersData) ? annualTendersData : []).map((t: any) => ({
+            id: t.id,
+            tender_number: t.tender_number || 'N/A',
+            tender_title: `[Annual] ${t.title || 'Untitled'}`,
+            tender_date: t.start_date || t.created_at,
+          }));
+          allTenders.push(...annualTenders);
+          console.log('✅ Loaded annual tenders:', annualTenders.length);
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to fetch annual tenders:', err);
+      }
+
+      // Sort by date (most recent first)
+      allTenders.sort((a, b) => {
+        const dateA = new Date(a.tender_date || 0).getTime();
+        const dateB = new Date(b.tender_date || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setTenders(allTenders);
+      console.log('✅ Total tenders loaded:', allTenders.length);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load form data');
