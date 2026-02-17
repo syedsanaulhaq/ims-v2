@@ -310,10 +310,10 @@ const StockIssuances = () => {
         <div>
           <h1 className="text-3xl font-bold">Stock Issuances</h1>
           <p className="text-muted-foreground mt-2">Manage stock issuances to different departments</p>
-        </div>navigate('/dashboard/historical-issuance')} className="flex items-center space-x-2">
+        </div>
+        <Button onClick={() => navigate('/dashboard/historical-issuance')} className="flex items-center space-x-2">
           <Plus className="h-4 w-4" />
-          <span>New HistoricalName="h-4 w-4" />
-          <span>Stock Issuance</span>
+          <span>New Historical Issuance</span>
         </Button>
       </div>
 
