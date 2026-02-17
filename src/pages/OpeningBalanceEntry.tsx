@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle, Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface OpeningBalanceItem {
@@ -22,14 +23,26 @@ interface OpeningBalanceItem {
   unit_cost: number;
 }
 
+interface Tender {
+  id: string;
+  tender_number: string;
+  tender_title: string;
+  tender_date?: string;
+}
+
 export default function OpeningBalanceEntry() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   
+  // Tender selection mode
+  const [tenderMode, setTenderMode] = useState<'existing' | 'manual'>('existing');
+  const [selectedTenderId, setSelectedTenderId] = useState('');
+  
   // Form data
   const [formData, setFormData] = useState({
+    tender_id: null as string | null,
     tender_reference: '',
     tender_title: '',
     source_type: 'TENDER' as 'TENDER' | 'PURCHASE' | 'DONATION' | 'OTHER',
@@ -40,6 +53,7 @@ export default function OpeningBalanceEntry() {
   // Dropdown data
   const [itemMasters, setItemMasters] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [tenders, setTenders] = useState<Tender[]>([]);
   
   // Items to add
   const [items, setItems] = useState<OpeningBalanceItem[]>([]);
@@ -71,9 +85,49 @@ export default function OpeningBalanceEntry() {
         )].sort() as string[];
         setCategories(uniqueCategories);
       }
+
+      // Fetch existing tenders
+      const tendersResponse = await fetch(`${getApiBaseUrl()}/annual-tenders`);
+      if (tendersResponse.ok) {
+        const tendersData = await tendersResponse.json();
+        const tendersList = (tendersData.tenders || []).map((t: any) => ({
+          id: t.id,
+          tender_number: t.tender_number || t.contract_number || 'N/A',
+          tender_title: t.tender_title || t.title || 'Untitled',
+          tender_date: t.tender_date || t.created_at,
+        }));
+        setTenders(tendersList);
+      }
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load form data');
+    }
+  };
+
+  const handleTenderSelection = (tenderId: string) => {
+    setSelectedTenderId(tenderId);
+    const selectedTender = tenders.find(t => t.id === tenderId);
+    if (selectedTender) {
+      setFormData(prev => ({
+        ...prev,
+        tender_id: tenderId,
+        tender_reference: selectedTender.tender_number,
+        tender_title: selectedTender.tender_title,
+      }));
+    }
+  };
+
+  const handleTenderModeChange = (mode: 'existing' | 'manual') => {
+    setTenderMode(mode);
+    if (mode === 'manual') {
+      // Clear tender selection
+      setSelectedTenderId('');
+      setFormData(prev => ({
+        ...prev,
+        tender_id: null,
+        tender_reference: '',
+        tender_title: '',
+      }));
     }
   };
 
@@ -123,7 +177,11 @@ export default function OpeningBalanceEntry() {
     setSuccess(false);
 
     // Validation
-    if (!formData.tender_reference.trim()) {
+    if (tenderMode === 'existing' && !formData.tender_id) {
+      setError('Please select an existing tender');
+      return;
+    }
+    if (tenderMode === 'manual' && !formData.tender_reference.trim()) {
       setError('Please enter tender/purchase reference');
       return;
     }
@@ -210,6 +268,78 @@ export default function OpeningBalanceEntry() {
             <CardTitle>Source Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Tender Selection Mode */}
+            <div className="bg-gray-50 p-4 rounded-lg border">
+              <Label className="text-base font-semibold mb-3 block">Tender Source</Label>
+              <RadioGroup value={tenderMode} onValueChange={(v: any) => handleTenderModeChange(v)} className="flex gap-6">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="existing" id="existing" />
+                  <Label htmlFor="existing" className="cursor-pointer font-normal">Select Existing Tender</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="manual" id="manual" />
+                  <Label htmlFor="manual" className="cursor-pointer font-normal">Enter Manual Reference</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Existing Tender Selection */}
+            {tenderMode === 'existing' && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <Label>Select Existing Tender *</Label>
+                <Select value={selectedTenderId} onValueChange={handleTenderSelection}>
+                  <SelectTrigger className="mt-2 bg-white">
+                    <SelectValue placeholder="Choose a tender..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenders.length === 0 ? (
+                      <SelectItem value="none" disabled>No tenders found</SelectItem>
+                    ) : (
+                      tenders.map((tender) => (
+                        <SelectItem key={tender.id} value={tender.id}>
+                          {tender.tender_number} - {tender.tender_title}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {selectedTenderId && (
+                  <div className="mt-3 text-sm text-blue-700">
+                    <div><strong>Reference:</strong> {formData.tender_reference}</div>
+                    <div><strong>Title:</strong> {formData.tender_title}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Manual Entry */}
+            {tenderMode === 'manual' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50 p-4 rounded-lg border border-amber-200">
+                {/* Tender Reference */}
+                <div>
+                  <Label>Tender/Purchase Reference *</Label>
+                  <Input
+                    value={formData.tender_reference}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tender_reference: e.target.value }))}
+                    placeholder="e.g., TENDER-2023-001, PO-2022-045"
+                    required
+                    className="bg-white"
+                  />
+                </div>
+
+                {/* Tender Title */}
+                <div>
+                  <Label>Title/Description</Label>
+                  <Input
+                    value={formData.tender_title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tender_title: e.target.value }))}
+                    placeholder="e.g., Laptops and Office Equipment 2023"
+                    className="bg-white"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Source Type */}
               <div>
@@ -228,29 +358,6 @@ export default function OpeningBalanceEntry() {
                     <SelectItem value="OTHER">Other</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              {/* Tender Reference */}
-              <div>
-                <Label>Tender/Purchase Reference *</Label>
-                <Input
-                  value={formData.tender_reference}
-                  onChange={(e) => setFormData(prev => ({ ...prev, tender_reference: e.target.value }))}
-                  placeholder="e.g., TENDER-2023-001, PO-2022-045"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Tender Title */}
-              <div>
-                <Label>Title/Description</Label>
-                <Input
-                  value={formData.tender_title}
-                  onChange={(e) => setFormData(prev => ({ ...prev, tender_title: e.target.value }))}
-                  placeholder="e.g., Laptops and Office Equipment 2023"
-                />
               </div>
 
               {/* Acquisition Date */}

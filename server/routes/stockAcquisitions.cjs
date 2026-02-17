@@ -16,6 +16,7 @@ const { v4: uuidv4 } = require('uuid');
 router.post('/opening-balance', async (req, res) => {
   try {
     const {
+      tender_id,            // NEW: Link to existing tender
       tender_reference,
       tender_title,
       source_type,
@@ -27,9 +28,10 @@ router.post('/opening-balance', async (req, res) => {
     // Get current user ID (you'll need to add auth middleware)
     const entered_by = req.user?.Id || '00000000-0000-0000-0000-000000000000';
 
-    if (!tender_reference || !items || items.length === 0) {
+    // Validation: Either tender_id OR tender_reference is required
+    if ((!tender_id && !tender_reference) || !items || items.length === 0) {
       return res.status(400).json({ 
-        error: 'Tender reference and at least one item required' 
+        error: 'Either tender selection or manual reference required, and at least one item' 
       });
     }
 
@@ -47,6 +49,7 @@ router.post('/opening-balance', async (req, res) => {
 
         await transaction.request()
           .input('id', sql.UniqueIdentifier, entryId)
+          .input('tender_id', sql.UniqueIdentifier, tender_id || null)  // NEW: Save tender_id if provided
           .input('tender_reference', sql.NVarChar, tender_reference)
           .input('tender_title', sql.NVarChar, tender_title || null)
           .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
@@ -55,16 +58,16 @@ router.post('/opening-balance', async (req, res) => {
           .input('unit_cost', sql.Decimal(15, 2), item.unit_cost || null)
           .input('source_type', sql.NVarChar, source_type || 'TENDER')
           .input('acquisition_date', sql.Date, acquisition_date || new Date())
-          .input('entered_by', sql.UniqueIdentifier, entered_by)
+          .input('entered_by', sql.NVarChar, entered_by)  // NVARCHAR to match AspNetUsers.Id
           .input('remarks', sql.NVarChar, remarks || null)
           .query(`
             INSERT INTO opening_balance_entries (
-              id, tender_reference, tender_title, item_master_id,
+              id, tender_id, tender_reference, tender_title, item_master_id,
               quantity_received, quantity_already_issued, unit_cost,
               source_type, acquisition_date, entered_by, remarks
             )
             VALUES (
-              @id, @tender_reference, @tender_title, @item_master_id,
+              @id, @tender_id, @tender_reference, @tender_title, @item_master_id,
               @quantity_received, @quantity_already_issued, @unit_cost,
               @source_type, @acquisition_date, @entered_by, @remarks
             )
