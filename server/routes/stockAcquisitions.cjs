@@ -25,8 +25,8 @@ router.post('/opening-balance', async (req, res) => {
       items
     } = req.body;
 
-    // Get current user ID (you'll need to add auth middleware)
-    const entered_by = req.user?.Id || '00000000-0000-0000-0000-000000000000';
+    // Get current user ID from session
+    const entered_by = req.session?.userId || '00000000-0000-0000-0000-000000000000';
 
     // Validation: Either tender_id OR tender_reference is required
     if ((!tender_id && !tender_reference) || !items || items.length === 0) {
@@ -85,7 +85,7 @@ router.post('/opening-balance', async (req, res) => {
           .input('quantity_issued', sql.Decimal(15, 2), item.quantity_already_issued || 0)
           .input('unit_cost', sql.Decimal(15, 2), item.unit_cost || null)
           .input('delivery_date', sql.Date, acquisition_date || new Date())
-          .input('processed_by', sql.UniqueIdentifier, entered_by)
+          .input('processed_by', sql.NVarChar, entered_by)
           .input('notes', sql.NVarChar, `Opening Balance: ${tender_reference}`)
           .query(`
             INSERT INTO stock_acquisitions (

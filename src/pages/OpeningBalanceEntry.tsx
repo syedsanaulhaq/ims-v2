@@ -28,6 +28,8 @@ interface Tender {
   tender_number: string;
   tender_title: string;
   tender_date?: string;
+  tender_type?: string;
+  is_finalized?: boolean | number;
 }
 
 export default function OpeningBalanceEntry() {
@@ -153,7 +155,7 @@ export default function OpeningBalanceEntry() {
     const selectedTender = tenders.find(t => t.id === tenderId);
     if (selectedTender) {
       // Use the actual tender type from the tender
-      const sourceType = selectedTender.tender_type || 'TENDER';
+      const sourceType = (selectedTender.tender_type || 'TENDER') as 'TENDER' | 'PURCHASE' | 'DONATION' | 'OTHER';
       
       setFormData(prev => ({
         ...prev,
@@ -223,28 +225,23 @@ export default function OpeningBalanceEntry() {
 
   const handleAddItem = () => {
     if (!newItem.item_master_id || newItem.quantity_received <= 0) {
-      alert('Please select an item and enter valid quantities');
+      alert('Please select an item and enter valid quantity');
       return;
     }
 
     const selectedItem = itemMasters.find(im => im.id === newItem.item_master_id);
     if (!selectedItem) return;
 
-    const quantity_available = newItem.quantity_received - newItem.quantity_already_issued;
-    
-    if (quantity_available < 0) {
-      alert('Quantity already issued cannot exceed quantity received!');
-      return;
-    }
-
+    // For opening balance, we only track quantity received
+    // quantity_already_issued and unit_cost are set to 0 (will be tracked in separate modules)
     const openingBalanceItem: OpeningBalanceItem = {
       item_master_id: newItem.item_master_id,
       nomenclature: selectedItem.nomenclature,
       category_name: selectedItem.category_name,
       quantity_received: newItem.quantity_received,
-      quantity_already_issued: newItem.quantity_already_issued,
-      quantity_available: quantity_available,
-      unit_cost: newItem.unit_cost,
+      quantity_already_issued: 0,  // Hidden field - set to 0
+      quantity_available: newItem.quantity_received,  // Same as received since nothing issued yet
+      unit_cost: 0,  // Hidden field - set to 0
     };
 
     setItems([...items, openingBalanceItem]);
@@ -530,7 +527,7 @@ export default function OpeningBalanceEntry() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Add Item Form */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-lg">
               <div>
                 <Label className="text-xs">Category</Label>
                 <Select
@@ -583,31 +580,6 @@ export default function OpeningBalanceEntry() {
                 />
               </div>
 
-              <div>
-                <Label className="text-xs">Qty Issued</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={newItem.quantity_already_issued || ''}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, quantity_already_issued: parseInt(e.target.value) || 0 }))}
-                  className="h-9"
-                  placeholder="Already"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs">Unit Cost</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={newItem.unit_cost || ''}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, unit_cost: parseFloat(e.target.value) || 0 }))}
-                  className="h-9"
-                  placeholder="0.00"
-                />
-              </div>
-
               <div className="flex items-end">
                 <Button
                   type="button"
@@ -629,11 +601,7 @@ export default function OpeningBalanceEntry() {
                     <TableRow>
                       <TableHead>Item</TableHead>
                       <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Received</TableHead>
-                      <TableHead className="text-right">Issued</TableHead>
-                      <TableHead className="text-right">Available</TableHead>
-                      <TableHead className="text-right">Unit Cost</TableHead>
-                      <TableHead className="text-right">Total Value</TableHead>
+                      <TableHead className="text-right">Quantity Received</TableHead>
                       <TableHead className="w-[80px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -645,16 +613,6 @@ export default function OpeningBalanceEntry() {
                           <Badge variant="outline">{item.category_name || 'N/A'}</Badge>
                         </TableCell>
                         <TableCell className="text-right">{item.quantity_received}</TableCell>
-                        <TableCell className="text-right">{item.quantity_already_issued}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="font-semibold text-green-600">{item.quantity_available}</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.unit_cost > 0 ? item.unit_cost.toLocaleString('en-PK', { minimumFractionDigits: 2 }) : '-'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {(item.quantity_received * item.unit_cost).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                        </TableCell>
                         <TableCell>
                           <Button
                             type="button"
@@ -671,19 +629,13 @@ export default function OpeningBalanceEntry() {
                     <TableRow className="bg-gray-50 font-semibold">
                       <TableCell colSpan={2}>TOTALS</TableCell>
                       <TableCell className="text-right">{totalReceived}</TableCell>
-                      <TableCell className="text-right">{totalIssued}</TableCell>
-                      <TableCell className="text-right text-green-600">{totalAvailable}</TableCell>
-                      <TableCell></TableCell>
-                      <TableCell className="text-right">
-                        {totalValue.toLocaleString('en-PK', { minimumFractionDigits: 2 })}
-                      </TableCell>
                       <TableCell></TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <Card>
                     <CardContent className="p-4">
                       <div className="text-sm text-gray-600">Total Items</div>
@@ -692,22 +644,8 @@ export default function OpeningBalanceEntry() {
                   </Card>
                   <Card>
                     <CardContent className="p-4">
-                      <div className="text-sm text-gray-600">Total Received</div>
+                      <div className="text-sm text-gray-600">Total Quantity</div>
                       <div className="text-2xl font-bold">{totalReceived}</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-sm text-gray-600">Available Now</div>
-                      <div className="text-2xl font-bold text-green-600">{totalAvailable}</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="text-sm text-gray-600">Total Value</div>
-                      <div className="text-2xl font-bold">
-                        {totalValue.toLocaleString('en-PK', { minimumFractionDigits: 0 })}
-                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -732,7 +670,7 @@ export default function OpeningBalanceEntry() {
                   Ready to create opening balance for {items.length} item(s)
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
-                  ⚠️ This will add {totalAvailable} units to available stock
+                  ⚠️ This will add {totalReceived} units to stock
                 </p>
               </div>
               <div className="flex gap-3">
