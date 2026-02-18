@@ -28,12 +28,14 @@ router.post('/opening-balance', async (req, res) => {
     // Get current user ID from session
     const entered_by = req.session?.userId;
     
-    console.log('🔐 Opening Balance - Session User ID:', entered_by);
-    console.log('🔐 Session object:', req.session);
+    console.log('🔐 Opening Balance Request:');
+    console.log('  - Session exists:', !!req.session);
+    console.log('  - User ID:', entered_by);
     
     if (!entered_by) {
+      console.error('❌ Authentication failed - no userId in session');
       return res.status(401).json({ 
-        error: 'User not authenticated. Please log in again.' 
+        error: 'Authentication required. Please refresh the page and try again.' 
       });
     }
 

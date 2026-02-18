@@ -290,6 +290,7 @@ export default function OpeningBalanceEntry() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies for session authentication
         body: JSON.stringify(payload),
       });
 
