@@ -205,7 +205,7 @@ function App() {
                   <Route path="procurement-details" element={<ProcurementDetails />} />
                   <Route path="inventory-dashboard" element={<InventoryDashboard />} />
                   <Route path="inventory-all-items" element={<AllInventoryItemsPage />} />
-                  <Route path="inventory-stock-quantities" element={<CurrentInventoryStock />} />
+                  <Route path="inventory-stock-quantities" element={<StockQuantitiesPage />} />
                   <Route path="inventory-alerts" element={<InventoryAlertsPage />} />
                   <Route path="inventory-settings" element={<InventorySettings />} />
                   <Route path="stock-issuance" element={<StockIssuance />} />

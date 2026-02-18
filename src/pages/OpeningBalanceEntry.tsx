@@ -306,7 +306,7 @@ export default function OpeningBalanceEntry() {
       
       // Redirect to Stock Quantities page after 2 seconds to see the updated stock
       setTimeout(() => {
-        navigate('/dashboard/stock-quantities');
+        navigate('/dashboard/inventory-stock-quantities');
       }, 2000);
     } catch (err: any) {
       console.error('Error creating opening balance:', err);
