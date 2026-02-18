@@ -299,10 +299,38 @@ export default function OpeningBalanceEntry() {
         throw new Error(errorData.error || 'Failed to create opening balance entries');
       }
 
+      const result = await response.json();
+      
+      // Show success message
       setSuccess(true);
+      
+      // Reset form after 1.5 seconds to allow entering more opening balance entries
       setTimeout(() => {
-        navigate('/dashboard/stock-acquisitions');
-      }, 2000);
+        // Reset all form state
+        setItems([]);
+        setFormData({
+          tender_id: null,
+          tender_reference: '',
+          tender_title: '',
+          source_type: 'TENDER' as 'TENDER' | 'PURCHASE' | 'DONATION' | 'OTHER',
+          acquisition_date: '2020-01-01',
+          remarks: '',
+        });
+        setSelectedTenderId('');
+        setSelectedTenderType('');
+        setNewItem({ 
+          item_master_id: '', 
+          quantity_received: 0, 
+          quantity_already_issued: 0, 
+          unit_cost: 0 
+        });
+        setSelectedCategory('');
+        setTenderItems([]);
+        setSuccess(false);
+        
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 1500);
     } catch (err: any) {
       console.error('Error creating opening balance:', err);
       setError(err.message || 'Failed to create opening balance entries');
@@ -342,7 +370,7 @@ export default function OpeningBalanceEntry() {
         <Alert className="mb-4 bg-green-50 border-green-200">
           <CheckCircle className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">
-            Opening balance entries created successfully! Redirecting...
+            Opening balance entries created successfully! Form will reset in a moment for next entry...
           </AlertDescription>
         </Alert>
       )}
