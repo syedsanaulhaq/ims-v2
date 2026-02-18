@@ -112,6 +112,25 @@ BEGIN
         ALTER TABLE stock_acquisitions ADD processed_by NVARCHAR(450) NULL;
         PRINT '  ✓ Added processed_by column';
     END
+    
+    -- Make sure po_id and delivery_id allow NULL for opening balance entries
+    IF EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('stock_acquisitions') 
+               AND name = 'po_id' 
+               AND is_nullable = 0)
+    BEGIN
+        ALTER TABLE stock_acquisitions ALTER COLUMN po_id UNIQUEIDENTIFIER NULL;
+        PRINT '  ✓ Changed po_id to allow NULL (for opening balance entries)';
+    END
+    
+    IF EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('stock_acquisitions') 
+               AND name = 'delivery_id' 
+               AND is_nullable = 0)
+    BEGIN
+        ALTER TABLE stock_acquisitions ALTER COLUMN delivery_id UNIQUEIDENTIFIER NULL;
+        PRINT '  ✓ Changed delivery_id to allow NULL (for opening balance entries)';
+    END
 END
 
 GO
