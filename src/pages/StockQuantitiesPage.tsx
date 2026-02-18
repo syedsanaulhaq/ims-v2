@@ -16,19 +16,20 @@ import {
 } from 'lucide-react';
 
 interface StockQuantity {
-  id: string;
+  item_master_id: string;
   item_code: string;
-  item_name: string;
+  nomenclature: string;
   category_name: string;
   unit: string;
-  current_quantity: number;
-  available_quantity: number;
-  reserved_quantity: number;
-  minimum_stock_level: number;
-  reorder_point: number;
-  maximum_stock_level: number;
-  stock_status: string;
-  last_updated: string;
+  opening_balance_quantity: number;
+  new_acquisition_quantity: number;
+  total_quantity: number;
+  total_received: number;
+  total_issued: number;
+  last_transaction_date: string;
+  acquisition_count: number;
+  opening_balance_count: number;
+  new_acquisition_count: number;
 }
 
 const StockQuantitiesPage: React.FC = () => {
@@ -53,9 +54,9 @@ const StockQuantitiesPage: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock', {
+      const response = await fetch('http://localhost:3001/api/inventory/stock-breakdown', {
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -66,35 +67,11 @@ const StockQuantitiesPage: React.FC = () => {
 
       const data = await response.json();
       
-      // Map the response and calculate stock status
-      const mappedData = data.map((item: any) => {
-        const current = item.current_quantity || 0;
-        const min = item.minimum_stock_level || 0;
-        const max = item.maximum_stock_level || 0;
-        
-        let stock_status = 'Normal';
-        if (current === 0) stock_status = 'Out of Stock';
-        else if (current < min) stock_status = 'Low Stock';
-        else if (max > 0 && current > max) stock_status = 'Overstocked';
-        
-        return {
-          id: item.item_master_id,
-          item_code: item.item_code,
-          item_name: item.nomenclature,
-          category_name: item.category_name,
-          unit: item.unit || 'N/A',
-          current_quantity: current,
-          available_quantity: item.available_quantity || 0,
-          reserved_quantity: item.reserved_quantity || 0,
-          minimum_stock_level: min,
-          reorder_point: item.reorder_point || 0,
-          maximum_stock_level: max,
-          stock_status: stock_status,
-          last_updated: item.last_updated
-        };
-      });
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch stock breakdown');
+      }
       
-      setQuantities(mappedData);
+      setQuantities(data.inventory);
     } catch (error) {
       console.error('Error loading stock quantities:', error);
       setError(error instanceof Error ? error.message : 'Failed to load stock quantities');
@@ -111,14 +88,20 @@ const StockQuantitiesPage: React.FC = () => {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(item =>
         item.item_code.toLowerCase().includes(search) ||
-        item.item_name.toLowerCase().includes(search) ||
-        item.category_name.toLowerCase().includes(search)
+        item.nomenclature.toLowerCase().includes(search) ||
+        (item.category_name || '').toLowerCase().includes(search)
       );
     }
 
     // Filter by status
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter(item => item.stock_status === selectedStatus);
+    if (selectedStatus === 'out-of-stock') {
+      filtered = filtered.filter(item => item.total_quantity === 0);
+    } else if (selectedStatus === 'low-stock') {
+      filtered = filtered.filter(item => item.total_quantity > 0 && item.total_quantity < 10);
+    } else if (selectedStatus === 'in-stock') {
+      filtered = filtered.filter(item => item.total_quantity >= 10);
+    } else if (selectedStatus === 'has-opening-balance') {
+      filtered = filtered.filter(item => item.opening_balance_quantity > 0);
     }
 
     setFilteredQuantities(filtered);
@@ -139,46 +122,54 @@ const StockQuantitiesPage: React.FC = () => {
     });
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      'Out of Stock': { color: 'bg-red-100 text-red-800', icon: AlertCircle },
-      'Low Stock': { color: 'bg-yellow-100 text-yellow-800', icon: AlertTriangle },
-      'Overstock': { color: 'bg-purple-100 text-purple-800', icon: TrendingUp },
-      'In Stock': { color: 'bg-green-100 text-green-800', icon: Package }
-    };
-
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['In Stock'];
-    const Icon = config.icon;
-
-    return (
-      <Badge variant="outline" className={config.color}>
-        <Icon className="h-3 w-3 mr-1" />
-        {status}
-      </Badge>
-    );
+  const getStatusBadge = (quantity: number) => {
+    if (quantity === 0) {
+      return (
+        <Badge variant="outline" className="bg-red-100 text-red-800">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Out of Stock
+        </Badge>
+      );
+    } else if (quantity < 10) {
+      return (
+        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+          <AlertTriangle className="h-3 w-3 mr-1" />
+          Low Stock
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="bg-green-100 text-green-800">
+          <Package className="h-3 w-3 mr-1" />
+          In Stock
+        </Badge>
+      );
+    }
   };
 
-  const getQuantityColor = (current: number, reorder: number): string => {
-    if (current === 0) return 'text-red-600 font-bold';
-    if (current <= reorder) return 'text-yellow-600 font-semibold';
+  const getQuantityColor = (quantity: number): string => {
+    if (quantity === 0) return 'text-red-600 font-bold';
+    if (quantity < 10) return 'text-yellow-600 font-semibold';
     return 'text-green-600 font-semibold';
   };
 
   // Calculate summary statistics
   const stats = {
     total: filteredQuantities.length,
-    outOfStock: filteredQuantities.filter(q => q.stock_status === 'Out of Stock').length,
-    lowStock: filteredQuantities.filter(q => q.stock_status === 'Low Stock').length,
-    overstock: filteredQuantities.filter(q => q.stock_status === 'Overstock').length,
-    inStock: filteredQuantities.filter(q => q.stock_status === 'In Stock').length
+    totalQuantity: filteredQuantities.reduce((sum, q) => sum + q.total_quantity, 0),
+    openingBalance: filteredQuantities.reduce((sum, q) => sum + q.opening_balance_quantity, 0),
+    newAcquisitions: filteredQuantities.reduce((sum, q) => sum + q.new_acquisition_quantity, 0),
+    outOfStock: filteredQuantities.filter(q => q.total_quantity === 0).length,
+    lowStock: filteredQuantities.filter(q => q.total_quantity > 0 && q.total_quantity < 10).length,
+    inStock: filteredQuantities.filter(q => q.total_quantity >= 10).length
   };
 
   const statusOptions = [
-    { value: 'all', label: 'All Status' },
-    { value: 'Out of Stock', label: 'Out of Stock' },
-    { value: 'Low Stock', label: 'Low Stock' },
-    { value: 'In Stock', label: 'In Stock' },
-    { value: 'Overstock', label: 'Overstock' }
+    { value: 'all', label: 'All Items' },
+    { value: 'out-of-stock', label: 'Out of Stock' },
+    { value: 'low-stock', label: 'Low Stock (<10)' },
+    { value: 'in-stock', label: 'In Stock (≥10)' },
+    { value: 'has-opening-balance', label: 'Has Opening Balance' }
   ];
 
   if (loading) {
@@ -237,7 +228,7 @@ const StockQuantitiesPage: React.FC = () => {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
@@ -246,11 +237,27 @@ const StockQuantitiesPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-purple-50">
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-gray-600">Out of Stock</p>
-              <p className="text-2xl font-bold text-red-600">{stats.outOfStock}</p>
+              <p className="text-sm text-gray-600">Opening Balance</p>
+              <p className="text-2xl font-bold text-purple-600">{formatNumber(stats.openingBalance)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-sm text-gray-600">New Acquisitions</p>
+              <p className="text-2xl font-bold text-blue-600">{formatNumber(stats.newAcquisitions)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-green-50">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-sm text-gray-600">Total Stock</p>
+              <p className="text-2xl font-bold text-green-600">{formatNumber(stats.totalQuantity)}</p>
             </div>
           </CardContent>
         </Card>
@@ -265,16 +272,8 @@ const StockQuantitiesPage: React.FC = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-gray-600">In Stock</p>
-              <p className="text-2xl font-bold text-green-600">{stats.inStock}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Overstock</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.overstock}</p>
+              <p className="text-sm text-gray-600">Out of Stock</p>
+              <p className="text-2xl font-bold text-red-600">{stats.outOfStock}</p>
             </div>
           </CardContent>
         </Card>
@@ -341,45 +340,56 @@ const StockQuantitiesPage: React.FC = () => {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Available</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Reserved</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Min Level</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Reorder</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-purple-600 uppercase tracking-wider">Opening Balance</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase tracking-wider">New Acquisitions</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider font-bold">Total Stock</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Issued</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Update</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredQuantities.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
+                    <tr key={item.item_master_id} className="hover:bg-gray-50">
                       <td className="px-4 py-4">
                         <div>
-                          <div className="font-medium text-gray-900">{item.item_name}</div>
+                          <div className="font-medium text-gray-900">{item.nomenclature}</div>
                           <div className="text-sm text-gray-500">{item.item_code}</div>
                         </div>
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-700">{item.category_name || 'N/A'}</td>
-                      <td className={`px-4 py-4 text-right text-base ${getQuantityColor(item.current_quantity, item.reorder_point)}`}>
-                        {formatNumber(item.current_quantity)} {item.unit}
+                      <td className="px-4 py-4 text-right">
+                        <div className="text-base font-semibold text-purple-600">
+                          {formatNumber(item.opening_balance_quantity)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {item.opening_balance_count} {item.opening_balance_count === 1 ? 'entry' : 'entries'}
+                        </div>
                       </td>
-                      <td className="px-4 py-4 text-right text-sm text-green-600">
-                        {formatNumber(item.available_quantity)}
+                      <td className="px-4 py-4 text-right">
+                        <div className="text-base font-semibold text-blue-600">
+                          {formatNumber(item.new_acquisition_quantity)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {item.new_acquisition_count} {item.new_acquisition_count === 1 ? 'entry' : 'entries'}
+                        </div>
                       </td>
-                      <td className="px-4 py-4 text-right text-sm text-orange-600">
-                        {formatNumber(item.reserved_quantity)}
+                      <td className="px-4 py-4 text-right">
+                        <div className={`text-lg font-bold ${getQuantityColor(item.total_quantity)}`}>
+                          {formatNumber(item.total_quantity)} {item.unit}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          from {formatNumber(item.total_received)} received
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-right text-sm text-gray-600">
-                        {formatNumber(item.minimum_stock_level)}
-                      </td>
-                      <td className="px-4 py-4 text-right text-sm text-gray-600">
-                        {formatNumber(item.reorder_point)}
+                        {formatNumber(item.total_issued)}
                       </td>
                       <td className="px-4 py-4 text-center">
-                        {getStatusBadge(item.stock_status)}
+                        {getStatusBadge(item.total_quantity)}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">
-                        {formatDate(item.last_updated)}
+                        {formatDate(item.last_transaction_date)}
                       </td>
                     </tr>
                   ))}

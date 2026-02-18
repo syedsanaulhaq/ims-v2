@@ -420,6 +420,78 @@ router.get('/current-stock/summary', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/inventory/stock-breakdown - Get stock with OPB vs new acquisitions breakdown
+// ============================================================================
+router.get('/stock-breakdown', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { search, category_id, low_stock, show_zero_stock } = req.query;
+
+    let query = `
+      SELECT 
+        sqb.item_master_id,
+        sqb.nomenclature,
+        sqb.item_code,
+        sqb.unit,
+        sqb.specifications,
+        sqb.category_id,
+        sqb.category_name,
+        sqb.sub_category_id,
+        sqb.sub_category_name,
+        sqb.opening_balance_quantity,
+        sqb.new_acquisition_quantity,
+        sqb.total_quantity,
+        sqb.total_received,
+        sqb.total_issued,
+        sqb.last_transaction_date,
+        sqb.acquisition_count,
+        sqb.opening_balance_count,
+        sqb.new_acquisition_count
+      FROM vw_stock_quantity_breakdown sqb
+      WHERE 1=1
+    `;
+
+    let request = pool.request();
+
+    if (search) {
+      query += ` AND (sqb.nomenclature LIKE @search OR sqb.item_code LIKE @search)`;
+      request = request.input('search', sql.NVarChar, `%${search}%`);
+    }
+
+    if (category_id) {
+      query += ` AND sqb.category_id = @categoryId`;
+      request = request.input('categoryId', sql.UniqueIdentifier, category_id);
+    }
+
+    if (low_stock === 'true') {
+      query += ` AND sqb.total_quantity < 10 AND sqb.total_quantity > 0`;
+    }
+
+    // By default, hide items with zero stock unless requested
+    if (show_zero_stock !== 'true') {
+      query += ` AND sqb.total_quantity > 0`;
+    }
+
+    query += ` ORDER BY sqb.total_quantity ASC, sqb.nomenclature`;
+
+    const result = await request.query(query);
+    
+    res.json({
+      success: true,
+      inventory: result.recordset,
+      total: result.recordset.length
+    });
+  } catch (error) {
+    console.error('Error fetching stock breakdown:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch stock breakdown',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // GET /api/inventory/current-stock/:id/history - Get item transaction history
 // ============================================================================
 router.get('/current-stock/:id/history', async (req, res) => {

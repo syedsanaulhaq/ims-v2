@@ -443,6 +443,78 @@ GO
 PRINT '  ✅ Created vw_opening_balance_summary view';
 
 -- ============================================================================
+-- STEP 5: Create view for stock breakdown (Opening Balance vs New Acquisitions)
+-- ============================================================================
+PRINT '';
+PRINT 'STEP 5: Creating view vw_stock_quantity_breakdown...';
+GO
+
+IF EXISTS (SELECT * FROM sys.views WHERE name = 'vw_stock_quantity_breakdown')
+    DROP VIEW vw_stock_quantity_breakdown;
+GO
+
+CREATE VIEW vw_stock_quantity_breakdown AS
+SELECT 
+    im.id as item_master_id,
+    im.nomenclature,
+    im.item_code,
+    im.unit,
+    im.specifications,
+    c.id as category_id,
+    c.category_name,
+    sc.id as sub_category_id,
+    sc.sub_category_name,
+    
+    -- Opening Balance (OPB entries from 2020+ historical stock)
+    ISNULL(SUM(CASE 
+        WHEN sa.acquisition_number LIKE 'OPB-%' 
+        THEN sa.quantity_available 
+        ELSE 0 
+    END), 0) as opening_balance_quantity,
+    
+    -- New Acquisitions (regular deliveries after system started)
+    ISNULL(SUM(CASE 
+        WHEN sa.acquisition_number NOT LIKE 'OPB-%' OR sa.acquisition_number IS NULL
+        THEN sa.quantity_available 
+        ELSE 0 
+    END), 0) as new_acquisition_quantity,
+    
+    -- Total Stock = Opening Balance + New Acquisitions
+    ISNULL(SUM(sa.quantity_available), 0) as total_quantity,
+    
+    -- Additional metrics
+    ISNULL(SUM(sa.quantity_received), 0) as total_received,
+    ISNULL(SUM(sa.quantity_issued), 0) as total_issued,
+    
+    -- Stock status
+    MAX(sa.updated_at) as last_transaction_date,
+    
+    -- Count of acquisition records
+    COUNT(sa.id) as acquisition_count,
+    COUNT(CASE WHEN sa.acquisition_number LIKE 'OPB-%' THEN 1 END) as opening_balance_count,
+    COUNT(CASE WHEN sa.acquisition_number NOT LIKE 'OPB-%' THEN 1 END) as new_acquisition_count
+
+FROM item_masters im
+LEFT JOIN categories c ON im.category_id = c.id
+LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
+LEFT JOIN stock_acquisitions sa ON im.id = sa.item_master_id
+
+GROUP BY 
+    im.id,
+    im.nomenclature,
+    im.item_code,
+    im.unit,
+    im.specifications,
+    c.id,
+    c.category_name,
+    sc.id,
+    sc.sub_category_name;
+
+GO
+
+PRINT '  ✅ Created vw_stock_quantity_breakdown view';
+
+-- ============================================================================
 -- COMPLETION
 -- ============================================================================
 PRINT '';
@@ -455,6 +527,7 @@ PRINT '   ✓ Updated stock_acquisitions table with quantity tracking';
 PRINT '   ✓ Created opening_balance_entries table';
 PRINT '   ✓ Created sp_ProcessOpeningBalanceToStock procedure';
 PRINT '   ✓ Created vw_opening_balance_summary view';
+PRINT '   ✓ Created vw_stock_quantity_breakdown view';
 PRINT '';
 PRINT '🎯 Next Steps:';
 PRINT '   1. Create frontend Opening Balance Entry form';
