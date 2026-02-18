@@ -37,7 +37,7 @@ BEGIN
         unit_cost DECIMAL(15,2) NULL,
         delivery_date DATE NULL,
         acquisition_date DATETIME2 DEFAULT GETDATE(),
-        processed_by UNIQUEIDENTIFIER NULL,
+        processed_by NVARCHAR(450) NULL,
         status VARCHAR(20) DEFAULT 'completed',
         notes NVARCHAR(MAX),
         created_at DATETIME2 DEFAULT GETDATE(),
@@ -89,6 +89,29 @@ BEGIN
     END
     ELSE
         PRINT '  ℹ unit_cost column already exists';
+
+    -- Check and fix processed_by column data type
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('stock_acquisitions') AND name = 'processed_by')
+    BEGIN
+        -- Check if it's the wrong type (UNIQUEIDENTIFIER)
+        IF EXISTS (SELECT * FROM sys.columns 
+                   WHERE object_id = OBJECT_ID('stock_acquisitions') 
+                   AND name = 'processed_by' 
+                   AND system_type_id = TYPE_ID('uniqueidentifier'))
+        BEGIN
+            -- Drop and recreate with correct type
+            ALTER TABLE stock_acquisitions DROP COLUMN processed_by;
+            ALTER TABLE stock_acquisitions ADD processed_by NVARCHAR(450) NULL;
+            PRINT '  ✓ Fixed processed_by column data type (UNIQUEIDENTIFIER → NVARCHAR(450))';
+        END
+        ELSE
+            PRINT '  ℹ processed_by column already correct type';
+    END
+    ELSE
+    BEGIN
+        ALTER TABLE stock_acquisitions ADD processed_by NVARCHAR(450) NULL;
+        PRINT '  ✓ Added processed_by column';
+    END
 END
 
 GO
