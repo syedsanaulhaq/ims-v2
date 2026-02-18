@@ -113,14 +113,15 @@ BEGIN
         PRINT '  ✓ Added processed_by column';
     END
     
-    -- Make sure po_id and delivery_id allow NULL for opening balance entries
+    -- Make sure ALL legacy columns allow NULL for opening balance entries
+    -- (Opening balance entries don't have POs, deliveries, or aggregate totals)
     IF EXISTS (SELECT * FROM sys.columns 
                WHERE object_id = OBJECT_ID('stock_acquisitions') 
                AND name = 'po_id' 
                AND is_nullable = 0)
     BEGIN
         ALTER TABLE stock_acquisitions ALTER COLUMN po_id UNIQUEIDENTIFIER NULL;
-        PRINT '  ✓ Changed po_id to allow NULL (for opening balance entries)';
+        PRINT '  ✓ Changed po_id to allow NULL';
     END
     
     IF EXISTS (SELECT * FROM sys.columns 
@@ -129,7 +130,34 @@ BEGIN
                AND is_nullable = 0)
     BEGIN
         ALTER TABLE stock_acquisitions ALTER COLUMN delivery_id UNIQUEIDENTIFIER NULL;
-        PRINT '  ✓ Changed delivery_id to allow NULL (for opening balance entries)';
+        PRINT '  ✓ Changed delivery_id to allow NULL';
+    END
+    
+    IF EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('stock_acquisitions') 
+               AND name = 'total_items' 
+               AND is_nullable = 0)
+    BEGIN
+        ALTER TABLE stock_acquisitions ALTER COLUMN total_items INT NULL;
+        PRINT '  ✓ Changed total_items to allow NULL';
+    END
+    
+    IF EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('stock_acquisitions') 
+               AND name = 'total_quantity' 
+               AND is_nullable = 0)
+    BEGIN
+        ALTER TABLE stock_acquisitions ALTER COLUMN total_quantity DECIMAL(15,2) NULL;
+        PRINT '  ✓ Changed total_quantity to allow NULL';
+    END
+    
+    IF EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('stock_acquisitions') 
+               AND name = 'total_value' 
+               AND is_nullable = 0)
+    BEGIN
+        ALTER TABLE stock_acquisitions ALTER COLUMN total_value DECIMAL(15,2) NULL;
+        PRINT '  ✓ Changed total_value to allow NULL';
     END
 END
 
