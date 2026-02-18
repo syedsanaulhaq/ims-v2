@@ -26,7 +26,16 @@ router.post('/opening-balance', async (req, res) => {
     } = req.body;
 
     // Get current user ID from session
-    const entered_by = req.session?.userId || '00000000-0000-0000-0000-000000000000';
+    const entered_by = req.session?.userId;
+    
+    console.log('🔐 Opening Balance - Session User ID:', entered_by);
+    console.log('🔐 Session object:', req.session);
+    
+    if (!entered_by) {
+      return res.status(401).json({ 
+        error: 'User not authenticated. Please log in again.' 
+      });
+    }
 
     // Validation: Either tender_id OR tender_reference is required
     if ((!tender_id && !tender_reference) || !items || items.length === 0) {

@@ -224,14 +224,26 @@ BEGIN
         INDEX IX_OpeningBalance_Status (status),
         
         -- Foreign Keys
-        FOREIGN KEY (item_master_id) REFERENCES item_masters(id),
-        FOREIGN KEY (entered_by) REFERENCES AspNetUsers(Id)
+        FOREIGN KEY (item_master_id) REFERENCES item_masters(id)
+        -- Note: entered_by FK constraint removed to allow flexibility with user IDs
+        -- FOREIGN KEY (entered_by) REFERENCES AspNetUsers(Id)
     );
     
     PRINT '  ✓ Created opening_balance_entries table';
 END
 ELSE
+BEGIN
     PRINT '  ℹ opening_balance_entries table already exists';
+    
+    -- Drop the FK constraint if it exists
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name LIKE 'FK__opening_b__enter%')
+    BEGIN
+        DECLARE @fkName NVARCHAR(200);
+        SELECT @fkName = name FROM sys.foreign_keys WHERE name LIKE 'FK__opening_b__enter%';
+        EXEC('ALTER TABLE opening_balance_entries DROP CONSTRAINT ' + @fkName);
+        PRINT '  ✓ Removed entered_by foreign key constraint for flexibility';
+    END
+END
 
 GO
 
