@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +70,7 @@ interface TenderVendor {
 interface TenderVendorManagementProps {
   tenderId?: string; // Optional - for editing existing tender
   vendors: Vendor[]; // All available vendors
+  initialBidders?: TenderVendor[]; // Initial bidders to populate (from parent state)
   onVendorsChange?: (vendors: TenderVendor[]) => void; // Callback for parent component
   onSuccessfulVendorChange?: (vendorId: string | null) => void; // Callback when successful vendor is selected
   onPendingProposalsChange?: (hasPending: boolean) => void; // Callback when pending proposals change
@@ -86,6 +87,7 @@ interface TenderVendorManagementProps {
 const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   tenderId,
   vendors,
+  initialBidders = [],
   onVendorsChange,
   onSuccessfulVendorChange,
   onPendingProposalsChange,
@@ -119,12 +121,23 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   
   // Proposal files state for add dialog (support multiple files)
   const [proposalFiles, setProposalFiles] = useState<File[]>([]);
+  
+  // Ref to track if we've already loaded vendors for the current tender
+  const loadedTenderIdRef = useRef<string | null>(null);
 
   // Load tender vendors if tender ID is provided (editing mode)
   useEffect(() => {
-    console.log('📍 TenderVendorManagement useEffect - tenderId:', tenderId, 'readOnly:', readOnly);
-    if (tenderId) {
+    console.log('📍 TenderVendorManagement useEffect - tenderId:', tenderId, 'initialBidders:', initialBidders.length);
+    
+    if (tenderId && loadedTenderIdRef.current !== tenderId) {
+      // Only load if we haven't loaded this tender yet
+      loadedTenderIdRef.current = tenderId;
       loadTenderVendors();
+    } else if (!tenderId && initialBidders.length > 0 && loadedTenderIdRef.current === null) {
+      // If no tenderId but have initial bidders, use them (only once)
+      console.log('📍 Using initial bidders:', initialBidders);
+      setTenderVendors(initialBidders);
+      loadedTenderIdRef.current = 'initialized';
     }
   }, [tenderId]);
 
@@ -174,14 +187,37 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Loaded tender vendors:', data);
-        setTenderVendors(Array.isArray(data) ? data : data.vendors || data.data || []);
+        console.log('✅ Loaded tender vendors from API:', data);
+        const apiVendors = Array.isArray(data) ? data : data.vendors || data.data || [];
+        
+        // Merge API vendors with initial bidders (API takes priority if same vendor_id)
+        const mergedVendors = [...apiVendors];
+        
+        // Add initial bidders that aren't already in API results
+        for (const bidder of initialBidders) {
+          if (!mergedVendors.find(v => v.vendor_id === bidder.vendor_id)) {
+            mergedVendors.push(bidder);
+          }
+        }
+        
+        console.log('✅ Merged vendors (API + initial):', mergedVendors);
+        setTenderVendors(mergedVendors);
       } else {
         console.warn(`⚠️ Response not ok: ${response.status}`, await response.text());
+        // Still use initial bidders if API fails
+        if (initialBidders.length > 0) {
+          console.log('📍 Using initial bidders as fallback');
+          setTenderVendors(initialBidders);
+        }
         setError('Failed to load vendors');
       }
     } catch (err) {
       console.error('❌ Error loading tender vendors:', err);
+      // Still use initial bidders if fetch fails
+      if (initialBidders.length > 0) {
+        console.log('📍 Using initial bidders as fallback');
+        setTenderVendors(initialBidders);
+      }
       setError(err instanceof Error ? err.message : 'Failed to load vendors');
     } finally {
       setLoading(false);

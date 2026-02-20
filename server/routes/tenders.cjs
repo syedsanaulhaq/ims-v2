@@ -446,6 +446,106 @@ router.get('/:id/vendors', async (req, res) => {
 });
 
 // ============================================================================
+// POST /api/tenders/:id/vendors - Add/Save a bidder to a tender
+// ============================================================================
+router.post('/:id/vendors', async (req, res) => {
+  try {
+    const { id: tenderId } = req.params;
+    const { vendor_id, vendor_name, quoted_amount, remarks, is_selected, is_successful } = req.body;
+    const pool = getPool();
+
+    // Validate required fields
+    if (!vendor_id || !vendor_name) {
+      return res.status(400).json({ 
+        error: 'vendor_id and vendor_name are required' 
+      });
+    }
+
+    // Check if vendor already exists in tender_vendors
+    const existingResult = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('vendorId', sql.UniqueIdentifier, vendor_id)
+      .query(`
+        SELECT id FROM tender_vendors 
+        WHERE tender_id = @tenderId AND vendor_id = @vendorId
+      `);
+
+    if (existingResult.recordset.length > 0) {
+      // Update existing vendor
+      await pool.request()
+        .input('tenderId', sql.UniqueIdentifier, tenderId)
+        .input('vendorId', sql.UniqueIdentifier, vendor_id)
+        .input('quotedAmount', sql.Decimal(15, 2), quoted_amount || null)
+        .input('remarks', sql.NVarChar(sql.MAX), remarks || null)
+        .input('isSelected', sql.Bit, is_selected ? 1 : 0)
+        .input('isSuccessful', sql.Bit, is_successful ? 1 : 0)
+        .query(`
+          UPDATE tender_vendors
+          SET 
+            quoted_amount = @quotedAmount,
+            remarks = @remarks,
+            is_selected = @isSelected,
+            is_successful = @isSuccessful,
+            updated_at = GETDATE()
+          WHERE tender_id = @tenderId AND vendor_id = @vendorId
+        `);
+
+      console.log('✅ Vendor updated:', vendor_name);
+      return res.json({ 
+        success: true, 
+        message: 'Bidder updated successfully',
+        vendor_id,
+        vendor_name,
+        quoted_amount,
+        remarks,
+        is_selected: is_selected ? 1 : 0,
+        is_successful: is_successful ? 1 : 0
+      });
+    } else {
+      // Insert new vendor
+      const newVendorId = uuidv4();
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, newVendorId)
+        .input('tenderId', sql.UniqueIdentifier, tenderId)
+        .input('vendorId', sql.UniqueIdentifier, vendor_id)
+        .input('vendorName', sql.NVarChar(255), vendor_name)
+        .input('quotedAmount', sql.Decimal(15, 2), quoted_amount || null)
+        .input('remarks', sql.NVarChar(sql.MAX), remarks || null)
+        .input('isSelected', sql.Bit, is_selected ? 1 : 0)
+        .input('isSuccessful', sql.Bit, is_successful ? 1 : 0)
+        .query(`
+          INSERT INTO tender_vendors (
+            id, tender_id, vendor_id, vendor_name, quoted_amount, remarks, 
+            is_selected, is_successful, is_awarded, created_at, updated_at
+          ) VALUES (
+            @id, @tenderId, @vendorId, @vendorName, @quotedAmount, @remarks,
+            @isSelected, @isSuccessful, 0, GETDATE(), GETDATE()
+          )
+        `);
+
+      console.log('✅ Vendor added:', vendor_name);
+      return res.status(201).json({ 
+        success: true,
+        message: 'Bidder added successfully',
+        id: newVendorId,
+        vendor_id,
+        vendor_name,
+        quoted_amount,
+        remarks,
+        is_selected: is_selected ? 1 : 0,
+        is_successful: is_successful ? 1 : 0
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error saving bidder:', error);
+    res.status(500).json({ 
+      error: 'Failed to add/update bidder', 
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // PUT /api/tenders/:id - Update tender
 // ============================================================================
 router.put('/:id', async (req, res) => {
@@ -619,6 +719,110 @@ router.put('/:id/finalize', async (req, res) => {
   } catch (error) {
     console.error('❌ Error finalizing tender:', error);
     res.status(500).json({ error: 'Failed to finalize tender' });
+  }
+});
+
+// ============================================================================
+// PUT /api/tenders/:id/vendors/:vendorId - Update a specific bidder
+// ============================================================================
+router.put('/:id/vendors/:vendorId', async (req, res) => {
+  try {
+    const { id: tenderId, vendorId } = req.params;
+    const { quoted_amount, remarks, is_selected, is_successful } = req.body;
+    const pool = getPool();
+
+    // Check if vendor exists in tender_vendors
+    const check = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('vendorId', sql.UniqueIdentifier, vendorId)
+      .query(`
+        SELECT id FROM tender_vendors 
+        WHERE tender_id = @tenderId AND vendor_id = @vendorId
+      `);
+
+    if (check.recordset.length === 0) {
+      return res.status(404).json({ error: 'Bidder not found in this tender' });
+    }
+
+    // Update vendor
+    await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('vendorId', sql.UniqueIdentifier, vendorId)
+      .input('quotedAmount', sql.Decimal(15, 2), quoted_amount || null)
+      .input('remarks', sql.NVarChar(sql.MAX), remarks || null)
+      .input('isSelected', sql.Bit, is_selected ? 1 : 0)
+      .input('isSuccessful', sql.Bit, is_successful ? 1 : 0)
+      .query(`
+        UPDATE tender_vendors
+        SET 
+          quoted_amount = @quotedAmount,
+          remarks = @remarks,
+          is_selected = @isSelected,
+          is_successful = @isSuccessful,
+          updated_at = GETDATE()
+        WHERE tender_id = @tenderId AND vendor_id = @vendorId
+      `);
+
+    console.log('✅ Bidder updated successfully');
+    res.json({ 
+      success: true,
+      message: 'Bidder updated successfully',
+      vendor_id: vendorId,
+      quoted_amount,
+      remarks,
+      is_selected: is_selected ? 1 : 0,
+      is_successful: is_successful ? 1 : 0
+    });
+  } catch (error) {
+    console.error('❌ Error updating bidder:', error);
+    res.status(500).json({ 
+      error: 'Failed to update bidder', 
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// DELETE /api/tenders/:id/vendors/:vendorId - Remove a bidder from tender
+// ============================================================================
+router.delete('/:id/vendors/:vendorId', async (req, res) => {
+  try {
+    const { id: tenderId, vendorId } = req.params;
+    const pool = getPool();
+
+    // Check if vendor exists
+    const check = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('vendorId', sql.UniqueIdentifier, vendorId)
+      .query(`
+        SELECT id FROM tender_vendors 
+        WHERE tender_id = @tenderId AND vendor_id = @vendorId
+      `);
+
+    if (check.recordset.length === 0) {
+      return res.status(404).json({ error: 'Bidder not found' });
+    }
+
+    // Delete vendor from tender
+    await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tenderId)
+      .input('vendorId', sql.UniqueIdentifier, vendorId)
+      .query(`
+        DELETE FROM tender_vendors 
+        WHERE tender_id = @tenderId AND vendor_id = @vendorId
+      `);
+
+    console.log('✅ Bidder removed successfully');
+    res.json({ 
+      success: true,
+      message: 'Bidder removed successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error removing bidder:', error);
+    res.status(500).json({ 
+      error: 'Failed to remove bidder',
+      details: error.message 
+    });
   }
 });
 

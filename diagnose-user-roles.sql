@@ -14,11 +14,7 @@ SELECT
   ISACT
 FROM AspNetUsers 
 WHERE CNIC = '1111111111111';
-
-PRINT '';
-PRINT '=== STEP 2: Get user IMS roles ===';
-DECLARE @UserId NVARCHAR(450);
-
+|
 SELECT @UserId = Id FROM AspNetUsers WHERE CNIC = '1111111111111';
 
 IF @UserId IS NOT NULL

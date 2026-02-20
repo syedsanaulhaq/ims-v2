@@ -204,6 +204,55 @@ const EditTender: React.FC = () => {
           });
           setTenderItems(processedItems);
         }
+
+        // Load tender vendors/bidders
+        try {
+          const vendorsResponse = await fetch(`http://localhost:3001/api/tenders/${id}/vendors`);
+          if (vendorsResponse.ok) {
+            const vendorsData = await vendorsResponse.json();
+            console.log('📋 Loaded tender vendors:', vendorsData);
+            const vendorsList = Array.isArray(vendorsData) ? vendorsData : vendorsData.vendors || [];
+            setBidders(vendorsList);
+            
+            // For annual tenders: validate item vendors against bidders list
+            if (tender.tender_type === 'annual-tender' && tender.items && Array.isArray(tender.items)) {
+              const bidderVendorIds = vendorsList.map(b => b.vendor_id);
+              
+              const itemsWithValidVendors = tender.items.map(item => {
+                // Get vendor_ids array
+                let itemVendorIds = [];
+                if (item.vendor_ids && typeof item.vendor_ids === 'string') {
+                  itemVendorIds = item.vendor_ids.split(',').map(id => id.trim()).filter(id => id);
+                } else if (item.vendor_ids && Array.isArray(item.vendor_ids)) {
+                  itemVendorIds = item.vendor_ids;
+                } else if (item.vendor_id) {
+                  itemVendorIds = [item.vendor_id];
+                }
+                
+                // Keep only vendors that exist in the bidders list
+                const validVendorIds = itemVendorIds.filter(vid => bidderVendorIds.includes(vid));
+                
+                if (validVendorIds.length !== itemVendorIds.length) {
+                  console.warn(`Item ${item.nomenclature}: Removed vendors not in bidders list`, {
+                    original: itemVendorIds,
+                    valid: validVendorIds
+                  });
+                }
+                
+                return {
+                  ...item,
+                  vendor_ids: validVendorIds
+                };
+              });
+              
+              setTenderItems(itemsWithValidVendors);
+            }
+          } else {
+            console.warn('Failed to load tender vendors:', vendorsResponse.status);
+          }
+        } catch (err) {
+          console.error('Error loading tender vendors:', err);
+        }
       } catch (err) {
         console.error('Error loading tender:', err);
         setError('Failed to load tender data');
@@ -949,6 +998,7 @@ const EditTender: React.FC = () => {
           <TenderVendorManagement
             tenderId={id}
             vendors={vendors}
+            initialBidders={bidders}
             tenderItems={tenderItems}
             onVendorsChange={(updatedVendors) => {
               console.log('Vendors updated:', updatedVendors);
@@ -1024,15 +1074,13 @@ const EditTender: React.FC = () => {
                           </SelectTrigger>
                           <SelectContent>
                             {bidders.length > 0 ? (
-                              bidders
-                                .filter(vendor => vendor.is_successful)
-                                .map(vendor => (
-                                  <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
-                                    {vendor.vendor_name}
-                                  </SelectItem>
-                                ))
+                              bidders.map(vendor => (
+                                <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
+                                  {vendor.vendor_name}
+                                </SelectItem>
+                              ))
                             ) : (
-                              <div className="p-2 text-xs text-gray-500">No vendors available</div>
+                              <div className="p-2 text-xs text-gray-500">No vendors available. Add vendors in the Bidders section first.</div>
                             )}
                           </SelectContent>
                         </Select>
@@ -1344,10 +1392,13 @@ const EditTender: React.FC = () => {
                                         
                                         return vendorIds.length > 0 ? (
                                           vendorIds.map(vendorId => {
-                                            const vendor = vendors.find(v => v.id === vendorId);
+                                            // For annual tenders: lookup from bidders list, otherwise from vendors list
+                                            const vendor = tenderData.tender_type === 'annual-tender'
+                                              ? bidders.find(b => b.vendor_id === vendorId)
+                                              : vendors.find(v => v.id === vendorId);
                                             return (
                                               <span key={vendorId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                                {vendor?.vendor_name || vendorId}
+                                                {vendor?.vendor_name || vendor?.vendor_code || vendorId}
                                               </span>
                                             );
                                           })

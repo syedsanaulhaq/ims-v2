@@ -12,6 +12,7 @@ import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle, Package } from
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { getApiBaseUrl } from '@/services/invmisApi';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface OpeningBalanceItem {
   item_master_id: string;
@@ -37,6 +38,8 @@ export default function OpeningBalanceEntry() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [csvSuccess, setCsvSuccess] = useState<string | null>(null);
   
   // Tender selection mode
   const [tenderMode, setTenderMode] = useState<'existing' | 'manual'>('existing');
@@ -70,6 +73,8 @@ export default function OpeningBalanceEntry() {
     unit_cost: 0,
   });
   const [selectedCategory, setSelectedCategory] = useState('');
+
+  const sampleCsv = `item_code,quantity_received\nITEM-001,10\nITEM-002,5\n`;
 
   useEffect(() => {
     fetchInitialData();
@@ -254,6 +259,114 @@ export default function OpeningBalanceEntry() {
     setSelectedCategory('');
   };
 
+  const downloadSampleCsv = () => {
+    const blob = new Blob([sampleCsv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'opening-balance-sample.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleCsvImport = (file: File) => {
+    setCsvError(null);
+    setCsvSuccess(null);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) || '';
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      if (lines.length < 2) {
+        setCsvError('CSV file must include a header row and at least one data row.');
+        return;
+      }
+
+      const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const itemCodeIndex = headers.indexOf('item_code');
+      const itemIdIndex = headers.indexOf('item_master_id');
+      const qtyIndex = headers.indexOf('quantity_received');
+
+      if (qtyIndex === -1 || (itemCodeIndex === -1 && itemIdIndex === -1)) {
+        setCsvError('CSV must include columns: quantity_received and item_code or item_master_id.');
+        return;
+      }
+
+      const importedItems: OpeningBalanceItem[] = [];
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i += 1) {
+        const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+        const itemCode = itemCodeIndex >= 0 ? cols[itemCodeIndex] : '';
+        const itemId = itemIdIndex >= 0 ? cols[itemIdIndex] : '';
+        const qtyRaw = cols[qtyIndex] || '0';
+        const quantityReceived = parseFloat(qtyRaw);
+
+        if (!itemCode && !itemId) {
+          errors.push(`Row ${i + 1}: missing item_code or item_master_id.`);
+          continue;
+        }
+
+        if (!Number.isFinite(quantityReceived) || quantityReceived <= 0) {
+          errors.push(`Row ${i + 1}: invalid quantity_received.`);
+          continue;
+        }
+
+        const matchedItem = itemId
+          ? itemMasters.find((im) => im.id === itemId)
+          : itemMasters.find((im) => im.item_code === itemCode);
+
+        if (!matchedItem) {
+          errors.push(`Row ${i + 1}: item not found for code/id (${itemCode || itemId}).`);
+          continue;
+        }
+
+        importedItems.push({
+          item_master_id: matchedItem.id,
+          nomenclature: matchedItem.nomenclature,
+          category_name: matchedItem.category_name,
+          quantity_received: quantityReceived,
+          quantity_already_issued: 0,
+          quantity_available: quantityReceived,
+          unit_cost: 0,
+        });
+      }
+
+      if (importedItems.length === 0) {
+        setCsvError(errors.length > 0 ? errors.slice(0, 5).join(' ') : 'No valid rows found in CSV.');
+        return;
+      }
+
+      setItems((prev) => {
+        const byId = new Map(prev.map((item) => [item.item_master_id, { ...item }]));
+        importedItems.forEach((item) => {
+          const existing = byId.get(item.item_master_id);
+          if (existing) {
+            existing.quantity_received += item.quantity_received;
+            existing.quantity_available += item.quantity_received;
+            byId.set(item.item_master_id, existing);
+          } else {
+            byId.set(item.item_master_id, item);
+          }
+        });
+        return Array.from(byId.values());
+      });
+
+      if (errors.length > 0) {
+        setCsvError(errors.slice(0, 5).join(' '));
+      }
+
+      setCsvSuccess(`Imported ${importedItems.length} item(s) from CSV.`);
+    };
+
+    reader.readAsText(file);
+  };
+
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
   };
@@ -325,6 +438,14 @@ export default function OpeningBalanceEntry() {
     ? availableItems.filter(item => item.category_name === selectedCategory)
     : availableItems;
 
+  const itemOptions = filteredItems.map((item) => {
+    const itemCode = item.item_code || item.item_code?.code || 'N/A';
+    return {
+      value: item.id,
+      label: `${itemCode} - ${item.nomenclature}`,
+    };
+  });
+
   const totalReceived = items.reduce((sum, item) => sum + item.quantity_received, 0);
   const totalIssued = items.reduce((sum, item) => sum + item.quantity_already_issued, 0);
   const totalAvailable = items.reduce((sum, item) => sum + item.quantity_available, 0);
@@ -356,6 +477,22 @@ export default function OpeningBalanceEntry() {
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {csvSuccess && (
+        <Alert className="mb-4 bg-blue-50 border-blue-200">
+          <CheckCircle className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            {csvSuccess}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {csvError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{csvError}</AlertDescription>
         </Alert>
       )}
 
@@ -532,6 +669,35 @@ export default function OpeningBalanceEntry() {
             )}
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="bg-white border rounded-lg p-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <div className="font-semibold">Import Items from CSV</div>
+                  <div className="text-xs text-gray-600">
+                    CSV columns: item_code (or item_master_id), quantity_received
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={downloadSampleCsv}>
+                    Download Sample CSV
+                  </Button>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleCsvImport(file);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                    <Button type="button" variant="outline">Upload CSV</Button>
+                  </label>
+                </div>
+              </div>
+              <pre className="mt-3 text-xs bg-gray-50 border rounded p-2 overflow-x-auto">{sampleCsv}</pre>
+            </div>
             {/* Add Item Form */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-lg">
               <div>
@@ -556,22 +722,15 @@ export default function OpeningBalanceEntry() {
 
               <div>
                 <Label className="text-xs">Item *</Label>
-                <Select
+                <SearchableSelect
+                  options={itemOptions}
                   value={newItem.item_master_id}
                   onValueChange={(value) => setNewItem(prev => ({ ...prev, item_master_id: value }))}
+                  placeholder={selectedCategory ? "Select item..." : "Category first"}
+                  searchPlaceholder="Search by item code or name..."
                   disabled={!selectedCategory}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={selectedCategory ? "Select..." : "Category first"} />
-                 </SelectTrigger>
-                  <SelectContent>
-                    {filteredItems.map(item => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.nomenclature}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="h-9"
+                />
               </div>
 
               <div>
