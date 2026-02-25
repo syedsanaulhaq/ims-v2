@@ -8,4 +8,5 @@ export const vendorsApi = {
   createVendor: vendorsLocalService.createVendor,
   updateVendor: vendorsLocalService.updateVendor,
   deleteVendor: vendorsLocalService.deleteVendor,
+  restoreVendor: vendorsLocalService.restoreVendor,
 };

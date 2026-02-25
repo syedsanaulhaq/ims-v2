@@ -13,7 +13,7 @@ const { getPool, sql } = require('../db/connection.cjs');
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { searchTerm, status } = req.query;
+    const { searchTerm, status, includeDeleted } = req.query;
 
     let query = `
       SELECT 
@@ -26,12 +26,19 @@ router.get('/', async (req, res) => {
         address,
         city,
         status,
-        created_at
+        created_at,
+        is_deleted,
+        deleted_at
       FROM vendors
       WHERE 1=1
     `;
 
     const request = pool.request();
+
+    // Filter deleted records unless explicitly requested
+    if (includeDeleted !== 'true') {
+      query += ' AND is_deleted = 0';
+    }
 
     if (searchTerm) {
       query += ' AND (vendor_name LIKE @searchTerm OR vendor_code LIKE @searchTerm)';
@@ -78,7 +85,7 @@ router.get('/:id', async (req, res) => {
           created_at,
           updated_at
         FROM vendors
-        WHERE id = @id
+        WHERE id = @id AND is_deleted = 0
       `);
 
     if (result.recordset.length === 0) {
@@ -206,14 +213,15 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
     // Check if vendor is used in any tenders or POs
     const usageCheck = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT COUNT(*) as count FROM tender_vendors WHERE vendor_id = @id
+        SELECT COUNT(*) as count FROM tender_vendors WHERE vendor_id = @id AND is_deleted = 0
         UNION ALL
-        SELECT COUNT(*) as count FROM purchase_orders WHERE vendor_id = @id
+        SELECT COUNT(*) as count FROM purchase_orders WHERE vendor_id = @id AND is_deleted = 0
       `);
 
     if (usageCheck.recordset.some(r => r.count > 0)) {
@@ -224,12 +232,53 @@ router.delete('/:id', async (req, res) => {
 
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM vendors WHERE id = @id');
+      .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+      .query(`
+        UPDATE vendors
+        SET is_deleted = 1,
+            deleted_at = GETDATE(),
+            deleted_by = @deletedBy
+        WHERE id = @id
+      `);
 
     res.json({ message: '✅ Vendor deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting vendor:', error);
     res.status(500).json({ error: 'Failed to delete vendor' });
+  }
+});
+
+// ============================================================================
+// POST /api/vendors/:id/restore - Restore deleted vendor
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE vendors
+        SET is_deleted = 0,
+            deleted_at = NULL,
+            deleted_by = NULL
+        OUTPUT INSERTED.*
+        WHERE id = @id AND is_deleted = 1
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Deleted vendor not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: '✅ Vendor restored successfully',
+      vendor: result.recordset[0]
+    });
+  } catch (error) {
+    console.error('❌ Error restoring vendor:', error);
+    res.status(500).json({ error: 'Failed to restore vendor' });
   }
 });
 

@@ -221,11 +221,12 @@ router.put('/:id/reject', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const deletedBy = req.user?.id || null;
 
     // Check status first
     const checkResult = await getPool().request()
       .input('id', sql.UniqueIdentifier, id)
-      .query(`SELECT status FROM stock_returns WHERE id = @id`);
+      .query(`SELECT status FROM stock_returns WHERE id = @id AND is_deleted = 0`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Stock return not found' });
@@ -239,15 +240,29 @@ router.delete('/:id', async (req, res) => {
     await transaction.begin();
 
     try {
-      // Delete items
+      // Soft delete items
       await transaction.request()
         .input('return_id', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM stock_return_items WHERE return_id = @return_id`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE stock_return_items
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE return_id = @return_id
+        `);
 
-      // Delete return
+      // Soft delete return
       await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM stock_returns WHERE id = @id`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE stock_returns
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE id = @id
+        `);
 
       await transaction.commit();
       res.json({ success: true, message: 'Stock return deleted' });
@@ -258,6 +273,53 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting stock return:', error);
     res.status(500).json({ error: 'Failed to delete stock return' });
+  }
+});
+
+// ============================================================================
+// POST /api/stock-returns/:id/restore - Restore deleted stock return
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const transaction = new sql.Transaction(pool);
+
+    await transaction.begin();
+
+    try {
+      const result = await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE stock_returns
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          OUTPUT INSERTED.*
+          WHERE id = @id AND is_deleted = 1
+        `);
+
+      if (result.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Deleted stock return not found' });
+      }
+
+      // Restore return items
+      await transaction.request()
+        .input('returnId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE stock_return_items
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          WHERE return_id = @returnId AND is_deleted = 1
+        `);
+
+      await transaction.commit();
+      res.json({ success: true, message: '✅ Stock return restored', stockReturn: result.recordset[0] });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error restoring stock return:', error);
+    res.status(500).json({ error: 'Failed to restore stock return' });
   }
 });
 

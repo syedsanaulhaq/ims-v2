@@ -75,6 +75,9 @@ interface Tender {
   updated_at?: string;
   created_by?: string;
   items?: TenderItem[];
+  is_deleted?: number | boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface ContractTenderProps {
@@ -91,6 +94,9 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
   const [finalizingTender, setFinalizingTender] = useState<string | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   // Determine tender type from prop or query param
   const queryType = searchParams.get('type');
@@ -112,10 +118,13 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   const finalizedTenders = tenders.filter(tender => tender.is_finalized);
 
   // Fetch tenders from the backend
-  const fetchTenders = async () => {
+  const fetchTenders = async (includeDeleted = false) => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/tenders');
+      const url = includeDeleted 
+        ? 'http://localhost:3001/api/tenders?includeDeleted=true'
+        : 'http://localhost:3001/api/tenders';
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -144,8 +153,8 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
   };
 
   useEffect(() => {
-    fetchTenders();
-  }, [isSpotPurchase, isAnnualTender, effectiveType]);
+    fetchTenders(showDeleted);
+  }, [isSpotPurchase, isAnnualTender, effectiveType, showDeleted]);
 
   const handleFinalizeTender = async (tenderId: string) => {
     if (!window.confirm('Are you sure you want to finalize this tender? This action cannot be undone.')) {
@@ -214,21 +223,47 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       return;
     }
 
-    if (window.confirm('Are you sure you want to delete this tender?')) {
+    if (window.confirm('Move this tender to trash?')) {
       try {
+        setDeletingId(tenderId);
         const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`, {
           method: 'DELETE',
         });
 
         if (response.ok) {
-          await fetchTenders(); // Refresh the list
-          alert('Tender deleted successfully');
+          await fetchTenders(showDeleted);
+          alert('Tender moved to trash');
         } else {
           alert('Failed to delete tender');
         }
       } catch (error) {
         console.error('Error deleting tender:', error);
         alert('Failed to delete tender');
+      } finally {
+        setDeletingId(null);
+      }
+    }
+  };
+
+  const handleRestore = async (tenderId: string) => {
+    if (window.confirm('Restore this tender?')) {
+      try {
+        setRestoringId(tenderId);
+        const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/restore`, {
+          method: 'POST',
+        });
+
+        if (response.ok) {
+          await fetchTenders(showDeleted);
+          alert('Tender restored successfully');
+        } else {
+          alert('Failed to restore tender');
+        }
+      } catch (error) {
+        console.error('Error restoring tender:', error);
+        alert('Failed to restore tender');
+      } finally {
+        setRestoringId(null);
       }
     }
   };
@@ -289,6 +324,14 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
 
   const filterTenders = (tenderList: Tender[]) => {
     return tenderList.filter(tender => {
+      // Filter by deleted status
+      if (!showDeleted && (tender.is_deleted === 1 || tender.is_deleted === true)) {
+        return false;
+      }
+      if (showDeleted && (tender.is_deleted === 0 || tender.is_deleted === false)) {
+        return false;
+      }
+
       const matchesSearch = 
         tender.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tender.reference_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -416,33 +459,52 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                               </Button>
                             </PermissionGate>
                             
-                            <PermissionGate permission="tender.finalize">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleFinalizeTender(tender.id)}
-                                disabled={finalizingTender === tender.id}
-                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                title="Finalize Tender"
-                              >
-                                {finalizingTender === tender.id ? (
-                                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
-                                ) : (
-                                  <CheckCircle className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </PermissionGate>
+                            {!showDeleted && (
+                              <>
+                                <PermissionGate permission="tender.finalize">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleFinalizeTender(tender.id)}
+                                    disabled={finalizingTender === tender.id}
+                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    title="Finalize Tender"
+                                  >
+                                    {finalizingTender === tender.id ? (
+                                      <div className="w-4 h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                                    ) : (
+                                      <CheckCircle className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                </PermissionGate>
+                                
+                                <PermissionGate permission="tender.delete">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDelete(tender.id)}
+                                    disabled={deletingId === tender.id}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </PermissionGate>
+                              </>
+                            )}
                             
-                            <PermissionGate permission="tender.delete">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDelete(tender.id)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </PermissionGate>
+                            {showDeleted && (
+                              <PermissionGate permission="tender.delete">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRestore(tender.id)}
+                                  disabled={restoringId === tender.id}
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                >
+                                  {restoringId === tender.id ? '...' : '💚 Restore'}
+                                </Button>
+                              </PermissionGate>
+                            )}
                           </>
                         )}
                       </div>
@@ -595,6 +657,14 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={showDeleted ? 'destructive' : 'outline'}
+              onClick={() => setShowDeleted(!showDeleted)}
+              className="whitespace-nowrap"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {showDeleted ? 'Deleted' : 'Show Deleted'}
+            </Button>
           </div>
         </CardContent>
       </Card>

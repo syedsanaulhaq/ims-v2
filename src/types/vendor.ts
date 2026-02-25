@@ -12,6 +12,9 @@ export interface Vendor {
   status: 'Active' | 'Inactive' | 'Suspended';
   created_at: string;
   updated_at: string;
+  is_deleted?: number;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 export interface CreateVendorRequest {

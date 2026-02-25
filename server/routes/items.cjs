@@ -33,6 +33,7 @@ router.get('/', async (req, res) => {
     const pool = getPool();
     const categoryId = req.query.category_id;
     const searchTerm = req.query.search;
+    const includeDeleted = req.query.includeDeleted;
 
     console.log(`🔄 GET /api/items-master called with categoryId:`, categoryId);
 
@@ -49,11 +50,18 @@ router.get('/', async (req, res) => {
         c.category_name,
         c.description as category_description,
         im.status,
-        im.created_at
+        im.created_at,
+        im.is_deleted,
+        im.deleted_at
       FROM item_masters im
-      LEFT JOIN categories c ON im.category_id = c.id
+      LEFT JOIN categories c ON im.category_id = c.id AND c.is_deleted = 0
       WHERE im.status = 'Active'
     `;
+
+    // Filter deleted records unless explicitly requested
+    if (includeDeleted !== 'true') {
+      query += ' AND im.is_deleted = 0';
+    }
 
     if (categoryId) {
       console.log(`📌 Filtering by category_id: ${categoryId}`);
@@ -112,8 +120,8 @@ router.get('/:id', async (req, res) => {
           im.created_at,
           im.updated_at
         FROM item_masters im
-        LEFT JOIN categories c ON im.category_id = c.id
-        WHERE im.id = @id
+        LEFT JOIN categories c ON im.category_id = c.id AND c.is_deleted = 0
+        WHERE im.id = @id AND im.is_deleted = 0
       `);
 
     if (result.recordset.length === 0) {
@@ -390,14 +398,15 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
     // Check if item is used in any tender items or PO items
     const usageCheck = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT COUNT(*) as count FROM tender_items WHERE item_master_id = @id
+        SELECT COUNT(*) as count FROM tender_items WHERE item_master_id = @id AND is_deleted = 0
         UNION ALL
-        SELECT COUNT(*) as count FROM purchase_order_items WHERE item_master_id = @id
+        SELECT COUNT(*) as count FROM purchase_order_items WHERE item_master_id = @id AND is_deleted = 0
       `);
 
     if (usageCheck.recordset.some(r => r.count > 0)) {
@@ -408,12 +417,54 @@ router.delete('/:id', async (req, res) => {
 
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM item_masters WHERE id = @id');
+      .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+      .query(`
+        UPDATE item_masters
+        SET is_deleted = 1,
+            deleted_at = GETDATE(),
+            deleted_by = @deletedBy
+        WHERE id = @id
+      `);
 
     res.json({ message: '✅ Item deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting item:', error);
     res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+// ============================================================================
+// POST /api/items-master/:id/restore - Restore deleted item
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE item_masters
+        SET is_deleted = 0,
+            deleted_at = NULL,
+            deleted_by = NULL,
+            status = 'Active'
+        OUTPUT INSERTED.*
+        WHERE id = @id AND is_deleted = 1
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Deleted item not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: '✅ Item restored successfully',
+      item: result.recordset[0]
+    });
+  } catch (error) {
+    console.error('❌ Error restoring item:', error);
+    res.status(500).json({ error: 'Failed to restore item' });
   }
 });
 

@@ -318,10 +318,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
     const checkResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
-      .query('SELECT approval_status FROM stock_issuance_requests WHERE id = @id');
+      .query('SELECT approval_status FROM stock_issuance_requests WHERE id = @id AND is_deleted = 0');
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
@@ -331,11 +332,40 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Can only delete pending requests' });
     }
 
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM stock_issuance_requests WHERE id = @id');
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
 
-    res.json({ success: true, message: 'Request deleted' });
+    try {
+      // Soft delete issuance items
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, id)
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE stock_issuance_items
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE request_id = @requestId
+        `);
+
+      // Soft delete request
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE id = @id
+        `);
+
+      await transaction.commit();
+      res.json({ success: true, message: 'Request deleted' });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   } catch (error) {
     console.error('Error deleting request:', error);
     res.status(500).json({ error: 'Failed to delete request' });
@@ -525,5 +555,52 @@ router.post('/historical', async (req, res) => {
 });
 
 console.log('✅ Stock Issuance Routes Loaded');
+
+// ============================================================================
+// POST /api/stock-issuance/:id/restore - Restore deleted stock issuance
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const transaction = new sql.Transaction(pool);
+
+    await transaction.begin();
+
+    try {
+      const result = await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          OUTPUT INSERTED.*
+          WHERE id = @id AND is_deleted = 1
+        `);
+
+      if (result.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Deleted issuance request not found' });
+      }
+
+      // Restore issuance items
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE stock_issuance_items
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          WHERE request_id = @requestId AND is_deleted = 1
+        `);
+
+      await transaction.commit();
+      res.json({ success: true, message: '✅ Issuance request restored', request: result.recordset[0] });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error restoring issuance request:', error);
+    res.status(500).json({ error: 'Failed to restore issuance request' });
+  }
+});
 
 module.exports = router;

@@ -20,7 +20,9 @@ import {
   Save,
   X,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  RefreshCw,
+  Trash
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,6 +40,9 @@ interface Vendor {
   status: 'Active' | 'Inactive' | 'Suspended';
   created_at?: string;
   updated_at?: string;
+  is_deleted?: number | boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 const VendorManagementPage = () => {
@@ -51,6 +56,8 @@ const VendorManagementPage = () => {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -67,13 +74,17 @@ const VendorManagementPage = () => {
   });
 
   // Load vendors
-  const fetchVendors = async () => {
+  const fetchVendors = async (includeDeleted = false) => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/vendors');
+      const url = includeDeleted 
+        ? 'http://localhost:3001/api/vendors?includeDeleted=true'
+        : 'http://localhost:3001/api/vendors';
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setVendors(data.vendors || []);
+        // API returns array directly, not { vendors: [] }
+        setVendors(Array.isArray(data) ? data : (data.vendors || []));
       } else {
         throw new Error('Failed to fetch vendors');
       }
@@ -85,8 +96,8 @@ const VendorManagementPage = () => {
   };
 
   useEffect(() => {
-    fetchVendors();
-  }, []);
+    fetchVendors(showDeleted);
+  }, [showDeleted]);
 
   // Generate vendor code
   const generateVendorCode = () => {
@@ -135,7 +146,7 @@ const VendorManagementPage = () => {
           variant: "default"
         });
         resetForm();
-        fetchVendors();
+        fetchVendors(showDeleted);
       } else {
         throw new Error(`Failed to ${editingVendor ? 'update' : 'create'} vendor`);
       }
@@ -166,9 +177,9 @@ const VendorManagementPage = () => {
     setShowForm(true);
   };
 
-  // Handle delete
+  // Handle delete (soft delete)
   const handleDeleteVendor = async (vendor: Vendor) => {
-    if (!window.confirm(`Are you sure you want to delete vendor "${vendor.vendor_name}"?`)) {
+    if (!window.confirm(`Are you sure you want to move vendor "${vendor.vendor_name}" to trash?`)) {
       return;
     }
 
@@ -180,10 +191,10 @@ const VendorManagementPage = () => {
       if (response.ok) {
         toast({
           title: "Success",
-          description: "Vendor deleted successfully",
+          description: "Vendor moved to trash successfully",
           variant: "default"
         });
-        fetchVendors();
+        fetchVendors(showDeleted);
       } else {
         throw new Error('Failed to delete vendor');
       }
@@ -193,6 +204,39 @@ const VendorManagementPage = () => {
         description: err instanceof Error ? err.message : 'Failed to delete vendor',
         variant: "destructive"
       });
+    }
+  };
+
+  // Handle restore (soft delete restore)
+  const handleRestoreVendor = async (vendorId: string) => {
+    if (!window.confirm('Restore this vendor?')) {
+      return;
+    }
+
+    try {
+      setRestoringId(vendorId);
+      const response = await fetch(`http://localhost:3001/api/vendors/${vendorId}/restore`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Vendor restored successfully",
+          variant: "default"
+        });
+        fetchVendors(showDeleted);
+      } else {
+        throw new Error('Failed to restore vendor');
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to restore vendor',
+        variant: "destructive"
+      });
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -216,6 +260,15 @@ const VendorManagementPage = () => {
 
   // Filter vendors
   const filteredVendors = vendors.filter(vendor => {
+    // If not showing deleted, filter them out
+    if (!showDeleted && (vendor.is_deleted === 1 || vendor.is_deleted === true)) {
+      return false;
+    }
+    // If showing deleted, only show deleted ones
+    if (showDeleted && (vendor.is_deleted === 0 || vendor.is_deleted === false)) {
+      return false;
+    }
+    
     const matchesSearch = vendor.vendor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          vendor.vendor_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (vendor.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
@@ -243,12 +296,35 @@ const VendorManagementPage = () => {
             Manage vendor information, contacts, and business relationships
           </p>
         </div>
-        {!showForm && (
-          <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Vendor
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Show Deleted Toggle */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
+            <Trash className="h-4 w-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Show Deleted</span>
+            <button
+              onClick={() => setShowDeleted(!showDeleted)}
+              className={`ml-2 px-3 py-1 rounded text-sm font-medium transition ${
+                showDeleted
+                  ? 'bg-red-500 text-white'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              {showDeleted ? 'ON' : 'OFF'}
+            </button>
+            {!showDeleted && vendors.some(v => v.is_deleted === 1 || v.is_deleted === true) && (
+              <Badge variant="destructive" className="ml-2">
+                {vendors.filter(v => v.is_deleted === 1 || v.is_deleted === true).length}
+              </Badge>
+            )}
+          </div>
+
+          {!showForm && (
+            <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Vendor
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Error Display */}
@@ -460,14 +536,26 @@ const VendorManagementPage = () => {
               <TableBody>
                 {filteredVendors.length > 0 ? (
                   filteredVendors.map((vendor) => (
-                    <TableRow key={vendor.id}>
+                    <TableRow key={vendor.id} className={vendor.is_deleted === 1 || vendor.is_deleted === true ? 'opacity-60 bg-red-50' : ''}>
                       <TableCell className="font-medium">{vendor.vendor_code}</TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{vendor.vendor_name}</div>
+                          <div className="font-medium flex items-center gap-2">
+                            {vendor.vendor_name}
+                            {(vendor.is_deleted === 1 || vendor.is_deleted === true) && (
+                              <Badge variant="destructive" className="text-xs">
+                                🗑️ Deleted
+                              </Badge>
+                            )}
+                          </div>
                           {vendor.tax_number && (
                             <div className="text-sm text-muted-foreground">
                               Tax: {vendor.tax_number}
+                            </div>
+                          )}
+                          {vendor.deleted_at && (
+                            <div className="text-xs text-red-600 mt-1">
+                              Deleted: {new Date(vendor.deleted_at).toLocaleString()}
                             </div>
                           )}
                         </div>
@@ -520,22 +608,40 @@ const VendorManagementPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditVendor(vendor)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {/* Delete button hidden - prevents accidental deletion */}
-                          {/* <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteVendor(vendor)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button> */}
+                          {vendor.is_deleted === 1 || vendor.is_deleted === true ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRestoreVendor(vendor.id)}
+                              disabled={restoringId === vendor.id}
+                              className="text-green-600 hover:text-green-800 hover:bg-green-50"
+                            >
+                              {restoringId === vendor.id ? (
+                                <span className="animate-spin">⟳</span>
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                              {restoringId === vendor.id ? 'Restoring...' : 'Restore'}
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditVendor(vendor)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteVendor(vendor)}
+                                className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -545,11 +651,15 @@ const VendorManagementPage = () => {
                     <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-2">
                         <Building2 className="h-12 w-12 text-gray-300" />
-                        <div className="text-lg font-medium text-gray-500">No vendors found</div>
+                        <div className="text-lg font-medium text-gray-500">
+                          {showDeleted ? 'No deleted vendors' : 'No vendors found'}
+                        </div>
                         <div className="text-sm text-gray-400">
                           {searchTerm || statusFilter !== 'all' 
                             ? 'Try adjusting your filters'
-                            : 'Click "Add New Vendor" to create your first vendor'
+                            : showDeleted 
+                              ? 'All vendors are active'
+                              : 'Click "Add New Vendor" to create your first vendor'
                           }
                         </div>
                       </div>

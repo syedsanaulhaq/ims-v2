@@ -211,7 +211,7 @@ router.post('/', upload.fields([
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { type, status, searchTerm } = req.query;
+    const { type, status, searchTerm, includeDeleted } = req.query;
 
     let query = `
       SELECT 
@@ -227,12 +227,19 @@ router.get('/', async (req, res) => {
         is_finalized,
         finalized_at,
         finalized_by,
-        created_at
+        created_at,
+        is_deleted,
+        deleted_at
       FROM tenders
       WHERE 1=1
     `;
 
     const request = pool.request();
+
+    // Filter deleted records unless explicitly requested
+    if (includeDeleted !== 'true') {
+      query += ' AND is_deleted = 0';
+    }
 
     if (type && type !== 'all') {
       query += ' AND tender_type = @type';
@@ -296,7 +303,7 @@ router.get('/:id', async (req, res) => {
           vendor_id,
           created_by
         FROM tenders
-        WHERE id = @id
+        WHERE id = @id AND is_deleted = 0
       `);
 
     if (tenderResult.recordset.length === 0) {
@@ -325,10 +332,10 @@ router.get('/:id', async (req, res) => {
           v.vendor_name,
           v.vendor_code
         FROM tender_items ti
-        LEFT JOIN item_masters im ON ti.item_master_id = im.id
-        LEFT JOIN categories c ON im.category_id = c.id
-        LEFT JOIN vendors v ON ti.vendor_id = v.id
-        WHERE ti.tender_id = @tenderId
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id AND im.is_deleted = 0
+        LEFT JOIN categories c ON im.category_id = c.id AND c.is_deleted = 0
+        LEFT JOIN vendors v ON ti.vendor_id = v.id AND v.is_deleted = 0
+        WHERE ti.tender_id = @tenderId AND ti.is_deleted = 0
         ORDER BY c.description, c.category_name, ti.nomenclature
       `);
 
@@ -369,10 +376,10 @@ router.get('/:id/items', async (req, res) => {
           v.vendor_name,
           v.vendor_code
         FROM tender_items ti
-        LEFT JOIN item_masters im ON ti.item_master_id = im.id
-        LEFT JOIN categories c ON im.category_id = c.id
-        LEFT JOIN vendors v ON ti.vendor_id = v.id
-        WHERE ti.tender_id = @tenderId
+        LEFT JOIN item_masters im ON ti.item_master_id = im.id AND im.is_deleted = 0
+        LEFT JOIN categories c ON im.category_id = c.id AND c.is_deleted = 0
+        LEFT JOIN vendors v ON ti.vendor_id = v.id AND v.is_deleted = 0
+        WHERE ti.tender_id = @tenderId AND ti.is_deleted = 0
         ORDER BY c.description, c.category_name, ti.nomenclature
       `);
 
@@ -467,7 +474,7 @@ router.post('/:id/vendors', async (req, res) => {
       .input('vendorId', sql.UniqueIdentifier, vendor_id)
       .query(`
         SELECT id FROM tender_vendors 
-        WHERE tender_id = @tenderId AND vendor_id = @vendorId
+        WHERE tender_id = @tenderId AND vendor_id = @vendorId AND is_deleted = 0
       `);
 
     if (existingResult.recordset.length > 0) {
@@ -789,6 +796,7 @@ router.delete('/:id/vendors/:vendorId', async (req, res) => {
   try {
     const { id: tenderId, vendorId } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
     // Check if vendor exists
     const check = await pool.request()
@@ -803,12 +811,16 @@ router.delete('/:id/vendors/:vendorId', async (req, res) => {
       return res.status(404).json({ error: 'Bidder not found' });
     }
 
-    // Delete vendor from tender
+    // Soft delete vendor from tender
     await pool.request()
       .input('tenderId', sql.UniqueIdentifier, tenderId)
       .input('vendorId', sql.UniqueIdentifier, vendorId)
+      .input('deletedBy', sql.UniqueIdentifier, deletedBy)
       .query(`
-        DELETE FROM tender_vendors 
+        UPDATE tender_vendors
+        SET is_deleted = 1,
+            deleted_at = GETDATE(),
+            deleted_by = @deletedBy
         WHERE tender_id = @tenderId AND vendor_id = @vendorId
       `);
 
@@ -833,15 +845,124 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM tenders WHERE id = @id');
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
 
-    res.json({ message: '✅ Tender deleted successfully' });
+    try {
+      // Soft delete tender
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE tenders
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE id = @id
+        `);
+
+      // Cascade soft delete related vendors
+      await transaction.request()
+        .input('tenderId', sql.UniqueIdentifier, id)
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE tender_vendors
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE tender_id = @tenderId
+        `);
+
+      // Cascade soft delete related items
+      await transaction.request()
+        .input('tenderId', sql.UniqueIdentifier, id)
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE tender_items
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE tender_id = @tenderId
+        `);
+
+      await transaction.commit();
+      res.json({ message: '✅ Tender deleted successfully' });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   } catch (error) {
     console.error('❌ Error deleting tender:', error);
     res.status(500).json({ error: 'Failed to delete tender' });
+  }
+});
+
+// ============================================================================
+// POST /api/tenders/:id/restore - Restore deleted tender with items
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const transaction = new sql.Transaction(pool);
+
+    await transaction.begin();
+
+    try {
+      // Restore tender
+      const tenderResult = await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE tenders
+          SET is_deleted = 0,
+              deleted_at = NULL,
+              deleted_by = NULL
+          OUTPUT INSERTED.*
+          WHERE id = @id AND is_deleted = 1
+        `);
+
+      if (tenderResult.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Deleted tender not found' });
+      }
+
+      // Restore tender items
+      await transaction.request()
+        .input('tenderId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE tender_items
+          SET is_deleted = 0,
+              deleted_at = NULL,
+              deleted_by = NULL
+          WHERE tender_id = @tenderId AND is_deleted = 1
+        `);
+
+      // Restore tender vendors
+      await transaction.request()
+        .input('tenderId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE tender_vendors
+          SET is_deleted = 0,
+              deleted_at = NULL,
+              deleted_by = NULL
+          WHERE tender_id = @tenderId AND is_deleted = 1
+        `);
+
+      await transaction.commit();
+      res.json({ 
+        success: true, 
+        message: '✅ Tender restored successfully',
+        tender: tenderResult.recordset[0]
+      });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error restoring tender:', error);
+    res.status(500).json({ error: 'Failed to restore tender' });
   }
 });
 

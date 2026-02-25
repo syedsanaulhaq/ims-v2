@@ -5,10 +5,14 @@ const API_BASE_URL = 'http://localhost:3001/api';
 
 // Local SQL Server vendor service
 export const vendorsLocalService = {
-  // Get all vendors
-  getVendors: async (): Promise<ApiResponse<Vendor[]>> => {
+  // Get all vendors (with optional includeDeleted parameter)
+  getVendors: async (includeDeleted = false): Promise<ApiResponse<Vendor[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors`);
+      const url = includeDeleted 
+        ? `${API_BASE_URL}/vendors?includeDeleted=true` 
+        : `${API_BASE_URL}/vendors`;
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -34,7 +38,7 @@ export const vendorsLocalService = {
   // Get single vendor by ID
   getVendor: async (id: string): Promise<ApiResponse<Vendor>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors/${id}`);
+      const response = await fetch(`${API_BASE_URL}/vendors/${id}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -60,7 +64,7 @@ export const vendorsLocalService = {
   // Create vendor
   createVendor: async (vendor: CreateVendorRequest): Promise<ApiResponse<Vendor>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors`, {
+      const response = await fetch(`${API_BASE_URL}/vendors`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,7 +96,7 @@ export const vendorsLocalService = {
   // Update vendor
   updateVendor: async (id: string, vendor: UpdateVendorRequest): Promise<ApiResponse<Vendor>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/vendors/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -124,7 +128,7 @@ export const vendorsLocalService = {
   // Delete vendor
   deleteVendor: async (id: string): Promise<ApiResponse<boolean>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/vendors/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/vendors/${id}`, {
         method: 'DELETE',
       });
       
@@ -143,6 +147,34 @@ export const vendorsLocalService = {
         success: false,
         data: false,
         message: error.message || 'Failed to delete vendor'
+      };
+    }
+  },
+
+  // Restore deleted vendor
+  restoreVendor: async (id: string): Promise<ApiResponse<Vendor>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/vendors/${id}/restore`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      return {
+        success: true,
+        data: data.vendor,
+        message: data.message || 'Vendor restored successfully'
+      };
+    } catch (error: any) {
+      console.error('Error restoring vendor:', error);
+      return {
+        success: false,
+        data: null as any,
+        message: error.message || 'Failed to restore vendor'
       };
     }
   },

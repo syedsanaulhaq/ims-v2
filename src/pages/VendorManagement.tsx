@@ -50,6 +50,9 @@ interface Vendor {
   status: 'Active' | 'Inactive' | 'Suspended';
   created_at: string;
   updated_at: string;
+  is_deleted?: number | boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 const VendorManagement = () => {
@@ -59,6 +62,9 @@ const VendorManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [countryFilter, setCountryFilter] = useState('All');
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   // Dialog states
   const [showVendorDialog, setShowVendorDialog] = useState(false);
@@ -81,11 +87,14 @@ const VendorManagement = () => {
   });
 
   // Fetch vendors
-  const fetchVendors = async () => {
+  const fetchVendors = async (includeDeleted = false) => {
     try {
       setIsLoading(true);
       
-      const response = await fetch('http://localhost:3001/api/vendors');
+      const url = includeDeleted
+        ? 'http://localhost:3001/api/vendors?includeDeleted=true'
+        : 'http://localhost:3001/api/vendors';
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         // Handle both formats: direct array or nested in vendors property
@@ -107,8 +116,8 @@ const VendorManagement = () => {
   };
 
   useEffect(() => {
-    fetchVendors();
-  }, []);
+    fetchVendors(showDeleted);
+  }, [showDeleted]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -241,11 +250,12 @@ const VendorManagement = () => {
 
   // Delete vendor
   const handleDeleteVendor = async (vendorId: string, vendorName: string) => {
-    if (!confirm(`Are you sure you want to delete vendor "${vendorName}"?`)) {
+    if (!confirm(`Move vendor "${vendorName}" to trash?`)) {
       return;
     }
 
     try {
+      setDeletingId(vendorId);
       const response = await fetch(`http://localhost:3001/api/vendors/${vendorId}`, {
         method: 'DELETE',
       });
@@ -253,9 +263,9 @@ const VendorManagement = () => {
       if (response.ok) {
         toast({
           title: "Success",
-          description: "Vendor deleted successfully",
+          description: "Vendor moved to trash",
         });
-        fetchVendors();
+        fetchVendors(showDeleted);
       } else {
         throw new Error('Failed to delete vendor');
       }
@@ -266,6 +276,41 @@ const VendorManagement = () => {
         description: "Failed to delete vendor",
         variant: "destructive"
       });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Restore vendor
+  const handleRestoreVendor = async (vendorId: string, vendorName: string) => {
+    if (!confirm(`Restore vendor "${vendorName}"?`)) {
+      return;
+    }
+
+    try {
+      setRestoringId(vendorId);
+      const response = await fetch(`http://localhost:3001/api/vendors/${vendorId}/restore`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Vendor restored successfully",
+        });
+        fetchVendors(showDeleted);
+      } else {
+        throw new Error('Failed to restore vendor');
+      }
+    } catch (error) {
+      console.error('Error restoring vendor:', error);
+      toast({
+        title: "Error",
+        description: "Failed to restore vendor",
+        variant: "destructive"
+      });
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -289,6 +334,14 @@ const VendorManagement = () => {
 
   // Filter vendors
   const filteredVendors = vendors.filter(vendor => {
+    // Filter by deleted status
+    if (!showDeleted && (vendor.is_deleted === 1 || vendor.is_deleted === true)) {
+      return false;
+    }
+    if (showDeleted && (vendor.is_deleted === 0 || vendor.is_deleted === false)) {
+      return false;
+    }
+
     if (!searchTerm.trim() && statusFilter === 'All' && countryFilter === 'All') {
       return true;
     }
@@ -666,6 +719,24 @@ const VendorManagement = () => {
                 </Select>
               </div>
 
+              {/* Show Deleted Toggle */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-blue-100 bg-white/60">
+                <Trash2 className="w-4 h-4 text-red-500" />
+                <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  {showDeleted ? 'Showing Deleted' : 'Show Deleted'}
+                </Label>
+                <button
+                  onClick={() => setShowDeleted(!showDeleted)}
+                  className={`ml-2 px-2 py-1 rounded text-xs font-medium transition ${
+                    showDeleted
+                      ? 'bg-red-500 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  {showDeleted ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
               {/* Search Results Info */}
               <div className="flex items-center gap-2 text-sm text-gray-600 bg-white/60 px-3 py-2 rounded-full border border-blue-100">
                 <Users className="w-4 h-4" />
@@ -873,18 +944,31 @@ const VendorManagement = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditVendor(vendor)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Vendor
-                        </DropdownMenuItem>
-                        {/* Delete button hidden */}
-                    {/* <DropdownMenuItem
-                          onClick={() => handleDeleteVendor(vendor.id, vendor.vendor_name)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete Vendor
-                        </DropdownMenuItem> */}
+                        {!showDeleted && (
+                          <>
+                            <DropdownMenuItem onClick={() => handleEditVendor(vendor)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Vendor
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteVendor(vendor.id, vendor.vendor_name)}
+                              className="text-red-600"
+                              disabled={deletingId === vendor.id}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {deletingId === vendor.id ? 'Deleting...' : 'Delete Vendor'}
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        {showDeleted && (
+                          <DropdownMenuItem 
+                            onClick={() => handleRestoreVendor(vendor.id, vendor.vendor_name)}
+                            className="text-green-600"
+                            disabled={restoringId === vendor.id}
+                          >
+                            💚 {restoringId === vendor.id ? 'Restoring...' : 'Restore Vendor'}
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

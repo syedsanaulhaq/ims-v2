@@ -309,6 +309,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const deletedBy = req.user?.id || null;
     
     // Validate id format
     if (!id || !isValidUUID(id)) {
@@ -322,39 +323,52 @@ router.delete('/:id', async (req, res) => {
     await transaction.begin();
 
     try {
-      console.log(`🗑️  Deleting delivery: ${id}`);
+      console.log(`🗑️  Soft deleting delivery: ${id}`);
 
-      // Step 1: Delete stock acquisitions (FK constraint)
+      // Step 1: Soft delete stock acquisitions (FK constraint)
       const stockResult = await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM stock_acquisitions WHERE delivery_id = @id`);
-      console.log(`   - Deleted ${stockResult.rowsAffected[0]} stock acquisition(s)`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE stock_acquisitions
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE delivery_id = @id
+        `);
+      console.log(`   - Soft deleted ${stockResult.rowsAffected[0]} stock acquisition(s)`);
 
-      // Step 2: Delete serial numbers (if they exist)
-      if (await tableExists(transaction, 'delivery_item_serial_numbers')) {
-        const serialResult = await transaction.request()
-          .input('id', sql.UniqueIdentifier, id)
-          .query(`DELETE FROM delivery_item_serial_numbers WHERE delivery_id = @id`);
-        console.log(`   - Deleted ${serialResult.rowsAffected[0]} serial number(s)`);
-      }
-
-      // Step 3: Delete delivery items
+      // Step 2: Soft delete delivery items
       const itemsResult = await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM delivery_items WHERE delivery_id = @id`);
-      console.log(`   - Deleted ${itemsResult.rowsAffected[0]} delivery item(s)`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE delivery_items
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE delivery_id = @id
+        `);
+      console.log(`   - Soft deleted ${itemsResult.rowsAffected[0]} delivery item(s)`);
 
-      // Step 4: Delete delivery
+      // Step 3: Soft delete delivery
       const deliveryResult = await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM deliveries WHERE id = @id`);
-      console.log(`   - Deleted ${deliveryResult.rowsAffected[0]} delivery record(s)`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE deliveries
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE id = @id
+        `);
+      console.log(`   - Soft deleted ${deliveryResult.rowsAffected[0]} delivery record(s)`);
 
       await transaction.commit();
-      console.log('✅ Delivery deleted successfully with all related records');
+      console.log('✅ Delivery soft deleted successfully with all related records');
       res.json({ 
         success: true, 
-        message: 'Delivery deleted successfully. Items are now available for re-delivery.' 
+        message: 'Delivery moved to trash. Can be restored later.' 
       });
     } catch (error) {
       await transaction.rollback();
@@ -884,6 +898,62 @@ router.get('/:id/serial-numbers', async (req, res) => {
   } catch (error) {
     console.error('Error fetching serial numbers:', error);
     res.status(500).json({ error: 'Failed to fetch serial numbers', details: error.message });
+  }
+});
+
+// ============================================================================
+// POST /api/deliveries/:id/restore - Restore deleted delivery
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const transaction = new sql.Transaction(pool);
+
+    await transaction.begin();
+
+    try {
+      const result = await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE deliveries
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          OUTPUT INSERTED.*
+          WHERE id = @id AND is_deleted = 1
+        `);
+
+      if (result.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Deleted delivery not found' });
+      }
+
+      // Restore delivery items
+      await transaction.request()
+        .input('deliveryId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE delivery_items
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          WHERE delivery_id = @deliveryId AND is_deleted = 1
+        `);
+
+      // Restore stock acquisitions
+      await transaction.request()
+        .input('deliveryId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE stock_acquisitions
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          WHERE delivery_id = @deliveryId AND is_deleted = 1
+        `);
+
+      await transaction.commit();
+      res.json({ success: true, message: '✅ Delivery restored', delivery: result.recordset[0] });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error restoring delivery:', error);
+    res.status(500).json({ error: 'Failed to restore delivery' });
   }
 });
 

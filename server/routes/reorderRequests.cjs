@@ -136,15 +136,51 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const deletedBy = req.user?.id || null;
 
     await getPool().request()
       .input('id', sql.UniqueIdentifier, id)
-      .query(`DELETE FROM reorder_requests WHERE id = @id`);
+      .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+      .query(`
+        UPDATE reorder_requests
+        SET is_deleted = 1,
+            deleted_at = GETDATE(),
+            deleted_by = @deletedBy
+        WHERE id = @id
+      `);
 
     res.json({ success: true, message: 'Reorder request deleted' });
   } catch (error) {
     console.error('Error deleting reorder request:', error);
     res.status(500).json({ error: 'Failed to delete reorder request' });
+  }
+});
+
+// ============================================================================
+// POST /api/reorder-requests/:id/restore - Restore deleted reorder request
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE reorder_requests
+        SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+        OUTPUT INSERTED.*
+        WHERE id = @id AND is_deleted = 1
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Deleted reorder request not found' });
+    }
+
+    res.json({ success: true, message: '✅ Reorder request restored', request: result.recordset[0] });
+  } catch (error) {
+    console.error('❌ Error restoring reorder request:', error);
+    res.status(500).json({ error: 'Failed to restore reorder request' });
   }
 });
 

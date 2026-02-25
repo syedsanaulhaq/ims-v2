@@ -655,11 +655,12 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
     // Check if PO is draft
     const poCheck = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
-      .query('SELECT status FROM purchase_orders WHERE id = @id');
+      .query('SELECT status FROM purchase_orders WHERE id = @id AND is_deleted = 0');
 
     if (poCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Purchase order not found' });
@@ -669,9 +670,39 @@ router.delete('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Can only delete draft purchase orders' });
     }
 
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM purchase_orders WHERE id = @id');
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Soft delete PO items (if table exists)
+      await transaction.request()
+        .input('poId', sql.UniqueIdentifier, id)
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE purchase_order_items
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE po_id = @poId
+        `);
+
+      // Soft delete PO
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE purchase_orders
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE id = @id
+        `);
+
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
 
     res.json({ message: '✅ Purchase order deleted successfully' });
   } catch (error) {
@@ -681,5 +712,52 @@ router.delete('/:id', async (req, res) => {
 });
 
 console.log('✅ Purchase Orders Routes Loaded');
+
+// ============================================================================
+// POST /api/purchase-orders/:id/restore - Restore deleted purchase order
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const transaction = new sql.Transaction(pool);
+
+    await transaction.begin();
+
+    try {
+      const result = await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE purchase_orders
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          OUTPUT INSERTED.*
+          WHERE id = @id AND is_deleted = 1
+        `);
+
+      if (result.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Deleted purchase order not found' });
+      }
+
+      // Restore PO items
+      await transaction.request()
+        .input('poId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE purchase_order_items
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          WHERE po_id = @poId AND is_deleted = 1
+        `);
+
+      await transaction.commit();
+      res.json({ success: true, message: '✅ Purchase order restored', po: result.recordset[0] });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error restoring PO:', error);
+    res.status(500).json({ error: 'Failed to restore purchase order' });
+  }
+});
 
 module.exports = router;

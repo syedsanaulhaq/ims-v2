@@ -164,6 +164,7 @@ router.post('/:tenderId/assign-vendors', async (req, res) => {
   try {
     const { tenderId } = req.params;
     const { assignments, created_by } = req.body;
+    const deletedBy = req.user?.id || null;
 
     if (!Array.isArray(assignments)) {
       return res.status(400).json({ error: 'Assignments must be an array' });
@@ -173,10 +174,17 @@ router.post('/:tenderId/assign-vendors', async (req, res) => {
     await transaction.begin();
 
     try {
-      // Delete existing assignments
+      // Soft delete existing assignments
       await transaction.request()
         .input('tenderId', sql.UniqueIdentifier, tenderId)
-        .query(`DELETE FROM annual_tender_vendors WHERE annual_tender_id = @tenderId`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE annual_tender_vendors
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE annual_tender_id = @tenderId
+        `);
 
       // Add new assignments
       for (const assignment of assignments) {
@@ -213,25 +221,47 @@ router.post('/:tenderId/assign-vendors', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const deletedBy = req.user?.id || null;
 
     const transaction = new sql.Transaction(getPool());
     await transaction.begin();
 
     try {
-      // Delete vendors
+      // Soft delete vendors
       await transaction.request()
         .input('tenderId', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM annual_tender_vendors WHERE annual_tender_id = @tenderId`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE annual_tender_vendors
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE annual_tender_id = @tenderId
+        `);
 
-      // Delete groups
+      // Soft delete groups
       await transaction.request()
         .input('tenderId', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM annual_tender_groups WHERE annual_tender_id = @tenderId`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE annual_tender_groups
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE annual_tender_id = @tenderId
+        `);
 
-      // Delete tender
+      // Soft delete tender
       await transaction.request()
         .input('id', sql.UniqueIdentifier, id)
-        .query(`DELETE FROM annual_tenders WHERE id = @id`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE annual_tenders
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE id = @id
+        `);
 
       await transaction.commit();
       res.json({ success: true, message: 'Annual tender deleted' });
@@ -353,20 +383,36 @@ router.get('/groups/:groupId/items', async (req, res) => {
 router.delete('/groups/:groupId', async (req, res) => {
   try {
     const { groupId } = req.params;
+    const deletedBy = req.user?.id || null;
 
     const transaction = new sql.Transaction(getPool());
     await transaction.begin();
 
     try {
-      // Delete items
+      // Soft delete items
       await transaction.request()
         .input('groupId', sql.UniqueIdentifier, groupId)
-        .query(`DELETE FROM group_items WHERE group_id = @groupId`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE group_items
+          SET is_deleted = 1,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE group_id = @groupId
+        `);
 
-      // Delete group
+      // Soft delete group
       await transaction.request()
         .input('groupId', sql.UniqueIdentifier, groupId)
-        .query(`DELETE FROM item_groups WHERE id = @groupId`);
+        .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+        .query(`
+          UPDATE item_groups
+          SET is_deleted = 1,
+              is_active = 0,
+              deleted_at = GETDATE(),
+              deleted_by = @deletedBy
+          WHERE id = @groupId
+        `);
 
       await transaction.commit();
       res.json({ success: true, message: 'Item group deleted' });
@@ -377,6 +423,62 @@ router.delete('/groups/:groupId', async (req, res) => {
   } catch (error) {
     console.error('Error deleting item group:', error);
     res.status(500).json({ error: 'Failed to delete item group' });
+  }
+});
+
+// ============================================================================
+// POST /api/annual-tenders/:id/restore - Restore deleted annual tender
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const transaction = new sql.Transaction(pool);
+
+    await transaction.begin();
+
+    try {
+      const result = await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE annual_tenders
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          OUTPUT INSERTED.*
+          WHERE id = @id AND is_deleted = 1
+        `);
+
+      if (result.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Deleted annual tender not found' });
+      }
+
+      // Restore annual tender vendors
+      await transaction.request()
+        .input('tenderId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE annual_tender_vendors
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          WHERE tender_id = @tenderId AND is_deleted = 1
+        `);
+
+      // Restore annual tender groups
+      await transaction.request()
+        .input('tenderId', sql.UniqueIdentifier, id)
+        .query(`
+          UPDATE annual_tender_groups
+          SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL
+          WHERE tender_id = @tenderId AND is_deleted = 1
+        `);
+
+      await transaction.commit();
+      res.json({ success: true, message: '✅ Annual tender restored', tender: result.recordset[0] });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error restoring annual tender:', error);
+    res.status(500).json({ error: 'Failed to restore annual tender' });
   }
 });
 

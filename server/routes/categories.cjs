@@ -14,7 +14,13 @@ const { getPool, sql } = require('../db/connection.cjs');
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
+    const { includeDeleted } = req.query;
     console.log('📋 GET /api/categories called');
+
+    let filter = "WHERE c.status = 'Active'";
+    if (includeDeleted !== 'true') {
+      filter += ' AND c.is_deleted = 0';
+    }
 
     const result = await pool.request().query(`
       SELECT 
@@ -25,11 +31,13 @@ router.get('/', async (req, res) => {
         c.item_type,
         c.created_at,
         c.updated_at,
-        COUNT(DISTINCT im.id) as item_count
+        c.is_deleted,
+        c.deleted_at,
+        COUNT(DISTINCT CASE WHEN im.is_deleted = 0 THEN im.id END) as item_count
       FROM categories c
       LEFT JOIN item_masters im ON c.id = im.category_id
-      WHERE c.status = 'Active'
-      GROUP BY c.id, c.category_name, c.description, c.status, c.item_type, c.created_at, c.updated_at
+      ${filter}
+      GROUP BY c.id, c.category_name, c.description, c.status, c.item_type, c.created_at, c.updated_at, c.is_deleted, c.deleted_at
       ORDER BY c.category_name
     `);
 
@@ -64,7 +72,7 @@ router.get('/:id', async (req, res) => {
           created_at,
           updated_at
         FROM categories 
-        WHERE id = @id AND status != 'Deleted'
+        WHERE id = @id AND status != 'Deleted' AND is_deleted = 0
       `);
 
     if (result.recordset.length === 0) {
@@ -214,6 +222,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
     // Check if category has sub-categories
     const checkResult = await pool.request()
@@ -241,7 +250,16 @@ router.delete('/:id', async (req, res) => {
 
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM categories OUTPUT DELETED.* WHERE id = @id');
+      .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+      .query(`
+        UPDATE categories
+        SET is_deleted = 1,
+            status = 'Deleted',
+            deleted_at = GETDATE(),
+            deleted_by = @deletedBy
+        OUTPUT INSERTED.*
+        WHERE id = @id
+      `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Category not found' });
@@ -268,7 +286,13 @@ router.delete('/:id', async (req, res) => {
 router.get('/list/all', async (req, res) => {
   try {
     const pool = getPool();
+    const { includeDeleted } = req.query;
     console.log('🔍 Fetching all sub-categories...');
+
+    let filter = '';
+    if (includeDeleted !== 'true') {
+      filter = 'WHERE sc.is_deleted = 0';
+    }
 
     const result = await pool.request().query(`
       SELECT 
@@ -279,11 +303,13 @@ router.get('/list/all', async (req, res) => {
         sc.status,
         sc.created_at,
         sc.updated_at,
-        COUNT(DISTINCT im.id) as item_count
+        sc.is_deleted,
+        sc.deleted_at,
+        COUNT(DISTINCT CASE WHEN im.is_deleted = 0 THEN im.id END) as item_count
       FROM sub_categories sc
       LEFT JOIN item_masters im ON sc.id = im.sub_category_id
-      WHERE sc.status != 'Deleted'
-      GROUP BY sc.id, sc.sub_category_name, sc.category_id, sc.description, sc.status, sc.created_at, sc.updated_at
+      ${filter}
+      GROUP BY sc.id, sc.sub_category_name, sc.category_id, sc.description, sc.status, sc.created_at, sc.updated_at, sc.is_deleted, sc.deleted_at
       ORDER BY sc.sub_category_name
     `);
 
@@ -320,7 +346,7 @@ router.get('/by-category/:categoryId', async (req, res) => {
           created_at,
           updated_at
         FROM sub_categories 
-        WHERE category_id = @categoryId AND status != 'Deleted'
+        WHERE category_id = @categoryId AND is_deleted = 0
         ORDER BY sub_category_name
       `);
 
@@ -426,10 +452,20 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
+    const deletedBy = req.user?.id || null;
 
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
-      .query('DELETE FROM sub_categories OUTPUT DELETED.* WHERE id = @id');
+      .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+      .query(`
+        UPDATE sub_categories
+        SET is_deleted = 1,
+            status = 'Deleted',
+            deleted_at = GETDATE(),
+            deleted_by = @deletedBy
+        OUTPUT INSERTED.*
+        WHERE id = @id
+      `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Sub-category not found' });
@@ -443,6 +479,76 @@ router.delete('/:id', async (req, res) => {
       error: 'Failed to delete sub-category',
       details: error.message
     });
+  }
+});
+
+// ============================================================================
+// POST /api/categories/:id/restore - Restore deleted category
+// ============================================================================
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE categories
+        SET is_deleted = 0,
+            deleted_at = NULL,
+            deleted_by = NULL,
+            status = 'Active'
+        OUTPUT INSERTED.*
+        WHERE id = @id AND is_deleted = 1
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Deleted category not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: '✅ Category restored successfully',
+      category: result.recordset[0]
+    });
+  } catch (error) {
+    console.error('❌ Error restoring category:', error);
+    res.status(500).json({ error: 'Failed to restore category' });
+  }
+});
+
+// ============================================================================
+// POST /api/sub-categories/:id/restore - Restore deleted sub-category
+// ============================================================================
+router.post('/sub/:id/restore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE sub_categories
+        SET is_deleted = 0,
+            deleted_at = NULL,
+            deleted_by = NULL,
+            status = 'Active'
+        OUTPUT INSERTED.*
+        WHERE id = @id AND is_deleted = 1
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Deleted sub-category not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: '✅ Sub-category restored successfully',
+      subCategory: result.recordset[0]
+    });
+  } catch (error) {
+    console.error('❌ Error restoring sub-category:', error);
+    res.status(500).json({ error: 'Failed to restore sub-category' });
   }
 });
 

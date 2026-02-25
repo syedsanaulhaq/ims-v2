@@ -36,6 +36,9 @@ interface Category {
   status: string;
   created_at: string;
   updated_at: string;
+  is_deleted?: number | boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface SubCategory {
@@ -46,6 +49,9 @@ interface SubCategory {
   status: string;
   created_at: string;
   updated_at: string;
+  is_deleted?: number | boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface CategoryWithSubs extends Category {
@@ -61,6 +67,9 @@ const CategoriesManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   // Keyboard shortcuts for search
   useEffect(() => {
@@ -108,13 +117,20 @@ const CategoriesManagement = () => {
   });
 
   // Fetch categories and sub-categories
-  const fetchData = async () => {
+  const fetchData = async (includeDeleted = false) => {
     try {
       setIsLoading(true);
       
+      const catUrl = includeDeleted 
+        ? 'http://localhost:3001/api/categories?includeDeleted=true'
+        : 'http://localhost:3001/api/categories';
+      const subCatUrl = includeDeleted 
+        ? 'http://localhost:3001/api/sub-categories?includeDeleted=true'
+        : 'http://localhost:3001/api/sub-categories';
+
       const [categoriesRes, subCategoriesRes] = await Promise.all([
-        fetch('http://localhost:3001/api/categories'),
-        fetch('http://localhost:3001/api/sub-categories')
+        fetch(catUrl),
+        fetch(subCatUrl)
       ]);
 
       if (categoriesRes.ok) {
@@ -150,8 +166,8 @@ const CategoriesManagement = () => {
   }, [categories, subCategories]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(showDeleted);
+  }, [showDeleted]);
 
   // Toggle category expansion
   const toggleCategoryExpansion = (categoryId: string) => {
@@ -354,11 +370,12 @@ const CategoriesManagement = () => {
 
   // Delete category
   const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
-    if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
+    if (!confirm(`Move "${categoryName}" to trash?`)) {
       return;
     }
 
     try {
+      setDeletingId(categoryId);
       const response = await fetch(`http://localhost:3001/api/categories/${categoryId}`, {
         method: 'DELETE',
       });
@@ -366,9 +383,9 @@ const CategoriesManagement = () => {
       if (response.ok) {
         toast({
           title: "Success",
-          description: "Category deleted successfully",
+          description: "Category moved to trash",
         });
-        fetchData();
+        fetchData(showDeleted);
       } else {
         throw new Error('Failed to delete category');
       }
@@ -379,16 +396,52 @@ const CategoriesManagement = () => {
         description: "Failed to delete category",
         variant: "destructive"
       });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Restore category
+  const handleRestoreCategory = async (categoryId: string, categoryName: string) => {
+    if (!confirm(`Restore "${categoryName}"?`)) {
+      return;
+    }
+
+    try {
+      setRestoringId(categoryId);
+      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}/restore`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Category restored successfully",
+        });
+        fetchData(showDeleted);
+      } else {
+        throw new Error('Failed to restore category');
+      }
+    } catch (error) {
+      console.error('Error restoring category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to restore category",
+        variant: "destructive"
+      });
+    } finally {
+      setRestoringId(null);
     }
   };
 
   // Delete sub-category
   const handleDeleteSubCategory = async (subCategoryId: string, subCategoryName: string) => {
-    if (!confirm(`Are you sure you want to delete the sub-category "${subCategoryName}"?`)) {
+    if (!confirm(`Move "${subCategoryName}" to trash?`)) {
       return;
     }
 
     try {
+      setDeletingId(subCategoryId);
       const response = await fetch(`http://localhost:3001/api/sub-categories/${subCategoryId}`, {
         method: 'DELETE',
       });
@@ -396,9 +449,9 @@ const CategoriesManagement = () => {
       if (response.ok) {
         toast({
           title: "Success",
-          description: "Sub-category deleted successfully",
+          description: "Sub-category moved to trash",
         });
-        fetchData();
+        fetchData(showDeleted);
       } else {
         throw new Error('Failed to delete sub-category');
       }
@@ -409,6 +462,41 @@ const CategoriesManagement = () => {
         description: "Failed to delete sub-category",
         variant: "destructive"
       });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Restore sub-category
+  const handleRestoreSubCategory = async (subCategoryId: string, subCategoryName: string) => {
+    if (!confirm(`Restore "${subCategoryName}"?`)) {
+      return;
+    }
+
+    try {
+      setRestoringId(subCategoryId);
+      const response = await fetch(`http://localhost:3001/api/sub-categories/${subCategoryId}/restore`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Sub-category restored successfully",
+        });
+        fetchData(showDeleted);
+      } else {
+        throw new Error('Failed to restore sub-category');
+      }
+    } catch (error) {
+      console.error('Error restoring sub-category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to restore sub-category",
+        variant: "destructive"
+      });
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -427,6 +515,14 @@ const CategoriesManagement = () => {
 
   // Enhanced filter categories based on search and status
   const filteredCategories = categoriesWithSubs.filter(category => {
+    // Filter by deleted status
+    if (!showDeleted && (category.is_deleted === 1 || category.is_deleted === true)) {
+      return false;
+    }
+    if (showDeleted && (category.is_deleted === 0 || category.is_deleted === false)) {
+      return false;
+    }
+
     // If no search term, only apply status filter
     if (!searchTerm.trim()) {
       const matchesStatus = statusFilter === 'All' || category.status === statusFilter;
@@ -548,14 +644,32 @@ const CategoriesManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={resetCategoryForm}>
-                    Cancel
-                  </Button>
-                  <Button onClick={editingCategory ? handleUpdateCategory : handleCreateCategory}>
-                    <Save className="w-4 h-4 mr-2" />
-                    {editingCategory ? 'Update' : 'Save'}
-                  </Button>
+                <Separator className="my-4" />
+                <div className="flex items-center justify-between w-full">
+                  {editingCategory ? (
+                    <Button 
+                      variant="destructive"
+                      onClick={() => {
+                        handleDeleteCategory(editingCategory, categoryForm.category_name);
+                        setShowCategoryDialog(false);
+                      }}
+                      disabled={deletingId === editingCategory}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {deletingId === editingCategory ? 'Deleting...' : 'Delete Category'}
+                    </Button>
+                  ) : (
+                    <div />
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => resetCategoryForm()}>
+                      Cancel
+                    </Button>
+                    <Button onClick={editingCategory ? handleUpdateCategory : handleCreateCategory}>
+                      <Save className="w-4 h-4 mr-2" />
+                      {editingCategory ? 'Update' : 'Save'}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </DialogContent>
@@ -632,14 +746,32 @@ const CategoriesManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={resetSubCategoryForm}>
-                    Cancel
-                  </Button>
-                  <Button onClick={editingSubCategory ? handleUpdateSubCategory : handleCreateSubCategory}>
-                    <Save className="w-4 h-4 mr-2" />
-                    {editingSubCategory ? 'Update' : 'Save'}
-                  </Button>
+                <Separator className="my-4" />
+                <div className="flex items-center justify-between w-full">
+                  {editingSubCategory ? (
+                    <Button 
+                      variant="destructive"
+                      onClick={() => {
+                        handleDeleteSubCategory(editingSubCategory, subCategoryForm.sub_category_name);
+                        setShowSubCategoryDialog(false);
+                      }}
+                      disabled={deletingId === editingSubCategory}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {deletingId === editingSubCategory ? 'Deleting...' : 'Delete Sub-Category'}
+                    </Button>
+                  ) : (
+                    <div />
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => resetSubCategoryForm()}>
+                      Cancel
+                    </Button>
+                    <Button onClick={editingSubCategory ? handleUpdateSubCategory : handleCreateSubCategory}>
+                      <Save className="w-4 h-4 mr-2" />
+                      {editingSubCategory ? 'Update' : 'Save'}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </DialogContent>
@@ -755,6 +887,24 @@ const CategoriesManagement = () => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Show Deleted Toggle */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-blue-100 bg-white/60">
+                <Trash2 className="w-4 h-4 text-red-500" />
+                <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  {showDeleted ? 'Showing Deleted' : 'Show Deleted'}
+                </Label>
+                <button
+                  onClick={() => setShowDeleted(!showDeleted)}
+                  className={`ml-2 px-2 py-1 rounded text-xs font-medium transition ${
+                    showDeleted
+                      ? 'bg-red-500 text-white'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
+                  {showDeleted ? 'ON' : 'OFF'}
+                </button>
               </div>
 
               {/* Search Results Info */}
@@ -927,25 +1077,42 @@ const CategoriesManagement = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditCategory(category);
-                            }}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Category
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCategory(category.id, category.category_name);
-                            }}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Category
-                          </DropdownMenuItem>
+                          {!showDeleted && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditCategory(category);
+                                }}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Category
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteCategory(category.id, category.category_name);
+                                }}
+                                className="text-red-600"
+                                disabled={deletingId === category.id}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {deletingId === category.id ? 'Deleting...' : 'Delete Category'}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {showDeleted && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRestoreCategory(category.id, category.category_name);
+                              }}
+                              className="text-green-600"
+                              disabled={restoringId === category.id}
+                            >
+                              💚 {restoringId === category.id ? 'Restoring...' : 'Restore Category'}
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -986,19 +1153,33 @@ const CategoriesManagement = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => handleEditSubCategory(subCategory)}
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Sub-Category
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteSubCategory(subCategory.id, subCategory.sub_category_name)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete Sub-Category
-                            </DropdownMenuItem>
+                            {!showDeleted && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => handleEditSubCategory(subCategory)}
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Sub-Category
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteSubCategory(subCategory.id, subCategory.sub_category_name)}
+                                  className="text-red-600"
+                                  disabled={deletingId === subCategory.id}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {deletingId === subCategory.id ? 'Deleting...' : 'Delete Sub-Category'}
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {showDeleted && (
+                              <DropdownMenuItem
+                                onClick={() => handleRestoreSubCategory(subCategory.id, subCategory.sub_category_name)}
+                                className="text-green-600"
+                                disabled={restoringId === subCategory.id}
+                              >
+                                💚 {restoringId === subCategory.id ? 'Restoring...' : 'Restore Sub-Category'}
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

@@ -27,6 +27,9 @@ interface PurchaseOrder {
     overallStatus: string;
     receivedPercentage: number;
   };
+  is_deleted?: number | boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 export default function PurchaseOrderDashboard() {
@@ -40,6 +43,9 @@ export default function PurchaseOrderDashboard() {
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [showDeliveryList, setShowDeliveryList] = useState(false);
   const [selectedPOForDeliveries, setSelectedPOForDeliveries] = useState<PurchaseOrder | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
   
   const [filters, setFilters] = useState({
     status: 'all',
@@ -52,13 +58,18 @@ export default function PurchaseOrderDashboard() {
 
   useEffect(() => {
     fetchPurchaseOrders();
-  }, [filters, tenderId]);
+  }, [filters, tenderId, showDeleted]);
 
   const fetchPurchaseOrders = async () => {
     try {
       setLoading(true);
       let query = 'http://localhost:3001/api/purchase-orders';
       const params = new URLSearchParams();
+
+      // ✅ Include deleted if showDeleted is true
+      if (showDeleted) {
+        params.append('includeDeleted', 'true');
+      }
 
       // ✅ Filter by tenderId if provided in URL
       if (tenderId) {
@@ -87,6 +98,13 @@ export default function PurchaseOrderDashboard() {
       if (!response.ok) throw new Error('Failed to fetch POs');
 
       let data = await response.json();
+
+      // Client-side filter by deleted status
+      if (showDeleted) {
+        data = data.filter((po: PurchaseOrder) => po.is_deleted === 1 || po.is_deleted === true);
+      } else {
+        data = data.filter((po: PurchaseOrder) => !po.is_deleted || po.is_deleted === 0 || po.is_deleted === false);
+      }
 
       // Client-side filter by search term
       if (filters.searchTerm) {
@@ -142,11 +160,12 @@ export default function PurchaseOrderDashboard() {
   };
 
   const handleDeletePO = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this PO? (Only draft POs can be deleted)')) {
+    if (!confirm('Move this PO to trash?')) {
       return;
     }
 
     try {
+      setDeletingId(id);
       const response = await fetch(`http://localhost:3001/api/purchase-orders/${id}`, {
         method: 'DELETE'
       });
@@ -157,11 +176,40 @@ export default function PurchaseOrderDashboard() {
         return;
       }
 
-      setPurchaseOrders(prev => prev.filter(po => po.id !== id));
-      alert('✅ Purchase/Supply order deleted successfully');
+      await fetchPurchaseOrders();
+      alert('✅ Purchase/Supply order moved to trash');
     } catch (err) {
       console.error('Error deleting PO:', err);
       alert('Failed to delete purchase/supply order');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleRestorePO = async (id: number) => {
+    if (!confirm('Restore this PO?')) {
+      return;
+    }
+
+    try {
+      setRestoringId(id);
+      const response = await fetch(`http://localhost:3001/api/purchase-orders/${id}/restore`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+        return;
+      }
+
+      await fetchPurchaseOrders();
+      alert('✅ Purchase/Supply order restored successfully');
+    } catch (err) {
+      console.error('Error restoring PO:', err);
+      alert('Failed to restore purchase/supply order');
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -263,8 +311,34 @@ export default function PurchaseOrderDashboard() {
   const totalAmount = purchaseOrders.reduce((sum, po) => sum + (po.total_amount || 0), 0);
   const draftCount = purchaseOrders.filter(po => po.status === 'draft').length;
 
+  // Filter POs based on deleted status and filters
+  const filteredPOs = purchaseOrders.filter(po => {
+    // Filter by deleted status
+    if (!showDeleted && (po.is_deleted === 1 || po.is_deleted === true)) {
+      return false;
+    }
+    if (showDeleted && (po.is_deleted === 0 || po.is_deleted === false)) {
+      return false;
+    }
+
+    if (filters.status !== 'all' && po.status !== filters.status) return false;
+    if (filters.tenderType !== 'all' && po.tender_type !== filters.tenderType) return false;
+    if (filters.searchTerm && !(
+      po.po_number.includes(filters.searchTerm) ||
+      po.tender_title.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+      po.vendor_name.toLowerCase().includes(filters.searchTerm.toLowerCase())
+    )) return false;
+    
+    if (filters.deliveryStatus !== 'all' && po.deliveryStatus?.overallStatus !== filters.deliveryStatus) return false;
+    
+    if (filters.startDate && new Date(po.po_date) < new Date(filters.startDate)) return false;
+    if (filters.endDate && new Date(po.po_date) > new Date(filters.endDate)) return false;
+
+    return true;
+  });
+
   // Group POs by tender type
-  const groupedPOs = purchaseOrders.reduce((groups, po) => {
+  const groupedPOs = filteredPOs.reduce((groups, po) => {
     const type = po.tender_type || 'Other';
     if (!groups[type]) {
       groups[type] = [];
@@ -403,6 +477,15 @@ export default function PurchaseOrderDashboard() {
                 onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
                 className="border-slate-300"
               />
+
+              <Button
+                variant={showDeleted ? 'destructive' : 'outline'}
+                onClick={() => setShowDeleted(!showDeleted)}
+                className="whitespace-nowrap"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {showDeleted ? 'Deleted' : 'Show Deleted'}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -566,22 +649,41 @@ export default function PurchaseOrderDashboard() {
                                     >
                                       <Edit className="w-4 h-4" />
                                     </Button>
-                                    <Button
-                                      size="sm"
-                                      className="bg-green-600 hover:bg-green-700"
-                                      onClick={() => handleFinalizePO(po.id)}
-                                      title="Finalize PO"
-                                    >
-                                      <CheckCircle className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      onClick={() => handleDeletePO(po.id)}
-                                      title="Delete PO"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
+                                    {!showDeleted && (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleFinalizePO(po.id)}
+                                          title="Finalize PO"
+                                        >
+                                          <CheckCircle className="w-4 h-4" />
+                                        </Button>
+                                        {po.status === 'draft' && (
+                                          <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            onClick={() => handleDeletePO(po.id)}
+                                            disabled={deletingId === po.id}
+                                            title="Delete PO"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        )}
+                                      </>
+                                    )}
+                                    {showDeleted && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleRestorePO(po.id)}
+                                        disabled={restoringId === po.id}
+                                        className="text-green-600 hover:text-green-700"
+                                        title="Restore PO"
+                                      >
+                                        💚 {restoringId === po.id ? '...' : 'Restore'}
+                                      </Button>
+                                    )}
                                   </>
                                 )}
                               </div>

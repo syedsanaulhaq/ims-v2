@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { vendorsApi } from '../services/vendorsApi';
 import { Vendor, CreateVendorRequest, UpdateVendorRequest } from '../types/vendor';
 
-export function useVendors() {
+export function useVendors(includeDeleted = false) {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -12,14 +12,14 @@ export function useVendors() {
     setLoading(true);
     setError(null);
     try {
-      const res = await vendorsApi.getVendors();
-      setVendors(res.data.vendors || []);
+      const res = await vendorsApi.getVendors(includeDeleted);
+      setVendors(res.data.vendors || res.data || []);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch vendors');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [includeDeleted]);
 
   useEffect(() => {
     fetchVendors();
@@ -70,5 +70,27 @@ export function useVendors() {
     }
   };
 
-  return { vendors, loading, error, createVendor, updateVendor, deleteVendor, refetch: fetchVendors };
+  const restoreVendor = async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await vendorsApi.restoreVendor(id);
+      await fetchVendors();
+    } catch (err: any) {
+      setError(err.message || 'Failed to restore vendor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { 
+    vendors, 
+    loading, 
+    error, 
+    createVendor, 
+    updateVendor, 
+    deleteVendor, 
+    restoreVendor,
+    refetch: fetchVendors 
+  };
 }
