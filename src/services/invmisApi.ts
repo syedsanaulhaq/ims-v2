@@ -6,9 +6,17 @@
 
 // Environment-based API URL configuration
 export const getApiBaseUrl = () => {
-  // Check if running on staging port (8081)
+  const hostname = window.location.hostname;
   const currentPort = window.location.port;
-  const isStaging = currentPort === '8081' || window.location.hostname.includes('staging');
+  
+  // If running on production server (not localhost)
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    // Use the same host with API port 3001
+    return `http://${hostname}:3001/api`;
+  }
+  
+  // Check if running on staging port (8081)
+  const isStaging = currentPort === '8081' || hostname.includes('staging');
   
   // Environment-based URL selection
   if (isStaging) {

@@ -35,6 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface Vendor {
   id: string;
@@ -92,8 +93,8 @@ const VendorManagement = () => {
       setIsLoading(true);
       
       const url = includeDeleted
-        ? 'http://localhost:3001/api/vendors?includeDeleted=true'
-        : 'http://localhost:3001/api/vendors';
+        ? `${getApiBaseUrl()}/vendors?includeDeleted=true`
+        : `${getApiBaseUrl()}/vendors`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -160,7 +161,7 @@ const VendorManagement = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/vendors', {
+      const response = await fetch(`${getApiBaseUrl()}/vendors`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -220,7 +221,7 @@ const VendorManagement = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/vendors/${editingVendor}`, {
+      const response = await fetch(`${getApiBaseUrl()}/vendors/${editingVendor}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -256,7 +257,7 @@ const VendorManagement = () => {
 
     try {
       setDeletingId(vendorId);
-      const response = await fetch(`http://localhost:3001/api/vendors/${vendorId}`, {
+      const response = await fetch(`${getApiBaseUrl()}/vendors/${vendorId}`, {
         method: 'DELETE',
       });
 
@@ -289,7 +290,7 @@ const VendorManagement = () => {
 
     try {
       setRestoringId(vendorId);
-      const response = await fetch(`http://localhost:3001/api/vendors/${vendorId}/restore`, {
+      const response = await fetch(`${getApiBaseUrl()}/vendors/${vendorId}/restore`, {
         method: 'POST',
       });
 
