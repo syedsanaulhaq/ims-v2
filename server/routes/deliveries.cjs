@@ -94,7 +94,8 @@ router.get('/', async (req, res) => {
     query += ` GROUP BY d.id, d.delivery_number, d.tender_id, d.delivery_date, d.delivery_personnel,
                        d.delivery_notes, d.delivery_chalan, d.chalan_file_path,
                        d.is_finalized, d.finalized_at, d.finalized_by, d.created_at, d.updated_at,
-                       d.po_id, d.po_number, d.received_by, d.receiving_date, d.delivery_status, d.notes, t.title
+                       d.po_id, d.po_number, d.received_by, d.receiving_date, d.delivery_status, d.notes, t.title,
+                       d.is_deleted, d.deleted_at, d.deleted_by
                ORDER BY d.delivery_date DESC
                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
 
@@ -437,7 +438,8 @@ router.get('/by-tender/:tenderId', async (req, res) => {
         LEFT JOIN delivery_items di ON d.id = di.delivery_id
         WHERE d.tender_id = @tenderId
         GROUP BY d.id, d.tender_id, d.po_id, d.delivery_date, d.received_qty, 
-                 d.is_finalized, d.created_at, d.updated_at, t.title
+                 d.is_finalized, d.created_at, d.updated_at, t.title,
+                 d.is_deleted, d.deleted_at, d.deleted_by
         ORDER BY d.delivery_date DESC
       `);
 
@@ -514,7 +516,8 @@ router.get('/by-po/:poId', async (req, res) => {
           d.id, d.delivery_number, d.po_id, d.po_number, d.delivery_date,
           d.delivery_status, d.delivery_personnel, d.delivery_chalan, d.received_by, 
           d.receiving_date, d.notes, d.created_at,
-          po.po_number, v.vendor_name, u.UserName
+          po.po_number, v.vendor_name, u.UserName,
+          d.is_deleted, d.deleted_at, d.deleted_by
         ORDER BY d.delivery_date DESC, d.created_at DESC
       `);
 
