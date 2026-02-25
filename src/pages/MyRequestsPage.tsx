@@ -7,6 +7,7 @@ import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, AlertCircle } from
 import { format } from 'date-fns';
 import { useSession } from '@/contexts/SessionContext';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 interface RequestItem {
@@ -70,7 +71,7 @@ const MyRequestsPage: React.FC = () => {
         return;
       }
       
-      const response = await fetch('http://localhost:3001/api/stock-issuance/requests', {
+      const response = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
         method: 'GET',
         credentials: 'include',
         headers: {

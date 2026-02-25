@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface RequestItem {
   id: string;
@@ -58,7 +59,7 @@ const StockOperationRequestDetails: React.FC = () => {
       setLoading(true);
       
       // Use the working stock issuance API and find the specific request
-      const response = await fetch('http://localhost:3001/api/stock-issuance/requests', {
+      const response = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
         method: 'GET',
         credentials: 'include',
         headers: {

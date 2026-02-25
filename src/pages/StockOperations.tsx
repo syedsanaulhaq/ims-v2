@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateDMY } from '@/utils/dateUtils';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import { 
   ClipboardList, 
   ArrowLeft,
@@ -35,7 +36,7 @@ const StockOperations = () => {
     const fetchStockData = async () => {
       try {
         setDataLoading(true);
-        const response = await fetch('http://localhost:3001/api/stock-issuance/requests');
+        const response = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`);
         const data = await response.json();
         
         // Handle the API response structure

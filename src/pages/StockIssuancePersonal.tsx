@@ -587,6 +587,17 @@ const StockIssuancePersonal: React.FC = () => {
                     className="pl-10"
                   />
                 </div>
+                {/* Always visible Add Custom Item button */}
+                {!showCustomItemForm && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomItemForm(true)}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Can't find your item? Add a custom item
+                  </button>
+                )}
               </div>
 
               {/* Available Items */}

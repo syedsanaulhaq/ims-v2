@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, User, ArrowRight, CheckCircle, XCircle, Forward, FileText } from 'lucide-react';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import { 
   approvalForwardingService, 
   RequestApproval, 
@@ -100,7 +101,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
   const loadWorkflows = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/workflows');
+      const response = await fetch(`${getApiBaseUrl()}/workflows`);
       const data = await response.json();
       if (data.success) {
         setWorkflows(data.data);
@@ -112,7 +113,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
   const loadWorkflowUsers = async (workflowId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/workflows/${workflowId}/approvers`);
+      const response = await fetch(`${getApiBaseUrl()}/workflows/${workflowId}/approvers`);
       const data = await response.json();
       if (data.success) {
         setWorkflowUsers(data.data);
@@ -204,7 +205,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       if (actionType === 'forwarded' && forwardingType === 'approval') {
         // Get currently logged-in user's supervisor from backend
         try {
-          const response = await fetch(`http://localhost:3001/api/user/${currentUser.user_id}/supervisor`);
+          const response = await fetch(`${getApiBaseUrl()}/user/${currentUser.user_id}/supervisor`);
           const data = await response.json();
           if (data.success && data.supervisor_id) {
             forwardToUserId = data.supervisor_id;
@@ -258,7 +259,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
               console.log('📦 Starting issuance workflow for request:', approval.request_id);
               
               // Step 1: Determine issuance source for each approved item
-              const itemsResponse = await fetch(`http://localhost:3001/api/stock-issuance/requests/${approval.request_id}`);
+              const itemsResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests/${approval.request_id}`);
               const itemsData = await itemsResponse.json();
               
               if (itemsData.success && itemsData.data && itemsData.data.length > 0) {
@@ -269,7 +270,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                   if (item.item_status !== 'Approved') continue; // Only issue approved items
                   
                   // Determine source for this item
-                  const sourceResponse = await fetch('http://localhost:3001/api/issuance/determine-source', {
+                  const sourceResponse = await fetch(`${getApiBaseUrl()}/issuance/determine-source`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -288,7 +289,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                     
                     // Issue from determined source
                     if (issuanceSource === 'wing_store') {
-                      await fetch('http://localhost:3001/api/issuance/issue-from-wing', {
+                      await fetch(`${getApiBaseUrl()}/issuance/issue-from-wing`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -301,7 +302,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                         })
                       });
                     } else if (issuanceSource === 'admin_store') {
-                      await fetch('http://localhost:3001/api/issuance/issue-from-admin', {
+                      await fetch(`${getApiBaseUrl()}/issuance/issue-from-admin`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -317,7 +318,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                 }
                 
                 // Step 2: Finalize issuance
-                await fetch('http://localhost:3001/api/issuance/finalize', {
+                await fetch(`${getApiBaseUrl()}/issuance/finalize`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -867,7 +868,7 @@ const ItemsList: React.FC<{
       console.log('🔍 Loading items for approval:', approvalId);
       
       // Fetch items from the backend API
-      const response = await fetch(`http://localhost:3001/api/approval-items/${approvalId}`);
+      const response = await fetch(`${getApiBaseUrl()}/approval-items/${approvalId}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch items: ${response.statusText}`);

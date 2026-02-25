@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,14 +67,14 @@ const Dashboard = () => {
           usersData,
           wingsData
         ] = await Promise.allSettled([
-          fetch('http://localhost:3001/api/tenders').then(r => r.json()),
-          fetch('http://localhost:3001/api/deliveries').then(r => r.json()),
-          fetch('http://localhost:3001/api/stock-issuance/requests').then(r => r.json()),
-          fetch('http://localhost:3001/api/inventory-stock').then(r => r.json()),
-          fetch('http://localhost:3001/api/inventory/dashboard').then(r => r.json()),
-          fetch('http://localhost:3001/api/offices').then(r => r.json()),
-          fetch('http://localhost:3001/api/users').then(r => r.json()),
-          fetch('http://localhost:3001/api/wings').then(r => r.json())
+          fetch(`${getApiBaseUrl()}/tenders`).then(r => r.json()),
+          fetch(`${getApiBaseUrl()}/deliveries`).then(r => r.json()),
+          fetch(`${getApiBaseUrl()}/stock-issuance/requests`).then(r => r.json()),
+          fetch(`${getApiBaseUrl()}/inventory-stock`).then(r => r.json()),
+          fetch(`${getApiBaseUrl()}/inventory/dashboard`).then(r => r.json()),
+          fetch(`${getApiBaseUrl()}/offices`).then(r => r.json()),
+          fetch(`${getApiBaseUrl()}/users`).then(r => r.json()),
+          fetch(`${getApiBaseUrl()}/wings`).then(r => r.json())
         ]);
 
         // Process results

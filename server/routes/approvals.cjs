@@ -53,18 +53,56 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
   try {
     const pool = getPool();
     const supervisorId = req.query.supervisor_id || req.session.userId;
-    const wingId = req.query.wing_id;
+    let wingId = req.query.wing_id;
 
+    // If no wing_id provided, get user's wing from database
     if (!wingId) {
-      return res.status(400).json({ error: 'wing_id is required' });
+      const userWingResult = await pool.request()
+        .input('userId', sql.NVarChar(450), req.session.userId)
+        .query(`
+          SELECT TOP 1 uwi.WingId 
+          FROM UsersWingInformation uwi
+          WHERE uwi.UserId = @userId
+        `);
+      
+      if (userWingResult.recordset.length > 0) {
+        wingId = userWingResult.recordset[0].WingId;
+      }
     }
 
+    if (!wingId) {
+      // Return empty instead of error if no wing found
+      console.log('⚠️ No wing_id provided or found for user');
+      return res.json({ requests: [], total: 0 });
+    }
+
+    // Use inline query instead of view for better compatibility
     const result = await pool.request()
       .input('wingId', sql.Int, wingId)
       .query(`
-        SELECT * FROM vw_pending_supervisor_approvals
-        WHERE requester_wing_id = @wingId
-        ORDER BY is_urgent DESC, pending_hours DESC
+        SELECT 
+          sir.id,
+          sir.request_number,
+          sir.request_type,
+          sir.purpose,
+          sir.urgency_level,
+          sir.approval_status,
+          sir.submitted_at,
+          sir.requester_user_id,
+          sir.requester_wing_id,
+          CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 1 ELSE 0 END as is_urgent,
+          DATEDIFF(HOUR, sir.submitted_at, GETDATE()) as pending_hours,
+          u.FullName as requester_name,
+          w.Name as wing_name
+        FROM stock_issuance_requests sir
+        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+        LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
+        WHERE sir.requester_wing_id = @wingId
+          AND sir.approval_status IN ('Pending', 'pending', 'Submitted')
+          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
+        ORDER BY 
+          CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 0 ELSE 1 END,
+          sir.submitted_at ASC
       `);
 
     console.log(`📋 Found ${result.recordset.length} pending requests for wing ${wingId}`);
@@ -82,10 +120,31 @@ router.get('/admin/pending', requireAuth, requirePermission('stock_request.view_
   try {
     const pool = getPool();
 
+    // Use inline query instead of view for better compatibility
     const result = await pool.request()
       .query(`
-        SELECT * FROM vw_pending_admin_approvals
-        ORDER BY is_urgent DESC, pending_hours DESC
+        SELECT 
+          sir.id,
+          sir.request_number,
+          sir.request_type,
+          sir.purpose,
+          sir.urgency_level,
+          sir.approval_status,
+          sir.submitted_at,
+          sir.requester_user_id,
+          sir.requester_wing_id,
+          CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 1 ELSE 0 END as is_urgent,
+          DATEDIFF(HOUR, sir.submitted_at, GETDATE()) as pending_hours,
+          u.FullName as requester_name,
+          w.Name as wing_name
+        FROM stock_issuance_requests sir
+        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+        LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
+        WHERE sir.approval_status IN ('Forwarded to Admin', 'Approved by Supervisor', 'Pending Admin Approval')
+          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
+        ORDER BY 
+          CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 0 ELSE 1 END,
+          sir.submitted_at ASC
       `);
 
     console.log(`📋 Found ${result.recordset.length} pending requests for admin`);

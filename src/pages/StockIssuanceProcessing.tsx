@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { formatDateDMY } from '@/utils/dateUtils';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import { 
   Package, 
   CheckCircle, 
@@ -106,7 +107,7 @@ const StockIssuanceProcessing: React.FC = () => {
 
     try {
       // Use the new Stock Issuance Workflow API
-      const response = await fetch(`http://localhost:3001/api/stock-issuance/issue/${selectedRequest.id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/stock-issuance/issue/${selectedRequest.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

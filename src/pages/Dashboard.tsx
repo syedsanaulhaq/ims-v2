@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,14 +80,14 @@ const Dashboard = () => {
           usersRes,
           wingsRes
         ] = await Promise.all([
-          fetch('http://localhost:3001/api/tenders').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/deliveries').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/stock-issuance/requests').then(res => res.ok ? res.json() : []).catch(() => []),
-          fetch('http://localhost:3001/api/inventory-stock').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/inventory/dashboard-stats').then(res => res.ok ? res.json() : null).catch(() => null),
-          fetch('http://localhost:3001/api/offices').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/users').then(res => res.ok ? res.json() : []),
-          fetch('http://localhost:3001/api/wings').then(res => res.ok ? res.json() : [])
+          fetch(`${getApiBaseUrl()}/tenders`).then(res => res.ok ? res.json() : []),
+          fetch(`${getApiBaseUrl()}/deliveries`).then(res => res.ok ? res.json() : []),
+          fetch(`${getApiBaseUrl()}/stock-issuance/requests`).then(res => res.ok ? res.json() : []).catch(() => []),
+          fetch(`${getApiBaseUrl()}/inventory-stock`).then(res => res.ok ? res.json() : []),
+          fetch(`${getApiBaseUrl()}/inventory/dashboard-stats`).then(res => res.ok ? res.json() : null).catch(() => null),
+          fetch(`${getApiBaseUrl()}/offices`).then(res => res.ok ? res.json() : []),
+          fetch(`${getApiBaseUrl()}/users`).then(res => res.ok ? res.json() : []),
+          fetch(`${getApiBaseUrl()}/wings`).then(res => res.ok ? res.json() : [])
         ]);
 
         console.log('Dashboard data loaded:', {

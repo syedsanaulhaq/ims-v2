@@ -2,7 +2,15 @@
 // This automatically replaces localhost URLs with the correct production URL
 
 const getBaseUrl = () => {
-  // Check for environment variable first
+  const hostname = window.location.hostname;
+  
+  // If running on production server (not localhost)
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    // Use the same host with API port 3001
+    return `http://${hostname}:3001`;
+  }
+  
+  // Check for environment variable
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }

@@ -15,6 +15,194 @@ const requireAuth = (req, res, next) => {
 };
 
 // ============================================================================
+// GET /api/inventory - Get all inventory items (root route for /api/inventory-stock alias)
+// ============================================================================
+router.get('/', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { wing_id, category_id, search, includeDeleted } = req.query;
+
+    let query = `
+      SELECT 
+        im.id,
+        im.nomenclature,
+        im.description,
+        im.unit,
+        im.category_id,
+        c.category_name,
+        COALESCE(
+          (SELECT SUM(sa.quantity_available) 
+           FROM stock_acquisitions sa 
+           WHERE sa.item_master_id = im.id 
+             AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)), 0
+        ) as quantity_in_stock,
+        im.reorder_point,
+        im.created_at,
+        im.updated_at
+      FROM item_masters im
+      LEFT JOIN categories c ON im.category_id = c.id
+      WHERE (im.is_deleted = 0 OR im.is_deleted IS NULL)
+    `;
+
+    let request = pool.request();
+
+    if (category_id) {
+      query += ` AND im.category_id = @categoryId`;
+      request = request.input('categoryId', sql.UniqueIdentifier, category_id);
+    }
+
+    if (search) {
+      query += ` AND (im.nomenclature LIKE @search OR im.description LIKE @search)`;
+      request = request.input('search', sql.NVarChar, `%${search}%`);
+    }
+
+    query += ` ORDER BY im.nomenclature`;
+
+    const result = await request.query(query);
+    
+    res.json({
+      success: true,
+      data: result.recordset,
+      count: result.recordset.length
+    });
+  } catch (error) {
+    console.error('Error fetching inventory:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch inventory', 
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// GET /api/inventory/dashboard-stats - Get dashboard statistics
+// ============================================================================
+router.get('/dashboard-stats', async (req, res) => {
+  try {
+    const pool = getPool();
+
+    // Get total items count
+    const itemsResult = await pool.request().query(`
+      SELECT COUNT(*) as total_items 
+      FROM item_masters 
+      WHERE is_deleted = 0 OR is_deleted IS NULL
+    `);
+
+    // Get total stock value and quantity
+    const stockResult = await pool.request().query(`
+      SELECT 
+        COUNT(DISTINCT sa.item_master_id) as items_with_stock,
+        COALESCE(SUM(sa.quantity_available), 0) as total_quantity,
+        COALESCE(SUM(sa.quantity_available * ISNULL(sa.unit_cost, 0)), 0) as total_value
+      FROM stock_acquisitions sa
+      WHERE sa.quantity_available > 0
+        AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)
+    `);
+
+    // Get low stock items count
+    const lowStockResult = await pool.request().query(`
+      SELECT COUNT(*) as low_stock_count
+      FROM item_masters im
+      WHERE im.reorder_point IS NOT NULL
+        AND im.reorder_point > 0
+        AND (im.is_deleted = 0 OR im.is_deleted IS NULL)
+        AND COALESCE(
+          (SELECT SUM(sa.quantity_available) 
+           FROM stock_acquisitions sa 
+           WHERE sa.item_master_id = im.id 
+             AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)), 0
+        ) <= im.reorder_point
+    `);
+
+    // Get pending requests count
+    const pendingResult = await pool.request().query(`
+      SELECT COUNT(*) as pending_requests
+      FROM stock_issuance_requests
+      WHERE approval_status IN ('Pending', 'pending')
+        AND (is_deleted = 0 OR is_deleted IS NULL)
+    `);
+
+    // Get categories count
+    const categoriesResult = await pool.request().query(`
+      SELECT COUNT(*) as total_categories
+      FROM categories
+      WHERE is_deleted = 0 OR is_deleted IS NULL
+    `);
+
+    res.json({
+      success: true,
+      total_items: itemsResult.recordset[0].total_items,
+      items_with_stock: stockResult.recordset[0].items_with_stock,
+      total_quantity: stockResult.recordset[0].total_quantity,
+      total_value: stockResult.recordset[0].total_value,
+      low_stock_count: lowStockResult.recordset[0].low_stock_count,
+      pending_requests: pendingResult.recordset[0].pending_requests,
+      total_categories: categoriesResult.recordset[0].total_categories
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch dashboard statistics', 
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// GET /api/inventory/dashboard - Alias for dashboard-stats
+// ============================================================================
+router.get('/dashboard', async (req, res) => {
+  // Redirect to dashboard-stats handler by directly calling it
+  try {
+    const pool = getPool();
+
+    const itemsResult = await pool.request().query(`
+      SELECT COUNT(*) as total_items 
+      FROM item_masters 
+      WHERE is_deleted = 0 OR is_deleted IS NULL
+    `);
+
+    const stockResult = await pool.request().query(`
+      SELECT 
+        COUNT(DISTINCT sa.item_master_id) as items_with_stock,
+        COALESCE(SUM(sa.quantity_available), 0) as total_quantity,
+        COALESCE(SUM(sa.quantity_available * ISNULL(sa.unit_cost, 0)), 0) as total_value
+      FROM stock_acquisitions sa
+      WHERE sa.quantity_available > 0
+        AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)
+    `);
+
+    const lowStockResult = await pool.request().query(`
+      SELECT COUNT(*) as low_stock_count
+      FROM item_masters im
+      WHERE im.reorder_point IS NOT NULL
+        AND im.reorder_point > 0
+        AND (im.is_deleted = 0 OR im.is_deleted IS NULL)
+        AND COALESCE(
+          (SELECT SUM(sa.quantity_available) 
+           FROM stock_acquisitions sa 
+           WHERE sa.item_master_id = im.id 
+             AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)), 0
+        ) <= im.reorder_point
+    `);
+
+    res.json({
+      success: true,
+      total_items: itemsResult.recordset[0].total_items,
+      items_with_stock: stockResult.recordset[0].items_with_stock,
+      total_quantity: stockResult.recordset[0].total_quantity,
+      total_value: stockResult.recordset[0].total_value,
+      low_stock_count: lowStockResult.recordset[0].low_stock_count
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch dashboard' });
+  }
+});
+
+// ============================================================================
 // GET /api/inventory/verification - Get inventory verification list
 // ============================================================================
 router.get('/verification', async (req, res) => {

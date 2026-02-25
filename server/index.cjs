@@ -77,6 +77,7 @@ app.use('/api/item-masters', itemRoutes); // Alias for frontend compatibility
 app.use('/api/categories', categoryRoutes);
 app.use('/api/sub-categories', categoryRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/inventory-stock', inventoryRoutes); // Alias for legacy frontend calls
 app.use('/api/stock-issuance', stockIssuanceRoutes);
 app.use('/api/stock-acquisitions', stockAcquisitionsRoutes);
 app.use('/api/reports', reportsRoutes);

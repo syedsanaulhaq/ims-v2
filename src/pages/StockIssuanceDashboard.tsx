@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import {
   Table,
   TableBody,
@@ -121,7 +122,7 @@ export function StockIssuanceDashboard() {
       console.log('🔄 Loading stock issuance dashboard data...');
       
       // Try direct API call first
-      const directResponse = await fetch('http://localhost:3001/api/stock-issuance/requests');
+      const directResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`);
       if (!directResponse.ok) {
         throw new Error(`API request failed: ${directResponse.status}`);
       }

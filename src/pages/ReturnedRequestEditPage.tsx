@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import {
   Plus,
   Minus,
@@ -91,7 +92,7 @@ const ReturnedRequestEditPage: React.FC = () => {
             setReturnedRequest(returnedReq);
 
             // Now load the stock issuance request using the correct request_id
-            const requestResponse = await fetch(`http://localhost:3001/api/stock-issuance/requests/${returnedReq.request_id}?returned_approval_id=${approvalId}`, {
+            const requestResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests/${returnedReq.request_id}?returned_approval_id=${approvalId}`, {
               method: 'GET',
               credentials: 'include',
               headers: {
@@ -213,7 +214,7 @@ const ReturnedRequestEditPage: React.FC = () => {
         }))
       };
 
-      const response = await fetch(`http://localhost:3001/api/stock-issuance/requests/${id}`, {
+      const response = await fetch(`${getApiBaseUrl()}/stock-issuance/requests/${id}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {

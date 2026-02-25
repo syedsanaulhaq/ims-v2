@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import { 
   BarChart, 
   Bar, 
@@ -196,9 +197,9 @@ const ReportsAnalytics: React.FC = () => {
       
       // Use real APIs to get financial metrics
       const [tendersResponse, deliveriesResponse, stockResponse] = await Promise.all([
-        fetch('http://localhost:3001/api/tenders').catch(() => ({ json: () => [] })),
-        fetch('http://localhost:3001/api/deliveries').catch(() => ({ json: () => [] })),
-        fetch('http://localhost:3001/api/stock-issuance/requests').catch(() => ({ json: () => ({ data: [] }) }))
+        fetch(`${getApiBaseUrl()}/tenders`).catch(() => ({ json: () => [] })),
+        fetch(`${getApiBaseUrl()}/deliveries`).catch(() => ({ json: () => [] })),
+        fetch(`${getApiBaseUrl()}/stock-issuance/requests`).catch(() => ({ json: () => ({ data: [] }) }))
       ]);
       
       const tenders = await tendersResponse.json();

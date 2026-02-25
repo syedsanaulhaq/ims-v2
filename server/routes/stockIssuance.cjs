@@ -62,6 +62,178 @@ router.get('/', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/stock-issuance/requests - Get all stock issuance requests (frontend endpoint)
+// ============================================================================
+// This endpoint provides the response format expected by the frontend
+router.get('/requests', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { status, wing_id, requester_id, includeDeleted } = req.query;
+
+    let query = `
+      SELECT 
+        sir.id,
+        sir.request_number,
+        sir.request_type,
+        sir.requester_user_id,
+        sir.requester_wing_id,
+        sir.requester_office_id,
+        sir.requester_branch_id,
+        sir.purpose,
+        sir.urgency_level,
+        sir.justification,
+        sir.is_returnable,
+        sir.expected_return_date,
+        sir.approval_status,
+        sir.submitted_at,
+        sir.created_at,
+        sir.updated_at,
+        sir.is_deleted,
+        sir.deleted_at,
+        sir.deleted_by,
+        u.Id as 'requester.user_id',
+        u.FullName as 'requester.full_name',
+        u.UserName as 'requester.user_name',
+        w.Id as 'wing.wing_id',
+        w.Name as 'wing.name',
+        o.intOfficeID as 'office.office_id',
+        o.strOfficeName as 'office.office_name'
+      FROM stock_issuance_requests sir
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
+      LEFT JOIN tblOffices o ON sir.requester_office_id = o.intOfficeID
+    `;
+
+    // Build WHERE clause
+    const conditions = [];
+    let request = pool.request();
+
+    if (includeDeleted !== 'true') {
+      conditions.push('(sir.is_deleted = 0 OR sir.is_deleted IS NULL)');
+    }
+
+    if (status) {
+      conditions.push('sir.approval_status = @status');
+      request = request.input('status', sql.NVarChar(50), status);
+    }
+
+    if (wing_id) {
+      conditions.push('sir.requester_wing_id = @wingId');
+      request = request.input('wingId', sql.Int, wing_id);
+    }
+
+    if (requester_id) {
+      conditions.push('sir.requester_user_id = @requesterId');
+      request = request.input('requesterId', sql.NVarChar(450), requester_id);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY sir.submitted_at DESC, sir.created_at DESC';
+
+    const result = await request.query(query);
+
+    // Transform results to nested object format expected by frontend
+    const transformedData = await Promise.all(result.recordset.map(async (row) => {
+      // Get items for this request
+      const itemsResult = await pool.request()
+        .input('requestId', sql.UniqueIdentifier, row.id)
+        .query(`
+          SELECT 
+            sii.id,
+            sii.item_master_id,
+            sii.nomenclature,
+            sii.requested_quantity,
+            sii.approved_quantity,
+            sii.item_status,
+            sii.item_type,
+            sii.custom_item_name,
+            sii.unit_price,
+            im.nomenclature as master_nomenclature,
+            im.unit
+          FROM stock_issuance_items sii
+          LEFT JOIN item_masters im ON sii.item_master_id = im.id
+          WHERE sii.request_id = @requestId
+            AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
+        `);
+
+      return {
+        id: row.id,
+        request_number: row.request_number,
+        request_type: row.request_type,
+        requester_user_id: row.requester_user_id,
+        requester_wing_id: row.requester_wing_id,
+        requester_office_id: row.requester_office_id,
+        requester_branch_id: row.requester_branch_id,
+        purpose: row.purpose,
+        urgency_level: row.urgency_level,
+        justification: row.justification,
+        is_returnable: row.is_returnable,
+        expected_return_date: row.expected_return_date,
+        approval_status: row.approval_status,
+        submitted_at: row.submitted_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        is_deleted: row.is_deleted,
+        deleted_at: row.deleted_at,
+        deleted_by: row.deleted_by,
+        requester: {
+          user_id: row['requester.user_id'],
+          full_name: row['requester.full_name'],
+          user_name: row['requester.user_name']
+        },
+        wing: row['wing.wing_id'] ? {
+          wing_id: row['wing.wing_id'],
+          name: row['wing.name']
+        } : null,
+        office: row['office.office_id'] ? {
+          office_id: row['office.office_id'],
+          office_name: row['office.office_name']
+        } : null,
+        items: itemsResult.recordset.map(item => ({
+          id: item.id,
+          item_master_id: item.item_master_id,
+          nomenclature: item.nomenclature || item.master_nomenclature,
+          requested_quantity: item.requested_quantity,
+          approved_quantity: item.approved_quantity,
+          item_status: item.item_status,
+          item_type: item.item_type,
+          custom_item_name: item.custom_item_name,
+          unit_price: item.unit_price,
+          unit: item.unit
+        }))
+      };
+    }));
+
+    // Calculate summary
+    const summary = {
+      total: transformedData.length,
+      pending: transformedData.filter(r => r.approval_status === 'Pending' || r.approval_status === 'pending').length,
+      approved: transformedData.filter(r => r.approval_status === 'Approved' || r.approval_status === 'approved').length,
+      rejected: transformedData.filter(r => r.approval_status === 'Rejected' || r.approval_status === 'rejected').length,
+      forwarded: transformedData.filter(r => r.approval_status?.includes('Forwarded')).length,
+      issued: transformedData.filter(r => r.approval_status === 'Issued' || r.approval_status === 'issued').length
+    };
+
+    res.json({
+      success: true,
+      data: transformedData,
+      summary,
+      count: transformedData.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching stock issuance requests:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch requests', 
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // GET /api/stock-issuance/pending/count - Get pending approvals count
 // ============================================================================
 router.get('/pending/count', async (req, res) => {
@@ -378,71 +550,76 @@ router.delete('/:id', requireAuth, async (req, res) => {
 // Creates a complete issuance record for past/historical transactions
 // Bypasses the normal approval workflow
 router.post('/historical', async (req, res) => {
-  const transaction = pool.request();
-  
   try {
     const pool = getPool();
-    const {
-      request_type,
-      requested_by_id,
-      requested_for_wing_id,
-      request_date,
-      approval_date,
-      issuance_date,
-      purpose,
-      remarks,
-      items,
-    } = req.body;
+    const transaction = new sql.Transaction(pool);
+    
+    await transaction.begin();
+    
+    try {
+      const {
+        request_type,
+        requested_by_id,
+        requested_for_wing_id,
+        request_date,
+        approval_date,
+        issuance_date,
+        purpose,
+        remarks,
+        items,
+      } = req.body;
 
-    // Validation
-    if (!request_type || !purpose || !items || items.length === 0) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
+      // Validation
+      if (!request_type || !purpose || !items || items.length === 0) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
 
-    if (request_type === 'personal' && !requested_by_id) {
-      return res.status(400).json({ error: 'Person is required for personal requests' });
-    }
+      if (request_type === 'personal' && !requested_by_id) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Person is required for personal requests' });
+      }
 
-    if (request_type === 'wing' && !requested_for_wing_id) {
-      return res.status(400).json({ error: 'Wing is required for wing requests' });
-    }
+      if (request_type === 'wing' && !requested_for_wing_id) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Wing is required for wing requests' });
+      }
 
-    // Begin transaction
-    const requestId = uuidv4();
-    const issuanceId = uuidv4();
-    const currentUserId = req.session?.userId || null; // Admin who is creating this record
+      const requestId = uuidv4();
+      const issuanceId = uuidv4();
+      const currentUserId = req.session?.userId || null; // Admin who is creating this record
 
-    // Step 1: Create the issuance request (already approved)
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, requestId)
-      .input('request_number', sql.NVarChar, `HIST-${Date.now()}`)
-      .input('requester_user_id', sql.NVarChar(450), request_type === 'personal' ? requested_by_id : null)
-      .input('requester_wing_id', sql.Int, request_type === 'wing' ? parseInt(requested_for_wing_id) : null)
-      .input('request_type', sql.NVarChar(50), request_type)
-      .input('purpose', sql.NVarChar, purpose)
-      .input('approval_status', sql.NVarChar(50), 'approved')
-      .input('approval_date', sql.DateTime, new Date(approval_date))
-      .input('approved_by', sql.NVarChar(450), currentUserId)
-      .input('remarks', sql.NVarChar, remarks || null)
-      .input('created_at', sql.DateTime, new Date(request_date))
-      .input('updated_at', sql.DateTime, new Date(approval_date))
-      .query(`
-        INSERT INTO stock_issuance_requests (
-          id, request_number, requester_user_id, requester_wing_id, 
-          request_type, purpose, approval_status, approval_date, 
-          approved_by, remarks, created_at, updated_at
-        )
-        VALUES (
-          @id, @request_number, @requester_user_id, @requester_wing_id,
-          @request_type, @purpose, @approval_status, @approval_date,
-          @approved_by, @remarks, @created_at, @updated_at
-        )
-      `);
+      // Step 1: Create the issuance request (already approved)
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, requestId)
+        .input('request_number', sql.NVarChar, `HIST-${Date.now()}`)
+        .input('requester_user_id', sql.NVarChar(450), request_type === 'personal' ? requested_by_id : null)
+        .input('requester_wing_id', sql.Int, request_type === 'wing' ? parseInt(requested_for_wing_id) : null)
+        .input('request_type', sql.NVarChar(50), request_type)
+        .input('purpose', sql.NVarChar, purpose)
+        .input('approval_status', sql.NVarChar(50), 'approved')
+        .input('approval_date', sql.DateTime, new Date(approval_date))
+        .input('approved_by', sql.NVarChar(450), currentUserId)
+        .input('remarks', sql.NVarChar, remarks || null)
+        .input('created_at', sql.DateTime, new Date(request_date))
+        .input('updated_at', sql.DateTime, new Date(approval_date))
+        .query(`
+          INSERT INTO stock_issuance_requests (
+            id, request_number, requester_user_id, requester_wing_id, 
+            request_type, purpose, approval_status, approval_date, 
+            approved_by, remarks, created_at, updated_at
+          )
+          VALUES (
+            @id, @request_number, @requester_user_id, @requester_wing_id,
+            @request_type, @purpose, @approval_status, @approval_date,
+            @approved_by, @remarks, @created_at, @updated_at
+          )
+        `);
 
     // Step 2: Insert request items
     for (const item of items) {
       const itemId = uuidv4();
-      await pool.request()
+      await transaction.request()
         .input('id', sql.UniqueIdentifier, itemId)
         .input('request_id', sql.UniqueIdentifier, requestId)
         .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
@@ -462,7 +639,7 @@ router.post('/historical', async (req, res) => {
     }
 
     // Step 3: Create the issuance record
-    await pool.request()
+    await transaction.request()
       .input('id', sql.UniqueIdentifier, issuanceId)
       .input('request_id', sql.UniqueIdentifier, requestId)
       .input('issuance_number', sql.NVarChar, `ISS-HIST-${Date.now()}`)
@@ -489,7 +666,7 @@ router.post('/historical', async (req, res) => {
       const issuanceItemId = uuidv4();
       
       // Insert issuance item
-      await pool.request()
+      await transaction.request()
         .input('id', sql.UniqueIdentifier, issuanceItemId)
         .input('issuance_id', sql.UniqueIdentifier, issuanceId)
         .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
@@ -506,7 +683,7 @@ router.post('/historical', async (req, res) => {
 
       // Deduct from stock (FIFO)
       let remainingQty = item.quantity_issued;
-      const stockResult = await pool.request()
+      const stockResult = await transaction.request()
         .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
         .query(`
           SELECT id, quantity_available
@@ -521,7 +698,7 @@ router.post('/historical', async (req, res) => {
 
         const deductQty = Math.min(remainingQty, stock.quantity_available);
         
-        await pool.request()
+        await transaction.request()
           .input('id', sql.UniqueIdentifier, stock.id)
           .input('deduct', sql.Int, deductQty)
           .query(`
@@ -538,12 +715,19 @@ router.post('/historical', async (req, res) => {
       }
     }
 
+    await transaction.commit();
+    
     res.status(201).json({
       success: true,
       message: 'Historical issuance created successfully',
       requestId,
       issuanceId,
     });
+
+    } catch (innerError) {
+      await transaction.rollback();
+      throw innerError;
+    }
 
   } catch (error) {
     console.error('❌ Error creating historical issuance:', error);
