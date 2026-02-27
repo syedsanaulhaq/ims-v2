@@ -672,6 +672,31 @@ router.put('/:id', async (req, res) => {
       }
     }
 
+    // Update bidders' is_successful status if bidders are provided
+    const bidders = tenderData.bidders;
+    if (Array.isArray(bidders) && bidders.length > 0) {
+      console.log('📋 Updating bidders is_successful status for tender:', id);
+      for (const bidder of bidders) {
+        if (bidder.vendor_id) {
+          try {
+            const bidderRequest = transaction.request();
+            bidderRequest.input('tender_id', sql.UniqueIdentifier, id);
+            bidderRequest.input('vendor_id', sql.UniqueIdentifier, bidder.vendor_id);
+            bidderRequest.input('is_successful', sql.Bit, bidder.is_successful ? 1 : 0);
+            
+            await bidderRequest.query(`
+              UPDATE tender_vendors 
+              SET is_successful = @is_successful, updated_at = GETDATE()
+              WHERE tender_id = @tender_id AND vendor_id = @vendor_id
+            `);
+            console.log(`✅ Updated bidder ${bidder.vendor_name || bidder.vendor_id}: is_successful = ${bidder.is_successful ? 1 : 0}`);
+          } catch (bidderErr) {
+            console.warn(`⚠️ Could not update bidder ${bidder.vendor_id}:`, bidderErr.message);
+          }
+        }
+      }
+    }
+
     await transaction.commit();
     res.json({ message: '✅ Tender updated successfully' });
   } catch (error) {

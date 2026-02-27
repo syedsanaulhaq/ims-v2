@@ -154,6 +154,7 @@ const CreateTender: React.FC = () => {
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showCsvModal, setShowCsvModal] = useState<boolean>(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [newItem, setNewItem] = useState<TenderItem>({
     item_master_id: '',
     nomenclature: '',
@@ -377,6 +378,41 @@ const CreateTender: React.FC = () => {
   // Handle removing item from tender
   const handleRemoveItem = (index: number) => {
     setTenderItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle bulk delete of selected items
+  const handleBulkDelete = () => {
+    if (selectedItemIds.size === 0) {
+      alert('Please select items to delete');
+      return;
+    }
+    if (confirm(`Are you sure you want to delete ${selectedItemIds.size} selected item(s)?`)) {
+      setTenderItems(prev => prev.filter(item => !selectedItemIds.has(item.id || '')));
+      setSelectedItemIds(new Set());
+    }
+  };
+
+  // Handle select all items
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(tenderItems.map(item => item.id || '').filter(id => id));
+      setSelectedItemIds(allIds);
+    } else {
+      setSelectedItemIds(new Set());
+    }
+  };
+
+  // Handle single item selection
+  const handleSelectItem = (itemId: string, checked: boolean) => {
+    setSelectedItemIds(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(itemId);
+      } else {
+        newSet.delete(itemId);
+      }
+      return newSet;
+    });
   };
 
   // Handle item master selection
@@ -1697,13 +1733,34 @@ const CreateTender: React.FC = () => {
               {/* Items Table */}
               {tenderItems.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-medium mb-4">
-                    {tenderType === 'spot-purchase' ? 'Patty Purchase Items List' : tenderType === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
-                  </h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium">
+                      {tenderType === 'spot-purchase' ? 'Patty Purchase Items List' : tenderType === 'annual-tender' ? 'Annual Tender Items List' : 'Tender Items List'}
+                    </h3>
+                    {selectedItemIds.size > 0 && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleBulkDelete}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete Selected ({selectedItemIds.size})
+                      </Button>
+                    )}
+                  </div>
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-10">
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300"
+                              checked={tenderItems.length > 0 && selectedItemIds.size === tenderItems.length}
+                              onChange={(e) => handleSelectAll(e.target.checked)}
+                            />
+                          </TableHead>
                           {tenderType === 'annual-tender' ? (
                             <>
                               <TableHead>Category</TableHead>
@@ -1737,7 +1794,15 @@ const CreateTender: React.FC = () => {
                             })
                           : tenderItems
                         ).map((item, index) => (
-                          <TableRow key={item.id || index}>
+                          <TableRow key={item.id || index} className={selectedItemIds.has(item.id || '') ? 'bg-blue-50' : ''}>
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-300"
+                                checked={selectedItemIds.has(item.id || '')}
+                                onChange={(e) => handleSelectItem(item.id || '', e.target.checked)}
+                              />
+                            </TableCell>
                             {tenderType === 'annual-tender' ? (
                               <>
                                 <TableCell>
