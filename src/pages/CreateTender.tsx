@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { generateUUID } from '@/utils/uuid';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
@@ -395,7 +396,7 @@ const CreateTender: React.FC = () => {
   // Handle items imported from CSV modal
   const handleCsvItemsImport = (items: any[]) => {
     const newItems: TenderItem[] = items.map((item: any) => ({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       item_master_id: item.item_master_id || '',
       nomenclature: item.nomenclature || '',
       quantity: 1,
