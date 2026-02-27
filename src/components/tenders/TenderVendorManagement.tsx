@@ -784,11 +784,12 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
               </TableHeader>
               <TableBody>
                 {tenderVendors.map((vendor) => {
-                  // Debug log for proposal data
-                  console.log('Vendor proposal data:', vendor.vendor_name, {
+                  // Debug log for vendor data including is_successful
+                  console.log('Vendor data:', vendor.vendor_name, {
+                    is_successful: vendor.is_successful,
+                    is_selected: vendor.is_selected,
                     proposal_document_name: vendor.proposal_document_name,
-                    proposal_document_path: vendor.proposal_document_path,
-                    proposal_upload_date: vendor.proposal_upload_date
+                    proposal_document_path: vendor.proposal_document_path
                   });
                   
                   return (

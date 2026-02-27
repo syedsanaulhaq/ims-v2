@@ -410,6 +410,7 @@ router.get('/:id/vendors', async (req, res) => {
           tv.quoted_amount,
           tv.remarks,
           tv.is_awarded,
+          tv.is_selected,
           tv.is_successful,
           tv.proposal_document_path,
           tv.created_at,
@@ -420,6 +421,8 @@ router.get('/:id/vendors', async (req, res) => {
         FROM tender_vendors tv
         INNER JOIN vendors v ON tv.vendor_id = v.id
         WHERE tv.tender_id = @tenderId
+          AND (tv.is_deleted = 0 OR tv.is_deleted IS NULL)
+          AND (v.is_deleted = 0 OR v.is_deleted IS NULL)
         ORDER BY tv.vendor_name
       `);
 
