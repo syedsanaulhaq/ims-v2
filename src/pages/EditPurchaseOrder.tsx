@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Save, Trash2, Edit2, Check, X } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Edit2, Check, X, Plus } from 'lucide-react';
 
 interface POItem {
   id: number;
@@ -18,6 +18,17 @@ interface POItem {
   category_name: string;
   unit: string;
   subcategory_name?: string;
+}
+
+interface TenderItem {
+  id: string;
+  tender_id: string;
+  item_master_id: string;
+  quantity: number;
+  unit_price: number;
+  nomenclature: string;
+  category_name: string;
+  unit: string;
 }
 
 interface PurchaseOrderDetails {
@@ -64,6 +75,13 @@ export default function EditPurchaseOrder() {
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editQuantity, setEditQuantity] = useState<string>('');
   const [editUnitPrice, setEditUnitPrice] = useState<string>('');
+  
+  // Add item state
+  const [tenderItems, setTenderItems] = useState<TenderItem[]>([]);
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [selectedNewItem, setSelectedNewItem] = useState<string>('');
+  const [newItemQty, setNewItemQty] = useState<string>('1');
+  const [newItemPrice, setNewItemPrice] = useState<string>('0');
 
   useEffect(() => {
     if (id) {
@@ -83,12 +101,68 @@ export default function EditPurchaseOrder() {
       setPoDetail(data.po_detail || '');
       setRemarks(data.remarks || '');
       setItems(data.items || []);
+      
+      // Fetch tender items for this tender
+      if (data.tender_id) {
+        fetchTenderItems(data.tender_id);
+      }
     } catch (err) {
       console.error('Error fetching PO:', err);
       setError('Failed to load purchase order');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fetch tender items for adding to PO
+  const fetchTenderItems = async (tenderId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/items`);
+      if (!response.ok) throw new Error('Failed to fetch tender items');
+      const data = await response.json();
+      setTenderItems(data || []);
+    } catch (err) {
+      console.error('Error fetching tender items:', err);
+    }
+  };
+
+  // Get available items (tender items not already in PO)
+  const getAvailableItems = () => {
+    const existingItemMasterIds = items.map(item => item.item_master_id);
+    return tenderItems.filter(ti => !existingItemMasterIds.includes(ti.item_master_id));
+  };
+
+  // Add new item to PO
+  const addNewItem = () => {
+    if (!selectedNewItem) {
+      alert('Please select an item to add');
+      return;
+    }
+    
+    const tenderItem = tenderItems.find(ti => ti.item_master_id === selectedNewItem);
+    if (!tenderItem) return;
+    
+    const qty = parseFloat(newItemQty) || 1;
+    const price = parseFloat(newItemPrice) || 0;
+    
+    // Create a new item with a temporary negative ID (will be handled by backend as new)
+    const newItem: POItem = {
+      id: -Date.now(), // Temporary negative ID to indicate new item
+      po_id: po?.id || 0,
+      item_master_id: tenderItem.item_master_id,
+      quantity: qty,
+      unit_price: price,
+      total_price: qty * price,
+      nomenclature: tenderItem.nomenclature,
+      category_name: tenderItem.category_name,
+      unit: tenderItem.unit
+    };
+    
+    setItems(prev => [...prev, newItem]);
+    setShowAddItem(false);
+    setSelectedNewItem('');
+    setNewItemQty('1');
+    setNewItemPrice('0');
   };
 
   // Calculate total amount from items
@@ -157,7 +231,8 @@ export default function EditPurchaseOrder() {
         status: po.status,
         total_amount: totalAmount,
         items: items.map(item => ({
-          id: item.id,
+          // If ID is negative, it's a new item - don't send ID so backend creates it
+          id: item.id > 0 ? item.id : undefined,
           item_master_id: item.item_master_id,
           quantity: item.quantity,
           unit_price: item.unit_price,
@@ -346,10 +421,96 @@ export default function EditPurchaseOrder() {
             <CardHeader>
               <CardTitle className="flex justify-between items-center">
                 <span>Items ({items.length})</span>
-                <span className="text-sm font-normal text-slate-500">Click edit to modify quantity or price</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-normal text-slate-500">Click edit to modify quantity or price</span>
+                  {getAvailableItems().length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddItem(!showAddItem)}
+                      className="text-green-600 border-green-600 hover:bg-green-50"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Item
+                    </Button>
+                  )}
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Add Item Section */}
+              {showAddItem && (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <h4 className="font-medium text-green-800 mb-3">Add Item from Tender</h4>
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="col-span-2">
+                      <label className="text-sm text-slate-600">Select Item</label>
+                      <select
+                        value={selectedNewItem}
+                        onChange={(e) => {
+                          setSelectedNewItem(e.target.value);
+                          const item = tenderItems.find(ti => ti.item_master_id === e.target.value);
+                          if (item) {
+                            setNewItemPrice(item.unit_price?.toString() || '0');
+                          }
+                        }}
+                        className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                      >
+                        <option value="">-- Select an item --</option>
+                        {getAvailableItems().map(ti => (
+                          <option key={ti.item_master_id} value={ti.item_master_id}>
+                            {ti.nomenclature} ({ti.category_name})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-600">Quantity</label>
+                      <Input
+                        type="number"
+                        value={newItemQty}
+                        onChange={(e) => setNewItemQty(e.target.value)}
+                        min="1"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-slate-600">Unit Price</label>
+                      <Input
+                        type="number"
+                        value={newItemPrice}
+                        onChange={(e) => setNewItemPrice(e.target.value)}
+                        min="0"
+                        step="0.01"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      onClick={addNewItem}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Add to PO
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowAddItem(false);
+                        setSelectedNewItem('');
+                        setNewItemQty('1');
+                        setNewItemPrice('0');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50">
