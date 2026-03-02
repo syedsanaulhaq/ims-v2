@@ -381,7 +381,7 @@ export default function PurchaseOrderDetails() {
                           <span className="text-xs block text-gray-600 mt-1">({item.specifications})</span>
                         )}
                       </td>
-                      <td className="border border-black px-2 py-2 text-center">{item.quantity} {item.unit}</td>
+                      <td className="border border-black px-2 py-2 text-center">{item.quantity} Nos.</td>
                       <td className="border border-black px-3 py-2 text-center">Rs.{item.unit_price.toFixed(2).replace(/\.00$/, '')}/-</td>
                       <td className="border border-black px-3 py-2 text-center">Rs.{item.total_price.toLocaleString('en-PK')}/-</td>
                     </tr>
