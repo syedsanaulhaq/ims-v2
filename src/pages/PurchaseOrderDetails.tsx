@@ -308,8 +308,7 @@ export default function PurchaseOrderDetails() {
               </div>
               
               <div className="text-center mb-2">
-                <p className="text-sm">{po.tender_reference_number || 'No reference'}</p>
-                {po.file_number && <p className="text-sm">File No: {po.file_number}</p>}
+                <p className="text-sm">{po.file_number || ''}</p>
               </div>
               
               <div className="text-center mb-6">
