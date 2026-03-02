@@ -365,11 +365,10 @@ export default function PurchaseOrderDetails() {
                 <thead>
                   <tr className="border border-black bg-gray-50">
                     <th className="border border-black px-2 py-2 text-center font-bold" style={{width: '50px'}}>Sl. No.</th>
-                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '240px'}}>Item</th>
+                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '280px'}}>Item</th>
                     <th className="border border-black px-2 py-2 text-center font-bold" style={{width: '70px'}}>Quantity</th>
                     <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '90px'}}>Tender Rate</th>
                     <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '95px'}}>Cost</th>
-                    <th className="border border-black px-3 py-2 text-center font-bold" style={{width: '100px'}}>Tender Serial #</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -385,9 +384,6 @@ export default function PurchaseOrderDetails() {
                       <td className="border border-black px-2 py-2 text-center">{item.quantity} {item.unit}</td>
                       <td className="border border-black px-3 py-2 text-center">Rs.{item.unit_price.toFixed(2).replace(/\.00$/, '')}/-</td>
                       <td className="border border-black px-3 py-2 text-center">Rs.{item.total_price.toLocaleString('en-PK')}/-</td>
-                      <td className="border border-black px-3 py-2 text-center text-xs">
-                        {po.tender_type === 'annual-tender' ? 'Sl. in Group-II' : 'N/A'}
-                      </td>
                     </tr>
                   ))}
                   
@@ -397,21 +393,18 @@ export default function PurchaseOrderDetails() {
                     <td className="border border-black px-3 py-2 text-center">
                       Rs.{po.total_amount.toLocaleString('en-PK')}/-
                     </td>
-                    <td className="border border-black"></td>
                   </tr>
                   <tr className="border border-black">
                     <td colSpan={4} className="border border-black px-3 py-2 text-right font-bold">GST:</td>
                     <td className="border border-black px-3 py-2 text-center font-bold">
                       Rs.{Math.round(po.total_amount * 0.18).toLocaleString('en-PK')}/-
                     </td>
-                    <td className="border border-black"></td>
                   </tr>
                   <tr className="border border-black">
                     <td colSpan={4} className="border border-black px-3 py-2 text-right font-bold">Sub Total:</td>
                     <td className="border border-black px-3 py-2 text-center font-bold">
                       Rs.{Math.round(po.total_amount * 1.18).toLocaleString('en-PK')}/-
                     </td>
-                    <td className="border border-black"></td>
                   </tr>
                 </tbody>
               </table>
