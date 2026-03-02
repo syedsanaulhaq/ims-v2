@@ -247,7 +247,7 @@ router.post('/', async (req, res) => {
     const itemSpecificationsMap = itemSpecifications || {};
 
     for (const itemId of selectedItems) {
-      // Fetch tender_items with all details including category
+      // Fetch tender_items with all details
       const itemResult = await transaction.request()
         .input('itemId', sql.UniqueIdentifier, itemId)
         .input('tenderId', sql.UniqueIdentifier, tenderId)
@@ -259,8 +259,7 @@ router.post('/', async (req, res) => {
             ti.nomenclature,
             ti.vendor_id,
             ti.estimated_unit_price,
-            im.id as item_master_id_lookup,
-            im.category_id
+            im.id as item_master_id_lookup
           FROM tender_items ti
           LEFT JOIN item_masters im ON ti.item_master_id = im.id
           WHERE ti.id = @itemId AND ti.tender_id = @tenderId
@@ -291,7 +290,6 @@ router.post('/', async (req, res) => {
           unit_price: unitPrice,
           quantity: quantity,
           vendor_id: itemVendorId,
-          category_id: item.category_id || null,
           po_specification: itemSpecificationsMap[itemId] || null
         });
       }
@@ -312,19 +310,6 @@ router.post('/', async (req, res) => {
       itemsByVendor[vendorId].push(item);
     }
 
-    // Track unique categories across all POs to determine if file number needs suffix
-    const allCategories = new Set();
-    for (const item of allItems) {
-      if (item.category_id) allCategories.add(String(item.category_id));
-    }
-    const hasMultipleCategories = allCategories.size > 1;
-    const categoryToIndex = {};
-    let categoryCounter = 1;
-    for (const catId of allCategories) {
-      categoryToIndex[catId] = categoryCounter++;
-    }
-    console.log(`📁 Categories found: ${allCategories.size}, need suffix: ${hasMultipleCategories}`);
-
     // CREATE SEPARATE PO FOR EACH VENDOR
     const createdPos = [];
     for (const vendorId in itemsByVendor) {
@@ -337,23 +322,13 @@ router.post('/', async (req, res) => {
       const poNumber = `PO${String(poCounter).padStart(6, '0')}`;
       poCounter++;
 
-      // Determine file number - suffix by category if multiple categories exist
-      let poFileNumber = fileNumber || null;
-      if (fileNumber && hasMultipleCategories && vendorItems.length > 0) {
-        // Get primary category for this vendor's items (use first item's category)
-        const primaryCategoryId = vendorItems[0].category_id;
-        if (primaryCategoryId && categoryToIndex[String(primaryCategoryId)]) {
-          poFileNumber = `${fileNumber}-${categoryToIndex[String(primaryCategoryId)]}`;
-        }
-      }
-
       // Insert PO
       const poInsert = transaction.request()
         .input('po_number', sql.NVarChar, poNumber)
         .input('tender_id', sql.UniqueIdentifier, tenderId)
         .input('vendor_id', sql.UniqueIdentifier, vendorId)
         .input('po_date', sql.DateTime, new Date(poDate))
-        .input('file_number', sql.NVarChar(100), poFileNumber)
+        .input('file_number', sql.NVarChar(100), fileNumber || null)
         .input('po_detail', sql.NVarChar(sql.MAX), poDetail || null)
         .input('total_amount', sql.Decimal(15, 2), vendorTotal)
         .input('status', sql.NVarChar, 'draft')
