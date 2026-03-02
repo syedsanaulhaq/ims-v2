@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Edit2, Check, X } from 'lucide-react';
 
 interface POItem {
   id: number;
   po_id: number;
-  item_master_id: number;
+  item_master_id: string;
   quantity: number;
   unit_price: number;
   total_price: number;
@@ -23,8 +23,8 @@ interface POItem {
 interface PurchaseOrderDetails {
   id: number;
   po_number: string;
-  tender_id: number;
-  vendor_id: number;
+  tender_id: string;
+  vendor_id: string;
   po_date: string;
   file_number?: string;
   total_amount: number;
@@ -58,6 +58,12 @@ export default function EditPurchaseOrder() {
   const [fileNumber, setFileNumber] = useState<string>('');
   const [poDetail, setPoDetail] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
+  
+  // Items state
+  const [items, setItems] = useState<POItem[]>([]);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editQuantity, setEditQuantity] = useState<string>('');
+  const [editUnitPrice, setEditUnitPrice] = useState<string>('');
 
   useEffect(() => {
     if (id) {
@@ -76,11 +82,62 @@ export default function EditPurchaseOrder() {
       setFileNumber(data.file_number || '');
       setPoDetail(data.po_detail || '');
       setRemarks(data.remarks || '');
+      setItems(data.items || []);
     } catch (err) {
       console.error('Error fetching PO:', err);
       setError('Failed to load purchase order');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Calculate total amount from items
+  const calculateTotal = () => {
+    return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+  };
+
+  // Start editing an item
+  const startEditItem = (item: POItem) => {
+    setEditingItemId(item.id);
+    setEditQuantity(item.quantity.toString());
+    setEditUnitPrice(item.unit_price.toString());
+  };
+
+  // Cancel editing
+  const cancelEditItem = () => {
+    setEditingItemId(null);
+    setEditQuantity('');
+    setEditUnitPrice('');
+  };
+
+  // Save item edit
+  const saveItemEdit = (itemId: number) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        const newQty = parseFloat(editQuantity) || 0;
+        const newPrice = parseFloat(editUnitPrice) || 0;
+        return {
+          ...item,
+          quantity: newQty,
+          unit_price: newPrice,
+          total_price: newQty * newPrice
+        };
+      }
+      return item;
+    }));
+    setEditingItemId(null);
+    setEditQuantity('');
+    setEditUnitPrice('');
+  };
+
+  // Remove an item
+  const removeItem = (itemId: number) => {
+    if (items.length <= 1) {
+      alert('Cannot remove the last item. A PO must have at least one item.');
+      return;
+    }
+    if (confirm('Are you sure you want to remove this item?')) {
+      setItems(prev => prev.filter(item => item.id !== itemId));
     }
   };
 
@@ -90,12 +147,22 @@ export default function EditPurchaseOrder() {
     try {
       setSaving(true);
       
+      const totalAmount = calculateTotal();
+      
       const updateData = {
         po_date: poDate,
         file_number: fileNumber,
         po_detail: poDetail,
         remarks: remarks,
-        status: po.status
+        status: po.status,
+        total_amount: totalAmount,
+        items: items.map(item => ({
+          id: item.id,
+          item_master_id: item.item_master_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          specifications: item.specifications || null
+        }))
       };
       
       console.log('📤 Sending update:', updateData);
@@ -277,7 +344,10 @@ export default function EditPurchaseOrder() {
           {/* Items Summary */}
           <Card>
             <CardHeader>
-              <CardTitle>Items Summary</CardTitle>
+              <CardTitle className="flex justify-between items-center">
+                <span>Items ({items.length})</span>
+                <span className="text-sm font-normal text-slate-500">Click edit to modify quantity or price</span>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -288,20 +358,93 @@ export default function EditPurchaseOrder() {
                       <th className="text-center py-2 px-3">Quantity</th>
                       <th className="text-right py-2 px-3">Unit Price</th>
                       <th className="text-right py-2 px-3">Total</th>
+                      <th className="text-center py-2 px-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {po.items.map((item, index) => (
+                    {items.map((item) => (
                       <tr key={item.id} className="border-t">
-                        <td className="py-2 px-3">{item.nomenclature}</td>
-                        <td className="text-center py-2 px-3">{item.quantity} {item.unit}</td>
-                        <td className="text-right py-2 px-3">Rs.{item.unit_price.toLocaleString()}</td>
-                        <td className="text-right py-2 px-3 font-semibold">Rs.{item.total_price.toLocaleString()}</td>
+                        <td className="py-2 px-3">
+                          <div className="font-medium">{item.nomenclature}</div>
+                          <div className="text-xs text-slate-500">{item.category_name}</div>
+                        </td>
+                        <td className="text-center py-2 px-3">
+                          {editingItemId === item.id ? (
+                            <Input
+                              type="number"
+                              value={editQuantity}
+                              onChange={(e) => setEditQuantity(e.target.value)}
+                              className="w-20 text-center mx-auto"
+                              min="1"
+                            />
+                          ) : (
+                            <span>{item.quantity} {item.unit}</span>
+                          )}
+                        </td>
+                        <td className="text-right py-2 px-3">
+                          {editingItemId === item.id ? (
+                            <Input
+                              type="number"
+                              value={editUnitPrice}
+                              onChange={(e) => setEditUnitPrice(e.target.value)}
+                              className="w-28 text-right ml-auto"
+                              min="0"
+                              step="0.01"
+                            />
+                          ) : (
+                            <span>Rs.{item.unit_price.toLocaleString()}</span>
+                          )}
+                        </td>
+                        <td className="text-right py-2 px-3 font-semibold">
+                          Rs.{(item.quantity * item.unit_price).toLocaleString()}
+                        </td>
+                        <td className="text-center py-2 px-3">
+                          {editingItemId === item.id ? (
+                            <div className="flex justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => saveItemEdit(item.id)}
+                                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={cancelEditItem}
+                                className="h-8 w-8 p-0 text-slate-600 hover:text-slate-700 hover:bg-slate-50"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => startEditItem(item)}
+                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeItem(item.id)}
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
-                    <tr className="border-t-2 font-bold">
-                      <td colSpan={3} className="py-2 px-3 text-right">Total Amount:</td>
-                      <td className="text-right py-2 px-3">Rs.{po.total_amount.toLocaleString()}</td>
+                    <tr className="border-t-2 font-bold bg-slate-50">
+                      <td colSpan={3} className="py-3 px-3 text-right">Total Amount:</td>
+                      <td className="text-right py-3 px-3 text-lg">Rs.{calculateTotal().toLocaleString()}</td>
+                      <td></td>
                     </tr>
                   </tbody>
                 </table>

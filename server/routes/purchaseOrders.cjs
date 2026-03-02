@@ -386,16 +386,20 @@ router.post('/', async (req, res) => {
 // PUT /api/purchase-orders/:id - Update PO
 // ============================================================================
 router.put('/:id', async (req, res) => {
+  const pool = getPool();
+  const transaction = new sql.Transaction(pool);
+  
   try {
     const { id } = req.params;
-    const { status, remarks, po_date, file_number, po_detail } = req.body;
-    const pool = getPool();
+    const { status, remarks, po_date, file_number, po_detail, items, total_amount } = req.body;
 
-    console.log('📝 Updating PO:', { id, status, remarks, po_date, file_number, po_detail: po_detail ? 'Present' : 'Empty' });
+    console.log('📝 Updating PO:', { id, status, remarks, po_date, file_number, po_detail: po_detail ? 'Present' : 'Empty', items: items ? items.length : 'No items' });
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
     }
+
+    await transaction.begin();
 
     // Build update fields dynamically
     const updateFields = ['status = @status', 'updated_at = @updated_at'];
@@ -404,8 +408,9 @@ router.put('/:id', async (req, res) => {
     if (po_date !== undefined) updateFields.push('po_date = @po_date');
     if (file_number !== undefined) updateFields.push('file_number = @file_number');
     if (po_detail !== undefined) updateFields.push('po_detail = @po_detail');
+    if (total_amount !== undefined) updateFields.push('total_amount = @total_amount');
 
-    const request = pool.request()
+    const request = transaction.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('status', sql.NVarChar, status)
       .input('updated_at', sql.DateTime, new Date());
@@ -414,17 +419,75 @@ router.put('/:id', async (req, res) => {
     if (po_date !== undefined) request.input('po_date', sql.Date, po_date);
     if (file_number !== undefined) request.input('file_number', sql.NVarChar(100), file_number || null);
     if (po_detail !== undefined) request.input('po_detail', sql.NVarChar(sql.MAX), po_detail || null);
+    if (total_amount !== undefined) request.input('total_amount', sql.Decimal(15, 2), total_amount);
 
-    const result = await request.query(`
+    await request.query(`
       UPDATE purchase_orders
       SET ${updateFields.join(', ')}
       WHERE id = @id
     `);
 
-    console.log('✅ PO updated, rows affected:', result.rowsAffected);
+    // Update items if provided
+    if (items && Array.isArray(items)) {
+      // Delete existing items that are not in the new list
+      const existingItemIds = items.filter(item => item.id).map(item => item.id);
+      
+      if (existingItemIds.length > 0) {
+        // Keep only items that are in the update list
+        await transaction.request()
+          .input('po_id', sql.UniqueIdentifier, id)
+          .query(`
+            DELETE FROM purchase_order_items 
+            WHERE po_id = @po_id AND id NOT IN (${existingItemIds.map((_, i) => `'${existingItemIds[i]}'`).join(',')})
+          `);
+      } else {
+        // If no existing items, delete all
+        await transaction.request()
+          .input('po_id', sql.UniqueIdentifier, id)
+          .query(`DELETE FROM purchase_order_items WHERE po_id = @po_id`);
+      }
+
+      // Update or insert items
+      for (const item of items) {
+        const itemTotal = (parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 1);
+        
+        if (item.id) {
+          // Update existing item
+          await transaction.request()
+            .input('item_id', sql.Int, item.id)
+            .input('quantity', sql.Decimal(10, 2), item.quantity || 1)
+            .input('unit_price', sql.Decimal(15, 2), item.unit_price || 0)
+            .input('total_price', sql.Decimal(15, 2), itemTotal)
+            .input('specifications', sql.NVarChar, item.specifications || null)
+            .query(`
+              UPDATE purchase_order_items 
+              SET quantity = @quantity, unit_price = @unit_price, total_price = @total_price, specifications = @specifications
+              WHERE id = @item_id
+            `);
+        } else {
+          // Insert new item
+          await transaction.request()
+            .input('po_id', sql.UniqueIdentifier, id)
+            .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+            .input('quantity', sql.Decimal(10, 2), item.quantity || 1)
+            .input('unit_price', sql.Decimal(15, 2), item.unit_price || 0)
+            .input('total_price', sql.Decimal(15, 2), itemTotal)
+            .input('specifications', sql.NVarChar, item.specifications || null)
+            .input('created_at', sql.DateTime, new Date())
+            .query(`
+              INSERT INTO purchase_order_items (po_id, item_master_id, quantity, unit_price, total_price, specifications, created_at)
+              VALUES (@po_id, @item_master_id, @quantity, @unit_price, @total_price, @specifications, @created_at)
+            `);
+        }
+      }
+    }
+
+    await transaction.commit();
+    console.log('✅ PO updated successfully');
 
     res.json({ message: '✅ Purchase order updated successfully' });
   } catch (error) {
+    await transaction.rollback();
     console.error('❌ Error updating PO:', error);
     res.status(500).json({ error: 'Failed to update purchase order', details: error.message });
   }
