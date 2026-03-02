@@ -34,6 +34,7 @@ router.get('/', async (req, res) => {
         po.tender_id,
         po.vendor_id,
         po.po_date,
+        po.file_number,
         po.po_detail,
         po.total_amount,
         po.status,
@@ -129,6 +130,7 @@ router.get('/:id', async (req, res) => {
           po.tender_id,
           po.vendor_id,
           po.po_date,
+          po.file_number,
           po.po_detail,
           po.total_amount,
           po.status,
@@ -197,12 +199,13 @@ router.post('/', async (req, res) => {
 
   try {
     await transaction.begin();
-    const { tenderId, selectedItems, poDate, poDetail, itemVendors, itemPrices, itemQuantities, itemSpecifications } = req.body;
+    const { tenderId, selectedItems, poDate, fileNumber, poDetail, itemVendors, itemPrices, itemQuantities, itemSpecifications } = req.body;
 
     console.log('📦 PO CREATION REQUEST RECEIVED:');
     console.log('   - tenderId:', tenderId);
     console.log('   - selectedItems count:', selectedItems?.length);
     console.log('   - poDate:', poDate);
+    console.log('   - fileNumber:', fileNumber);
     console.log('   - poDetail length:', poDetail?.length);
     console.log('   - itemSpecifications:', itemSpecifications ? Object.keys(itemSpecifications).length + ' items' : 'none');
 
@@ -324,15 +327,16 @@ router.post('/', async (req, res) => {
         .input('tender_id', sql.UniqueIdentifier, tenderId)
         .input('vendor_id', sql.UniqueIdentifier, vendorId)
         .input('po_date', sql.DateTime, new Date(poDate))
+        .input('file_number', sql.NVarChar(100), fileNumber || null)
         .input('po_detail', sql.NVarChar(sql.MAX), poDetail || null)
         .input('total_amount', sql.Decimal(15, 2), vendorTotal)
         .input('status', sql.NVarChar, 'draft')
         .input('created_at', sql.DateTime, new Date());
 
       const poResult = await poInsert.query(`
-        INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, po_detail, total_amount, status, created_at, updated_at)
+        INSERT INTO purchase_orders (po_number, tender_id, vendor_id, po_date, file_number, po_detail, total_amount, status, created_at, updated_at)
         OUTPUT INSERTED.id
-        VALUES (@po_number, @tender_id, @vendor_id, @po_date, @po_detail, @total_amount, @status, @created_at, GETDATE())
+        VALUES (@po_number, @tender_id, @vendor_id, @po_date, @file_number, @po_detail, @total_amount, @status, @created_at, GETDATE())
       `);
 
       const poId = poResult.recordset[0].id;
@@ -383,10 +387,10 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, remarks, po_date, po_detail } = req.body;
+    const { status, remarks, po_date, file_number, po_detail } = req.body;
     const pool = getPool();
 
-    console.log('📝 Updating PO:', { id, status, remarks, po_date, po_detail: po_detail ? 'Present' : 'Empty' });
+    console.log('📝 Updating PO:', { id, status, remarks, po_date, file_number, po_detail: po_detail ? 'Present' : 'Empty' });
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
@@ -397,6 +401,7 @@ router.put('/:id', async (req, res) => {
     
     if (remarks !== undefined) updateFields.push('remarks = @remarks');
     if (po_date !== undefined) updateFields.push('po_date = @po_date');
+    if (file_number !== undefined) updateFields.push('file_number = @file_number');
     if (po_detail !== undefined) updateFields.push('po_detail = @po_detail');
 
     const request = pool.request()
@@ -406,6 +411,7 @@ router.put('/:id', async (req, res) => {
 
     if (remarks !== undefined) request.input('remarks', sql.NVarChar, remarks || null);
     if (po_date !== undefined) request.input('po_date', sql.Date, po_date);
+    if (file_number !== undefined) request.input('file_number', sql.NVarChar(100), file_number || null);
     if (po_detail !== undefined) request.input('po_detail', sql.NVarChar(sql.MAX), po_detail || null);
 
     const result = await request.query(`

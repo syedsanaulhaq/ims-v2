@@ -29,6 +29,7 @@ interface PurchaseOrderDetails {
   tender_id: number;
   vendor_id: number;
   po_date: string;
+  file_number?: string;
   total_amount: number;
   status: string;
   remarks?: string;
@@ -308,6 +309,7 @@ export default function PurchaseOrderDetails() {
               
               <div className="text-center mb-2">
                 <p className="text-sm">{po.tender_reference_number || 'No reference'}</p>
+                {po.file_number && <p className="text-sm">File No: {po.file_number}</p>}
               </div>
               
               <div className="text-center mb-6">

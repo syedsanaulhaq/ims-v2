@@ -26,6 +26,7 @@ interface PurchaseOrderDetails {
   tender_id: number;
   vendor_id: number;
   po_date: string;
+  file_number?: string;
   total_amount: number;
   status: string;
   remarks?: string;
@@ -54,6 +55,7 @@ export default function EditPurchaseOrder() {
 
   // Form fields
   const [poDate, setPoDate] = useState<string>('');
+  const [fileNumber, setFileNumber] = useState<string>('');
   const [poDetail, setPoDetail] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
 
@@ -71,6 +73,7 @@ export default function EditPurchaseOrder() {
       const data = await response.json();
       setPO(data);
       setPoDate(data.po_date.split('T')[0]); // Extract date only
+      setFileNumber(data.file_number || '');
       setPoDetail(data.po_detail || '');
       setRemarks(data.remarks || '');
     } catch (err) {
@@ -89,6 +92,7 @@ export default function EditPurchaseOrder() {
       
       const updateData = {
         po_date: poDate,
+        file_number: fileNumber,
         po_detail: poDetail,
         remarks: remarks,
         status: po.status
@@ -221,14 +225,26 @@ export default function EditPurchaseOrder() {
                 </div>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-slate-700">PO Date</label>
-                <Input
-                  type="date"
-                  value={poDate}
-                  onChange={(e) => setPoDate(e.target.value)}
-                  className="mt-1"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-700">PO Date</label>
+                  <Input
+                    type="date"
+                    value={poDate}
+                    onChange={(e) => setPoDate(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-700">File Number</label>
+                  <Input
+                    type="text"
+                    value={fileNumber}
+                    onChange={(e) => setFileNumber(e.target.value)}
+                    placeholder="Enter file number..."
+                    className="mt-1"
+                  />
+                </div>
               </div>
 
               <div>

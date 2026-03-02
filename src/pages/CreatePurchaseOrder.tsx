@@ -56,6 +56,7 @@ export default function CreatePurchaseOrder() {
   const [itemQuantities, setItemQuantities] = useState<{ [key: string]: number }>({});
   const [itemSpecifications, setItemSpecifications] = useState<{ [key: string]: string }>({});
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [fileNumber, setFileNumber] = useState<string>('');
   const [poDetail, setPoDetail] = useState<string>('It is submitted that the following items may kindly be provided to this Commission Secretariat at the earliest to meet the official requirements as per annual tender rates. Furthermore, the supplier may be requested to furnish the corresponding bill/invoice to this office after delivery of the items, so that necessary arrangements for payment can be made in accordance with the prescribed financial rules and procedures.');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -278,6 +279,7 @@ export default function CreatePurchaseOrder() {
         tenderType: selectedTender?.tender_type,
         selectedItems: Array.from(selectedItems),
         poDate,
+        fileNumber,
         poDetail,
         itemPrices: itemPrices,
         itemVendors: itemVendors, // For annual tenders
@@ -622,14 +624,26 @@ export default function CreatePurchaseOrder() {
                     </Select>
                   </div>
                 )}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">PO Date</label>
-                  <Input
-                    type="date"
-                    value={poDate}
-                    onChange={(e) => setPoDate(e.target.value)}
-                    className="border-slate-300"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">PO Date</label>
+                    <Input
+                      type="date"
+                      value={poDate}
+                      onChange={(e) => setPoDate(e.target.value)}
+                      className="border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">File Number</label>
+                    <Input
+                      type="text"
+                      value={fileNumber}
+                      onChange={(e) => setFileNumber(e.target.value)}
+                      placeholder="Enter file number..."
+                      className="border-slate-300"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Supply Order Details</label>
