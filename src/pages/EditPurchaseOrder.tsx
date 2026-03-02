@@ -442,7 +442,7 @@ export default function EditPurchaseOrder() {
               {showAddItem && (
                 <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <h4 className="font-medium text-green-800 mb-3">Add Item from Tender</h4>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-5 gap-3">
                     <div className="col-span-2">
                       <label className="text-sm text-slate-600">Select Item</label>
                       <select
@@ -485,16 +485,13 @@ export default function EditPurchaseOrder() {
                         className="mt-1"
                       />
                     </div>
-                  </div>
-                  {/* Show calculated total */}
-                  {selectedNewItem && (
-                    <div className="mt-3 p-2 bg-white rounded border">
-                      <span className="text-sm text-slate-600">Line Total: </span>
-                      <span className="font-semibold text-green-700">
+                    <div>
+                      <label className="text-sm text-slate-600">Total</label>
+                      <div className="mt-1 px-3 py-2 bg-green-100 border border-green-300 rounded-md text-lg font-bold text-green-800">
                         Rs.{((parseFloat(newItemQty) || 0) * (parseFloat(newItemPrice) || 0)).toLocaleString()}
-                      </span>
+                      </div>
                     </div>
-                  )}
+                  </div>
                   <div className="flex gap-2 mt-3">
                     <Button
                       size="sm"
