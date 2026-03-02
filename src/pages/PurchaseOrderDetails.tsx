@@ -427,7 +427,7 @@ export default function PurchaseOrderDetails() {
 
             {/* Computer Generated Footer */}
             <div className="mt-8 text-center text-xs text-gray-600">
-              <p>This is the computer generated Supply Order</p>
+              <p>This is the computer generated Supply Order#: {po.po_number}</p>
             </div>
 
           </div>
