@@ -25,7 +25,7 @@ interface TenderItem {
   tender_id: string;
   item_master_id: string;
   quantity: number;
-  unit_price: number;
+  estimated_unit_price: number;
   nomenclature: string;
   category_name: string;
   unit: string;
@@ -451,7 +451,7 @@ export default function EditPurchaseOrder() {
                           setSelectedNewItem(e.target.value);
                           const item = tenderItems.find(ti => ti.item_master_id === e.target.value);
                           if (item) {
-                            setNewItemPrice(item.unit_price?.toString() || '0');
+                            setNewItemPrice(item.estimated_unit_price?.toString() || '0');
                           }
                         }}
                         className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
@@ -459,7 +459,7 @@ export default function EditPurchaseOrder() {
                         <option value="">-- Select an item --</option>
                         {getAvailableItems().map(ti => (
                           <option key={ti.item_master_id} value={ti.item_master_id}>
-                            {ti.nomenclature} ({ti.category_name})
+                            {ti.nomenclature} ({ti.category_name}) - Rs.{ti.estimated_unit_price?.toLocaleString() || 0}/unit
                           </option>
                         ))}
                       </select>
@@ -486,6 +486,15 @@ export default function EditPurchaseOrder() {
                       />
                     </div>
                   </div>
+                  {/* Show calculated total */}
+                  {selectedNewItem && (
+                    <div className="mt-3 p-2 bg-white rounded border">
+                      <span className="text-sm text-slate-600">Line Total: </span>
+                      <span className="font-semibold text-green-700">
+                        Rs.{((parseFloat(newItemQty) || 0) * (parseFloat(newItemPrice) || 0)).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex gap-2 mt-3">
                     <Button
                       size="sm"
