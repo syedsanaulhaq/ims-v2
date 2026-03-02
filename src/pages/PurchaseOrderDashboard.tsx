@@ -15,6 +15,7 @@ interface PurchaseOrder {
   tender_id: number;
   vendor_id: number;
   po_date: string;
+  file_number?: string;
   total_amount: number;
   status: string;
   remarks?: string;
@@ -112,7 +113,8 @@ export default function PurchaseOrderDashboard() {
         data = data.filter((po: PurchaseOrder) => 
           po.po_number.toLowerCase().includes(term) ||
           po.tender_title.toLowerCase().includes(term) ||
-          po.vendor_name.toLowerCase().includes(term)
+          po.vendor_name.toLowerCase().includes(term) ||
+          (po.file_number && po.file_number.toLowerCase().includes(term))
         );
       }
 
@@ -326,7 +328,8 @@ export default function PurchaseOrderDashboard() {
     if (filters.searchTerm && !(
       po.po_number.includes(filters.searchTerm) ||
       po.tender_title.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-      po.vendor_name.toLowerCase().includes(filters.searchTerm.toLowerCase())
+      po.vendor_name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+      (po.file_number && po.file_number.toLowerCase().includes(filters.searchTerm.toLowerCase()))
     )) return false;
     
     if (filters.deliveryStatus !== 'all' && po.deliveryStatus?.overallStatus !== filters.deliveryStatus) return false;
@@ -423,7 +426,7 @@ export default function PurchaseOrderDashboard() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <Input
-                placeholder="Search PO number, tender, vendor..."
+                placeholder="Search PO number, file number, tender, vendor..."
                 value={filters.searchTerm}
                 onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
                 className="border-slate-300"
@@ -549,6 +552,7 @@ export default function PurchaseOrderDashboard() {
                       <thead className="border-b border-slate-200">
                         <tr className="bg-slate-50">
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">PO Number</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">File Number</th>
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">Tender</th>
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">Vendor</th>
                           <th className="text-left py-3 px-4 font-semibold text-slate-700">Date</th>
@@ -563,6 +567,7 @@ export default function PurchaseOrderDashboard() {
                         {pos.map((po) => (
                           <tr key={po.id} className="hover:bg-slate-50 transition">
                             <td className="py-3 px-4 font-mono font-semibold text-blue-600">{po.po_number}</td>
+                            <td className="py-3 px-4 text-slate-700">{po.file_number || '-'}</td>
                             <td className="py-3 px-4">
                               <p className="font-medium text-slate-900">{po.tender_title}</p>
                             </td>
