@@ -307,7 +307,7 @@ export default function PurchaseOrderDetails() {
                 </div>
               </div>
               
-              <div className="text-center mb-1">
+              <div className="text-center">
                 <p className="text-sm font-bold">{po.file_number || ''}</p>
               </div>
               
