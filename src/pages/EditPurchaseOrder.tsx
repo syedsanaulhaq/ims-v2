@@ -378,7 +378,7 @@ export default function EditPurchaseOrder() {
                               min="1"
                             />
                           ) : (
-                            <span>{item.quantity} {item.unit}</span>
+                            <span>{item.quantity} Nos.</span>
                           )}
                         </td>
                         <td className="text-right py-2 px-3">
