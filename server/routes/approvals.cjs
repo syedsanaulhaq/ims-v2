@@ -60,9 +60,9 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
       const userWingResult = await pool.request()
         .input('userId', sql.NVarChar(450), req.session.userId)
         .query(`
-          SELECT TOP 1 uwi.WingId 
-          FROM UsersWingInformation uwi
-          WHERE uwi.UserId = @userId
+          SELECT u.intWingID as WingId 
+          FROM AspNetUsers u
+          WHERE u.Id = @userId
         `);
       
       if (userWingResult.recordset.length > 0) {
@@ -167,9 +167,8 @@ router.get('/my-pending', requireAuth, async (req, res) => {
     const userResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(`
-        SELECT u.Id, w.Id as wing_id
+        SELECT u.Id, u.intWingID as wing_id
         FROM AspNetUsers u
-        LEFT JOIN UsersWingInformation w ON u.Id = w.UserId
         WHERE u.Id = @userId
       `);
 
