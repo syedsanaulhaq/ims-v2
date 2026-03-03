@@ -748,9 +748,6 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
 
 // POST /api/deliveries/:id/receive - Confirm delivery and create stock transactions
 router.post('/:id/receive', async (req, res) => {
-  const pool = getPool();
-  const transaction = new sql.Transaction(pool);
-  
   try {
     const { id } = req.params;
     
@@ -768,107 +765,43 @@ router.post('/:id/receive', async (req, res) => {
     if (!received_by) {
       return res.status(400).json({ error: 'received_by is required' });
     }
+
+    const pool = getPool();
     
     // Check if delivery exists and is not already received
     const deliveryCheck = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT d.delivery_status, d.po_id, d.delivery_number, po.po_number
-        FROM deliveries d
-        LEFT JOIN purchase_orders po ON d.po_id = po.id
-        WHERE d.id = @id
+        SELECT delivery_status, po_id 
+        FROM deliveries 
+        WHERE id = @id
       `);
 
     if (deliveryCheck.recordset.length === 0) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    const delivery = deliveryCheck.recordset[0];
-    
-    if (delivery.delivery_status === 'completed') {
+    if (deliveryCheck.recordset[0].delivery_status === 'completed') {
       return res.status(400).json({ error: 'Delivery already received and processed' });
     }
 
-    if (!delivery.po_id) {
+    if (!deliveryCheck.recordset[0].po_id) {
       return res.status(400).json({ error: 'Delivery not linked to a Purchase Order' });
     }
 
-    await transaction.begin();
-    
+    // Call stored procedure to create stock transactions
     try {
-      // Get delivery items with PO item prices
-      const itemsResult = await transaction.request()
-        .input('deliveryId', sql.UniqueIdentifier, id)
-        .query(`
-          SELECT 
-            di.id as delivery_item_id,
-            di.item_master_id,
-            di.delivery_qty,
-            di.quality_status,
-            di.po_item_id,
-            COALESCE(poi.unit_price, 0) as unit_price,
-            im.nomenclature
-          FROM delivery_items di
-          LEFT JOIN purchase_order_items poi ON di.po_item_id = poi.id
-          LEFT JOIN item_masters im ON di.item_master_id = im.id
-          WHERE di.delivery_id = @deliveryId
-        `);
+      const result = await pool.request()
+        .input('DeliveryId', sql.UniqueIdentifier, id)
+        .input('ReceivedBy', sql.UniqueIdentifier, received_by)
+        .output('AcquisitionId', sql.UniqueIdentifier)
+        .execute('sp_CreateStockTransactionFromDelivery');
 
-      const deliveryItems = itemsResult.recordset;
-      let totalItems = 0;
-      let totalQuantity = 0;
-      let totalValue = 0;
-
-      // Process each delivery item - update inventory stock
-      for (const item of deliveryItems) {
-        if (item.quality_status === 'good' || !item.quality_status) {
-          // Check if inventory stock exists for this item
-          const stockCheck = await transaction.request()
-            .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
-            .query(`
-              SELECT id, quantity_in_stock, total_value
-              FROM inventory_stock
-              WHERE item_master_id = @itemMasterId
-            `);
-
-          const itemValue = (item.delivery_qty || 0) * (item.unit_price || 0);
-
-          if (stockCheck.recordset.length > 0) {
-            // Update existing stock
-            await transaction.request()
-              .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
-              .input('quantity', sql.Decimal(15, 2), item.delivery_qty || 0)
-              .input('value', sql.Decimal(15, 2), itemValue)
-              .query(`
-                UPDATE inventory_stock
-                SET 
-                  quantity_in_stock = quantity_in_stock + @quantity,
-                  total_value = total_value + @value,
-                  last_updated = GETDATE()
-                WHERE item_master_id = @itemMasterId
-              `);
-          } else {
-            // Create new stock entry
-            await transaction.request()
-              .input('id', sql.UniqueIdentifier, sql.TYPES.UniqueIdentifier.generateUuid())
-              .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
-              .input('quantity', sql.Decimal(15, 2), item.delivery_qty || 0)
-              .input('unitPrice', sql.Decimal(15, 2), item.unit_price || 0)
-              .input('value', sql.Decimal(15, 2), itemValue)
-              .query(`
-                INSERT INTO inventory_stock (id, item_master_id, quantity_in_stock, unit_price, total_value, last_updated)
-                VALUES (NEWID(), @itemMasterId, @quantity, @unitPrice, @value, GETDATE())
-              `);
-          }
-
-          totalItems++;
-          totalQuantity += (item.delivery_qty || 0);
-          totalValue += itemValue;
-        }
-      }
+      const acquisitionId = result.output.AcquisitionId;
+      const resultData = result.recordset[0];
 
       // Update delivery status to completed
-      await transaction.request()
+      await pool.request()
         .input('id', sql.UniqueIdentifier, id)
         .input('received_by', sql.UniqueIdentifier, received_by)
         .input('receiving_date', sql.DateTime2, receiving_date || new Date())
@@ -882,21 +815,20 @@ router.post('/:id/receive', async (req, res) => {
           WHERE id = @id
         `);
 
-      await transaction.commit();
-
       res.json({ 
         success: true,
-        total_items: totalItems,
-        total_quantity: totalQuantity,
-        total_value: totalValue,
-        message: `Delivery received successfully. ${totalItems} items (${totalQuantity} units) worth Rs.${totalValue.toLocaleString()} added to inventory.`
+        acquisition_id: acquisitionId,
+        acquisition_number: resultData?.acquisition_number,
+        total_items: resultData?.total_items,
+        total_quantity: resultData?.total_quantity,
+        total_value: resultData?.total_value,
+        message: resultData?.message || 'Delivery received and stock updated successfully'
       });
-    } catch (txError) {
-      await transaction.rollback();
-      console.error('Transaction error:', txError);
+    } catch (spError) {
+      console.error('Stored procedure error:', spError);
       res.status(500).json({ 
         error: 'Failed to process delivery', 
-        details: txError.message 
+        details: spError.message 
       });
     }
   } catch (error) {
