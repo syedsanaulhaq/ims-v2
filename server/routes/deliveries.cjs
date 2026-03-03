@@ -511,7 +511,7 @@ router.get('/by-po/:poId', async (req, res) => {
         LEFT JOIN vendors v ON po.vendor_id = v.id
         LEFT JOIN AspNetUsers u ON CAST(d.received_by AS NVARCHAR(450)) = u.Id
         LEFT JOIN delivery_items di ON d.id = di.delivery_id
-        WHERE d.po_id = @poId
+        WHERE d.po_id = @poId AND (d.is_deleted IS NULL OR d.is_deleted = 0)
         GROUP BY 
           d.id, d.delivery_number, d.po_id, d.po_number, d.delivery_date,
           d.delivery_status, d.delivery_personnel, d.delivery_chalan, d.received_by, 

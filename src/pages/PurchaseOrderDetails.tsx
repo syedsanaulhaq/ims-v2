@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, ArrowLeft, Download, Printer, FileText } from 'lucide-react';
 import POFulfillmentTracker from '@/components/po/POFulfillmentTracker';
-import ReceivingReport from '@/components/reports/ReceivingReport';
 
 interface POItem {
   id: number;
@@ -58,7 +57,6 @@ export default function PurchaseOrderDetails() {
   const [newStatus, setNewStatus] = useState<string>('');
   const [newRemarks, setNewRemarks] = useState<string>('');
   const [saving, setSaving] = useState(false);
-  const [showReceivingReport, setShowReceivingReport] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -232,7 +230,7 @@ export default function PurchaseOrderDetails() {
                 Print PO
               </Button>
               {(po.status === 'finalized' || po.status === 'completed' || po.status === 'partial') && (
-                <Button variant="outline" onClick={() => setShowReceivingReport(true)} className="bg-green-50 hover:bg-green-100 border-green-300">
+                <Button variant="outline" onClick={() => navigate(`/dashboard/po/${po.id}/receiving-report`)} className="bg-green-50 hover:bg-green-100 border-green-300">
                   <FileText className="w-4 h-4 mr-2" />
                   Receiving Report
                 </Button>
@@ -436,14 +434,6 @@ export default function PurchaseOrderDetails() {
         {/* Fulfillment Tracker - Only for Finalized POs */}
         {po.status === 'finalized' && (
           <div className="no-print px-6 pb-8">
-
-      {/* Receiving Report Modal */}
-      {showReceivingReport && (
-        <ReceivingReport 
-          po={po} 
-          onClose={() => setShowReceivingReport(false)} 
-        />
-      )}
             <div className="max-w-5xl mx-auto">
               <POFulfillmentTracker poId={po.id.toString()} showDeliveryHistory={true} />
             </div>

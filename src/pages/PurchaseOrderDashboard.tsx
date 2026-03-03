@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Eye, Plus, ArrowLeft, Package, Edit, CheckCircle, FileText, Truck } from 'lucide-react';
-import ReceivingReport from '@/components/reports/ReceivingReport';
 import DeliveryListModal from '@/components/delivery/DeliveryListModal';
 
 interface PurchaseOrder {
@@ -40,8 +39,6 @@ export default function PurchaseOrderDashboard() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showReceivingReport, setShowReceivingReport] = useState(false);
-  const [selectedPO, setSelectedPO] = useState<any>(null);
   const [showDeliveryList, setShowDeliveryList] = useState(false);
   const [selectedPOForDeliveries, setSelectedPOForDeliveries] = useState<PurchaseOrder | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -244,18 +241,8 @@ export default function PurchaseOrderDashboard() {
     }
   };
 
-  const handleShowReceivingReport = async (po: PurchaseOrder) => {
-    // Fetch full PO details including items
-    try {
-      const response = await fetch(`http://localhost:3001/api/purchase-orders/${po.id}`);
-      if (!response.ok) throw new Error('Failed to fetch PO details');
-      const fullPO = await response.json();
-      setSelectedPO(fullPO);
-      setShowReceivingReport(true);
-    } catch (err) {
-      console.error('Error fetching PO details:', err);
-      alert('Failed to load purchase order details');
-    }
+  const handleShowReceivingReport = (po: PurchaseOrder) => {
+    navigate(`/dashboard/po/${po.id}/receiving-report`);
   };
 
   const handleShowDeliveries = (po: PurchaseOrder) => {
@@ -704,17 +691,6 @@ export default function PurchaseOrderDashboard() {
           </div>
         )}
       </div>
-
-      {/* Receiving Report Modal */}
-      {showReceivingReport && selectedPO && (
-        <ReceivingReport 
-          po={selectedPO} 
-          onClose={() => {
-            setShowReceivingReport(false);
-            setSelectedPO(null);
-          }} 
-        />
-      )}
 
       {/* Delivery List Modal */}
       {showDeliveryList && selectedPOForDeliveries && (

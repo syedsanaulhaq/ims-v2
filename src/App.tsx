@@ -109,6 +109,7 @@ import CreatePurchaseOrder from "./pages/CreatePurchaseOrder";
 import EditPurchaseOrder from "./pages/EditPurchaseOrder";
 import PurchaseOrderDashboard from "./pages/PurchaseOrderDashboard";
 import PurchaseOrderDetails from "./pages/PurchaseOrderDetails";
+import ReceivingReportPage from "./pages/ReceivingReportPage";
 import ReceiveDelivery from "./pages/ReceiveDelivery";
 import { useParams } from "react-router-dom";
 
@@ -296,6 +297,7 @@ function App() {
                   <Route path="create-po" element={<CreatePurchaseOrder />} />
                   <Route path="po/:id" element={<PurchaseOrderDetails />} />
                   <Route path="po/:id/edit" element={<EditPurchaseOrder />} />
+                  <Route path="po/:id/receiving-report" element={<ReceivingReportPage />} />
                 </Route>
 
                 {/* Stock Acquisition (Receive Delivery) - Outside nested routes for clean URL */}
