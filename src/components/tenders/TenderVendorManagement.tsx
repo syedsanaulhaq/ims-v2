@@ -446,12 +446,13 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   };
 
   const handleMarkSuccessful = (vendorId: string, isSuccessful: boolean) => {
-    // CONTRACT TENDER: Only allow ONE successful bidder
-    if (tenderType === 'contract' && isSuccessful) {
+    // CONTRACT TENDER & PATTY PURCHASE: Only allow ONE successful bidder
+    if ((tenderType === 'contract' || tenderType === 'spot-purchase') && isSuccessful) {
       const currentSuccessful = tenderVendors.find(tv => tv.is_successful && tv.vendor_id !== vendorId);
       if (currentSuccessful) {
+        const tenderLabel = tenderType === 'spot-purchase' ? 'Patty Purchase' : 'Contract Tender';
         const confirmed = window.confirm(
-          `⚠️ Contract Tender Restriction\n\nContract tenders can only have ONE successful bidder.\n\nCurrently selected: ${currentSuccessful.vendor_name}\n\nDo you want to replace it with the new selection?`
+          `⚠️ ${tenderLabel} Restriction\n\n${tenderLabel}s can only have ONE successful bidder.\n\nCurrently selected: ${currentSuccessful.vendor_name}\n\nDo you want to replace it with the new selection?`
         );
         if (!confirmed) return;
       }
@@ -482,12 +483,12 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     }
 
     // Update frontend state
-    // For contract tender: uncheck all others when checking one
+    // For contract tender & patty purchase: uncheck all others when checking one
     setTenderVendors(tenderVendors.map(tv => ({
       ...tv,
       is_successful: tv.vendor_id === vendorId 
         ? isSuccessful 
-        : (tenderType === 'contract' && isSuccessful ? false : tv.is_successful)
+        : ((tenderType === 'contract' || tenderType === 'spot-purchase') && isSuccessful ? false : tv.is_successful)
     })));
   };
 
