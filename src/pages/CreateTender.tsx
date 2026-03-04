@@ -340,17 +340,17 @@ const CreateTender: React.FC = () => {
     }
 
     // Validate vendor selection based on tender type
-    if (tenderType === 'annual-tender' || tenderType === 'spot-purchase') {
-      // Annual tender and Petty Purchase require vendor_id for each item
+    if (tenderType === 'annual-tender') {
+      // Annual tender requires vendor_id for each item
       if (!newItem.vendor_id) {
         alert('Please select a vendor for this item');
         return;
       }
-    } else if (tenderType === 'contract') {
-      // Contract tender requires one successful bidder
+    } else if (tenderType === 'contract' || tenderType === 'spot-purchase') {
+      // Contract tender and Patty Purchase require one successful bidder
       const successfulBidder = bidders.find(b => b.is_successful);
       if (!successfulBidder) {
-        alert('Please select a successful bidder in the "Participating Bidders" section first');
+        alert('Please select a successful bidder/vendor in the "Participating Bidders" section first');
         return;
       }
       // Auto-assign the successful bidder to this item
@@ -1381,18 +1381,20 @@ const CreateTender: React.FC = () => {
               <div className="p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                 <h3 className="text-lg font-medium mb-4">Add New Item</h3>
                 
-                {/* Contract Tender Layout - Successful Bidder Display */}
-                {tenderType === 'contract' && (
+                {/* Contract Tender / Patty Purchase Layout - Successful Bidder Display */}
+                {(tenderType === 'contract' || tenderType === 'spot-purchase') && (
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <label className="text-xs font-medium text-blue-900 block mb-1">Successful Bidder</label>
+                        <label className="text-xs font-medium text-blue-900 block mb-1">
+                          {tenderType === 'spot-purchase' ? 'Selected Vendor' : 'Successful Bidder'}
+                        </label>
                         <div className="flex items-center gap-2">
                           <Input
                             className="h-9 bg-white border-blue-300"
                             value={(() => {
                               const successfulBidder = bidders.find(b => b.is_successful);
-                              return successfulBidder ? successfulBidder.vendor_name : 'No successful bidder selected yet';
+                              return successfulBidder ? successfulBidder.vendor_name : `No ${tenderType === 'spot-purchase' ? 'vendor' : 'bidder'} selected yet`;
                             })()}
                             disabled
                             readOnly
@@ -1404,7 +1406,7 @@ const CreateTender: React.FC = () => {
                       </div>
                     </div>
                     {!bidders.find(b => b.is_successful) && (
-                      <p className="text-xs text-amber-600 mt-2">⚠️ Please select a successful bidder first in the "Participating Bidders" section above</p>
+                      <p className="text-xs text-amber-600 mt-2">⚠️ Please select a {tenderType === 'spot-purchase' ? 'vendor' : 'successful bidder'} first in the "Participating Bidders" section above</p>
                     )}
                   </div>
                 )}
