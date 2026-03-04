@@ -72,8 +72,11 @@ interface Delivery {
   delivery_number: string;
   po_id: string;
   po_number: string;
+  po_ref?: string;
   delivery_date: string;
   delivery_status: string;
+  delivery_personnel?: string;
+  delivery_chalan?: string;
   received_by: string;
   receiving_date: string;
   received_by_name?: string;
@@ -349,14 +352,21 @@ export default function ReceivingReportPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <h3 className="text-base font-bold mb-2">Delivery #{deliveryIndex + 1}: {delivery.delivery_number}</h3>
+                      <p className="text-sm"><strong>PO Number:</strong> {delivery.po_number || delivery.po_ref || '-'}</p>
                       <p className="text-sm"><strong>Delivery Date:</strong> {new Date(delivery.delivery_date).toLocaleDateString('en-GB')}</p>
                       {delivery.receiving_date && (
                         <p className="text-sm"><strong>Received Date:</strong> {new Date(delivery.receiving_date).toLocaleDateString('en-GB')}</p>
                       )}
                     </div>
                     <div>
-                      {delivery.received_by_name && (
-                        <p className="text-sm"><strong>Received By:</strong> {delivery.received_by_name}</p>
+                      {delivery.delivery_personnel && (
+                        <p className="text-sm"><strong>Delivery Personnel:</strong> {delivery.delivery_personnel}</p>
+                      )}
+                      {delivery.delivery_chalan && (
+                        <p className="text-sm"><strong>Challan Number:</strong> {delivery.delivery_chalan}</p>
+                      )}
+                      {(delivery.received_by_name || delivery.received_by) && (
+                        <p className="text-sm"><strong>Received By:</strong> {delivery.received_by_name || delivery.received_by}</p>
                       )}
                       <p className="text-sm"><strong>Status:</strong> <span className="capitalize">{delivery.delivery_status}</span></p>
                       <p className="text-sm"><strong>Items:</strong> {delivery.item_count}</p>
