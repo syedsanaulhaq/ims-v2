@@ -1569,39 +1569,9 @@ const CreateTender: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {/* Spot Purchase/Petty Purchase - Same Layout as Annual Tender */}
-                    {/* First Row - Vendor, Category, Name of Article */}
+                    {/* Contract Tender / Patty Purchase Layout */}
+                    {/* First Row - Category, Name of Article, Qty */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-                      {/* Vendor Select - Same as Annual Tender */}
-                      <div>
-                        <label className="text-xs font-medium mb-1 block">Vendor *</label>
-                        <Select 
-                          value={newItem.vendor_id || ''}
-                          onValueChange={(selectedVendorId) => {
-                            console.log(`✅ Vendor selected: ${selectedVendorId}`);
-                            setNewItem(prev => ({
-                              ...prev,
-                              vendor_id: selectedVendorId
-                            }));
-                          }}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Select vendor..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {bidders.length > 0 ? (
-                              bidders.map(vendor => (
-                                <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
-                                  {vendor.vendor_name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <div className="p-2 text-xs text-gray-500">No vendors available</div>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
                       {/* Category/Group Select with Search */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
@@ -1674,13 +1644,29 @@ const CreateTender: React.FC = () => {
                           </Button>
                         </div>
                       </div>
+
+                      {/* Quantity */}
+                      <div>
+                        <label className="text-xs font-medium mb-1 block">Qty *</label>
+                        <Input
+                          className="h-9"
+                          type="number"
+                          min="1"
+                          value={newItem.quantity || ''}
+                          onChange={(e) => setNewItem(prev => ({
+                            ...prev,
+                            quantity: parseInt(e.target.value) || 0
+                          }))}
+                          placeholder="Enter quantity"
+                        />
+                      </div>
                     </div>
 
                     {/* Second Row - Unit Price, Specifications, Remarks */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
                       {/* Unit Price */}
                       <div>
-                        <label className="text-xs font-medium mb-1 block">Unit Price</label>
+                        <label className="text-xs font-medium mb-1 block">Unit Price *</label>
                         <Input
                           className="h-9"
                           type="number"
