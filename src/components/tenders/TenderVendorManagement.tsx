@@ -77,9 +77,9 @@ interface TenderVendorManagementProps {
   onItemsChange?: (items: any[]) => void; // Callback when items are updated (e.g., vendor removed)
   onVendorAdded?: () => void; // Callback when a new vendor is created to refresh vendor list
   readOnly?: boolean;
-  maxVendors?: number; // Maximum number of vendors allowed (for patty purchase)
+  maxVendors?: number; // Maximum number of vendors allowed (for Petty Purchase)
   minVendors?: number; // Minimum number of vendors required (for multiple quotation)
-  procurementMethod?: string; // Procurement method for patty purchase
+  procurementMethod?: string; // Procurement method for Petty Purchase
   tenderItems?: any[]; // Optional - tender items to check vendor usage
   tenderType?: string; // Tender type (contract, spot-purchase, annual-tender)
 }
@@ -239,7 +239,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       return;
     }
 
-    // Patty Purchase vendor count validation
+    // Petty Purchase vendor count validation
     if (maxVendors && tenderVendors.length >= maxVendors) {
       if (procurementMethod === 'single_quotation') {
         setError('Single Quotation allows only 1 vendor');
@@ -446,11 +446,11 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   };
 
   const handleMarkSuccessful = (vendorId: string, isSuccessful: boolean) => {
-    // CONTRACT TENDER & PATTY PURCHASE: Only allow ONE successful bidder
+    // CONTRACT TENDER & Petty Purchase: Only allow ONE successful bidder
     if ((tenderType === 'contract' || tenderType === 'spot-purchase') && isSuccessful) {
       const currentSuccessful = tenderVendors.find(tv => tv.is_successful && tv.vendor_id !== vendorId);
       if (currentSuccessful) {
-        const tenderLabel = tenderType === 'spot-purchase' ? 'Patty Purchase' : 'Contract Tender';
+        const tenderLabel = tenderType === 'spot-purchase' ? 'Petty Purchase' : 'Contract Tender';
         const confirmed = window.confirm(
           `⚠️ ${tenderLabel} Restriction\n\n${tenderLabel}s can only have ONE successful bidder.\n\nCurrently selected: ${currentSuccessful.vendor_name}\n\nDo you want to replace it with the new selection?`
         );
@@ -483,7 +483,7 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     }
 
     // Update frontend state
-    // For contract tender & patty purchase: uncheck all others when checking one
+    // For contract tender & Petty Purchase: uncheck all others when checking one
     setTenderVendors(tenderVendors.map(tv => ({
       ...tv,
       is_successful: tv.vendor_id === vendorId 

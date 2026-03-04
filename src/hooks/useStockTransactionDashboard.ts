@@ -15,7 +15,7 @@ export interface StockTransactionDashboardStats {
       items: number;
       quantity: number;
     };
-    'Patty Purchase': {
+    'Petty Purchase': {
       count: number;
       items: number;
       quantity: number;
@@ -26,7 +26,7 @@ export interface StockTransactionDashboardStats {
     id: string;
     title: string;
     tenderNumber: string;
-    acquisitionType: 'Contract/Tender' | 'Patty Purchase';
+    acquisitionType: 'Contract/Tender' | 'Petty Purchase';
     is_finalized: boolean;
     createdAt: string;
     itemCount: number;
@@ -38,7 +38,7 @@ export interface StockTransactionDashboardStats {
     id: string;
     title: string;
     tenderNumber: string;
-    acquisitionType: 'Contract/Tender' | 'Patty Purchase';
+    acquisitionType: 'Contract/Tender' | 'Petty Purchase';
     is_finalized: boolean;
     createdAt: string;
     itemCount: number;
@@ -51,7 +51,7 @@ export interface StockTransactionDashboardStats {
     id: string;
     title: string;
     tenderNumber: string;
-    acquisitionType: 'Contract/Tender' | 'Patty Purchase';
+    acquisitionType: 'Contract/Tender' | 'Petty Purchase';
     is_finalized: boolean;
     createdAt: string;
     itemCount: number;
@@ -92,7 +92,7 @@ export const useStockTransactionDashboard = () => {
     tendersWithoutStockTransactions: 0,
     acquisitionStats: {
       'Contract/Tender': { count: 0, items: 0, quantity: 0 },
-      'Patty Purchase': { count: 0, items: 0, quantity: 0 }
+      'Petty Purchase': { count: 0, items: 0, quantity: 0 }
     },
     tendersWithStock: [],
     tendersAwaitingStock: [],
@@ -103,7 +103,7 @@ export const useStockTransactionDashboard = () => {
   if (dashboardStats.acquisitionStats === undefined) {
     dashboardStats.acquisitionStats = {
       'Contract/Tender': { count: 0, items: 0, quantity: 0 },
-      'Patty Purchase': { count: 0, items: 0, quantity: 0 }
+      'Petty Purchase': { count: 0, items: 0, quantity: 0 }
     };
   }
 

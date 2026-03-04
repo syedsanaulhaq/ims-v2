@@ -36,7 +36,7 @@ interface TenderSummary {
   id: string;
   title: string;
   tenderNumber: string;
-  acquisitionType: 'Contract/Tender' | 'Patty Purchase';
+  acquisitionType: 'Contract/Tender' | 'Petty Purchase';
   status: string;
   itemCount: number;
   createdAt: string;

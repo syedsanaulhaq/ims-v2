@@ -277,7 +277,7 @@ function App() {
                   <Route path="create-tender" element={<CreateTender />} />
                   <Route path="tender-details/:id" element={<TenderDetails />} />
                   <Route path="edit-tender/:id" element={<EditTender />} />
-                  <Route path="spot-purchases" element={<ContractTender initialType="Patty Purchase" />} />
+                  <Route path="spot-purchases" element={<ContractTender initialType="Petty Purchase" />} />
                   <Route path="tenders" element={<EnhancedTenderDashboard />} />
                   <Route path="tenders/create" element={<CreateTender />} />
                   <Route path="tenders/edit/:id" element={<EditTender />} />
@@ -317,7 +317,7 @@ function App() {
                 }>
                   <Route index element={<Dashboard />} />
                   <Route path="contract-tender" element={<ContractTender />} />
-                  <Route path="spot-purchases" element={<ContractTender initialType="Patty Purchase" />} />
+                  <Route path="spot-purchases" element={<ContractTender initialType="Petty Purchase" />} />
                   <Route path="dashboard" element={<EnhancedStockAcquisitionDashboard />} />
                 </Route>
 

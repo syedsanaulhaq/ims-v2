@@ -94,7 +94,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       hasSubmenu: true,
       submenu: [
         { title: "Contract/Tender", path: "/dashboard/contract-tender" },
-        { title: "Patty Purchase", path: "/dashboard/spot-purchases" },
+        { title: "Petty Purchase", path: "/dashboard/spot-purchases" },
         { title: "Vendor Management", path: "/dashboard/vendors" }
       ]
     },
