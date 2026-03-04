@@ -365,8 +365,8 @@ export default function ReceivingReportPage() {
                       {delivery.delivery_chalan && (
                         <p className="text-sm"><strong>Challan Number:</strong> {delivery.delivery_chalan}</p>
                       )}
-                      {(delivery.received_by_name || delivery.received_by) && (
-                        <p className="text-sm"><strong>Received By:</strong> {delivery.received_by_name || delivery.received_by}</p>
+                      {delivery.received_by_name && (
+                        <p className="text-sm"><strong>Received By:</strong> {delivery.received_by_name}</p>
                       )}
                       <p className="text-sm"><strong>Status:</strong> <span className="capitalize">{delivery.delivery_status}</span></p>
                       <p className="text-sm"><strong>Items:</strong> {delivery.item_count}</p>
