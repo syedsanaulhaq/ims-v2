@@ -9,8 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle, Package } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
@@ -24,15 +22,6 @@ interface OpeningBalanceItem {
   unit_cost: number;
 }
 
-interface Tender {
-  id: string;
-  tender_number: string;
-  tender_title: string;
-  tender_date?: string;
-  tender_type?: string;
-  is_finalized?: boolean | number;
-}
-
 export default function OpeningBalanceEntry() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -40,11 +29,6 @@ export default function OpeningBalanceEntry() {
   const [success, setSuccess] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [csvSuccess, setCsvSuccess] = useState<string | null>(null);
-  
-  // Tender selection mode
-  const [tenderMode, setTenderMode] = useState<'existing' | 'manual'>('existing');
-  const [selectedTenderType, setSelectedTenderType] = useState<string>(''); // Filter by tender type
-  const [selectedTenderId, setSelectedTenderId] = useState('');
   
   // Form data
   const [formData, setFormData] = useState({
@@ -59,10 +43,6 @@ export default function OpeningBalanceEntry() {
   // Dropdown data
   const [itemMasters, setItemMasters] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [tenders, setTenders] = useState<Tender[]>([]);
-  const [tenderTypes, setTenderTypes] = useState<string[]>([]); // Unique tender types
-  const [tenderItems, setTenderItems] = useState<any[]>([]); // Items from selected tender
-  const [loadingTenderItems, setLoadingTenderItems] = useState(false);
   
   // Items to add
   const [items, setItems] = useState<OpeningBalanceItem[]>([]);
@@ -96,135 +76,9 @@ export default function OpeningBalanceEntry() {
         )].sort() as string[];
         setCategories(uniqueCategories);
       }
-
-      // Fetch ALL tenders from unified tenders table (contract, spot-purchase, annual-tender)
-      // ONLY FINALIZED tenders
-      try {
-        const tendersResponse = await fetch(`${getApiBaseUrl()}/tenders`);
-        if (tendersResponse.ok) {
-          const tendersData = await tendersResponse.json();
-          console.log('📥 Raw tenders data:', tendersData);
-          
-          const finalizedTenders = (Array.isArray(tendersData) ? tendersData : [])
-            .filter((t: any) => {
-              const isFinalized = t.is_finalized === true || t.is_finalized === 1;
-              console.log(`Tender ${t.reference_number}: type=${t.tender_type}, is_finalized=${t.is_finalized}`);
-              return isFinalized;
-            })
-            .map((t: any) => {
-              // Create display label based on tender type
-              let typeLabel = 'Contract';
-              if (t.tender_type === 'spot-purchase') typeLabel = 'Spot Purchase';
-              else if (t.tender_type === 'annual-tender') typeLabel = 'Annual';
-              
-              return {
-                id: t.id,
-                tender_number: t.reference_number || 'N/A',
-                tender_title: `[${typeLabel}] ${t.title || 'Untitled'}`,
-                tender_date: t.publish_date || t.created_at,
-                tender_type: t.tender_type || 'contract',
-              };
-            })
-            .sort((a, b) => {
-              // Sort by date (most recent first)
-              const dateA = new Date(a.tender_date || 0).getTime();
-              const dateB = new Date(b.tender_date || 0).getTime();
-              return dateB - dateA;
-            });
-
-          setTenders(finalizedTenders);
-          console.log('✅ Total finalized tenders loaded:', finalizedTenders.length);
-          
-          // Extract unique tender types
-          const uniqueTypes = [...new Set(finalizedTenders.map((t: any) => t.tender_type).filter(Boolean))].sort();
-          setTenderTypes(uniqueTypes);
-          console.log('📋 Available tender types:', uniqueTypes);
-          
-          if (finalizedTenders.length === 0) {
-            console.warn('⚠️ No finalized tenders found. Use "Manual Reference Entry" instead.');
-          }
-        } else {
-          console.warn('⚠️ Tenders API failed:', tendersResponse.status);
-        }
-      } catch (err) {
-        console.error('❌ Failed to fetch tenders:', err);
-      }
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load form data');
-    }
-  };
-
-  const handleTenderSelection = async (tenderId: string) => {
-    setSelectedTenderId(tenderId);
-    const selectedTender = tenders.find(t => t.id === tenderId);
-    if (selectedTender) {
-      // Use the actual tender type from the tender
-      const sourceType = (selectedTender.tender_type || 'TENDER') as 'TENDER' | 'PURCHASE' | 'DONATION' | 'OTHER';
-      
-      setFormData(prev => ({
-        ...prev,
-        tender_id: tenderId,
-        tender_reference: selectedTender.tender_number,
-        tender_title: selectedTender.tender_title,
-        source_type: sourceType, // Use actual tender type
-      }));
-
-      // Fetch items for this tender from unified tenders table
-      setLoadingTenderItems(true);
-      try {
-        const response = await fetch(`${getApiBaseUrl()}/tenders/${tenderId}/items`);
-        if (response.ok) {
-          const tenderItemsData = await response.json();
-          const itemsArray = Array.isArray(tenderItemsData) ? tenderItemsData : [];
-          console.log(`📦 Loaded ${selectedTender.tender_type} tender items:`, itemsArray.length);
-
-          // Match with item_masters to get full details
-          const tenderItemIds = new Set(itemsArray.map((ti: any) => ti.item_master_id || ti.item_id));
-          const filteredItems = itemMasters.filter(im => tenderItemIds.has(im.id));
-          
-          setTenderItems(filteredItems);
-          
-          // Update categories based on tender items
-          const tenderCategories = [...new Set(filteredItems
-            .filter((item: any) => item.category_name)
-            .map((item: any) => item.category_name)
-          )].sort() as string[];
-          setCategories(tenderCategories);
-          
-          console.log('✅ Filtered to tender items:', filteredItems.length, 'categories:', tenderCategories.length);
-          console.log('🏷️ Source type set to:', sourceType);
-        } else {
-          console.warn('⚠️ Failed to fetch tender items');
-        }
-      } catch (err) {
-        console.error('❌ Error fetching tender items:', err);
-      } finally {
-        setLoadingTenderItems(false);
-      }
-    }
-  };
-
-  const handleTenderModeChange = (mode: 'existing' | 'manual') => {
-    setTenderMode(mode);
-    if (mode === 'manual') {
-      // Clear tender selection and reload all items
-      setSelectedTenderType(''); // Reset type filter
-      setSelectedTenderId('');
-      setTenderItems([]);
-      setFormData(prev => ({
-        ...prev,
-        tender_id: null,
-        tender_reference: '',
-        tender_title: '',
-      }));
-      
-      // Restore all categories
-      const allCategories = [...new Set(itemMasters
-        .filter((item: any) => item.category_name)
-        .map((item: any) => item.category_name)
-      )].sort() as string[];
-      setCategories(allCategories);
     }
   };
 
@@ -377,11 +231,7 @@ export default function OpeningBalanceEntry() {
     setSuccess(false);
 
     // Validation
-    if (tenderMode === 'existing' && !formData.tender_id) {
-      setError('Please select an existing tender');
-      return;
-    }
-    if (tenderMode === 'manual' && !formData.tender_reference.trim()) {
+    if (!formData.tender_reference.trim()) {
       setError('Please enter tender/purchase reference');
       return;
     }
@@ -429,10 +279,8 @@ export default function OpeningBalanceEntry() {
     }
   };
 
-  // Use tender-specific items when tender is selected, otherwise use all items
-  const availableItems = (tenderMode === 'existing' && selectedTenderId && tenderItems.length > 0)
-    ? tenderItems
-    : itemMasters;
+  // Use all items from item masters
+  const availableItems = itemMasters;
 
   const filteredItems = selectedCategory
     ? availableItems.filter(item => item.category_name === selectedCategory)
@@ -503,121 +351,31 @@ export default function OpeningBalanceEntry() {
             <CardTitle>Source Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Tender Selection Mode */}
-            <div className="bg-gray-50 p-4 rounded-lg border">
-              <Label className="text-base font-semibold mb-3 block">Tender Source</Label>
-              <RadioGroup value={tenderMode} onValueChange={(v: any) => handleTenderModeChange(v)} className="flex gap-6">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="existing" id="existing" />
-                  <Label htmlFor="existing" className="cursor-pointer font-normal">Select Existing Tender</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="manual" id="manual" />
-                  <Label htmlFor="manual" className="cursor-pointer font-normal">Enter Manual Reference</Label>
-                </div>
-              </RadioGroup>
+            {/* Manual Entry - Tender Reference */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50 p-4 rounded-lg border border-amber-200">
+              {/* Tender Reference */}
+              <div>
+                <Label>Tender/Purchase Reference *</Label>
+                <Input
+                  value={formData.tender_reference}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tender_reference: e.target.value }))}
+                  placeholder="e.g., TENDER-2023-001, PO-2022-045"
+                  required
+                  className="bg-white"
+                />
+              </div>
+
+              {/* Tender Title */}
+              <div>
+                <Label>Title/Description</Label>
+                <Input
+                  value={formData.tender_title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tender_title: e.target.value }))}
+                  placeholder="e.g., Laptops and Office Equipment 2023"
+                  className="bg-white"
+                />
+              </div>
             </div>
-
-            {/* Existing Tender Selection */}
-            {tenderMode === 'existing' && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-4">
-                {/* Tender Type Filter */}
-                <div>
-                  <Label>Tender Type *</Label>
-                  <Select 
-                    value={selectedTenderType} 
-                    onValueChange={(value) => {
-                      setSelectedTenderType(value);
-                      setSelectedTenderId(''); // Reset tender selection when type changes
-                      setTenderItems([]); // Clear items
-                      setFormData(prev => ({ ...prev, tender_id: null, tender_reference: '', tender_title: '' }));
-                    }}
-                  >
-                    <SelectTrigger className="mt-2 bg-white">
-                      <SelectValue placeholder="Select tender type first..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenderTypes.length === 0 ? (
-                        <SelectItem value="none" disabled>No tender types available</SelectItem>
-                      ) : (
-                        tenderTypes.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Tender Selection (shows only when type is selected) */}
-                {selectedTenderType && (
-                  <div>
-                    <Label>Select Tender *</Label>
-                    <Select value={selectedTenderId} onValueChange={handleTenderSelection}>
-                  <SelectTrigger className="mt-2 bg-white">
-                    <SelectValue placeholder="Choose a tender..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenders.filter(t => t.tender_type === selectedTenderType).length === 0 ? (
-                      <SelectItem value="none" disabled>No tenders found for this type</SelectItem>
-                    ) : (
-                      tenders
-                        .filter(t => t.tender_type === selectedTenderType)
-                        .map((tender) => (
-                          <SelectItem key={tender.id} value={tender.id}>
-                            {tender.tender_number} - {tender.tender_title}
-                          </SelectItem>
-                        ))
-                    )}
-                  </SelectContent>
-                </Select>
-                  {selectedTenderId && (
-                  <div className="mt-3 text-sm text-blue-700">
-                    <div><strong>Reference:</strong> {formData.tender_reference}</div>
-                    <div><strong>Title:</strong> {formData.tender_title}</div>
-                  </div>
-                )}
-                  </div>
-                )}
-
-                {/* No tenders warning */}
-                {!selectedTenderType && tenderTypes.length === 0 && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
-                    <div className="font-semibold mb-1">💡 No finalized tenders available</div>
-                    <div>Switch to <strong>"Enter Manual Reference"</strong> above to enter historical tender references.</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Manual Entry */}
-            {tenderMode === 'manual' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50 p-4 rounded-lg border border-amber-200">
-                {/* Tender Reference */}
-                <div>
-                  <Label>Tender/Purchase Reference *</Label>
-                  <Input
-                    value={formData.tender_reference}
-                    onChange={(e) => setFormData(prev => ({ ...prev, tender_reference: e.target.value }))}
-                    placeholder="e.g., TENDER-2023-001, PO-2022-045"
-                    required
-                    className="bg-white"
-                  />
-                </div>
-
-                {/* Tender Title */}
-                <div>
-                  <Label>Title/Description</Label>
-                  <Input
-                    value={formData.tender_title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, tender_title: e.target.value }))}
-                    placeholder="e.g., Laptops and Office Equipment 2023"
-                    className="bg-white"
-                  />
-                </div>
-              </div>
-            )}
 
             {/* Acquisition Date */}
             <div>
@@ -650,23 +408,7 @@ export default function OpeningBalanceEntry() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Items & Quantities</span>
-              {tenderMode === 'existing' && selectedTenderId && (
-                <Badge variant="outline" className="text-xs font-normal">
-                  📦 Showing only items from selected tender
-                </Badge>
-              )}
             </CardTitle>
-            {loadingTenderItems && (
-              <p className="text-sm text-gray-500">Loading tender items...</p>
-            )}
-            {tenderMode === 'existing' && selectedTenderId && tenderItems.length === 0 && !loadingTenderItems && (
-              <Alert className="mt-2 bg-amber-50 border-amber-200">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-800 text-sm">
-                  No items found for this tender. The tender may not have items assigned yet.
-                </AlertDescription>
-              </Alert>
-            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-white border rounded-lg p-4">
