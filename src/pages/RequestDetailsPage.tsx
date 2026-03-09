@@ -4,9 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { getApiBaseUrl } from '@/services/invmisApi';
+
+// Helper function to safely format dates
+const formatDate = (dateString: string | null | undefined, formatStr = 'MMM dd, yyyy', defaultText = 'N/A'): string => {
+  if (!dateString) return defaultText;
+  const date = new Date(dateString);
+  if (!isValid(date) || date.getFullYear() < 2000) return defaultText;
+  return format(date, formatStr);
+};
 
 interface RequestItem {
   id: string;
@@ -27,6 +35,9 @@ interface ApprovalHistoryItem {
   forwarded_to_name?: string | null;
   forwarded_from_name?: string | null;
   is_current_step?: boolean;
+  submitted_to?: string | null;
+  submitted_to_role?: string | null;
+  approver_role?: string | null;
 }
 
 interface ItemTracking {
@@ -123,46 +134,78 @@ const RequestDetailsPage: React.FC = () => {
                 specifications: ''
               })) || [],
               approval_items: [],
-              approval_history: [] // TODO: Add approval history when available
+              approval_history: [] // Will be populated from API
             };
             
-            // Try to load detailed request info (including approval history) from the newer endpoint
+            // Try to load detailed request info (including approval history and supervisor) from stock-issuance/:id
             try {
-              const detailsResp = await fetch(`http://localhost:3001/api/request-details/${foundRequest.id}`, {
+              const stockIssuanceResp = await fetch(`${getApiBaseUrl()}/stock-issuance/${foundRequest.id}`, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' }
               });
 
-              if (detailsResp.ok) {
-                const detailsData = await detailsResp.json();
-                if (detailsData?.success && detailsData.request) {
-                  // Map approval history if present
-                  if (Array.isArray(detailsData.request.approval_history)) {
-                    mappedRequest.approval_history = detailsData.request.approval_history.map((h: any, i: number) => ({
-                      id: (h.id || i + 1).toString(),
-                      action: (h.action || h.action_type || h.ActionType || '').toLowerCase() || 'submitted',
-                      action_date: h.action_date || h.ActionDate || h.ActionDateTime || new Date().toISOString(),
-                      // Prefer the explicit action-by name, then fallback to common fields
-                      approver_name: h.ActionByName || h.approver_name || h.UserName || h.FullName || h.ForwardedFromName || 'Unknown',
-                      comments: h.comments || h.Comments || h.ForwardReason || 'No comments',
-                      level: h.level || h.Level || h.StepNumber || i,
-                      forwarded_to_name: h.ForwardedToName || h.forwarded_to_name || h.ForwardedToUserId || null,
-                      forwarded_from_name: h.ForwardedFromName || h.forwarded_from_name || h.ForwardedFromUserId || null,
-                      is_current_step: h.is_current_step || h.IsCurrentStep || false
-                    }));
-                  }
-                } else {
-                  // Fall back to the older history endpoint if details endpoint doesn't return history
-                  await loadApprovalHistory(foundRequest.id, mappedRequest);
+              if (stockIssuanceResp.ok) {
+                const stockIssuanceData = await stockIssuanceResp.json();
+                // Use approval_history from stock-issuance endpoint if available
+                if (Array.isArray(stockIssuanceData.approval_history)) {
+                  mappedRequest.approval_history = stockIssuanceData.approval_history.map((h: any, i: number) => ({
+                    id: (h.id || i + 1).toString(),
+                    action: (h.action || '').toLowerCase() || 'submitted',
+                    action_date: h.timestamp || h.action_date || null,
+                    approver_name: h.actor_name || h.approver_name || 'Unknown',
+                    comments: h.comments || 'No comments',
+                    level: h.level || i,
+                    submitted_to: h.submitted_to || null,
+                    submitted_to_role: h.submitted_to_role || null,
+                    is_current_step: h.is_current_step || false,
+                    approver_role: h.approver_role || h.submitted_to_role || null
+                  }));
                 }
-              } else {
-                // Fall back on error
-                await loadApprovalHistory(foundRequest.id, mappedRequest);
               }
             } catch (err) {
-              console.warn('Failed to fetch /api/request-details, falling back to approvals history', err);
-              await loadApprovalHistory(foundRequest.id, mappedRequest);
+              console.warn('Failed to fetch /api/stock-issuance/:id:', err);
+            }
+            
+            // If no approval history yet, try the request-details endpoint
+            if (!mappedRequest.approval_history || mappedRequest.approval_history.length === 0) {
+              try {
+                const detailsResp = await fetch(`http://localhost:3001/api/request-details/${foundRequest.id}`, {
+                  method: 'GET',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (detailsResp.ok) {
+                  const detailsData = await detailsResp.json();
+                  if (detailsData?.success && detailsData.request) {
+                    // Map approval history if present
+                    if (Array.isArray(detailsData.request.approval_history)) {
+                      mappedRequest.approval_history = detailsData.request.approval_history.map((h: any, i: number) => ({
+                        id: (h.id || i + 1).toString(),
+                        action: (h.action || h.action_type || h.ActionType || '').toLowerCase() || 'submitted',
+                        action_date: h.action_date || h.ActionDate || h.ActionDateTime || new Date().toISOString(),
+                        // Prefer the explicit action-by name, then fallback to common fields
+                        approver_name: h.ActionByName || h.approver_name || h.UserName || h.FullName || h.ForwardedFromName || 'Unknown',
+                        comments: h.comments || h.Comments || h.ForwardReason || 'No comments',
+                        level: h.level || h.Level || h.StepNumber || i,
+                        forwarded_to_name: h.ForwardedToName || h.forwarded_to_name || h.ForwardedToUserId || null,
+                        forwarded_from_name: h.ForwardedFromName || h.forwarded_from_name || h.ForwardedFromUserId || null,
+                        is_current_step: h.is_current_step || h.IsCurrentStep || false
+                      }));
+                    }
+                  } else {
+                    // Fall back to the older history endpoint if details endpoint doesn't return history
+                    await loadApprovalHistory(foundRequest.id, mappedRequest);
+                  }
+                } else {
+                  // Fall back on error
+                  await loadApprovalHistory(foundRequest.id, mappedRequest);
+                }
+              } catch (err) {
+                console.warn('Failed to fetch /api/request-details, falling back to approvals history', err);
+                await loadApprovalHistory(foundRequest.id, mappedRequest);
+              }
             }
 
             // Fetch approval items for item-level status tracking
@@ -181,7 +224,7 @@ const RequestDetailsPage: React.FC = () => {
               console.log('Could not fetch approval items for request:', foundRequest.id);
             }
             
-            // Normalize approval history entries to avoid empty/garbled labels
+            // Normalize approval history entries - preserve all fields
             mappedRequest.approval_history = (mappedRequest.approval_history || []).map((ah: any) => {
               const action = (ah.action || ah.action_type || ah.ActionType || '')?.toString().trim().toLowerCase();
               const approver = (ah.approver_name || ah.ActionByName || ah.UserName || ah.FullName || ah.ForwardedFromName || '')?.toString().trim();
@@ -191,9 +234,22 @@ const RequestDetailsPage: React.FC = () => {
                 action: action || 'submitted',
                 approver_name: approver || 'Unknown',
                 forwarded_to_name: forwardedName || null,
-                action_date: ah.action_date || ah.ActionDate || ah.ActionDateTime || new Date().toISOString()
+                // Keep null for pending steps that have no action date yet
+                action_date: ah.action_date || ah.ActionDate || ah.ActionDateTime || null
               } as ApprovalHistoryItem;
             });
+
+            // Only add fallback if we have NO approval history at all
+            if (!mappedRequest.approval_history || mappedRequest.approval_history.length === 0) {
+              mappedRequest.approval_history = [{
+                id: '1',
+                action: 'submitted',
+                action_date: mappedRequest.submitted_date || mappedRequest.requested_date || new Date().toISOString(),
+                approver_name: mappedRequest.requester_name || 'Unknown',
+                comments: `Request submitted by ${mappedRequest.requester_name || 'user'}`,
+                level: 0
+              }];
+            }
 
             setRequest(mappedRequest);
           } else {
@@ -284,7 +340,7 @@ const RequestDetailsPage: React.FC = () => {
         action: 'submitted',
         action_date: request.submitted_date,
         approver_name: request.requester_name,
-        comments: `Request submitted on ${format(new Date(request.submitted_date), 'MMM dd, yyyy')}`,
+        comments: `Request submitted on ${formatDate(request.submitted_date)}`,
         level: 0
       });
 
@@ -473,13 +529,13 @@ const RequestDetailsPage: React.FC = () => {
                 <div>
                   <label className="text-sm font-medium text-gray-600">Submitted Date</label>
                   <p className="text-gray-900 mt-1">
-                    {format(new Date(request.submitted_date), 'MMM dd, yyyy HH:mm')}
+                    {formatDate(request.submitted_date, 'MMM dd, yyyy HH:mm')}
                   </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Required Date</label>
                   <p className="text-gray-900 mt-1">
-                    {format(new Date(request.requested_date), 'MMM dd, yyyy')}
+                    {formatDate(request.requested_date)}
                   </p>
                 </div>
               </div>
@@ -607,8 +663,15 @@ const RequestDetailsPage: React.FC = () => {
                             }`}>
                               {(() => {
                                 const act = history.action;
-                                if (act === 'submitted') return 'Submitted Request';
-                                if (act === 'pending') return (index === 1 ? 'Next: Pending Approval' : 'Future: Pending Approval');
+                                if (act === 'submitted') {
+                                  if (history.submitted_to) {
+                                    return `Submitted Request → to ${history.submitted_to}`;
+                                  }
+                                  return 'Submitted Request';
+                                }
+                                if (act === 'pending') {
+                                  return history.is_current_step ? '- Currently reviewing' : '- Pending';
+                                }
                                 if (act === 'approved') return 'Approved';
                                 if (act === 'rejected') return 'Rejected';
                                 if (act === 'forwarded') return history.forwarded_to_name ? `Forwarded to ${history.forwarded_to_name}` : 'Forwarded';
@@ -616,15 +679,21 @@ const RequestDetailsPage: React.FC = () => {
                                 return act.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                               })()}
                             </span>
-                            {history.action === 'pending' && index === 1 && (
+                            {history.is_current_step && (
                               <span className="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
                                 Current Step
                               </span>
                             )}
                           </div>
+                          {/* Show approver role if available */}
+                          {history.approver_role && (
+                            <div className="text-xs text-gray-500">
+                              Role: {history.approver_role}
+                            </div>
+                          )}
                           {history.action_date && (
                             <div className="text-xs text-gray-500 mt-1">
-                              {format(new Date(history.action_date), 'MMM dd, yyyy HH:mm')}
+                              {formatDate(history.action_date, 'MMM dd, yyyy HH:mm')}
                             </div>
                           )}
                           {!history.action_date && history.action === 'pending' && (
@@ -636,7 +705,14 @@ const RequestDetailsPage: React.FC = () => {
                             <div className="text-sm text-gray-600 mt-1 bg-gray-50 rounded p-2">
                               {history.comments}
                             </div>
-                          )}                          {/* If forwarded, show target */}
+                          )}
+                          {/* If submitted, show approver role */}
+                          {history.submitted_to_role && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Approver Role: <span className="font-medium">{history.submitted_to_role}</span>
+                            </div>
+                          )}
+                          {/* If forwarded, show target */}
                           {history.forwarded_to_name && (
                             <div className="text-sm text-gray-600 mt-1">
                               Forwarded to: <span className="font-medium">{history.forwarded_to_name}</span>

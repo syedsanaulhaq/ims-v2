@@ -50,6 +50,7 @@ class StockIssuanceService {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(request),
       });
 
@@ -76,6 +77,7 @@ class StockIssuanceService {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           request_id: requestId,
           items: items,
@@ -118,7 +120,7 @@ class StockIssuanceService {
       const url = `${this.baseUrl}/requests${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       console.log('🔗 Fetching stock issuance requests from:', url);
       
-      const response = await fetch(url);
+      const response = await fetch(url, { credentials: 'include' });
       console.log('📡 Response status:', response.status, response.statusText);
       
       if (!response.ok) {
@@ -149,7 +151,7 @@ class StockIssuanceService {
 
   async getIssuedItems(): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/issued-items`);
+      const response = await fetch(`${this.baseUrl}/issued-items`, { credentials: 'include' });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -167,7 +169,7 @@ class StockIssuanceService {
   // Get approved requests for processing
   async getApprovedRequests(): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/requests?status=Approved`);
+      const response = await fetch(`${this.baseUrl}/requests?status=Approved`, { credentials: 'include' });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

@@ -84,9 +84,10 @@ router.get('/requests', async (req, res) => {
         sir.justification,
         sir.is_returnable,
         sir.expected_return_date,
-        sir.approval_status,
-        sir.submitted_at,
-        sir.created_at,
+        ISNULL(sir.approval_status, sir.request_status) as approval_status,
+        ISNULL(sir.request_status, sir.approval_status) as request_status,
+        ISNULL(sir.submitted_at, sir.created_at) as submitted_at,
+        ISNULL(sir.created_at, sir.submitted_at) as created_at,
         sir.updated_at,
         sir.is_deleted,
         sir.deleted_at,
@@ -173,8 +174,9 @@ router.get('/requests', async (req, res) => {
         is_returnable: row.is_returnable,
         expected_return_date: row.expected_return_date,
         approval_status: row.approval_status,
-        submitted_at: row.submitted_at,
-        created_at: row.created_at,
+        request_status: row.approval_status || row.request_status || 'Pending', // Alias for frontend compatibility
+        submitted_at: row.submitted_at || row.created_at || new Date().toISOString(),
+        created_at: row.created_at || row.submitted_at || new Date().toISOString(),
         updated_at: row.updated_at,
         is_deleted: row.is_deleted,
         deleted_at: row.deleted_at,
@@ -190,7 +192,8 @@ router.get('/requests', async (req, res) => {
         } : null,
         office: row['office.office_id'] ? {
           office_id: row['office.office_id'],
-          office_name: row['office.office_name']
+          office_name: row['office.office_name'],
+          name: row['office.office_name'] // Alias for frontend compatibility
         } : null,
         items: itemsResult.recordset.map(item => ({
           id: item.id,
@@ -366,9 +369,88 @@ router.get('/:id', async (req, res) => {
         WHERE sii.request_id = @requestId
       `);
 
+    // Get wing supervisor(s) for approval workflow info
+    let supervisor = null;
+    if (request.requester_wing_id) {
+      const supervisorResult = await pool.request()
+        .input('wingId', sql.Int, request.requester_wing_id)
+        .query(`
+          SELECT TOP 1 
+            user_id,
+            supervisor_name,
+            role_name,
+            Email
+          FROM vw_wing_supervisors 
+          WHERE wing_id = @wingId
+          ORDER BY 
+            CASE 
+              WHEN role_name LIKE '%DG%' THEN 1
+              WHEN role_name LIKE '%ADG%' THEN 2
+              WHEN role_name LIKE '%Director%' THEN 3
+              WHEN role_name LIKE '%Manager%' THEN 4
+              ELSE 5 
+            END
+        `);
+      
+      if (supervisorResult.recordset.length > 0) {
+        supervisor = {
+          user_id: supervisorResult.recordset[0].user_id,
+          name: supervisorResult.recordset[0].supervisor_name,
+          role: supervisorResult.recordset[0].role_name,
+          email: supervisorResult.recordset[0].Email
+        };
+      }
+    }
+
+    // Build approval history with proper workflow steps
+    const approvalHistory = [];
+    const status = (request.request_status || request.approval_status || '').toLowerCase();
+    
+    // Step 1: Submission entry - who submitted and to whom
+    approvalHistory.push({
+      action: 'Submitted',
+      actor_name: request.requester_name || 'Unknown User',
+      actor_id: request.requester_user_id,
+      timestamp: request.submitted_at || request.created_at,
+      comments: request.purpose || 'Request submitted for approval',
+      submitted_to: supervisor ? supervisor.name : 'Wing Supervisor',
+      submitted_to_role: supervisor ? supervisor.role : null
+    });
+
+    // Step 2: Current approver status - show who currently has it
+    if (supervisor && (status === 'submitted' || status === 'pending')) {
+      approvalHistory.push({
+        action: 'Pending',
+        actor_name: supervisor.name,
+        actor_id: supervisor.user_id,
+        timestamp: null, // No action yet
+        comments: 'Awaiting review and approval',
+        is_current_step: true,
+        approver_role: supervisor.role
+      });
+    } else if (status === 'approved') {
+      approvalHistory.push({
+        action: 'Approved',
+        actor_name: supervisor ? supervisor.name : 'Approver',
+        actor_id: supervisor ? supervisor.user_id : null,
+        timestamp: request.approved_at || request.updated_at,
+        comments: request.approval_comments || 'Request approved'
+      });
+    } else if (status === 'rejected') {
+      approvalHistory.push({
+        action: 'Rejected',
+        actor_name: supervisor ? supervisor.name : 'Approver',
+        actor_id: supervisor ? supervisor.user_id : null,
+        timestamp: request.rejected_at || request.updated_at,
+        comments: request.rejection_reason || 'Request rejected'
+      });
+    }
+
     res.json({
       request,
-      items: itemsResult.recordset
+      items: itemsResult.recordset,
+      supervisor,
+      approval_history: approvalHistory
     });
   } catch (error) {
     console.error('Error fetching request details:', error);
@@ -378,14 +460,34 @@ router.get('/:id', async (req, res) => {
 
 // ============================================================================
 // POST /api/stock-issuance - Create new stock issuance request
+// POST /api/stock-issuance/requests - Alias endpoint for frontend compatibility
 // ============================================================================
-router.post('/', requireAuth, async (req, res) => {
+const createStockIssuanceRequest = async (req, res) => {
   try {
-    const { wing_id, items, is_urgent, comments } = req.body;
+    // Support both old format (wing_id) and new format (requester_wing_id)
+    const {
+      wing_id,
+      requester_wing_id,
+      requester_office_id,
+      requester_branch_id,
+      requester_user_id,
+      items,
+      purpose,
+      justification,
+      request_type,
+      request_number,
+      expected_return_date,
+      is_returnable,
+      urgency_level
+    } = req.body;
+    
     const pool = getPool();
 
-    if (!wing_id || !items || items.length === 0) {
-      return res.status(400).json({ error: 'wing_id and items are required' });
+    // Use requester_wing_id if wing_id not provided
+    const wingId = wing_id || requester_wing_id;
+    
+    if (!wingId) {
+      return res.status(400).json({ error: 'wing_id or requester_wing_id is required' });
     }
 
     const requestId = uuidv4();
@@ -394,35 +496,57 @@ router.post('/', requireAuth, async (req, res) => {
     await transaction.begin();
 
     try {
-      // Create request
+      // Create request with extended fields
       await transaction.request()
         .input('id', sql.UniqueIdentifier, requestId)
-        .input('wingId', sql.Int, wing_id)
-        .input('requesterId', sql.NVarChar(450), req.session.userId)
-        .input('isUrgent', sql.Bit, is_urgent ? 1 : 0)
-        .input('comments', sql.NVarChar(sql.MAX), comments)
+        .input('requestNumber', sql.NVarChar(50), request_number || null)
+        .input('requestType', sql.NVarChar(50), request_type || 'Individual')
+        .input('officeId', sql.Int, requester_office_id || null)
+        .input('wingId', sql.Int, wingId)
+        .input('branchId', sql.NVarChar(50), requester_branch_id || null)
+        .input('requesterId', sql.NVarChar(450), requester_user_id || req.session.userId)
+        .input('purpose', sql.NVarChar(sql.MAX), purpose || null)
+        .input('urgencyLevel', sql.NVarChar(50), urgency_level || 'Normal')
+        .input('justification', sql.NVarChar(sql.MAX), justification || null)
+        .input('expectedReturnDate', sql.Date, expected_return_date || null)
+        .input('isReturnable', sql.Bit, is_returnable ? 1 : 0)
         .query(`
           INSERT INTO stock_issuance_requests 
-          (id, requester_wing_id, requester_user_id, approval_status, is_urgent, comments, submitted_at)
-          VALUES (@id, @wingId, @requesterId, 'Pending', @isUrgent, @comments, GETDATE())
+          (id, request_number, request_type, requester_office_id, requester_wing_id, requester_branch_id,
+           requester_user_id, purpose, urgency_level, justification,
+           expected_return_date, is_returnable, request_status, submitted_at, created_at)
+          VALUES (@id, @requestNumber, @requestType, @officeId, @wingId, @branchId,
+                  @requesterId, @purpose, @urgencyLevel, @justification,
+                  @expectedReturnDate, @isReturnable, 'Submitted', GETDATE(), GETDATE())
         `);
 
-      // Add items
-      for (const item of items) {
-        await transaction.request()
-          .input('requestId', sql.UniqueIdentifier, requestId)
-          .input('itemId', sql.UniqueIdentifier, item.item_id)
-          .input('qty', sql.Int, item.quantity)
-          .input('isCustom', sql.Bit, item.is_custom_item ? 1 : 0)
-          .query(`
-            INSERT INTO stock_issuance_items 
-            (request_id, item_master_id, requested_quantity, is_custom_item, item_status)
-            VALUES (@requestId, @itemId, @qty, @isCustom, 'Pending')
-          `);
+      // Add items if provided in this request
+      if (items && items.length > 0) {
+        for (const item of items) {
+          await transaction.request()
+            .input('requestId', sql.UniqueIdentifier, requestId)
+            .input('itemId', sql.UniqueIdentifier, item.item_id || item.item_master_id || null)
+            .input('nomenclature', sql.NVarChar(sql.MAX), item.nomenclature || null)
+            .input('qty', sql.Int, item.quantity || item.requested_quantity || 0)
+            .input('itemType', sql.NVarChar(50), item.item_type || 'standard')
+            .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name || null)
+            .query(`
+              INSERT INTO stock_issuance_items 
+              (id, request_id, item_master_id, nomenclature, requested_quantity, item_type, custom_item_name)
+              VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @itemType, @customName)
+            `);
+        }
       }
 
       await transaction.commit();
-      res.status(201).json({ success: true, request_id: requestId });
+      res.status(201).json({ 
+        success: true, 
+        request_id: requestId,
+        data: {
+          id: requestId,
+          request_number: request_number
+        }
+      });
     } catch (err) {
       await transaction.rollback();
       throw err;
@@ -430,6 +554,54 @@ router.post('/', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error creating request:', error);
     res.status(500).json({ error: 'Failed to create request' });
+  }
+};
+
+// Register both endpoints for backward compatibility
+router.post('/', requireAuth, createStockIssuanceRequest);
+router.post('/requests', requireAuth, createStockIssuanceRequest);
+
+// ============================================================================
+// POST /api/stock-issuance/items - Add items to existing request
+// ============================================================================
+router.post('/items', requireAuth, async (req, res) => {
+  try {
+    const { request_id, items } = req.body;
+    const pool = getPool();
+
+    if (!request_id || !items || items.length === 0) {
+      return res.status(400).json({ error: 'request_id and items are required' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      for (const item of items) {
+        await transaction.request()
+          .input('requestId', sql.UniqueIdentifier, request_id)
+          .input('itemId', sql.UniqueIdentifier, item.item_master_id || null)
+          .input('nomenclature', sql.NVarChar(sql.MAX), item.nomenclature || null)
+          .input('qty', sql.Int, item.requested_quantity || 0)
+          .input('unitPrice', sql.Decimal(18, 2), item.unit_price || 0)
+          .input('itemType', sql.NVarChar(50), item.item_type || 'standard')
+          .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name || null)
+          .query(`
+            INSERT INTO stock_issuance_items 
+            (id, request_id, item_master_id, nomenclature, requested_quantity, unit_price, item_type, custom_item_name)
+            VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @unitPrice, @itemType, @customName)
+          `);
+      }
+
+      await transaction.commit();
+      res.status(201).json({ success: true, items_count: items.length });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('Error adding items to request:', error);
+    res.status(500).json({ error: 'Failed to add items to request' });
   }
 });
 

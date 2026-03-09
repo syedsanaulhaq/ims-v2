@@ -4,11 +4,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { useSession } from '@/contexts/SessionContext';
 import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+
+// Helper function to safely format dates
+const formatDate = (dateString: string | null | undefined, defaultText = 'N/A'): string => {
+  if (!dateString) return defaultText;
+  const date = new Date(dateString);
+  if (!isValid(date) || date.getFullYear() < 2000) return defaultText;
+  return format(date, 'MMM dd, yyyy');
+};
 
 interface RequestItem {
   id: string;
@@ -365,11 +373,11 @@ const MyRequestsPage: React.FC = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
                     <div>
                       <p className="font-medium text-gray-600">Submitted</p>
-                      <p>{format(new Date(request.submitted_date), 'MMM dd, yyyy')}</p>
+                      <p>{formatDate(request.submitted_date)}</p>
                     </div>
                     <div>
                       <p className="font-medium text-gray-600">Required</p>
-                      <p>{format(new Date(request.requested_date), 'MMM dd, yyyy')}</p>
+                      <p>{formatDate(request.requested_date)}</p>
                     </div>
                     <div>
                       <p className="font-medium text-gray-600">Items</p>
