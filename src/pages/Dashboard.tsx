@@ -44,6 +44,48 @@ const Dashboard = () => {
   const { hasPermission: canViewProcurement } = usePermission('procurement.view');
   const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
 
+  // State for opening balance check
+  const [openingBalanceChecked, setOpeningBalanceChecked] = useState(false);
+  const [openingBalanceComplete, setOpeningBalanceComplete] = useState(true); // Assume true initially
+
+  // Check Opening Balance Status FIRST before loading dashboard
+  useEffect(() => {
+    const checkOpeningBalance = async () => {
+      // Only check for admin users
+      if (!user || !canAccessDashboard) {
+        setOpeningBalanceChecked(true);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/go-live-status`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('🔍 Opening Balance Status:', data);
+          
+          if (!data.opening_balance_completed) {
+            console.log('⚠️ Opening Balance not completed - redirecting admin to setup');
+            setOpeningBalanceComplete(false);
+            // Redirect to opening balance entry with message
+            navigate('/dashboard/opening-balance-entry', { 
+              replace: true,
+              state: { 
+                showSetupMessage: true,
+                message: 'Welcome! To start using the IMS system properly, please enter the Opening Balance first. This establishes your current inventory and sets the system go-live date.'
+              }
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking opening balance status:', error);
+      }
+      setOpeningBalanceChecked(true);
+    };
+
+    checkOpeningBalance();
+  }, [user, canAccessDashboard, navigate]);
+
   // Check if user has access to dashboard - if not, redirect to personal dashboard
   useEffect(() => {
     if (user && !canAccessDashboard && !canViewInventory && !canViewProcurement && !isWingSupervisor) {

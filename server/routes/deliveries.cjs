@@ -166,8 +166,45 @@ router.post('/', handleDeliveryUpload, async (req, res) => {
       return res.status(400).json({ error: 'Tender ID and delivery items are required' });
     }
 
+    const pool = getPool();
+    
+    // ============================================================
+    // VALIDATION: Check if Opening Balance has been completed
+    // ============================================================
+    const goLiveCheck = await pool.request().query(`
+      SELECT 
+        (SELECT setting_value FROM system_settings WHERE setting_key = 'go_live_date') AS go_live_date,
+        (SELECT setting_value FROM system_settings WHERE setting_key = 'opening_balance_completed') AS opening_balance_completed
+    `);
+    
+    const goLiveStatus = goLiveCheck.recordset[0] || {};
+    
+    // Check if opening balance is completed
+    if (goLiveStatus.opening_balance_completed !== 'true') {
+      return res.status(400).json({ 
+        error: 'Opening Balance Required',
+        details: 'Opening balance must be entered before creating any deliveries. Please complete the Opening Balance Entry first.',
+        code: 'OPENING_BALANCE_REQUIRED'
+      });
+    }
+    
+    // Check if delivery date is before go-live date
+    const effectiveDeliveryDate = delivery_date ? new Date(delivery_date) : new Date();
+    if (goLiveStatus.go_live_date) {
+      const goLiveDate = new Date(goLiveStatus.go_live_date);
+      if (effectiveDeliveryDate < goLiveDate) {
+        return res.status(400).json({ 
+          error: 'Invalid Delivery Date',
+          details: `Delivery date (${effectiveDeliveryDate.toISOString().split('T')[0]}) cannot be before the system go-live date (${goLiveStatus.go_live_date}). The go-live date was set when the Opening Balance was entered.`,
+          code: 'DATE_BEFORE_GO_LIVE',
+          go_live_date: goLiveStatus.go_live_date
+        });
+      }
+    }
+    // ============================================================
+
     const id = require('uuid').v4();
-    const transaction = new sql.Transaction(getPool());
+    const transaction = new sql.Transaction(pool);
     await transaction.begin();
 
     try {
@@ -768,11 +805,46 @@ router.post('/:id/receive', async (req, res) => {
 
     const pool = getPool();
     
+    // ============================================================
+    // VALIDATION: Check if Opening Balance has been completed
+    // ============================================================
+    const goLiveCheck = await pool.request().query(`
+      SELECT 
+        (SELECT setting_value FROM system_settings WHERE setting_key = 'go_live_date') AS go_live_date,
+        (SELECT setting_value FROM system_settings WHERE setting_key = 'opening_balance_completed') AS opening_balance_completed
+    `);
+    
+    const goLiveStatus = goLiveCheck.recordset[0] || {};
+    
+    // Check if opening balance is completed
+    if (goLiveStatus.opening_balance_completed !== 'true') {
+      return res.status(400).json({ 
+        error: 'Opening Balance Required',
+        details: 'Opening balance must be entered before processing any deliveries. Please complete the Opening Balance Entry first.',
+        code: 'OPENING_BALANCE_REQUIRED'
+      });
+    }
+    
+    // Check if delivery/receiving date is before go-live date
+    const effectiveReceivingDate = receiving_date ? new Date(receiving_date) : new Date();
+    if (goLiveStatus.go_live_date) {
+      const goLiveDate = new Date(goLiveStatus.go_live_date);
+      if (effectiveReceivingDate < goLiveDate) {
+        return res.status(400).json({ 
+          error: 'Invalid Receiving Date',
+          details: `Receiving date (${effectiveReceivingDate.toISOString().split('T')[0]}) cannot be before the system go-live date (${goLiveStatus.go_live_date}). The go-live date was set when the Opening Balance was entered.`,
+          code: 'DATE_BEFORE_GO_LIVE',
+          go_live_date: goLiveStatus.go_live_date
+        });
+      }
+    }
+    // ============================================================
+
     // Check if delivery exists and is not already received
     const deliveryCheck = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`
-        SELECT delivery_status, po_id 
+        SELECT delivery_status, po_id, delivery_date
         FROM deliveries 
         WHERE id = @id
       `);
@@ -787,6 +859,20 @@ router.post('/:id/receive', async (req, res) => {
 
     if (!deliveryCheck.recordset[0].po_id) {
       return res.status(400).json({ error: 'Delivery not linked to a Purchase Order' });
+    }
+    
+    // Also check if delivery_date is before go-live date
+    if (goLiveStatus.go_live_date && deliveryCheck.recordset[0].delivery_date) {
+      const deliveryDate = new Date(deliveryCheck.recordset[0].delivery_date);
+      const goLiveDate = new Date(goLiveStatus.go_live_date);
+      if (deliveryDate < goLiveDate) {
+        return res.status(400).json({ 
+          error: 'Invalid Delivery Date',
+          details: `This delivery was created with a date (${deliveryDate.toISOString().split('T')[0]}) before the system go-live date (${goLiveStatus.go_live_date}). Please update the delivery date first.`,
+          code: 'DELIVERY_DATE_BEFORE_GO_LIVE',
+          go_live_date: goLiveStatus.go_live_date
+        });
+      }
     }
 
     // Call stored procedure to create stock transactions
