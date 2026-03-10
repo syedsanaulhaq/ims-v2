@@ -263,11 +263,40 @@ router.post('/opening-balance', async (req, res) => {
             WHERE id = @entry_id
           `);
 
+        // Update current_inventory_stock (this is what the inventory dashboard reads)
+        const currentQty = item.quantity_received - (item.quantity_already_issued || 0);
+        await transaction.request()
+          .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+          .input('current_quantity', sql.Decimal(15, 2), currentQty)
+          .input('transaction_date', sql.DateTime2, acquisition_date || new Date())
+          .query(`
+            IF EXISTS (SELECT 1 FROM current_inventory_stock WHERE item_master_id = @item_master_id)
+            BEGIN
+              UPDATE current_inventory_stock
+              SET current_quantity = current_quantity + @current_quantity,
+                  last_transaction_date = @transaction_date,
+                  last_transaction_type = 'OPENING_BALANCE',
+                  last_updated = GETDATE()
+              WHERE item_master_id = @item_master_id
+            END
+            ELSE
+            BEGIN
+              INSERT INTO current_inventory_stock (
+                id, item_master_id, current_quantity, 
+                last_transaction_date, last_transaction_type, last_updated
+              )
+              VALUES (
+                NEWID(), @item_master_id, @current_quantity,
+                @transaction_date, 'OPENING_BALANCE', GETDATE()
+              )
+            END
+          `);
+
         createdEntries.push({
           entryId,
           acqNumber,
           item: item.nomenclature,
-          quantity_available: item.quantity_received - (item.quantity_already_issued || 0)
+          quantity_available: currentQty
         });
       }
 
