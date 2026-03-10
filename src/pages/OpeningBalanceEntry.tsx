@@ -23,6 +23,13 @@ interface OpeningBalanceItem {
   quantity_available: number;
   unit_cost: number;
   isExisting?: boolean; // Track if this item was loaded from database
+  entry_id?: string; // Database entry ID for updates
+  isModified?: boolean; // Track if existing item was modified
+  originalValues?: {
+    quantity_received: number;
+    quantity_already_issued: number;
+    unit_cost: number;
+  };
 }
 
 export default function OpeningBalanceEntry() {
@@ -135,6 +142,13 @@ export default function OpeningBalanceEntry() {
             quantity_available: entry.quantity_available || 0,
             unit_cost: entry.unit_cost || 0,
             isExisting: true, // Mark as loaded from database
+            entry_id: entry.id, // Store the entry ID for updates
+            isModified: false,
+            originalValues: {
+              quantity_received: entry.quantity_received || 0,
+              quantity_already_issued: entry.quantity_already_issued || 0,
+              unit_cost: entry.unit_cost || 0,
+            },
           }));
           setItems(loadedItems);
         }
@@ -479,10 +493,11 @@ export default function OpeningBalanceEntry() {
 
     // Separate new items from existing ones
     const newItems = items.filter(item => !item.isExisting);
+    const modifiedItems = items.filter(item => item.isExisting && item.isModified);
     const existingItemsCount = items.filter(item => item.isExisting).length;
 
-    // If no new items and just changing status to completed
-    if (newItems.length === 0 && existingItemsCount > 0) {
+    // If no new items and no modified items, just update status
+    if (newItems.length === 0 && modifiedItems.length === 0 && existingItemsCount > 0) {
       // Just update the status
       await handleStatusChange(submissionStatus);
       return;
@@ -494,9 +509,9 @@ export default function OpeningBalanceEntry() {
       return;
     }
 
-    // If no new items to add, just show message
-    if (newItems.length === 0) {
-      setError('No new items to save. To change status, use the status buttons above.');
+    // If no new items and no modified items, show message
+    if (newItems.length === 0 && modifiedItems.length === 0) {
+      setError('No changes to save.');
       return;
     }
 
@@ -507,29 +522,52 @@ export default function OpeningBalanceEntry() {
       `Opening Balance - ${formData.opening_balance_date}`;
 
     try {
-      const payload = {
-        ...formData,
-        tender_reference: reference, // Use auto-generated if not provided
-        acquisition_date: formData.opening_balance_date, // Map to backend field name
-        items: newItems, // Only submit NEW items, not existing ones
-        status: submissionStatus, // Include status from dropdown
-      };
+      // First, update any modified existing items
+      if (modifiedItems.length > 0) {
+        const updatePayload = {
+          items: modifiedItems,
+          status: submissionStatus,
+        };
 
-      const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/opening-balance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies for session authentication
-        body: JSON.stringify(payload),
-      });
+        const updateResponse = await fetch(`${getApiBaseUrl()}/stock-acquisitions/opening-balance`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(updatePayload),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create opening balance entries');
+        if (!updateResponse.ok) {
+          const errorData = await updateResponse.json();
+          throw new Error(errorData.error || 'Failed to update opening balance entries');
+        }
       }
 
-      const result = await response.json();
+      // Then, add any new items
+      if (newItems.length > 0) {
+        const payload = {
+          ...formData,
+          tender_reference: reference,
+          acquisition_date: formData.opening_balance_date,
+          items: newItems,
+          status: submissionStatus,
+        };
+
+        const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/opening-balance`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create opening balance entries');
+        }
+      }
       
       // Show success message
       setSuccess(true);
@@ -543,8 +581,8 @@ export default function OpeningBalanceEntry() {
         setSuccess(false);
       }, 3000);
     } catch (err: any) {
-      console.error('Error creating opening balance:', err);
-      setError(err.message || 'Failed to create opening balance entries');
+      console.error('Error saving opening balance:', err);
+      setError(err.message || 'Failed to save opening balance entries');
     } finally {
       setLoading(false);
     }
@@ -932,13 +970,70 @@ export default function OpeningBalanceEntry() {
                   </TableHeader>
                   <TableBody>
                     {items.map((item, index) => (
-                      <TableRow key={index}>
+                      <TableRow key={index} className={item.isModified ? 'bg-yellow-50' : ''}>
                         <TableCell>
                           <Badge variant="outline">{item.category_name || 'N/A'}</Badge>
                         </TableCell>
                         <TableCell className="font-medium">{item.nomenclature}</TableCell>
-                        <TableCell className="text-right">{item.quantity_received}</TableCell>
-                        <TableCell className="text-right text-orange-600">{item.quantity_already_issued}</TableCell>
+                        <TableCell className="text-right">
+                          {!goLiveStatus.opening_balance_completed ? (
+                            <Input
+                              type="number"
+                              min={0}
+                              value={item.quantity_received}
+                              onChange={(e) => {
+                                const newVal = parseInt(e.target.value) || 0;
+                                setItems(prev => prev.map((it, i) => {
+                                  if (i !== index) return it;
+                                  const isModified = it.isExisting && it.originalValues ? (
+                                    newVal !== it.originalValues.quantity_received ||
+                                    it.quantity_already_issued !== it.originalValues.quantity_already_issued ||
+                                    it.unit_cost !== it.originalValues.unit_cost
+                                  ) : false;
+                                  return {
+                                    ...it,
+                                    quantity_received: newVal,
+                                    quantity_available: newVal - it.quantity_already_issued,
+                                    isModified,
+                                  };
+                                }));
+                              }}
+                              className="w-20 text-right"
+                            />
+                          ) : (
+                            item.quantity_received
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-orange-600">
+                          {!goLiveStatus.opening_balance_completed ? (
+                            <Input
+                              type="number"
+                              min={0}
+                              max={item.quantity_received}
+                              value={item.quantity_already_issued}
+                              onChange={(e) => {
+                                const newVal = parseInt(e.target.value) || 0;
+                                setItems(prev => prev.map((it, i) => {
+                                  if (i !== index) return it;
+                                  const isModified = it.isExisting && it.originalValues ? (
+                                    it.quantity_received !== it.originalValues.quantity_received ||
+                                    newVal !== it.originalValues.quantity_already_issued ||
+                                    it.unit_cost !== it.originalValues.unit_cost
+                                  ) : false;
+                                  return {
+                                    ...it,
+                                    quantity_already_issued: newVal,
+                                    quantity_available: it.quantity_received - newVal,
+                                    isModified,
+                                  };
+                                }));
+                              }}
+                              className="w-20 text-right"
+                            />
+                          ) : (
+                            item.quantity_already_issued
+                          )}
+                        </TableCell>
                         <TableCell className="text-right font-bold text-green-600">{item.quantity_available}</TableCell>
                         {!goLiveStatus.opening_balance_completed && (
                           <TableCell>

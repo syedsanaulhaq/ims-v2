@@ -373,6 +373,120 @@ router.get('/opening-balance', async (req, res) => {
 });
 
 // ============================================================================
+// PUT /api/stock-acquisitions/opening-balance
+// Update existing opening balance entries
+// ============================================================================
+router.put('/opening-balance', async (req, res) => {
+  try {
+    const { items, status } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ 
+        error: 'No items to update' 
+      });
+    }
+
+    const pool = await getPool();
+    const transaction = pool.transaction();
+
+    try {
+      await transaction.begin();
+
+      const updatedEntries = [];
+
+      for (const item of items) {
+        if (!item.entry_id) continue; // Skip items without entry_id
+        
+        const currentQty = item.quantity_received - (item.quantity_already_issued || 0);
+
+        // Update opening_balance_entries
+        await transaction.request()
+          .input('entry_id', sql.UniqueIdentifier, item.entry_id)
+          .input('quantity_received', sql.Int, item.quantity_received)
+          .input('quantity_already_issued', sql.Int, item.quantity_already_issued || 0)
+          .input('unit_cost', sql.Decimal(15, 2), item.unit_cost || null)
+          .query(`
+            UPDATE opening_balance_entries
+            SET quantity_received = @quantity_received,
+                quantity_already_issued = @quantity_already_issued,
+                unit_cost = @unit_cost
+            WHERE id = @entry_id
+          `);
+
+        // Update stock_acquisitions (find by item_master_id and notes containing Opening Balance)
+        await transaction.request()
+          .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+          .input('quantity_received', sql.Decimal(15, 2), item.quantity_received)
+          .input('quantity_issued', sql.Decimal(15, 2), item.quantity_already_issued || 0)
+          .input('unit_cost', sql.Decimal(15, 2), item.unit_cost || null)
+          .query(`
+            UPDATE stock_acquisitions
+            SET quantity_received = @quantity_received,
+                quantity_issued = @quantity_issued,
+                quantity_available = @quantity_received - @quantity_issued,
+                unit_cost = @unit_cost
+            WHERE item_master_id = @item_master_id
+              AND notes LIKE '%Opening Balance%'
+          `);
+
+        // Recalculate and update current_inventory_stock 
+        // (sum all stock_acquisitions for this item)
+        await transaction.request()
+          .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+          .query(`
+            UPDATE current_inventory_stock
+            SET current_quantity = (
+                  SELECT ISNULL(SUM(quantity_available), 0)
+                  FROM stock_acquisitions
+                  WHERE item_master_id = @item_master_id
+                ),
+                last_updated = GETDATE()
+            WHERE item_master_id = @item_master_id
+          `);
+
+        updatedEntries.push({
+          entry_id: item.entry_id,
+          item: item.nomenclature,
+          quantity_available: currentQty
+        });
+      }
+
+      // Update status if provided
+      if (status) {
+        const isCompleted = status === 'completed';
+        await transaction.request()
+          .input('is_completed', sql.NVarChar, isCompleted ? 'true' : 'false')
+          .query(`
+            UPDATE system_settings 
+            SET setting_value = @is_completed, updated_at = GETDATE()
+            WHERE setting_key = 'opening_balance_completed';
+          `);
+      }
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: `Updated ${updatedEntries.length} opening balance entries`,
+        entries: updatedEntries,
+        status: status
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error updating opening balance:', error);
+    res.status(500).json({ 
+      error: 'Failed to update opening balance',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // GET /api/stock-acquisitions/stock-by-item/:itemId
 // Get available stock for an item (with FIFO ordering)
 // ============================================================================
