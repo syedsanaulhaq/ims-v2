@@ -100,7 +100,7 @@ export default function OpeningBalanceEntry() {
   });
   const [quickAddLoading, setQuickAddLoading] = useState(false);
 
-  const sampleCsv = `item_code,quantity_received,quantity_issued\nITEM-001,100,30\nITEM-002,50,10\n`;
+  const sampleCsv = `item_name,item_code,quantity_received,quantity_issued\nPrinter Paper A4,,100,30\n,ITEM-002,50,10\nLaptop Dell,ITEM-003,25,5\n`;
 
   useEffect(() => {
     fetchInitialData();
@@ -397,11 +397,12 @@ export default function OpeningBalanceEntry() {
       const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
       const itemCodeIndex = headers.indexOf('item_code');
       const itemIdIndex = headers.indexOf('item_master_id');
+      const itemNameIndex = headers.indexOf('item_name') !== -1 ? headers.indexOf('item_name') : headers.indexOf('nomenclature');
       const qtyIndex = headers.indexOf('quantity_received');
       const qtyIssuedIndex = headers.indexOf('quantity_issued');
 
-      if (qtyIndex === -1 || (itemCodeIndex === -1 && itemIdIndex === -1)) {
-        setCsvError('CSV must include columns: quantity_received and item_code or item_master_id.');
+      if (qtyIndex === -1 || (itemCodeIndex === -1 && itemIdIndex === -1 && itemNameIndex === -1)) {
+        setCsvError('CSV must include columns: quantity_received and at least one of: item_code, item_name, or item_master_id.');
         return;
       }
 
@@ -412,13 +413,14 @@ export default function OpeningBalanceEntry() {
         const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
         const itemCode = itemCodeIndex >= 0 ? cols[itemCodeIndex] : '';
         const itemId = itemIdIndex >= 0 ? cols[itemIdIndex] : '';
+        const itemName = itemNameIndex >= 0 ? cols[itemNameIndex] : '';
         const qtyRaw = cols[qtyIndex] || '0';
         const qtyIssuedRaw = qtyIssuedIndex >= 0 ? (cols[qtyIssuedIndex] || '0') : '0';
         const quantityReceived = parseFloat(qtyRaw);
         const quantityIssued = parseFloat(qtyIssuedRaw) || 0;
 
-        if (!itemCode && !itemId) {
-          errors.push(`Row ${i + 1}: missing item_code or item_master_id.`);
+        if (!itemCode && !itemId && !itemName) {
+          errors.push(`Row ${i + 1}: missing item_code, item_name, or item_master_id.`);
           continue;
         }
 
@@ -427,12 +429,15 @@ export default function OpeningBalanceEntry() {
           continue;
         }
 
-        const matchedItem = itemId
+        // Find item by ID, code, or name (case-insensitive partial match for name)
+        let matchedItem = itemId
           ? itemMasters.find((im) => im.id === itemId)
-          : itemMasters.find((im) => im.item_code === itemCode);
+          : itemCode 
+            ? itemMasters.find((im) => im.item_code === itemCode)
+            : itemMasters.find((im) => im.nomenclature.toLowerCase().includes(itemName.toLowerCase()) || itemName.toLowerCase().includes(im.nomenclature.toLowerCase()));
 
         if (!matchedItem) {
-          errors.push(`Row ${i + 1}: item not found for code/id (${itemCode || itemId}).`);
+          errors.push(`Row ${i + 1}: item not found for (${itemName || itemCode || itemId}).`);
           continue;
         }
 
@@ -827,7 +832,7 @@ export default function OpeningBalanceEntry() {
                   <div>
                     <div className="font-semibold">Import Items from CSV</div>
                     <div className="text-xs text-gray-600">
-                      CSV columns: item_code (or item_master_id), quantity_received
+                      CSV columns: item_name or item_code, quantity_received, quantity_issued (optional)
                     </div>
                   </div>
                   <div className="flex gap-2">
