@@ -423,7 +423,6 @@ router.put('/opening-balance', async (req, res) => {
             UPDATE stock_acquisitions
             SET quantity_received = @quantity_received,
                 quantity_issued = @quantity_issued,
-                quantity_available = @quantity_received - @quantity_issued,
                 unit_cost = @unit_cost
             WHERE item_master_id = @item_master_id
               AND notes LIKE '%Opening Balance%'

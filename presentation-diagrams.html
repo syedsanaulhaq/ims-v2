@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMS Workflow Diagrams - For Presentation</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            padding: 30px;
+        }
+        .diagram-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+            margin-bottom: 50px;
+            padding: 40px;
+            page-break-after: always;
+            border: 1px solid #e5e7eb;
+        }
+        .diagram-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 30px;
+            text-align: center;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .diagram-subtitle {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 400;
+            display: block;
+            margin-top: 8px;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            min-height: 350px;
+            padding: 20px;
+        }
+        .instructions {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 16px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .instructions h2 {
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .instructions p {
+            opacity: 0.95;
+            margin: 5px 0;
+        }
+        @media print {
+            .instructions { display: none; }
+            body { background: white; }
+            .diagram-container {
+                box-shadow: none;
+                border: 1px solid #d1d5db;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h2>📸 How to Save as Images</h2>
+        <p><strong>Option 1:</strong> Right-click each diagram → "Save image as..." (Chrome/Edge)</p>
+        <p><strong>Option 2:</strong> Press Win+Shift+S to use Snipping Tool</p>
+        <p><strong>Option 3:</strong> Press Ctrl+P → Save as PDF</p>
+    </div>
+
+    <!-- Diagram 1: Clean Vertical Flow -->
+    <div class="diagram-container">
+        <div class="diagram-title">
+            🏢 Complete Inventory Workflow
+            <span class="diagram-subtitle">5 Clear Stages - From Request to Delivery</span>
+        </div>
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#374151', 'lineColor': '#94a3b8', 'fontFamily': 'Segoe UI'}}}%%
+flowchart TB
+    subgraph STAGE1["📝 STAGE 1: REQUEST"]
+        A["🧑‍💼 User Creates Request"]
+    end
+
+    subgraph STAGE2["✅ STAGE 2: APPROVAL"]
+        B["👨‍💼 Supervisor Reviews"]
+        C{"Approved?"}
+    end
+
+    subgraph STAGE3["📦 STAGE 3: PROCUREMENT"]
+        D["📋 Create Tender"]
+        E["🏪 Vendor Bids"]
+        F["📄 Purchase Order"]
+    end
+
+    subgraph STAGE4["🚚 STAGE 4: RECEIVE"]
+        G["📥 Stock Received"]
+        H["🔍 Quality Check"]
+    end
+
+    subgraph STAGE5["🎁 STAGE 5: ISSUE"]
+        I["✅ Issue to User"]
+    end
+
+    A --> B
+    B --> C
+    C -->|Yes| D
+    C -->|No| A
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+
+    style STAGE1 fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style STAGE2 fill:#E3F2FD,stroke:#2196F3,stroke-width:2px
+    style STAGE3 fill:#FFF3E0,stroke:#FF9800,stroke-width:2px
+    style STAGE4 fill:#F3E5F5,stroke:#9C27B0,stroke-width:2px
+    style STAGE5 fill:#FFEBEE,stroke:#F44336,stroke-width:2px
+
+    style A fill:#C8E6C9,stroke:#388E3C
+    style B fill:#BBDEFB,stroke:#1976D2
+    style C fill:#BBDEFB,stroke:#1976D2
+    style D fill:#FFE0B2,stroke:#F57C00
+    style E fill:#FFE0B2,stroke:#F57C00
+    style F fill:#FFE0B2,stroke:#F57C00
+    style G fill:#E1BEE7,stroke:#7B1FA2
+    style H fill:#E1BEE7,stroke:#7B1FA2
+    style I fill:#FFCDD2,stroke:#D32F2F
+        </div>
+    </div>
+
+    <!-- Diagram 1B: Simple Horizontal Timeline -->
+    <div class="diagram-container">
+        <div class="diagram-title">
+            ⏱️ IMS Process Timeline
+            <span class="diagram-subtitle">Simple 5-Step Overview</span>
+        </div>
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#374151', 'lineColor': '#94a3b8', 'fontFamily': 'Segoe UI'}}}%%
+flowchart LR
+    subgraph S1[" "]
+        A1["📝<br/><b>REQUEST</b><br/>_________<br/>User submits<br/>requirements"]
+    end
+    
+    subgraph S2[" "]
+        B1["✅<br/><b>APPROVE</b><br/>_________<br/>Supervisor<br/>reviews"]
+    end
+    
+    subgraph S3[" "]
+        C1["📦<br/><b>PROCURE</b><br/>_________<br/>Tender &<br/>Purchase"]
+    end
+    
+    subgraph S4[" "]
+        D1["🚚<br/><b>RECEIVE</b><br/>_________<br/>Stock<br/>arrives"]
+    end
+    
+    subgraph S5[" "]
+        E1["🎁<br/><b>ISSUE</b><br/>_________<br/>Deliver to<br/>user"]
+    end
+
+    S1 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> S5
+
+    style S1 fill:#E8F5E9,stroke:#4CAF50,stroke-width:3px
+    style S2 fill:#E3F2FD,stroke:#2196F3,stroke-width:3px
+    style S3 fill:#FFF3E0,stroke:#FF9800,stroke-width:3px
+    style S4 fill:#F3E5F5,stroke:#9C27B0,stroke-width:3px
+    style S5 fill:#FFEBEE,stroke:#F44336,stroke-width:3px
+
+    style A1 fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style B1 fill:#BBDEFB,stroke:#1976D2,stroke-width:2px
+    style C1 fill:#FFE0B2,stroke:#F57C00,stroke-width:2px
+    style D1 fill:#E1BEE7,stroke:#7B1FA2,stroke-width:2px
+    style E1 fill:#FFCDD2,stroke:#D32F2F,stroke-width:2px
+        </div>
+    </div>
+
+    <!-- Diagram 2: User Journey -->
+    <div class="diagram-container">
+        <div class="diagram-title">
+            👤 User Journey - How to Get Items
+            <span class="diagram-subtitle">Step-by-step request process for employees</span>
+        </div>
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#374151', 'lineColor': '#9ca3af', 'fontFamily': 'Segoe UI'}}}%%
+flowchart LR
+    subgraph STEP1[" "]
+        S1["🧑‍💼<br/><b>Step 1</b><br/>Login to<br/>System"]
+    end
+
+    subgraph STEP2[" "]
+        S2["📝<br/><b>Step 2</b><br/>Fill Request<br/>Form"]
+    end
+
+    subgraph STEP3[" "]
+        S3["⏳<br/><b>Step 3</b><br/>Wait for<br/>Approval"]
+    end
+
+    subgraph STEP4[" "]
+        S4["📧<br/><b>Step 4</b><br/>Get<br/>Notification"]
+    end
+
+    subgraph STEP5[" "]
+        S5["🎁<br/><b>Step 5</b><br/>Collect<br/>Items"]
+    end
+
+    S1 --> S2 --> S3 --> S4 --> S5
+
+    style STEP1 fill:#dbeafe,stroke:#93c5fd,color:#1e40af
+    style STEP2 fill:#fef3c7,stroke:#fcd34d,color:#92400e
+    style STEP3 fill:#fee2e2,stroke:#fca5a5,color:#b91c1c
+    style STEP4 fill:#d1fae5,stroke:#6ee7b7,color:#065f46
+    style STEP5 fill:#ede9fe,stroke:#c4b5fd,color:#5b21b6
+        </div>
+    </div>
+
+    <!-- Diagram 3: Approval Levels -->
+    <div class="diagram-container">
+        <div class="diagram-title">
+            ✅ 3-Level Approval System
+            <span class="diagram-subtitle">Every request goes through three checkpoints</span>
+        </div>
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#374151', 'lineColor': '#9ca3af', 'fontFamily': 'Segoe UI'}}}%%
+flowchart LR
+    subgraph START[" "]
+        U["👤<br/><b>User</b><br/>Submits<br/>Request"]
+    end
+
+    subgraph L1["Level 1"]
+        A1["👔<br/><b>Supervisor</b><br/>Reviews need<br/>& quantity"]
+    end
+
+    subgraph L2["Level 2"]
+        A2["💵<br/><b>Finance</b><br/>Budget &<br/>cost check"]
+    end
+
+    subgraph L3["Level 3"]
+        A3["🏛️<br/><b>Admin</b><br/>Final<br/>authorization"]
+    end
+
+    subgraph DONE[" "]
+        D["✅<br/><b>Approved</b><br/>Ready for<br/>issuance"]
+    end
+
+    U --> A1
+    A1 -->|"Approve ✓"| A2
+    A2 -->|"Verify ✓"| A3
+    A3 -->|"Authorize ✓"| D
+
+    style START fill:#f3f4f6,stroke:#d1d5db,color:#374151
+    style L1 fill:#dbeafe,stroke:#93c5fd,color:#1e40af
+    style L2 fill:#fef3c7,stroke:#fcd34d,color:#92400e
+    style L3 fill:#fce7f3,stroke:#f9a8d4,color:#be185d
+    style DONE fill:#d1fae5,stroke:#6ee7b7,color:#065f46
+        </div>
+    </div>
+
+    <!-- Diagram 4: Who Does What -->
+    <div class="diagram-container">
+        <div class="diagram-title">
+            👥 Who Does What - User Roles
+            <span class="diagram-subtitle">Different people, different responsibilities</span>
+        </div>
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#374151', 'lineColor': '#9ca3af', 'fontFamily': 'Segoe UI'}}}%%
+flowchart TB
+    subgraph TOP["🔷 Top Management"]
+        T1["👑 Super Admin<br/><i>Full control of system</i>"]
+        T2["🏛️ Admin<br/><i>Manage inventory & approvals</i>"]
+    end
+
+    subgraph MID["🔶 Middle Management"]
+        M1["👔 Wing Supervisor<br/><i>Approve team requests</i>"]
+        M2["💵 Finance Officer<br/><i>Budget verification</i>"]
+        M3["📋 Procurement<br/><i>Handle tenders & vendors</i>"]
+    end
+
+    subgraph OPS["🔷 Operations"]
+        O1["🧑‍🔧 Store Keeper<br/><i>Manage physical stock</i>"]
+    end
+
+    subgraph END["⚪ End Users"]
+        E1["👤 Employees<br/><i>Request & receive items</i>"]
+    end
+
+    T1 --> T2 --> M1 & M2 & M3
+    M1 --> O1
+    M3 --> O1
+    O1 --> E1
+
+    style TOP fill:#e0f2fe,stroke:#7dd3fc,color:#0369a1
+    style MID fill:#fef3c7,stroke:#fcd34d,color:#92400e
+    style OPS fill:#d1fae5,stroke:#6ee7b7,color:#047857
+    style END fill:#f3e8ff,stroke:#d8b4fe,color:#7e22ce
+        </div>
+    </div>
+
+    <!-- Diagram 5: Inventory Levels -->
+    <div class="diagram-container">
+        <div class="diagram-title">
+            📦 Where Items Are Stored
+            <span class="diagram-subtitle">Three-tier storage system</span>
+        </div>
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#374151', 'lineColor': '#9ca3af', 'fontFamily': 'Segoe UI'}}}%%
+flowchart TB
+    subgraph CENTRAL["🏛️ CENTRAL WAREHOUSE"]
+        C1["📦 All purchased items<br/>stored here first"]
+    end
+
+    subgraph WINGS["🏢 DEPARTMENT STORES"]
+        W1["Wing A"]
+        W2["Wing B"]
+        W3["Wing C"]
+        W4["Wing D"]
+    end
+
+    subgraph PERSONAL["👤 WITH USERS"]
+        P1["Employee 1<br/>🖥️ Laptop"]
+        P2["Employee 2<br/>🖨️ Printer"]
+        P3["Employee 3<br/>📱 Phone"]
+    end
+
+    C1 --> W1 & W2 & W3 & W4
+    W1 --> P1
+    W2 --> P2
+    W3 --> P3
+
+    style CENTRAL fill:#fee2e2,stroke:#fca5a5,color:#b91c1c
+    style WINGS fill:#dbeafe,stroke:#93c5fd,color:#1e40af
+    style PERSONAL fill:#d1fae5,stroke:#6ee7b7,color:#047857
+        </div>
+    </div>
+
+    <!-- Diagram 6: Procurement Simple -->
+    <div class="diagram-container">
+        <div class="diagram-title">
+            🛒 How We Buy Items
+            <span class="diagram-subtitle">From need identification to delivery</span>
+        </div>
+        <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#374151', 'lineColor': '#9ca3af', 'fontFamily': 'Segoe UI'}}}%%
+flowchart LR
+    subgraph S1[" "]
+        A["💡<br/><b>Identify</b><br/>What we<br/>need"]
+    end
+
+    subgraph S2[" "]
+        B["📋<br/><b>Tender</b><br/>Create bid<br/>document"]
+    end
+
+    subgraph S3[" "]
+        C["🏢<br/><b>Bids</b><br/>Vendors<br/>submit offers"]
+    end
+
+    subgraph S4[" "]
+        D["🏆<br/><b>Award</b><br/>Select best<br/>vendor"]
+    end
+
+    subgraph S5[" "]
+        E["📄<br/><b>PO</b><br/>Issue purchase<br/>order"]
+    end
+
+    subgraph S6[" "]
+        F["🚚<br/><b>Delivery</b><br/>Items<br/>arrive"]
+    end
+
+    subgraph S7[" "]
+        G["📦<br/><b>Stock</b><br/>Added to<br/>inventory"]
+    end
+
+    A --> B --> C --> D --> E --> F --> G
+
+    style S1 fill:#f3f4f6,stroke:#d1d5db,color:#374151
+    style S2 fill:#dbeafe,stroke:#93c5fd,color:#1e40af
+    style S3 fill:#fef3c7,stroke:#fcd34d,color:#92400e
+    style S4 fill:#fce7f3,stroke:#f9a8d4,color:#be185d
+    style S5 fill:#e0e7ff,stroke:#a5b4fc,color:#4338ca
+    style S6 fill:#d1fae5,stroke:#6ee7b7,color:#047857
+    style S7 fill:#f3e8ff,stroke:#d8b4fe,color:#7e22ce
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'base',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 20
+            }
+        });
+    </script>
+</body>
+</html>

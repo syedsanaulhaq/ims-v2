@@ -376,7 +376,7 @@ const StockQuantitiesPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className={`text-lg font-bold ${getQuantityColor(item.total_quantity)}`}>
-                          {formatNumber(item.total_quantity)} {item.unit}
+                          {formatNumber(item.total_quantity)} Nos.
                         </div>
                         <div className="text-xs text-gray-500">
                           from {formatNumber(item.total_received)} received
