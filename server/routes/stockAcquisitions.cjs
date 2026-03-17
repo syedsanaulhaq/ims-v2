@@ -158,7 +158,8 @@ router.post('/opening-balance', async (req, res) => {
       source_type,
       acquisition_date,
       remarks,
-      items
+      items,
+      financial_year       // NEW: Financial year for the entry
     } = req.body;
 
     // Get current user ID from session
@@ -167,6 +168,7 @@ router.post('/opening-balance', async (req, res) => {
     console.log('🔐 Opening Balance Request:');
     console.log('  - Session exists:', !!req.session);
     console.log('  - User ID:', entered_by);
+    console.log('  - Financial Year:', financial_year);
     
     if (!entered_by) {
       console.error('❌ Authentication failed - no userId in session');
@@ -196,6 +198,9 @@ router.post('/opening-balance', async (req, res) => {
 
       const createdEntries = [];
 
+      // Get the financial year to use - from request or auto-detect
+      const fyToUse = financial_year || getCurrentFinancialYear();
+      
       // Create opening balance entry for each item
       for (const item of items) {
         const entryId = uuidv4();
@@ -214,16 +219,17 @@ router.post('/opening-balance', async (req, res) => {
           .input('entered_by', sql.NVarChar, entered_by)  // NVARCHAR to match AspNetUsers.Id
           .input('remarks', sql.NVarChar, remarks || null)
           .input('status', sql.NVarChar, entryStatus)
+          .input('financial_year', sql.NVarChar, fyToUse)
           .query(`
             INSERT INTO opening_balance_entries (
               id, tender_id, tender_reference, tender_title, item_master_id,
               quantity_received, quantity_already_issued, unit_cost,
-              source_type, acquisition_date, entered_by, remarks, status
+              source_type, acquisition_date, entered_by, remarks, status, financial_year
             )
             VALUES (
               @id, @tender_id, @tender_reference, @tender_title, @item_master_id,
               @quantity_received, @quantity_already_issued, @unit_cost,
-              @source_type, @acquisition_date, @entered_by, @remarks, @status
+              @source_type, @acquisition_date, @entered_by, @remarks, @status, @financial_year
             )
           `);
 
@@ -241,16 +247,17 @@ router.post('/opening-balance', async (req, res) => {
           .input('delivery_date', sql.Date, acquisition_date || new Date())
           .input('processed_by', sql.NVarChar, entered_by)
           .input('notes', sql.NVarChar, `Opening Balance: ${finalReference}`)
+          .input('financial_year', sql.NVarChar, fyToUse)
           .query(`
             INSERT INTO stock_acquisitions (
               id, acquisition_number, item_master_id,
               quantity_received, quantity_issued,
-              unit_cost, delivery_date, processed_by, status, notes
+              unit_cost, delivery_date, processed_by, status, notes, financial_year
             )
             VALUES (
               @acq_id, @acq_number, @item_master_id,
               @quantity_received, @quantity_issued,
-              @unit_cost, @delivery_date, @processed_by, 'completed', @notes
+              @unit_cost, @delivery_date, @processed_by, 'completed', @notes, @financial_year
             )
           `);
 
@@ -347,20 +354,58 @@ router.post('/opening-balance', async (req, res) => {
 
 // ============================================================================
 // GET /api/stock-acquisitions/opening-balance
-// Get all opening balance entries
+// Get all opening balance entries (optionally filtered by financial year)
 // ============================================================================
 router.get('/opening-balance', async (req, res) => {
   try {
+    const { financial_year } = req.query;
     const pool = await getPool();
     
-    const result = await pool.request().query(`
-      SELECT * FROM vw_opening_balance_summary
-      ORDER BY entry_date DESC
-    `);
+    let query = `
+      SELECT 
+        obe.id,
+        obe.tender_id,
+        obe.tender_reference,
+        obe.tender_title,
+        obe.item_master_id,
+        im.item_code,
+        im.nomenclature,
+        im.unit,
+        ic.name AS category_name,
+        obe.quantity_received,
+        obe.quantity_already_issued,
+        (obe.quantity_received - obe.quantity_already_issued) AS quantity_available,
+        obe.unit_cost,
+        obe.source_type,
+        obe.acquisition_date,
+        obe.entry_date,
+        obe.entered_by,
+        obe.remarks,
+        obe.status,
+        obe.financial_year,
+        fy.year_label
+      FROM opening_balance_entries obe
+      JOIN item_masters im ON obe.item_master_id = im.id
+      LEFT JOIN item_categories ic ON im.category_id = ic.id
+      LEFT JOIN financial_years fy ON obe.financial_year = fy.year_code
+      WHERE obe.status = 'ACTIVE'
+    `;
+    
+    let request = pool.request();
+    
+    if (financial_year) {
+      query += ` AND obe.financial_year = @financial_year`;
+      request = request.input('financial_year', sql.NVarChar, financial_year);
+    }
+    
+    query += ` ORDER BY obe.entry_date DESC`;
+    
+    const result = await request.query(query);
 
     res.json({
       success: true,
-      entries: result.recordset
+      entries: result.recordset,
+      current_year: getCurrentFinancialYear()
     });
 
   } catch (error) {
@@ -549,6 +594,191 @@ async function generateAcquisitionNumber(transaction) {
   
   return `OPB-${year}-${newNum}`;
 }
+
+// ============================================================================
+// Helper: Get current financial year code (e.g., '2025-26')
+// ============================================================================
+function getCurrentFinancialYear() {
+  const now = new Date();
+  const month = now.getMonth(); // 0-11
+  const year = now.getFullYear();
+  
+  // Financial year in India: April (month 3) to March (month 2)
+  // If current month is January-March (0-2), we're in the FY that started last year
+  if (month < 3) {
+    return `${year - 1}-${String(year).slice(2)}`;
+  } else {
+    return `${year}-${String(year + 1).slice(2)}`;
+  }
+}
+
+// ============================================================================
+// GET /api/stock-acquisitions/financial-years
+// Get list of all financial years
+// ============================================================================
+router.get('/financial-years', async (req, res) => {
+  try {
+    const pool = await getPool();
+    
+    const result = await pool.request().query(`
+      SELECT 
+        fy.id,
+        fy.year_code,
+        fy.year_label,
+        fy.start_date,
+        fy.end_date,
+        fy.is_current,
+        fy.is_closed,
+        ISNULL(COUNT(DISTINCT obe.item_master_id), 0) AS item_count,
+        ISNULL(SUM(obe.quantity_received), 0) AS total_received,
+        ISNULL(SUM(obe.quantity_already_issued), 0) AS total_issued
+      FROM financial_years fy
+      LEFT JOIN opening_balance_entries obe ON fy.year_code = obe.financial_year AND obe.status = 'ACTIVE'
+      GROUP BY fy.id, fy.year_code, fy.year_label, fy.start_date, fy.end_date, fy.is_current, fy.is_closed
+      ORDER BY fy.start_date DESC
+    `);
+    
+    res.json({
+      success: true,
+      financial_years: result.recordset,
+      current_year: getCurrentFinancialYear()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching financial years:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch financial years',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// GET /api/stock-acquisitions/yearwise-inventory
+// Get year-wise inventory report (item-wise for each year)
+// ============================================================================
+router.get('/yearwise-inventory', async (req, res) => {
+  try {
+    const { financial_year } = req.query;
+    const pool = await getPool();
+    
+    let query = `
+      SELECT 
+        obe.financial_year,
+        fy.year_label,
+        fy.is_current,
+        obe.item_master_id,
+        im.item_code,
+        im.nomenclature,
+        im.unit,
+        ic.name AS category_name,
+        
+        -- Opening balance for this year (closing of previous year)
+        ISNULL((
+          SELECT SUM(prev.quantity_received - prev.quantity_already_issued)
+          FROM opening_balance_entries prev
+          JOIN financial_years prev_fy ON prev.financial_year = prev_fy.year_code
+          JOIN financial_years curr_fy ON obe.financial_year = curr_fy.year_code
+          WHERE prev.item_master_id = obe.item_master_id
+            AND prev_fy.end_date < curr_fy.start_date
+            AND prev.status = 'ACTIVE'
+        ), 0) AS opening_balance,
+        
+        -- This year's received
+        SUM(obe.quantity_received) AS quantity_received,
+        
+        -- This year's issued
+        SUM(obe.quantity_already_issued) AS quantity_issued,
+        
+        -- Closing balance for this year
+        SUM(obe.quantity_received - obe.quantity_already_issued) + 
+        ISNULL((
+          SELECT SUM(prev.quantity_received - prev.quantity_already_issued)
+          FROM opening_balance_entries prev
+          JOIN financial_years prev_fy ON prev.financial_year = prev_fy.year_code
+          JOIN financial_years curr_fy ON obe.financial_year = curr_fy.year_code
+          WHERE prev.item_master_id = obe.item_master_id
+            AND prev_fy.end_date < curr_fy.start_date
+            AND prev.status = 'ACTIVE'
+        ), 0) AS closing_balance,
+        
+        -- Unit cost (average)
+        AVG(obe.unit_cost) AS avg_unit_cost
+        
+      FROM opening_balance_entries obe
+      JOIN item_masters im ON obe.item_master_id = im.id
+      LEFT JOIN item_categories ic ON im.category_id = ic.id
+      LEFT JOIN financial_years fy ON obe.financial_year = fy.year_code
+      WHERE obe.status = 'ACTIVE'
+    `;
+    
+    let request = pool.request();
+    
+    if (financial_year) {
+      query += ` AND obe.financial_year = @financial_year`;
+      request = request.input('financial_year', sql.NVarChar, financial_year);
+    }
+    
+    query += `
+      GROUP BY 
+        obe.financial_year, 
+        fy.year_label,
+        fy.is_current,
+        obe.item_master_id,
+        im.item_code,
+        im.nomenclature,
+        im.unit,
+        ic.name
+      ORDER BY obe.financial_year DESC, im.nomenclature
+    `;
+    
+    const result = await request.query(query);
+    
+    // Group by financial year
+    const groupedByYear = {};
+    result.recordset.forEach(row => {
+      const fy = row.financial_year || 'Unknown';
+      if (!groupedByYear[fy]) {
+        groupedByYear[fy] = {
+          year_code: fy,
+          year_label: row.year_label || fy,
+          is_current: row.is_current || false,
+          items: [],
+          totals: { opening: 0, received: 0, issued: 0, closing: 0 }
+        };
+      }
+      groupedByYear[fy].items.push({
+        item_master_id: row.item_master_id,
+        item_code: row.item_code,
+        nomenclature: row.nomenclature,
+        unit: row.unit,
+        category_name: row.category_name,
+        opening_balance: row.opening_balance,
+        quantity_received: row.quantity_received,
+        quantity_issued: row.quantity_issued,
+        closing_balance: row.closing_balance,
+        avg_unit_cost: row.avg_unit_cost
+      });
+      groupedByYear[fy].totals.opening += row.opening_balance || 0;
+      groupedByYear[fy].totals.received += row.quantity_received || 0;
+      groupedByYear[fy].totals.issued += row.quantity_issued || 0;
+      groupedByYear[fy].totals.closing += row.closing_balance || 0;
+    });
+    
+    res.json({
+      success: true,
+      yearwise_inventory: Object.values(groupedByYear),
+      current_year: getCurrentFinancialYear()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching yearwise inventory:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch yearwise inventory',
+      details: error.message 
+    });
+  }
+});
 
 console.log('✅ Stock Acquisitions Routes Loaded (MILESTONE-1)');
 

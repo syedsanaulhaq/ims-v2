@@ -10,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle, Package, Info, Rocket, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle, Package, Info, Rocket, Clock, Calendar } from 'lucide-react';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
@@ -77,6 +77,8 @@ export default function OpeningBalanceEntry() {
   // Dropdown data
   const [itemMasters, setItemMasters] = useState<any[]>([]);
   const [categories, setCategories] = useState<{ id: string; category_name: string }[]>([]);
+  const [financialYears, setFinancialYears] = useState<{ year_code: string; year_label: string; is_current: boolean }[]>([]);
+  const [selectedFinancialYear, setSelectedFinancialYear] = useState<string>('');
   
   // Items to add
   const [items, setItems] = useState<OpeningBalanceItem[]>([]);
@@ -105,13 +107,22 @@ export default function OpeningBalanceEntry() {
   useEffect(() => {
     fetchInitialData();
     fetchGoLiveStatus();
-    fetchExistingEntries();
   }, []);
 
+  // Reload entries when financial year changes
+  useEffect(() => {
+    if (selectedFinancialYear) {
+      fetchExistingEntries(selectedFinancialYear);
+    }
+  }, [selectedFinancialYear]);
+
   // Fetch existing opening balance entries and load into editable form
-  const fetchExistingEntries = async () => {
+  const fetchExistingEntries = async (fyFilter?: string) => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/opening-balance`);
+      const url = fyFilter 
+        ? `${getApiBaseUrl()}/stock-acquisitions/opening-balance?financial_year=${fyFilter}`
+        : `${getApiBaseUrl()}/stock-acquisitions/opening-balance`;
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         const entries = data.entries || [];
@@ -132,6 +143,11 @@ export default function OpeningBalanceEntry() {
             remarks: firstEntry.remarks || '',
           }));
           
+          // Set financial year from entries if not already set
+          if (firstEntry.financial_year && !fyFilter) {
+            setSelectedFinancialYear(firstEntry.financial_year);
+          }
+          
           // Load items into editable items array - mark as existing
           const loadedItems: OpeningBalanceItem[] = entries.map((entry: any) => ({
             item_master_id: entry.item_master_id,
@@ -151,6 +167,9 @@ export default function OpeningBalanceEntry() {
             },
           }));
           setItems(loadedItems);
+        } else {
+          // Clear items if no entries for this year
+          setItems([]);
         }
       }
     } catch (err) {
@@ -233,6 +252,18 @@ export default function OpeningBalanceEntry() {
           id: c.id,
           category_name: c.category_name
         })));
+      }
+      
+      // Fetch financial years
+      const fyResponse = await fetch(`${getApiBaseUrl()}/stock-acquisitions/financial-years`);
+      if (fyResponse.ok) {
+        const fyData = await fyResponse.json();
+        setFinancialYears(fyData.financial_years || []);
+        // Set default to current year
+        const currentYear = fyData.current_year || fyData.financial_years?.find((fy: any) => fy.is_current)?.year_code;
+        if (currentYear && !selectedFinancialYear) {
+          setSelectedFinancialYear(currentYear);
+        }
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -557,6 +588,7 @@ export default function OpeningBalanceEntry() {
           acquisition_date: formData.opening_balance_date,
           items: newItems,
           status: submissionStatus,
+          financial_year: selectedFinancialYear, // Add financial year to payload
         };
 
         const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/opening-balance`, {
@@ -578,7 +610,7 @@ export default function OpeningBalanceEntry() {
       setSuccess(true);
       
       // Refresh existing entries (this will reload all items with isExisting=true)
-      await fetchExistingEntries();
+      await fetchExistingEntries(selectedFinancialYear);
       await fetchGoLiveStatus();
       
       // Don't redirect - stay on page to show the submitted entries
@@ -615,15 +647,21 @@ export default function OpeningBalanceEntry() {
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
-      <div className="flex items-center mb-6">
-        <Button variant="ghost" onClick={() => navigate('/dashboard/stock-acquisitions')} className="mr-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Opening Balance Entry</h1>
-          <p className="text-sm text-gray-600 mt-1">Record existing stock from past tenders/purchases (2020 onwards)</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <Button variant="ghost" onClick={() => navigate('/dashboard/stock-acquisitions')} className="mr-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Opening Balance Entry</h1>
+            <p className="text-sm text-gray-600 mt-1">Record existing stock from past tenders/purchases (2020 onwards)</p>
+          </div>
         </div>
+        <Button variant="outline" onClick={() => navigate('/dashboard/yearwise-inventory-report')}>
+          <Calendar className="w-4 h-4 mr-2" />
+          Year-Wise Report
+        </Button>
       </div>
 
       {/* System Setup Welcome Message */}
@@ -763,6 +801,30 @@ export default function OpeningBalanceEntry() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Financial Year Selection - Required */}
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <Label className="text-blue-800 font-semibold">Financial Year * <span className="text-xs font-normal text-blue-600">(Required - Select the year for this opening balance)</span></Label>
+              <Select
+                value={selectedFinancialYear}
+                onValueChange={setSelectedFinancialYear}
+                disabled={goLiveStatus.opening_balance_completed}
+              >
+                <SelectTrigger className="mt-2 bg-white">
+                  <SelectValue placeholder="Select Financial Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {financialYears.map((fy) => (
+                    <SelectItem key={fy.year_code} value={fy.year_code}>
+                      {fy.year_label} {fy.is_current && '(Current)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-blue-600 mt-1">
+                Opening balance entries are tracked by financial year. You can add entries for any year.
+              </p>
+            </div>
+
             {/* Manual Entry - Tender Reference */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border">
               {/* Tender Reference */}

@@ -46,6 +46,7 @@ import StockIssuanceWing from "./pages/StockIssuanceWing";
 import StockReturn from "./pages/StockReturn";
 import HistoricalIssuance from "./pages/HistoricalIssuance";
 import OpeningBalanceEntry from "./pages/OpeningBalanceEntry";
+import YearwiseInventoryReport from "./pages/YearwiseInventoryReport";
 import ApprovalManagement from "./pages/ApprovalManagement";
 import StockIssuanceProcessing from "./pages/StockIssuanceProcessing";
 import { StockIssuanceDashboard } from "./pages/StockIssuanceDashboard";
@@ -216,6 +217,7 @@ function App() {
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="historical-issuance" element={<HistoricalIssuance />} />
                   <Route path="opening-balance-entry" element={<OpeningBalanceEntry />} />
+                  <Route path="yearwise-inventory-report" element={<YearwiseInventoryReport />} />
                   <Route path="my-issued-items" element={<MyIssuedItems />} />
                   <Route path="personal-inventory" element={<PersonalInventory />} />
                   <Route path="wing-inventory" element={<WingInventory />} />
