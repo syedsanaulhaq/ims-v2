@@ -359,6 +359,12 @@ IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_CreateStockTransactionF
     DROP PROCEDURE sp_CreateStockTransactionFromDelivery;
 GO
 
+SET ANSI_NULLS ON;
+GO
+
+SET QUOTED_IDENTIFIER ON;
+GO
+
 CREATE PROCEDURE sp_CreateStockTransactionFromDelivery
     @DeliveryId UNIQUEIDENTIFIER,
     @ReceivedBy UNIQUEIDENTIFIER,
