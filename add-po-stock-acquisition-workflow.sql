@@ -254,14 +254,13 @@ BEGIN
         -- Foreign Keys
         FOREIGN KEY (po_id) REFERENCES purchase_orders(id),
         FOREIGN KEY (delivery_id) REFERENCES deliveries(id),
-        FOREIGN KEY (processed_by) REFERENCES AspNetUsers(Id),
-        
-        -- Indexes
-        INDEX IX_StockAcq_POId (po_id),
-        INDEX IX_StockAcq_DeliveryId (delivery_id),
-        INDEX IX_StockAcq_Date (acquisition_date),
-        INDEX IX_StockAcq_Status (status)
+        FOREIGN KEY (processed_by) REFERENCES AspNetUsers(Id)
     );
+
+    CREATE INDEX IX_StockAcq_POId ON stock_acquisitions(po_id);
+    CREATE INDEX IX_StockAcq_DeliveryId ON stock_acquisitions(delivery_id);
+    CREATE INDEX IX_StockAcq_Date ON stock_acquisitions(acquisition_date);
+    CREATE INDEX IX_StockAcq_Status ON stock_acquisitions(status);
     
     PRINT '  ✓ Created stock_acquisitions table';
 END
@@ -275,7 +274,7 @@ PRINT '';
 PRINT 'STEP 5: Creating views...';
 
 -- View: PO Fulfillment Status
-IF EXISTS (SELECT * FROM sys.views WHERE name = 'vw_po_fulfillment_status')
+IF OBJECT_ID('vw_po_fulfillment_status', 'V') IS NOT NULL
     DROP VIEW vw_po_fulfillment_status;
 GO
 
@@ -312,7 +311,7 @@ GO
 PRINT '  ✓ Created vw_po_fulfillment_status view';
 
 -- View: Delivery Summary
-IF EXISTS (SELECT * FROM sys.views WHERE name = 'vw_delivery_summary')
+IF OBJECT_ID('vw_delivery_summary', 'V') IS NOT NULL
     DROP VIEW vw_delivery_summary;
 GO
 
