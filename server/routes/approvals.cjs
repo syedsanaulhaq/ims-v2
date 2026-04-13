@@ -247,7 +247,7 @@ router.get('/request/:requestId', async (req, res) => {
     const itemsWithAvailability = await Promise.all(
       itemsResult.recordset.map(async (item) => {
         if (item.is_custom_item) {
-          return { ...item, wing_stock_available: 'N/A', admin_stock_available: 'N/A' };
+          return { ...item, wing_stock_available: 'N/A', admin_stock_available: 'N/A', current_stock: 'N/A' };
         }
 
         const wingStock = await pool.request()
@@ -259,10 +259,19 @@ router.get('/request/:requestId', async (req, res) => {
           .input('itemId', sql.UniqueIdentifier, item.item_master_id)
           .query(`SELECT available_quantity FROM stock_admin WHERE item_master_id = @itemId`);
 
+        const currentStock = await pool.request()
+          .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+          .query(`SELECT current_quantity FROM current_inventory_stock WHERE item_master_id = @itemId`);
+
+        const wingQty = wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0;
+        const adminQty = adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0;
+        const currentQty = currentStock.recordset.length > 0 ? currentStock.recordset[0].current_quantity : 0;
+
         return {
           ...item,
-          wing_stock_available: wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0,
-          admin_stock_available: adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0
+          wing_stock_available: wingQty || currentQty,
+          admin_stock_available: adminQty,
+          current_stock: currentQty
         };
       })
     );
@@ -658,6 +667,202 @@ router.get('/history/:issuanceId', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching approval history:', error);
     res.status(500).json({ error: 'Failed to fetch approval history', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/approvals/my-approvals - Get pending approvals for current user
+// Uses request_approvals table with fallback to stock_issuance_requests
+// ============================================================================
+router.get('/my-approvals', async (req, res) => {
+  try {
+    let userId = req.query.userId || req.session?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required. Please log in first.'
+      });
+    }
+
+    const status = req.query.status || 'pending';
+    const pool = getPool();
+
+    // First try request_approvals table (workflow-based approach)
+    let decisionFilter = '';
+    if (status === 'pending') {
+      decisionFilter = "ai.decision_type = 'PENDING'";
+    } else if (status === 'approved') {
+      decisionFilter = "ai.decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')";
+    } else if (status === 'rejected') {
+      decisionFilter = "ai.decision_type = 'REJECT'";
+    } else if (status === 'returned') {
+      decisionFilter = "ai.decision_type = 'RETURN'";
+    } else if (status === 'forwarded') {
+      decisionFilter = "ai.decision_type IN ('FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN')";
+    }
+
+    const approvalsResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT DISTINCT
+          ra.id,
+          ra.request_id,
+          ra.request_type,
+          sir.request_type as scope_type,
+          ra.submitted_date,
+          ra.current_status,
+          ra.submitted_by,
+          ra.current_approver_id,
+          u_requester.FullName as requester_name,
+          u_current_approver.FullName as current_approver_name,
+          sir.justification as title,
+          sir.purpose as description,
+          sir.expected_return_date as requested_date,
+          COALESCE(item_counts.item_count, 0) as total_items
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers u_requester ON u_requester.Id = ra.submitted_by
+        LEFT JOIN AspNetUsers u_current_approver ON u_current_approver.Id = ra.current_approver_id
+        LEFT JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+        LEFT JOIN (
+          SELECT request_id, COUNT(*) as item_count
+          FROM stock_issuance_items
+          GROUP BY request_id
+        ) item_counts ON item_counts.request_id = ra.request_id
+        WHERE ra.current_approver_id = @userId
+        ${decisionFilter ? `AND ra.request_id IN (
+          SELECT DISTINCT ra2.request_id FROM request_approvals ra2
+          INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
+          WHERE ${decisionFilter}
+        )` : ''}
+        ORDER BY ra.submitted_date DESC
+      `);
+
+    // Build response
+    const approvals = [];
+    for (const approval of approvalsResult.recordset) {
+      // Load items for this approval
+      let items = [];
+      try {
+        const itemsResult = await pool.request()
+          .input('approvalId', sql.UniqueIdentifier, approval.id)
+          .query(`
+            SELECT
+              ai.id as item_id,
+              ai.nomenclature as item_name,
+              ai.custom_item_name,
+              ai.requested_quantity,
+              ai.allocated_quantity as approved_quantity,
+              COALESCE(ai.unit, 'units') as unit,
+              ai.decision_type,
+              ai.rejection_reason
+            FROM approval_items ai
+            WHERE ai.request_approval_id = @approvalId
+            ORDER BY ai.nomenclature
+          `);
+        items = itemsResult.recordset || [];
+      } catch (itemError) {
+        console.log('Could not load items for approval', approval.id, ':', itemError.message);
+      }
+
+      approvals.push({
+        id: approval.id,
+        request_id: approval.request_id,
+        request_type: approval.request_type || 'stock_issuance',
+        scope_type: approval.scope_type || 'Individual',
+        title: approval.title || 'Stock Issuance Request',
+        description: approval.description || 'Request for inventory items',
+        requested_date: approval.requested_date || approval.submitted_date,
+        submitted_date: approval.submitted_date,
+        requester_name: approval.requester_name || 'Unknown User',
+        submitted_by_name: approval.requester_name || 'Unknown User',
+        current_approver_name: approval.current_approver_name,
+        current_status: approval.current_status || 'pending',
+        items: items,
+        total_items: approval.total_items || 0,
+        priority: 'Medium'
+      });
+    }
+
+    console.log(`📋 Found ${approvals.length} ${status} approvals for user ${userId}`);
+    res.json({
+      success: true,
+      data: approvals,
+      total: approvals.length,
+      message: `Found ${approvals.length} ${status} approvals`
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching my approvals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch approvals: ' + error.message
+    });
+  }
+});
+
+// ============================================================================
+// GET /api/approvals/:approvalId - Get approval details by ID
+// MUST be placed AFTER all static routes to avoid catching /my-approvals etc.
+// ============================================================================
+router.get('/:approvalId', async (req, res, next) => {
+  try {
+    const { approvalId } = req.params;
+
+    // Only handle GUID params — skip for named routes that somehow reach here
+    const guidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!guidRegex.test(approvalId)) {
+      return next();
+    }
+
+    const pool = getPool();
+
+    const approvalResult = await pool.request()
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .query(`
+        SELECT 
+          ra.*,
+          submitter.FullName as submitted_by_name,
+          current_approver.FullName as current_approver_name,
+          sir.request_type as scope_type
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
+        LEFT JOIN AspNetUsers current_approver ON ra.current_approver_id = current_approver.Id
+        LEFT JOIN stock_issuance_requests sir ON ra.request_id = sir.id
+        WHERE ra.id = @approvalId
+      `);
+
+    if (approvalResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+
+    const approval = approvalResult.recordset[0];
+
+    // Get approval items
+    const itemsResult = await pool.request()
+      .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .query(`
+        SELECT 
+          ai.*,
+          im.item_code,
+          im.description as item_description
+        FROM approval_items ai
+        LEFT JOIN item_masters im ON ai.item_master_id = im.id
+        WHERE ai.request_approval_id = @approvalId
+        ORDER BY ai.created_at
+      `);
+
+    const approvalData = {
+      ...approval,
+      items: itemsResult.recordset,
+      approval_items: itemsResult.recordset,
+      request_items: itemsResult.recordset
+    };
+
+    res.json({ success: true, data: approvalData });
+  } catch (error) {
+    console.error('❌ Error fetching approval details:', error);
+    res.status(500).json({ error: 'Failed to fetch approval details', details: error.message });
   }
 });
 

@@ -512,6 +512,80 @@ router.get('/stock/admin', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/inventory/stock/:itemMasterId - Get stock for a specific item
+// ============================================================================
+router.get('/stock/:itemMasterId', async (req, res) => {
+  try {
+    const { itemMasterId } = req.params;
+
+    // Validate GUID format
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidRegex.test(itemMasterId)) {
+      return res.status(400).json({ error: 'Invalid item ID format' });
+    }
+
+    const pool = getPool();
+
+    // Get stock from current_inventory_stock, wing stock, and admin stock
+    const result = await pool.request()
+      .input('itemId', sql.UniqueIdentifier, itemMasterId)
+      .query(`
+        SELECT 
+          im.id as item_master_id,
+          im.nomenclature,
+          im.item_code,
+          im.unit,
+          im.specifications,
+          im.description,
+          COALESCE(cis.current_quantity, 0) as current_inventory_quantity,
+          COALESCE(wing_total.total_wing_qty, 0) as wing_available_quantity,
+          COALESCE(admin_stock.admin_qty, 0) as admin_available_quantity,
+          CASE 
+            WHEN cis.current_quantity IS NOT NULL THEN cis.current_quantity
+            ELSE COALESCE(wing_total.total_wing_qty, 0) + COALESCE(admin_stock.admin_qty, 0)
+          END as available_quantity,
+          im.is_returnable
+        FROM item_masters im
+        LEFT JOIN current_inventory_stock cis ON cis.item_master_id = im.id
+        LEFT JOIN (
+          SELECT item_master_id, SUM(available_quantity) as total_wing_qty
+          FROM stock_wing
+          WHERE item_master_id = @itemId
+          GROUP BY item_master_id
+        ) wing_total ON wing_total.item_master_id = im.id
+        LEFT JOIN (
+          SELECT item_master_id, available_quantity as admin_qty
+          FROM stock_admin
+          WHERE item_master_id = @itemId
+        ) admin_stock ON admin_stock.item_master_id = im.id
+        WHERE im.id = @itemId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Item not found', available_quantity: 0 });
+    }
+
+    const item = result.recordset[0];
+    res.json({
+      item_master_id: item.item_master_id,
+      nomenclature: item.nomenclature,
+      item_code: item.item_code,
+      unit: item.unit,
+      description: item.description,
+      available_quantity: item.available_quantity,
+      quantity: item.available_quantity,
+      wing_available_quantity: item.wing_available_quantity,
+      admin_available_quantity: item.admin_available_quantity,
+      current_inventory_quantity: item.current_inventory_quantity,
+      is_returnable: item.is_returnable
+    });
+  } catch (error) {
+    console.error('Error fetching item stock:', error);
+    res.status(500).json({ error: 'Failed to fetch item stock' });
+  }
+});
+
+// ============================================================================
 // GET /api/inventory/current-stock - Get current inventory from deliveries
 // ============================================================================
 router.get('/current-stock', async (req, res) => {
