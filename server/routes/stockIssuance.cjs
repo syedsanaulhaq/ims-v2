@@ -539,6 +539,101 @@ const createStockIssuanceRequest = async (req, res) => {
       }
 
       await transaction.commit();
+
+      // After successful commit, create approval workflow records
+      try {
+        const userId = requester_user_id || req.session.userId;
+        
+        // Find a supervisor in the same wing (HOD first, then any admin-level user)
+        const supervisorResult = await pool.request()
+          .input('wingId', sql.Int, wingId)
+          .input('requesterId', sql.NVarChar(450), userId)
+          .query(`
+            SELECT TOP 1 u.Id as user_id, u.FullName
+            FROM AspNetUsers u
+            INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
+            INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
+            WHERE u.intWingID = @wingId
+              AND u.Id != @requesterId
+              AND (r.Name LIKE '%Admin%' OR r.Name LIKE '%DG%' OR r.Name LIKE '%ADG%' 
+                   OR r.Name LIKE '%Manager%' OR r.Name LIKE '%Director%' OR r.Name LIKE '%HoD%')
+            ORDER BY 
+              CASE WHEN r.Name LIKE '%HoD%' THEN 1 
+                   WHEN r.Name LIKE '%Director%' THEN 2
+                   WHEN r.Name LIKE '%Manager%' THEN 3
+                   ELSE 4 END
+          `);
+
+        let approverId = null;
+        if (supervisorResult.recordset.length > 0) {
+          approverId = supervisorResult.recordset[0].user_id;
+        } else {
+          // Fallback: any admin-level user in the same wing (even the requester if sole admin)
+          const fallbackResult = await pool.request()
+            .input('wingId', sql.Int, wingId)
+            .query(`
+              SELECT TOP 1 u.Id as user_id
+              FROM AspNetUsers u
+              INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
+              INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
+              WHERE u.intWingID = @wingId
+                AND (r.Name LIKE '%Admin%' OR r.Name LIKE '%DG%' OR r.Name LIKE '%ADG%'
+                     OR r.Name LIKE '%Manager%' OR r.Name LIKE '%Director%' OR r.Name LIKE '%HoD%')
+            `);
+          if (fallbackResult.recordset.length > 0) {
+            approverId = fallbackResult.recordset[0].user_id;
+          }
+        }
+
+        if (approverId) {
+          // Create request_approvals record
+          const approvalResult = await pool.request()
+            .input('requestId', sql.UniqueIdentifier, requestId)
+            .input('requestType', sql.NVarChar(50), 'stock_issuance')
+            .input('approverId', sql.NVarChar(450), approverId)
+            .input('submittedBy', sql.NVarChar(450), userId)
+            .query(`
+              INSERT INTO request_approvals 
+                (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by, submitted_date, created_date, updated_date)
+              OUTPUT INSERTED.id
+              VALUES 
+                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE())
+            `);
+
+          const approvalId = approvalResult.recordset[0].id;
+
+          // Create approval_items from stock_issuance_items
+          if (items && items.length > 0) {
+            const insertedItems = await pool.request()
+              .input('requestId', sql.UniqueIdentifier, requestId)
+              .query(`SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity FROM stock_issuance_items WHERE request_id = @requestId`);
+
+            for (const item of insertedItems.recordset) {
+              await pool.request()
+                .input('approvalId', sql.UniqueIdentifier, approvalId)
+                .input('itemId', sql.UniqueIdentifier, item.id)
+                .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
+                .input('nomenclature', sql.NVarChar(sql.MAX), item.nomenclature)
+                .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name)
+                .input('qty', sql.Int, item.requested_quantity)
+                .query(`
+                  INSERT INTO approval_items 
+                    (id, request_approval_id, item_master_id, nomenclature, custom_item_name, requested_quantity, decision_type, created_at, updated_at)
+                  VALUES 
+                    (@itemId, @approvalId, @itemMasterId, @nomenclature, @customName, @qty, 'PENDING', GETDATE(), GETDATE())
+                `);
+            }
+          }
+
+          console.log(`✅ Created approval record ${approvalId} for request ${requestId}, assigned to ${approverId}`);
+        } else {
+          console.warn(`⚠️ No supervisor found for wing ${wingId} - approval record not created`);
+        }
+      } catch (approvalError) {
+        // Don't fail the request creation, just log the error
+        console.error('❌ Failed to create approval record:', approvalError.message);
+      }
+
       res.status(201).json({ 
         success: true, 
         request_id: requestId,

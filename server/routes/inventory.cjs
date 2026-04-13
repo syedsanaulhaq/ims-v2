@@ -526,7 +526,7 @@ router.get('/stock/:itemMasterId', async (req, res) => {
 
     const pool = getPool();
 
-    // Get stock from current_inventory_stock, wing stock, and admin stock
+    // Get stock from stock_admin (main inventory) and stock_wing
     const result = await pool.request()
       .input('itemId', sql.UniqueIdentifier, itemMasterId)
       .query(`
@@ -537,21 +537,11 @@ router.get('/stock/:itemMasterId', async (req, res) => {
           im.unit,
           im.specifications,
           im.description,
-          COALESCE(cis.current_quantity, 0) as current_inventory_quantity,
           COALESCE(wing_total.total_wing_qty, 0) as wing_available_quantity,
           COALESCE(admin_stock.admin_qty, 0) as admin_available_quantity,
-          CASE 
-            WHEN cis.current_quantity IS NOT NULL THEN cis.current_quantity
-            ELSE COALESCE(wing_total.total_wing_qty, 0) + COALESCE(admin_stock.admin_qty, 0)
-          END as available_quantity,
+          COALESCE(admin_stock.admin_qty, 0) as available_quantity,
           im.is_returnable
         FROM item_masters im
-        LEFT JOIN current_inventory_stock cis ON cis.item_master_id = im.id
-        LEFT JOIN (
-          SELECT item_master_id, SUM(available_quantity) as total_wing_qty
-          FROM stock_wing
-          WHERE item_master_id = @itemId
-          GROUP BY item_master_id
         ) wing_total ON wing_total.item_master_id = im.id
         LEFT JOIN (
           SELECT item_master_id, available_quantity as admin_qty
@@ -576,7 +566,6 @@ router.get('/stock/:itemMasterId', async (req, res) => {
       quantity: item.available_quantity,
       wing_available_quantity: item.wing_available_quantity,
       admin_available_quantity: item.admin_available_quantity,
-      current_inventory_quantity: item.current_inventory_quantity,
       is_returnable: item.is_returnable
     });
   } catch (error) {

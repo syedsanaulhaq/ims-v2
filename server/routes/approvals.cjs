@@ -247,7 +247,7 @@ router.get('/request/:requestId', async (req, res) => {
     const itemsWithAvailability = await Promise.all(
       itemsResult.recordset.map(async (item) => {
         if (item.is_custom_item) {
-          return { ...item, wing_stock_available: 'N/A', admin_stock_available: 'N/A', current_stock: 'N/A' };
+          return { ...item, wing_stock_available: 'N/A', admin_stock_available: 'N/A' };
         }
 
         const wingStock = await pool.request()
@@ -259,28 +259,10 @@ router.get('/request/:requestId', async (req, res) => {
           .input('itemId', sql.UniqueIdentifier, item.item_master_id)
           .query(`SELECT available_quantity FROM stock_admin WHERE item_master_id = @itemId`);
 
-        const currentStock = await pool.request()
-          .input('itemId', sql.UniqueIdentifier, item.item_master_id)
-          .query(`SELECT current_quantity FROM current_inventory_stock WHERE item_master_id = @itemId`);
-
-        const wingQty = wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0;
-        const adminQty = adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0;
-        const currentQty = currentStock.recordset.length > 0 ? currentStock.recordset[0].current_quantity : 0;
-
         return {
           ...item,
-          wing_stock_available: wingQty || currentQty,
-          admin_stock_available: adminQty,
-          current_stock: currentQty
-        };
-      })
-    );
-
-    // Get approval history
-    const historyResult = await pool.request()
-      .input('requestId', sql.UniqueIdentifier, requestId)
-      .query(`
-        SELECT * FROM stock_issuance_approval_history
+          wing_stock_available: wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0,
+          admin_stock_available: adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0e_approval_history
         WHERE request_id = @requestId
         ORDER BY action_date DESC
       `);
