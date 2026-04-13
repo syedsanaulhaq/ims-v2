@@ -98,7 +98,7 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
         LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
         LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
         WHERE sir.requester_wing_id = @wingId
-          AND sir.approval_status IN ('Pending', 'pending', 'Submitted')
+          AND sir.approval_status IN ('Pending', 'pending', 'Submitted', 'Pending Supervisor Review')
           AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
         ORDER BY 
           CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 0 ELSE 1 END,
