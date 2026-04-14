@@ -864,12 +864,44 @@ router.post('/:approvalId/approve', async (req, res) => {
       }
 
       // Update approval record
+      // If forwarding, find the target user to reassign current_approver_id
+      let newApproverId = null;
+      if (hasForwardToAdmin) {
+        // Find an IMS_ADMIN user (preferably in the same wing)
+        const adminResult = await transaction.request()
+          .query(`
+            SELECT TOP 1 ur.user_id 
+            FROM ims_user_roles ur
+            INNER JOIN ims_roles r ON r.id = ur.role_id
+            WHERE r.role_name = 'IMS_ADMIN'
+            ORDER BY ur.user_id
+          `);
+        if (adminResult.recordset.length > 0) {
+          newApproverId = adminResult.recordset[0].user_id;
+        }
+      } else if (hasForwardToSupervisor) {
+        // Find a WING_SUPERVISOR user
+        const supResult = await transaction.request()
+          .query(`
+            SELECT TOP 1 ur.user_id
+            FROM ims_user_roles ur
+            INNER JOIN ims_roles r ON r.id = ur.role_id
+            WHERE r.role_name = 'WING_SUPERVISOR'
+            AND ur.user_id != '${userId}'
+            ORDER BY ur.user_id
+          `);
+        if (supResult.recordset.length > 0) {
+          newApproverId = supResult.recordset[0].user_id;
+        }
+      }
+
       await transaction.request()
         .input('approvalId', sql.NVarChar, approvalId)
         .input('status', sql.NVarChar, overallStatus)
         .input('approver_name', sql.NVarChar, actualApproverName)
         .input('approver_designation', sql.NVarChar, actualApproverDesignation)
         .input('approval_comments', sql.NVarChar, approval_comments || '')
+        .input('newApproverId', sql.NVarChar, newApproverId)
         .query(`
           UPDATE request_approvals
           SET current_status = @status,
@@ -877,6 +909,7 @@ router.post('/:approvalId/approve', async (req, res) => {
               approver_name = @approver_name,
               approver_designation = @approver_designation,
               approval_comments = @approval_comments
+              ${newApproverId ? ', current_approver_id = @newApproverId' : ''}
           WHERE id = @approvalId
         `);
 
