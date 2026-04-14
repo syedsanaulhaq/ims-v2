@@ -664,13 +664,12 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       console.log('📥 Response received - Status:', response.status, response.statusText);
       
       let data;
+      const responseText = await response.text();
       try {
-        data = await response.json();
+        data = JSON.parse(responseText);
       } catch (parseErr) {
         console.error('❌ Failed to parse JSON response:', parseErr);
-        const text = await response.text();
-        console.log('Response text:', text);
-        setError('Server returned invalid response: ' + text.substring(0, 100));
+        setError('Server returned invalid response: ' + responseText.substring(0, 100));
         setConfirmationStatus('error');
         setWingConfirmLoading(false);
         return;
@@ -737,13 +736,12 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       console.log('📥 Response received - Status:', response.status, response.statusText);
       
       let data;
+      const responseText = await response.text();
       try {
-        data = await response.json();
+        data = JSON.parse(responseText);
       } catch (parseErr) {
         console.error('❌ Failed to parse JSON response:', parseErr);
-        const text = await response.text();
-        console.log('Response text:', text);
-        setError('Server returned invalid response: ' + text.substring(0, 100));
+        setError('Server returned invalid response: ' + responseText.substring(0, 100));
         setConfirmationStatus('error');
         setWingConfirmLoading(false);
         return;

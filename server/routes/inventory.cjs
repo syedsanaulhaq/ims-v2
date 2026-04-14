@@ -512,6 +512,123 @@ router.get('/stock/admin', async (req, res) => {
 });
 
 // ============================================================================
+// POST /api/inventory/request-verification - Forward item to store keeper
+// ============================================================================
+router.post('/request-verification', async (req, res) => {
+  try {
+    const { 
+      stockIssuanceId,
+      itemMasterId,
+      itemNomenclature,
+      requestedQuantity,
+      requestedByUserId,
+      requestedByName,
+      wingId,
+      wingName,
+      forwardToStoreKeeperId
+    } = req.body;
+
+    console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, itemNomenclature, requestedByUserId, wingId });
+
+    if (!stockIssuanceId || !itemMasterId || !requestedByUserId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        received: { stockIssuanceId, itemMasterId, requestedByUserId }
+      });
+    }
+
+    const pool = getPool();
+
+    // Find a store keeper for this wing
+    let storeKeeperUserId = forwardToStoreKeeperId || null;
+    let storeKeeperName = null;
+
+    if (storeKeeperUserId) {
+      const skResult = await pool.request()
+        .input('userId', sql.NVarChar, storeKeeperUserId)
+        .query(`SELECT FullName FROM AspNetUsers WHERE Id = @userId`);
+      if (skResult.recordset.length > 0) {
+        storeKeeperName = skResult.recordset[0].FullName;
+      }
+    } else if (wingId) {
+      // Auto-forward to store keeper in this wing
+      const skSearchResult = await pool.request()
+        .input('wingId', sql.Int, wingId)
+        .query(`
+          SELECT TOP 1 u.Id, u.FullName
+          FROM AspNetUsers u
+          INNER JOIN ims_user_roles ur ON u.Id = ur.user_id
+          INNER JOIN ims_roles ir ON ur.role_id = ir.id
+          WHERE u.intWingID = @wingId
+            AND ir.is_active = 1
+            AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
+          ORDER BY u.FullName
+        `);
+      if (skSearchResult.recordset.length > 0) {
+        storeKeeperUserId = skSearchResult.recordset[0].Id;
+        storeKeeperName = skSearchResult.recordset[0].FullName;
+        console.log('✅ Store keeper auto-assigned:', { storeKeeperUserId, storeKeeperName });
+      } else {
+        console.log('⚠️ No store keepers found for wing:', wingId);
+      }
+    }
+
+    // Get wing name if not provided
+    let finalWingName = wingName || 'Unknown';
+    if (wingId && !wingName) {
+      const wingQuery = await pool.request()
+        .input('wingId', sql.Int, wingId)
+        .query(`
+          SELECT TOP 1 'Wing ' + CAST(intWingID AS NVARCHAR(10)) AS wing_name
+          FROM AspNetUsers WHERE intWingID = @wingId
+        `);
+      if (wingQuery.recordset.length > 0) {
+        finalWingName = wingQuery.recordset[0].wing_name;
+      }
+    }
+
+    const result = await pool.request()
+      .input('stockIssuanceId', sql.UniqueIdentifier, stockIssuanceId)
+      .input('itemMasterId', sql.NVarChar, itemMasterId)
+      .input('itemNomenclature', sql.NVarChar, itemNomenclature || 'Unknown Item')
+      .input('requestedByUserId', sql.NVarChar, requestedByUserId)
+      .input('requestedByName', sql.NVarChar, requestedByName || 'System')
+      .input('requestedQuantity', sql.Int, requestedQuantity || 0)
+      .input('wingId', sql.Int, wingId || 0)
+      .input('wingName', sql.NVarChar, finalWingName)
+      .input('forwardedToUserId', sql.NVarChar, storeKeeperUserId || null)
+      .input('forwardedToName', sql.NVarChar, storeKeeperName || null)
+      .input('forwardedByUserId', sql.NVarChar, requestedByUserId)
+      .input('forwardedByName', sql.NVarChar, requestedByName)
+      .query(`
+        INSERT INTO inventory_verification_requests 
+        (stock_issuance_id, item_master_id, item_nomenclature, requested_by_user_id, requested_by_name, 
+         requested_quantity, verification_status, wing_id, wing_name, created_at, updated_at,
+         forwarded_to_user_id, forwarded_to_name, forwarded_by_user_id, forwarded_by_name, forwarded_at)
+        OUTPUT INSERTED.id
+        VALUES (@stockIssuanceId, @itemMasterId, @itemNomenclature, @requestedByUserId, @requestedByName,
+                @requestedQuantity, 'pending', @wingId, @wingName, GETDATE(), GETDATE(),
+                @forwardedToUserId, @forwardedToName, @forwardedByUserId, @forwardedByName, GETDATE())
+      `);
+
+    const verificationId = result.recordset[0]?.id;
+    console.log('✅ Verification request created:', verificationId);
+
+    res.json({
+      success: true,
+      message: 'Verification request created successfully',
+      verificationId: verificationId
+    });
+  } catch (error) {
+    console.error('❌ Error requesting verification:', error);
+    res.status(500).json({ 
+      error: 'Failed to request verification', 
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // GET /api/inventory/stock/:itemMasterId - Get stock for a specific item
 // ============================================================================
 router.get('/stock/:itemMasterId', async (req, res) => {
@@ -542,6 +659,11 @@ router.get('/stock/:itemMasterId', async (req, res) => {
           COALESCE(admin_stock.admin_qty, 0) as available_quantity,
           im.is_returnable
         FROM item_masters im
+        LEFT JOIN (
+          SELECT item_master_id, SUM(available_quantity) as total_wing_qty
+          FROM stock_wing
+          WHERE item_master_id = @itemId
+          GROUP BY item_master_id
         ) wing_total ON wing_total.item_master_id = im.id
         LEFT JOIN (
           SELECT item_master_id, available_quantity as admin_qty
