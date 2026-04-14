@@ -597,7 +597,7 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="flex gap-3 justify-end pt-4 border-t">
-                {selectedVerification.verification_status === 'pending' ? (
+                {selectedVerification.verification_status === 'pending' && !verificationSubmitted ? (
                   <>
                     <Button
                       variant="outline"
