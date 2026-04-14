@@ -120,6 +120,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
   const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null>(null);
   
+  // Check if current user is an admin
+  const currentUser = sessionService.getCurrentUser();
+  const isAdmin = currentUser?.ims_roles?.some((r: any) => r.role_name === 'IMS_ADMIN') || false;
+
   // Stock check state
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
   const [stockCheckLoading, setStockCheckLoading] = useState(false);
@@ -853,11 +857,13 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       ✓ Approve from Wing
                     </span>
                   </SelectItem>
+                  {!isAdmin && (
                   <SelectItem value="forward_admin">
                     <span className="flex items-center gap-2">
                       ⏭ Forward to Admin
                     </span>
                   </SelectItem>
+                  )}
                   <SelectItem value="forward_supervisor">
                     <span className="flex items-center gap-2">
                       ↗ Forward to Supervisor
@@ -1008,8 +1014,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       </div>
                     )}
 
-                    {/* Option 2 - Forward to Admin */}
-                    {request?.current_status === 'pending' ? (
+                    {/* Option 2 - Forward to Admin (hidden for admin users) */}
+                    {!isAdmin && (
+                    request?.current_status === 'pending' ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'forward_admin'
                           ? 'bg-amber-100 border-amber-500'
@@ -1035,6 +1042,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                         <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
                         <div className="text-xs text-gray-600 mt-1">To Admin</div>
                       </div>
+                    )
                     )}
 
                     {/* Option 3 - Forward to Supervisor */}
