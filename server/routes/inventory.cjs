@@ -863,8 +863,7 @@ router.get('/stock/:itemMasterId', async (req, res) => {
           im.description,
           COALESCE(wing_total.total_wing_qty, 0) as wing_available_quantity,
           COALESCE(admin_stock.admin_qty, 0) as admin_available_quantity,
-          COALESCE(admin_stock.admin_qty, 0) as available_quantity,
-          im.is_returnable
+          COALESCE(admin_stock.admin_qty, 0) as available_quantity
         FROM item_masters im
         LEFT JOIN (
           SELECT item_master_id, SUM(available_quantity) as total_wing_qty
@@ -894,8 +893,7 @@ router.get('/stock/:itemMasterId', async (req, res) => {
       available_quantity: item.available_quantity,
       quantity: item.available_quantity,
       wing_available_quantity: item.wing_available_quantity,
-      admin_available_quantity: item.admin_available_quantity,
-      is_returnable: item.is_returnable
+      admin_available_quantity: item.admin_available_quantity
     });
   } catch (error) {
     console.error('Error fetching item stock:', error);
