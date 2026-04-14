@@ -262,7 +262,16 @@ router.get('/request/:requestId', async (req, res) => {
         return {
           ...item,
           wing_stock_available: wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0,
-          admin_stock_available: adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0e_approval_history
+          admin_stock_available: adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0
+        };
+      })
+    );
+
+    // Get approval history
+    const historyResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, request.request_id)
+      .query(`
+        SELECT * FROM issuance_approval_history
         WHERE request_id = @requestId
         ORDER BY action_date DESC
       `);
