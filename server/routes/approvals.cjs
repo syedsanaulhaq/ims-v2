@@ -684,7 +684,7 @@ router.get('/my-approvals', async (req, res) => {
     if (status === 'pending') {
       decisionFilter = "ai.decision_type = 'PENDING'";
     } else if (status === 'approved') {
-      decisionFilter = "ai.decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')";
+      decisionFilter = "ai.decision_type = 'APPROVE_FROM_STOCK'";
     } else if (status === 'rejected') {
       decisionFilter = "ai.decision_type = 'REJECT'";
     } else if (status === 'returned') {
@@ -846,14 +846,14 @@ router.post('/:approvalId/approve', async (req, res) => {
       );
 
       let overallStatus = 'pending';
-      const hasForwardActions = item_allocations?.some(a =>
-        a.decision_type === 'FORWARD_TO_ADMIN' || a.decision_type === 'FORWARD_TO_SUPERVISOR'
-      );
+      const hasForwardToAdmin = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_ADMIN');
+      const hasForwardToSupervisor = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_SUPERVISOR');
+      const hasForwardActions = hasForwardToAdmin || hasForwardToSupervisor;
 
       if (hasReturnActions) {
         overallStatus = 'returned';
       } else if (hasForwardActions) {
-        overallStatus = 'forwarded';
+        overallStatus = hasForwardToAdmin ? 'forwarded_to_admin' : 'forwarded_to_supervisor';
       } else if (item_allocations?.every(a => a.decision_type === 'REJECT')) {
         overallStatus = 'rejected';
       } else if (item_allocations?.every(a =>

@@ -129,13 +129,13 @@ const ApprovalDashboardRequestBased: React.FC = () => {
 
           items.forEach((item: any) => {
             const itemStatus = item.decision_type || 'PENDING';
-            if (itemStatus === 'APPROVE_FROM_STOCK' || itemStatus === 'APPROVE_FOR_PROCUREMENT') {
+            if (itemStatus === 'APPROVE_FROM_STOCK') {
               summary.approved_items++;
             } else if (itemStatus === 'REJECT') {
               summary.rejected_items++;
             } else if (itemStatus === 'RETURN') {
               summary.returned_items++;
-            } else if (itemStatus === 'FORWARD') {
+            } else if (itemStatus === 'FORWARD' || itemStatus === 'FORWARD_TO_ADMIN' || itemStatus === 'FORWARD_TO_SUPERVISOR') {
               summary.forwarded_items++;
             } else {
               summary.pending_items++;
@@ -180,7 +180,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
     
     if (status === 'approve_wing' || status === 'approved') return 'approve_wing';
     if (status === 'reject' || status === 'rejected') return 'reject';
-    if (status === 'forward_admin' || status === 'forwarded_to_admin') return 'forward_admin';
+    if (status === 'forward_admin' || status === 'forwarded_to_admin' || status === 'forwarded') return 'forward_admin';
     if (status === 'forward_supervisor' || status === 'forwarded_to_supervisor') return 'forward_supervisor';
     if (status === 'return' || status === 'returned') return 'return';
     return 'pending';
