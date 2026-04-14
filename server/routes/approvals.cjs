@@ -793,6 +793,158 @@ router.get('/my-approvals', async (req, res) => {
 });
 
 // ============================================================================
+// POST /api/approvals/:approvalId/approve - Per-item approval decisions
+// ============================================================================
+router.post('/:approvalId/approve', async (req, res) => {
+  try {
+    const { approvalId } = req.params;
+    const {
+      approver_name,
+      approver_designation,
+      approval_comments,
+      item_allocations
+    } = req.body;
+
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const pool = getPool();
+
+    // Get approver info from DB
+    let actualApproverName = approver_name || 'System';
+    let actualApproverDesignation = approver_designation || 'Approver';
+    try {
+      const userInfoResult = await pool.request()
+        .input('userId', sql.NVarChar, userId)
+        .query(`
+          SELECT FullName, 
+                 COALESCE(tblUserDesignations.designation_name, 'Supervisor') as designation_name
+          FROM AspNetUsers 
+          LEFT JOIN tblUserDesignations ON AspNetUsers.intDesignationID = tblUserDesignations.intDesignationID
+          WHERE Id = @userId
+        `);
+      if (userInfoResult.recordset.length > 0) {
+        actualApproverName = userInfoResult.recordset[0].FullName;
+        actualApproverDesignation = userInfoResult.recordset[0].designation_name;
+      }
+    } catch (e) {
+      console.log('⚠️ Could not get user info, using request body values');
+    }
+
+    console.log('✅ Processing per-item approval by user:', userId, 'items:', item_allocations?.length);
+
+    const transaction = pool.transaction();
+    await transaction.begin();
+
+    try {
+      // Determine overall status
+      const hasReturnActions = item_allocations?.some(a =>
+        a.decision_type === 'RETURN' ||
+        (a.decision_type === 'REJECT' && a.rejection_reason?.toLowerCase().includes('returned to requester'))
+      );
+
+      let overallStatus = 'pending';
+      if (hasReturnActions) {
+        overallStatus = 'returned';
+      } else if (item_allocations?.every(a => a.decision_type === 'REJECT')) {
+        overallStatus = 'rejected';
+      } else if (item_allocations?.every(a =>
+        a.decision_type === 'APPROVE_FROM_STOCK' ||
+        a.decision_type === 'APPROVE_FOR_PROCUREMENT' ||
+        a.decision_type === 'REJECT'
+      )) {
+        overallStatus = 'approved';
+      }
+
+      // Update approval record
+      await transaction.request()
+        .input('approvalId', sql.NVarChar, approvalId)
+        .input('status', sql.NVarChar, overallStatus)
+        .input('approver_name', sql.NVarChar, actualApproverName)
+        .input('approver_designation', sql.NVarChar, actualApproverDesignation)
+        .input('approval_comments', sql.NVarChar, approval_comments || '')
+        .query(`
+          UPDATE request_approvals
+          SET current_status = @status,
+              updated_date = GETDATE(),
+              approver_name = @approver_name,
+              approver_designation = @approver_designation,
+              approval_comments = @approval_comments
+          WHERE id = @approvalId
+        `);
+
+      // Process each item allocation
+      if (item_allocations && Array.isArray(item_allocations)) {
+        for (const allocation of item_allocations) {
+          await transaction.request()
+            .input('itemId', sql.NVarChar, allocation.requested_item_id)
+            .input('allocated_quantity', sql.Int, allocation.allocated_quantity || 0)
+            .input('decision_type', sql.NVarChar, allocation.decision_type)
+            .input('rejection_reason', sql.NVarChar, allocation.rejection_reason || '')
+            .input('forwarding_reason', sql.NVarChar, allocation.forwarding_reason || '')
+            .query(`
+              UPDATE approval_items
+              SET allocated_quantity = @allocated_quantity,
+                  decision_type = @decision_type,
+                  rejection_reason = @rejection_reason,
+                  forwarding_reason = @forwarding_reason,
+                  updated_at = GETDATE()
+              WHERE id = @itemId
+            `);
+        }
+      }
+
+      // Add history entry
+      const stepResult = await transaction.request()
+        .input('approvalId', sql.NVarChar, approvalId)
+        .query(`
+          SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
+          FROM approval_history
+          WHERE request_approval_id = @approvalId
+        `);
+      const nextStep = stepResult.recordset[0].next_step;
+
+      await transaction.request()
+        .input('approvalId', sql.NVarChar, approvalId)
+        .query(`
+          UPDATE approval_history
+          SET is_current_step = 0
+          WHERE request_approval_id = @approvalId
+        `);
+
+      await transaction.request()
+        .input('approvalId', sql.NVarChar, approvalId)
+        .input('action_by', sql.NVarChar, userId)
+        .input('comments', sql.NVarChar, approval_comments || 'Per-item approval completed')
+        .input('step_number', sql.Int, nextStep)
+        .input('action_type', sql.NVarChar, hasReturnActions ? 'returned' : overallStatus)
+        .query(`
+          INSERT INTO approval_history
+          (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+          VALUES (@approvalId, @action_type, @action_by, @comments, @step_number, 1)
+        `);
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: hasReturnActions
+          ? 'Request returned to requester for editing'
+          : 'Per-item approval decisions processed successfully'
+      });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error processing per-item approval:', error);
+    res.status(500).json({ error: 'Failed to process approval', details: error.message });
+  }
+});
+
+// ============================================================================
 // GET /api/approvals/:approvalId - Get approval details by ID
 // MUST be placed AFTER all static routes to avoid catching /my-approvals etc.
 // ============================================================================
