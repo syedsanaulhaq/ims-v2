@@ -513,14 +513,14 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       const itemAllocations = items.map(item => {
         const itemId = getItemId(item);
         const decision = getItemDecision(itemId);
-      let decisionType: 'APPROVE_FROM_STOCK' | 'APPROVE_FOR_PROCUREMENT' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' | 'RETURN' = 'REJECT';
+      let decisionType: 'APPROVE_FROM_STOCK' | 'FORWARD_TO_ADMIN' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' | 'RETURN' = 'REJECT';
         let allocatedQty = 0;
 
         if (decision?.decision === 'approve_wing') {
           decisionType = 'APPROVE_FROM_STOCK';
           allocatedQty = decision.approvedQuantity || getItemQuantity(item);
         } else if (decision?.decision === 'forward_admin') {
-          decisionType = 'APPROVE_FOR_PROCUREMENT';
+          decisionType = 'FORWARD_TO_ADMIN';
           allocatedQty = decision.approvedQuantity || getItemQuantity(item);
         } else if (decision?.decision === 'forward_supervisor') {
           decisionType = 'FORWARD_TO_SUPERVISOR';

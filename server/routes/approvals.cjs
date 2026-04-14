@@ -846,13 +846,18 @@ router.post('/:approvalId/approve', async (req, res) => {
       );
 
       let overallStatus = 'pending';
+      const hasForwardActions = item_allocations?.some(a =>
+        a.decision_type === 'FORWARD_TO_ADMIN' || a.decision_type === 'FORWARD_TO_SUPERVISOR'
+      );
+
       if (hasReturnActions) {
         overallStatus = 'returned';
+      } else if (hasForwardActions) {
+        overallStatus = 'forwarded';
       } else if (item_allocations?.every(a => a.decision_type === 'REJECT')) {
         overallStatus = 'rejected';
       } else if (item_allocations?.every(a =>
         a.decision_type === 'APPROVE_FROM_STOCK' ||
-        a.decision_type === 'APPROVE_FOR_PROCUREMENT' ||
         a.decision_type === 'REJECT'
       )) {
         overallStatus = 'approved';
