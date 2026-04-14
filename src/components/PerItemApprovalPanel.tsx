@@ -437,9 +437,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // not based on the approval's overall status
     
     // If user clicked pending, show items with PENDING decision type
+    // For admin users, also include FORWARD_TO_ADMIN items (they are pending admin action)
     if (activeFilter === 'pending') {
       return request.items.filter((item: any) => 
-        !item.decision_type || item.decision_type === '' || item.decision_type === 'PENDING'
+        !item.decision_type || item.decision_type === '' || item.decision_type === 'PENDING' ||
+        (isAdmin && item.decision_type === 'FORWARD_TO_ADMIN')
       );
     }
     
@@ -912,7 +914,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Package className="w-5 h-5" />
-            {request?.current_status === 'pending' ? 'Items for Decision' : `Items (${request?.current_status?.toUpperCase()})`}
+            {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? 'Items for Decision' : `Items (${request?.current_status?.toUpperCase()})`}
             ({getFilteredItems().length || 0})
           </CardTitle>
         </CardHeader>
