@@ -628,7 +628,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                         <PerItemApprovalPanel
                           approvalId={request.id}
                           onActionComplete={handleActionComplete}
-                          activeFilter={'all' as any}
+                          activeFilter={activeFilter === 'pending' ? 'pending' : 'all' as any}
                         />
                       </div>
                     )}
@@ -821,7 +821,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                           <PerItemApprovalPanel
                             approvalId={request.id}
                             onActionComplete={handleActionComplete}
-                            activeFilter={'all' as any}
+                            activeFilter={activeFilter === 'pending' ? 'pending' : 'all' as any}
                           />
                         </div>
                       )}
