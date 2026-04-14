@@ -1050,8 +1050,8 @@ router.post('/:approvalId/approve', async (req, res) => {
             .input('approvedBy', sql.NVarChar, userId)
             .query(`
               UPDATE stock_issuance_requests 
-              SET request_status = 'approved',
-                  approval_status = 'approved',
+              SET request_status = 'Approved',
+                  approval_status = 'Approved by Admin',
                   approved_at = GETDATE(),
                   approved_by = @approvedBy,
                   issuance_source = 'admin_stock',
