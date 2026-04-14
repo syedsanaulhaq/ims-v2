@@ -964,6 +964,105 @@ router.post('/:approvalId/approve', async (req, res) => {
           VALUES (@approvalId, @action_type, @action_by, @comments, @step_number, 1)
         `);
 
+      // ====================================================================
+      // STOCK DEDUCTION & ISSUANCE - When request is approved
+      // ====================================================================
+      if (overallStatus === 'approved' && item_allocations && Array.isArray(item_allocations)) {
+        // Get the request_id from request_approvals
+        const reqIdResult = await transaction.request()
+          .input('approvalId', sql.NVarChar, approvalId)
+          .query(`SELECT request_id FROM request_approvals WHERE id = @approvalId`);
+        
+        const requestId = reqIdResult.recordset[0]?.request_id;
+        
+        if (requestId) {
+          for (const allocation of item_allocations) {
+            if (allocation.decision_type === 'APPROVE_FROM_STOCK' && allocation.allocated_quantity > 0) {
+              // Get item_master_id from approval_items
+              const itemResult = await transaction.request()
+                .input('aiId', sql.NVarChar, allocation.requested_item_id)
+                .query(`SELECT item_master_id FROM approval_items WHERE id = @aiId`);
+              
+              const itemMasterId = itemResult.recordset[0]?.item_master_id;
+              if (!itemMasterId) continue;
+
+              // 1. Deduct from stock_admin
+              await transaction.request()
+                .input('itemMasterId', sql.UniqueIdentifier, itemMasterId)
+                .input('qty', sql.Int, allocation.allocated_quantity)
+                .query(`
+                  UPDATE stock_admin 
+                  SET available_quantity = available_quantity - @qty,
+                      updated_at = GETDATE(),
+                      updated_by = '${userId}'
+                  WHERE item_master_id = @itemMasterId
+                    AND available_quantity >= @qty
+                `);
+
+              // 2. Update stock_issuance_items
+              await transaction.request()
+                .input('requestId', sql.UniqueIdentifier, requestId)
+                .input('itemMasterId', sql.UniqueIdentifier, itemMasterId)
+                .input('approvedQty', sql.Int, allocation.allocated_quantity)
+                .query(`
+                  UPDATE stock_issuance_items 
+                  SET approved_quantity = @approvedQty,
+                      item_status = 'approved',
+                      source_store_type = 'admin',
+                      updated_at = GETDATE()
+                  WHERE request_id = @requestId 
+                    AND item_master_id = @itemMasterId
+                `);
+
+              // 3. Create stock_transaction for audit trail
+              await transaction.request()
+                .input('itemMasterId', sql.UniqueIdentifier, itemMasterId)
+                .input('qty', sql.Decimal(18, 2), allocation.allocated_quantity)
+                .input('refId', sql.UniqueIdentifier, requestId)
+                .input('createdBy', sql.UniqueIdentifier, userId)
+                .query(`
+                  INSERT INTO stock_transactions 
+                  (id, transaction_number, item_master_id, transaction_type, quantity, 
+                   unit_price, total_value, reference_type, reference_id, reference_number,
+                   transaction_date, created_by, status, created_at)
+                  VALUES (
+                    NEWID(),
+                    'TXN-ISS-' + FORMAT(GETDATE(), 'yyyyMMdd-HHmmss'),
+                    @itemMasterId,
+                    'ISSUANCE',
+                    @qty,
+                    0, 0,
+                    'stock_issuance_request',
+                    @refId,
+                    '${approvalId}',
+                    GETDATE(),
+                    @createdBy,
+                    'completed',
+                    GETDATE()
+                  )
+                `);
+            }
+          }
+
+          // 4. Update stock_issuance_requests status
+          await transaction.request()
+            .input('requestId', sql.UniqueIdentifier, requestId)
+            .input('approvedBy', sql.NVarChar, userId)
+            .query(`
+              UPDATE stock_issuance_requests 
+              SET request_status = 'approved',
+                  approval_status = 'approved',
+                  approved_at = GETDATE(),
+                  approved_by = @approvedBy,
+                  issuance_source = 'admin_stock',
+                  updated_at = GETDATE()
+              WHERE id = @requestId
+            `);
+
+          console.log('✅ Stock deducted from admin stock and issuance records updated for request:', requestId);
+        }
+      }
+
       await transaction.commit();
 
       res.json({
