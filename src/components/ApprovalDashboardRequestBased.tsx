@@ -178,6 +178,12 @@ const ApprovalDashboardRequestBased: React.FC = () => {
     // Try to infer request status from approval's current_status or other metadata
     const status = (approval as any).request_status || (approval as any).my_action || approval.current_status;
     
+    // If current user is an admin, treat forwarded_to_admin as pending (it's their task now)
+    const isAdmin = (user as any)?.ims_roles?.some((r: any) => r.role_name === 'IMS_ADMIN');
+    if (isAdmin && (status === 'forward_admin' || status === 'forwarded_to_admin' || status === 'forwarded')) {
+      return 'pending';
+    }
+    
     if (status === 'approve_wing' || status === 'approved') return 'approve_wing';
     if (status === 'reject' || status === 'rejected') return 'reject';
     if (status === 'forward_admin' || status === 'forwarded_to_admin' || status === 'forwarded') return 'forward_admin';
