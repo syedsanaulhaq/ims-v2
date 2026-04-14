@@ -629,6 +629,213 @@ router.post('/request-verification', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/inventory/my-forwarded-verifications - Get verifications forwarded to a store keeper
+// ============================================================================
+router.get('/my-forwarded-verifications', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const pool = getPool();
+    console.log('📋 My Forwarded Verifications - userId:', userId);
+
+    const result = await pool.request()
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT 
+          ivr.id,
+          ivr.stock_issuance_id,
+          ivr.item_master_id,
+          ivr.requested_by_user_id,
+          ivr.requested_by_name,
+          ivr.requested_at,
+          ivr.requested_quantity,
+          ivr.verification_status,
+          ivr.verified_by_user_id,
+          ivr.verified_by_name,
+          ivr.verified_at,
+          ivr.physical_count,
+          ivr.available_quantity,
+          ivr.verification_notes,
+          ivr.wing_id,
+          ivr.item_nomenclature,
+          ivr.forwarded_to_user_id,
+          ivr.forwarded_to_name,
+          ivr.forwarded_by_user_id,
+          ivr.forwarded_by_name,
+          ivr.forwarded_at,
+          ivr.forward_notes,
+          ivr.created_at,
+          ivr.updated_at
+        FROM inventory_verification_requests ivr
+        WHERE ivr.forwarded_to_user_id = @userId
+        ORDER BY ivr.forwarded_at DESC
+      `);
+
+    console.log('✅ Found', result.recordset.length, 'forwarded verifications for store keeper', userId);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+  } catch (error) {
+    console.error('❌ Error fetching forwarded verifications:', error);
+    res.status(500).json({ error: 'Failed to fetch forwarded verifications', details: error.message });
+  }
+});
+
+// ============================================================================
+// POST /api/inventory/check-availability - Check inventory availability for an item
+// ============================================================================
+router.post('/check-availability', async (req, res) => {
+  try {
+    const { itemMasterId, wingId, requestedQuantity } = req.body;
+
+    if (!itemMasterId || !requestedQuantity) {
+      return res.status(400).json({ error: 'Missing required fields: itemMasterId, requestedQuantity' });
+    }
+
+    const pool = getPool();
+
+    // Check stock_admin for available quantity
+    const result = await pool.request()
+      .input('ItemMasterId', sql.NVarChar, itemMasterId)
+      .input('RequestedQuantity', sql.Int, requestedQuantity)
+      .query(`
+        SELECT 
+          CAST(sa.item_master_id AS NVARCHAR(450)) as item_master_id,
+          ISNULL(im.nomenclature, 'Unknown Item') as item_name,
+          ISNULL(im.unit, 'PCS') as unit,
+          @RequestedQuantity as requested_quantity,
+          ISNULL(sa.available_quantity, 0) as available_quantity,
+          CASE 
+            WHEN ISNULL(sa.available_quantity, 0) >= @RequestedQuantity THEN 1
+            ELSE 0
+          END as is_available,
+          CASE 
+            WHEN ISNULL(sa.available_quantity, 0) >= @RequestedQuantity THEN 'Sufficient Stock'
+            ELSE 'Insufficient Stock (' + CAST(ISNULL(sa.available_quantity, 0) AS NVARCHAR(10)) + ' available)'
+          END as availability_status
+        FROM stock_admin sa
+        LEFT JOIN item_masters im ON im.id = sa.item_master_id
+        WHERE sa.item_master_id = TRY_CAST(@ItemMasterId AS UNIQUEIDENTIFIER)
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          item_master_id: itemMasterId,
+          item_name: 'Unknown Item',
+          unit: 'PCS',
+          requested_quantity: requestedQuantity,
+          available_quantity: 0,
+          is_available: false,
+          availability_status: 'Item not found in inventory'
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.recordset[0]
+    });
+  } catch (error) {
+    console.error('❌ Error checking availability:', error);
+    res.status(500).json({ error: 'Failed to check availability', details: error.message });
+  }
+});
+
+// ============================================================================
+// POST /api/inventory/update-verification - Update verification status
+// ============================================================================
+router.post('/update-verification', async (req, res) => {
+  try {
+    const {
+      verificationId,
+      verificationStatus,
+      action,
+      physicalCount,
+      availableQuantity,
+      verificationNotes,
+      verifiedByUserId,
+      verifiedByName,
+      forwardToUserId,
+      forwardToName
+    } = req.body;
+
+    if (!verificationId || !verificationStatus || !verifiedByUserId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const pool = getPool();
+    const actionType = action || 'verify';
+    let finalStatus = verificationStatus;
+
+    if (actionType === 'approve') finalStatus = 'approved';
+    else if (actionType === 'reject') finalStatus = 'rejected';
+    else if (actionType === 'forward') finalStatus = 'forwarded';
+
+    const requestBuilder = pool.request()
+      .input('verificationId', sql.Int, verificationId)
+      .input('verificationStatus', sql.NVarChar, finalStatus)
+      .input('physicalCount', sql.Int, physicalCount || 0)
+      .input('availableQuantity', sql.Int, availableQuantity || 0)
+      .input('verificationNotes', sql.NVarChar, verificationNotes || 'No notes')
+      .input('verifiedByUserId', sql.NVarChar, verifiedByUserId)
+      .input('verifiedByName', sql.NVarChar, verifiedByName)
+      .input('forwardToUserId', sql.NVarChar, forwardToUserId || null)
+      .input('forwardToName', sql.NVarChar, forwardToName || null);
+
+    if (actionType === 'forward') {
+      await requestBuilder.query(`
+        UPDATE inventory_verification_requests
+        SET verification_status = @verificationStatus,
+            verification_notes = @verificationNotes,
+            forwarded_to_user_id = @forwardToUserId,
+            forwarded_to_name = @forwardToName,
+            forward_notes = @verificationNotes,
+            forwarded_by_user_id = @verifiedByUserId,
+            forwarded_by_name = @verifiedByName,
+            forwarded_at = GETDATE(),
+            verified_by_user_id = NULL,
+            verified_by_name = NULL,
+            verified_at = NULL,
+            updated_at = GETDATE()
+        WHERE id = @verificationId
+      `);
+    } else {
+      await requestBuilder.query(`
+        UPDATE inventory_verification_requests
+        SET verification_status = @verificationStatus,
+            physical_count = @physicalCount,
+            available_quantity = @availableQuantity,
+            verification_notes = @verificationNotes,
+            verified_by_user_id = @verifiedByUserId,
+            verified_by_name = @verifiedByName,
+            verified_at = GETDATE(),
+            updated_at = GETDATE()
+        WHERE id = @verificationId
+      `);
+    }
+
+    console.log('✅ Verification updated:', { verificationId, finalStatus, actionType });
+
+    res.json({
+      success: true,
+      message: 'Verification updated successfully',
+      verificationId: verificationId
+    });
+  } catch (error) {
+    console.error('❌ Error updating verification:', error);
+    res.status(500).json({ error: 'Failed to update verification', details: error.message });
+  }
+});
+
+// ============================================================================
 // GET /api/inventory/stock/:itemMasterId - Get stock for a specific item
 // ============================================================================
 router.get('/stock/:itemMasterId', async (req, res) => {
