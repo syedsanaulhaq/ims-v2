@@ -1054,7 +1054,7 @@ router.post('/:approvalId/approve', async (req, res) => {
                   approval_status = 'Approved by Admin',
                   approved_at = GETDATE(),
                   approved_by = @approvedBy,
-                  issuance_source = 'admin_stock',
+                  issuance_source = 'admin_store',
                   updated_at = GETDATE()
               WHERE id = @requestId
             `);
