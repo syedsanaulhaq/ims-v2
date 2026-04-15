@@ -65,10 +65,12 @@ router.get('/', async (req, res) => {
 // GET /api/stock-issuance/requests - Get all stock issuance requests (frontend endpoint)
 // ============================================================================
 // This endpoint provides the response format expected by the frontend
-router.get('/requests', async (req, res) => {
+// When status=Approved, auto-filters by the logged-in store keeper's wing
+router.get('/requests', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
     const { status, wing_id, requester_id, includeDeleted } = req.query;
+    const userId = req.session?.userId;
 
     let query = `
       SELECT 
@@ -120,6 +122,36 @@ router.get('/requests', async (req, res) => {
       } else {
         conditions.push('sir.approval_status = @status');
         request = request.input('status', sql.NVarChar(50), status);
+      }
+    }
+
+    // Auto-filter by store keeper's wing when fetching approved requests for issuance
+    // The store keeper should only see requests from their own wing
+    if (status === 'Approved' && userId && !wing_id) {
+      const userWingResult = await pool.request()
+        .input('userId', sql.NVarChar(450), userId)
+        .query(`SELECT u.intWingID as WingId FROM AspNetUsers u WHERE u.Id = @userId`);
+      
+      if (userWingResult.recordset.length > 0 && userWingResult.recordset[0].WingId) {
+        const userWingId = userWingResult.recordset[0].WingId;
+        
+        // Check if this user is a wing store keeper
+        const skCheck = await pool.request()
+          .input('userId', sql.NVarChar(450), userId)
+          .query(`
+            SELECT ir.role_name
+            FROM ims_user_roles ur
+            INNER JOIN ims_roles ir ON ur.role_id = ir.id
+            WHERE ur.user_id = @userId
+              AND ir.is_active = 1
+              AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
+          `);
+        
+        if (skCheck.recordset.length > 0) {
+          conditions.push('sir.requester_wing_id = @autoWingId');
+          request = request.input('autoWingId', sql.Int, userWingId);
+          console.log(`🏢 Store keeper wing filter: wing ${userWingId} for user ${userId}`);
+        }
       }
     }
 
@@ -760,7 +792,7 @@ router.post('/items', requireAuth, async (req, res) => {
 
 // ============================================================================
 // POST /api/stock-issuance/issue/:id - Mark approved request as physically issued
-// Store keeper uses this to confirm items have been handed over to the requester
+// Wing store keeper issues items to the requester from their wing
 // ============================================================================
 router.post('/issue/:id', requireAuth, async (req, res) => {
   try {
@@ -788,6 +820,44 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
     }
 
     const request = requestResult.recordset[0];
+
+    // Verify the issuing user is a store keeper for the requester's wing
+    const userWingResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`SELECT u.intWingID as WingId, u.FullName FROM AspNetUsers u WHERE u.Id = @userId`);
+    
+    if (userWingResult.recordset.length === 0) {
+      return res.status(403).json({ error: 'User not found' });
+    }
+
+    const issuerWingId = userWingResult.recordset[0].WingId;
+    const issuerName = userWingResult.recordset[0].FullName;
+
+    // Check if user is a store keeper
+    const skCheck = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT ir.role_name
+        FROM ims_user_roles ur
+        INNER JOIN ims_roles ir ON ur.role_id = ir.id
+        WHERE ur.user_id = @userId
+          AND ir.is_active = 1
+          AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
+      `);
+
+    if (skCheck.recordset.length === 0) {
+      return res.status(403).json({ error: 'Only store keepers can issue items' });
+    }
+
+    // Verify the store keeper belongs to the same wing as the requester
+    if (issuerWingId && request.requester_wing_id && issuerWingId !== request.requester_wing_id) {
+      return res.status(403).json({ 
+        error: 'You can only issue items for requests from your own wing',
+        your_wing: issuerWingId,
+        request_wing: request.requester_wing_id
+      });
+    }
+
     const status = (request.approval_status || '').toLowerCase();
 
     if (!status.includes('approved')) {
@@ -871,7 +941,7 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
         await transaction.request()
           .input('approvalId', sql.UniqueIdentifier, approvalId)
           .input('actionBy', sql.NVarChar, userId)
-          .input('comments', sql.NVarChar, issuance_notes || 'Items physically issued to requester')
+          .input('comments', sql.NVarChar, issuance_notes || `Items issued by wing store keeper ${issuerName}`)
           .input('stepNumber', sql.Int, nextStep)
           .query(`
             INSERT INTO approval_history
@@ -889,13 +959,14 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
 
       res.json({
         success: true,
-        message: `Items issued successfully for request ${request.request_number}`,
+        message: `Items issued successfully for request ${request.request_number} by ${issuerName}`,
         data: {
           request_id: id,
           request_number: request.request_number,
           items_issued: itemsResult.recordset.length,
           issued_at: new Date().toISOString(),
-          issued_by: userId
+          issued_by: userId,
+          issued_by_name: issuerName
         }
       });
     } catch (err) {

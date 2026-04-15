@@ -154,7 +154,7 @@ const StockIssuanceProcessing: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Stock Issuance Processing</h1>
-          <p className="text-gray-600 mt-1">Process approved stock issuance requests</p>
+          <p className="text-gray-600 mt-1">Issue approved items to requesters in your wing</p>
         </div>
 
         {success && (
@@ -213,7 +213,7 @@ const StockIssuanceProcessing: React.FC = () => {
                         </div>
                         <p className="text-sm text-gray-600 mb-1">
                           <User className="h-4 w-4 inline mr-1" />
-                          {request.requester_name} • {request.office_name}
+                          {request.requester_name} {request.wing_name ? `• ${request.wing_name}` : ''} {request.office_name ? `• ${request.office_name}` : ''}
                         </p>
                         <p className="text-sm text-gray-600 mb-2">
                           <Calendar className="h-4 w-4 inline mr-1" />
@@ -249,12 +249,12 @@ const StockIssuanceProcessing: React.FC = () => {
                         <p>{selectedRequest.requester_name}</p>
                       </div>
                       <div>
-                        <span className="font-medium">Office:</span>
-                        <p>{selectedRequest.office_name}</p>
+                        <span className="font-medium">Wing:</span>
+                        <p>{selectedRequest.wing_name || 'N/A'}</p>
                       </div>
                       <div>
-                        <span className="font-medium">Approved By:</span>
-                        <p>{selectedRequest.approver_name}</p>
+                        <span className="font-medium">Office:</span>
+                        <p>{selectedRequest.office_name || 'N/A'}</p>
                       </div>
                       <div>
                         <span className="font-medium">Priority:</span>
