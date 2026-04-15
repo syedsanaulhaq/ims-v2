@@ -402,11 +402,10 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    // Build approval history with proper workflow steps
+    // Build approval history from real approval_history table
     const approvalHistory = [];
-    const status = (request.request_status || request.approval_status || '').toLowerCase();
-    
-    // Step 1: Submission entry - who submitted and to whom
+
+    // Step 1: Always add the submission entry
     approvalHistory.push({
       action: 'Submitted',
       actor_name: request.requester_name || 'Unknown User',
@@ -414,36 +413,89 @@ router.get('/:id', async (req, res) => {
       timestamp: request.submitted_at || request.created_at,
       comments: request.purpose || 'Request submitted for approval',
       submitted_to: supervisor ? supervisor.name : 'Wing Supervisor',
-      submitted_to_role: supervisor ? supervisor.role : null
+      submitted_to_role: supervisor ? supervisor.role : null,
+      approver_role: 'Administrator'
     });
 
-    // Step 2: Current approver status - show who currently has it
-    if (supervisor && (status === 'submitted' || status === 'pending')) {
-      approvalHistory.push({
-        action: 'Pending',
-        actor_name: supervisor.name,
-        actor_id: supervisor.user_id,
-        timestamp: null, // No action yet
-        comments: 'Awaiting review and approval',
-        is_current_step: true,
-        approver_role: supervisor.role
-      });
-    } else if (status === 'approved') {
-      approvalHistory.push({
-        action: 'Approved',
-        actor_name: supervisor ? supervisor.name : 'Approver',
-        actor_id: supervisor ? supervisor.user_id : null,
-        timestamp: request.approved_at || request.updated_at,
-        comments: request.approval_comments || 'Request approved'
-      });
-    } else if (status === 'rejected') {
-      approvalHistory.push({
-        action: 'Rejected',
-        actor_name: supervisor ? supervisor.name : 'Approver',
-        actor_id: supervisor ? supervisor.user_id : null,
-        timestamp: request.rejected_at || request.updated_at,
-        comments: request.rejection_reason || 'Request rejected'
-      });
+    // Query real approval history from the approval_history table
+    const raResult = await pool.request()
+      .input('requestId2', sql.UniqueIdentifier, id)
+      .query(`SELECT ra.id FROM request_approvals ra WHERE ra.request_id = @requestId2`);
+
+    if (raResult.recordset.length > 0) {
+      const approvalId = raResult.recordset[0].id;
+      const histResult = await pool.request()
+        .input('approvalId', sql.UniqueIdentifier, approvalId)
+        .query(`
+          SELECT ah.*, 
+                 u.FullName as actor_name,
+                 fwd_to.FullName as forwarded_to_name
+          FROM approval_history ah
+          LEFT JOIN AspNetUsers u ON ah.action_by = u.Id
+          LEFT JOIN AspNetUsers fwd_to ON ah.forwarded_to = fwd_to.Id
+          WHERE ah.request_approval_id = @approvalId
+          ORDER BY ah.step_number, ah.action_date
+        `);
+
+      // Deduplicate: keep only the latest action per actor in sequence
+      // e.g. if supervisor has approved->forwarded->forwarded_to_admin, keep only forwarded_to_admin
+      const deduped = [];
+      for (let i = 0; i < histResult.recordset.length; i++) {
+        const curr = histResult.recordset[i];
+        const next = histResult.recordset[i + 1];
+        // Skip if next entry is by the same actor (keep the later one which is the final action)
+        if (next && curr.action_by === next.action_by) continue;
+        deduped.push(curr);
+      }
+
+      for (const h of deduped) {
+        const actionType = (h.action_type || '').toLowerCase();
+        let action = actionType;
+        let comments = h.comments || '';
+
+        // Map action types to display-friendly values
+        if (actionType === 'forwarded_to_admin' || actionType === 'forwarded') {
+          action = 'Forwarded';
+          comments = comments || 'Forwarded to Admin for approval';
+        } else if (actionType === 'forwarded_to_supervisor') {
+          action = 'Forwarded';
+          comments = comments || 'Forwarded to Wing Supervisor';
+        } else if (actionType === 'approved') {
+          action = 'Approved';
+          comments = comments || 'Request approved';
+        } else if (actionType === 'rejected') {
+          action = 'Rejected';
+          comments = comments || 'Request rejected';
+        } else if (actionType === 'returned') {
+          action = 'Returned';
+          comments = comments || 'Request returned for revision';
+        }
+
+        approvalHistory.push({
+          action,
+          actor_name: h.actor_name || 'Unknown',
+          actor_id: h.action_by,
+          timestamp: h.action_date,
+          comments,
+          is_current_step: h.is_current_step || false,
+          forwarded_to_name: h.forwarded_to_name || null,
+          approver_role: null
+        });
+      }
+    } else {
+      // No approval record yet - show pending with supervisor
+      const status = (request.request_status || '').toLowerCase();
+      if (supervisor && (status === 'submitted' || status === 'pending')) {
+        approvalHistory.push({
+          action: 'Pending',
+          actor_name: supervisor.name,
+          actor_id: supervisor.user_id,
+          timestamp: null,
+          comments: 'Awaiting review and approval',
+          is_current_step: true,
+          approver_role: supervisor.role
+        });
+      }
     }
 
     res.json({

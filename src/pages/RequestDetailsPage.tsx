@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText, Forward } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { getApiBaseUrl } from '@/services/invmisApi';
@@ -159,7 +159,8 @@ const RequestDetailsPage: React.FC = () => {
                     submitted_to: h.submitted_to || null,
                     submitted_to_role: h.submitted_to_role || null,
                     is_current_step: h.is_current_step || false,
-                    approver_role: h.approver_role || h.submitted_to_role || null
+                    approver_role: h.approver_role || h.submitted_to_role || null,
+                    forwarded_to_name: h.forwarded_to_name || null
                   }));
                 }
               }
@@ -637,7 +638,9 @@ const RequestDetailsPage: React.FC = () => {
                                   ? 'bg-blue-100'
                                   : history.action === 'pending'
                                     ? 'bg-yellow-100'
-                                    : 'bg-gray-100'
+                                    : history.action === 'forwarded'
+                                      ? 'bg-purple-100'
+                                      : 'bg-gray-100'
                           }`}>
                             {history.action === 'approved' ? (
                               <CheckCircle size={16} className="text-green-600" />
@@ -647,6 +650,8 @@ const RequestDetailsPage: React.FC = () => {
                               <FileText size={16} className="text-blue-600" />
                             ) : history.action === 'pending' ? (
                               <Clock size={16} className="text-yellow-600" />
+                            ) : history.action === 'forwarded' ? (
+                              <Forward size={16} className="text-purple-600" />
                             ) : (
                               <User size={16} className="text-gray-600" />
                             )}
@@ -674,7 +679,7 @@ const RequestDetailsPage: React.FC = () => {
                                 }
                                 if (act === 'approved') return 'Approved';
                                 if (act === 'rejected') return 'Rejected';
-                                if (act === 'forwarded') return history.forwarded_to_name ? `Forwarded to ${history.forwarded_to_name}` : 'Forwarded';
+                                if (act === 'forwarded') return history.forwarded_to_name ? `Forwarded → To ${history.forwarded_to_name}` : 'Forwarded to Admin';
                                 // fallback: capitalize words
                                 return act.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                               })()}

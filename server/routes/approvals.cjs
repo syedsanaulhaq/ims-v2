@@ -952,16 +952,29 @@ router.post('/:approvalId/approve', async (req, res) => {
           WHERE request_approval_id = @approvalId
         `);
 
+      // Determine a meaningful comment for the history entry
+      const historyActionType = hasReturnActions ? 'returned' : overallStatus;
+      let historyComment = approval_comments || '';
+      if (!historyComment) {
+        if (historyActionType === 'forwarded_to_admin') historyComment = 'Forwarded request to Admin for approval';
+        else if (historyActionType === 'forwarded_to_supervisor') historyComment = 'Forwarded request to Wing Supervisor';
+        else if (historyActionType === 'approved') historyComment = 'Request approved';
+        else if (historyActionType === 'rejected') historyComment = 'Request rejected';
+        else if (historyActionType === 'returned') historyComment = 'Request returned for revision';
+        else historyComment = 'Decision submitted';
+      }
+
       await transaction.request()
         .input('approvalId', sql.NVarChar, approvalId)
         .input('action_by', sql.NVarChar, userId)
-        .input('comments', sql.NVarChar, approval_comments || 'Per-item approval completed')
+        .input('comments', sql.NVarChar, historyComment)
         .input('step_number', sql.Int, nextStep)
-        .input('action_type', sql.NVarChar, hasReturnActions ? 'returned' : overallStatus)
+        .input('action_type', sql.NVarChar, historyActionType)
+        .input('forwarded_to', sql.NVarChar, newApproverId || null)
         .query(`
           INSERT INTO approval_history
-          (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
-          VALUES (@approvalId, @action_type, @action_by, @comments, @step_number, 1)
+          (request_approval_id, action_type, action_by, comments, step_number, is_current_step, forwarded_to)
+          VALUES (@approvalId, @action_type, @action_by, @comments, @step_number, 1, @forwarded_to)
         `);
 
       // ====================================================================
