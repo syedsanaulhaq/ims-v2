@@ -193,6 +193,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Forwarded Verifications", icon: Eye, path: "/dashboard/store-keeper-verifications", permission: undefined },
       { title: "Verification History", icon: History, path: "/dashboard/verification-history", permission: undefined },
       { title: "Wing Inventory", icon: Package, path: "/dashboard/wing-inventory", permission: undefined },
+      { title: "Stock Issuance", icon: Send, path: "/dashboard/stock-issuance-processing", permission: undefined },
     ]
   };
 
