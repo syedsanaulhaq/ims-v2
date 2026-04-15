@@ -28,6 +28,8 @@ import { stockIssuanceService } from '@/services/stockIssuanceService';
 import { stockTransactionsLocalService } from '@/services/stockTransactionsLocalService';
 import { inventoryLocalService } from '@/services/inventoryLocalService';
 
+import { useSession } from '@/contexts/SessionContext';
+
 interface ApprovedRequest {
   id: number;
   request_number: string;
@@ -48,13 +50,14 @@ interface ApprovedRequest {
 }
 
 const StockIssuanceProcessing: React.FC = () => {
+  const { user } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [approvedRequests, setApprovedRequests] = useState<ApprovedRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ApprovedRequest | null>(null);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
-  const [issuedBy, setIssuedBy] = useState('');
+  const [issuedBy, setIssuedBy] = useState(user?.full_name || '');
   const [issuanceNotes, setIssuanceNotes] = useState('');
 
   useEffect(() => {
@@ -69,22 +72,22 @@ const StockIssuanceProcessing: React.FC = () => {
       const data = await stockIssuanceService.getApprovedRequests();
 
       // Transform data with basic information (simplified for unified architecture)
-      const transformedRequests = data.map((request) => ({
+      const transformedRequests = data.map((request: any) => ({
         id: request.id,
         request_number: request.request_number,
         request_type: request.request_type,
-        requester_name: request.requester_name,
-        office_name: request.office_name,
-        wing_name: request.wing_name,
+        requester_name: request.requester?.full_name || request.requester_name || 'Unknown',
+        office_name: request.office?.name || request.office?.office_name || request.office_name || '',
+        wing_name: request.wing?.name || request.wing_name || '',
         created_at: request.created_at,
-        approved_at: request.approved_at,
-        priority_level: request.priority_level,
-        urgency_level: request.urgency_level,
+        approved_at: request.approved_at || request.updated_at,
+        priority_level: request.priority_level || request.urgency_level || 'Normal',
+        urgency_level: request.urgency_level || 'Normal',
         purpose: request.purpose,
         justification: request.justification,
-        approver_name: 'Admin', // Simplified for unified architecture
-        items: [], // Will be populated from separate items endpoint if needed
-        has_stock_issues: false, // Simplified stock checking
+        approver_name: 'Admin',
+        items: request.items || [],
+        has_stock_issues: false,
         estimated_processing_time: '2-3 business days'
       }));
 
@@ -106,15 +109,16 @@ const StockIssuanceProcessing: React.FC = () => {
     setError('');
 
     try {
-      // Use the new Stock Issuance Workflow API
+      // Use the Stock Issuance Issue API
       const response = await fetch(`${getApiBaseUrl()}/stock-issuance/issue/${selectedRequest.id}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          issued_by: '4dae06b7-17cd-480b-81eb-da9c76ad5728', // TODO: Get from current user context
-          issued_by_name: issuedBy,
+          issued_by: user?.user_id,
+          issued_by_name: user?.full_name || issuedBy,
           issuance_notes: issuanceNotes
         })
       });

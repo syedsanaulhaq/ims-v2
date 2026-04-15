@@ -114,8 +114,13 @@ router.get('/requests', async (req, res) => {
     }
 
     if (status) {
-      conditions.push('sir.approval_status = @status');
-      request = request.input('status', sql.NVarChar(50), status);
+      // Support partial matching for status groups (e.g., "Approved" matches "Approved by Admin", "Approved by Supervisor")
+      if (status === 'Approved') {
+        conditions.push("(sir.approval_status LIKE 'Approved%')");
+      } else {
+        conditions.push('sir.approval_status = @status');
+        request = request.input('status', sql.NVarChar(50), status);
+      }
     }
 
     if (wing_id) {
@@ -750,6 +755,205 @@ router.post('/items', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error adding items to request:', error);
     res.status(500).json({ error: 'Failed to add items to request' });
+  }
+});
+
+// ============================================================================
+// POST /api/stock-issuance/issue/:id - Mark approved request as physically issued
+// Store keeper uses this to confirm items have been handed over to the requester
+// ============================================================================
+router.post('/issue/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { issued_by, issued_by_name, issuance_notes } = req.body;
+    const pool = getPool();
+    const userId = req.session?.userId || issued_by;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Validate the request exists and is approved
+    const requestResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT sir.*, u.FullName as requester_name
+        FROM stock_issuance_requests sir
+        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+        WHERE sir.id = @id
+      `);
+
+    if (requestResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    const request = requestResult.recordset[0];
+    const status = (request.approval_status || '').toLowerCase();
+
+    if (!status.includes('approved')) {
+      return res.status(400).json({ 
+        error: 'Request must be approved before it can be issued',
+        current_status: request.approval_status 
+      });
+    }
+
+    if (status === 'issued' || status === 'completed') {
+      return res.status(400).json({ error: 'Request has already been issued' });
+    }
+
+    // Get the items for this request
+    const itemsResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT sii.*, im.nomenclature as master_nomenclature
+        FROM stock_issuance_items sii
+        LEFT JOIN item_masters im ON sii.item_master_id = im.id
+        WHERE sii.request_id = @requestId
+          AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
+      `);
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Update each item's status to 'Issued' and set issued_quantity
+      for (const item of itemsResult.recordset) {
+        const issuedQty = item.approved_quantity || item.requested_quantity;
+        await transaction.request()
+          .input('itemId', sql.UniqueIdentifier, item.id)
+          .input('issuedQty', sql.NVarChar, String(issuedQty))
+          .query(`
+            UPDATE stock_issuance_items
+            SET item_status = 'Issued',
+                issued_quantity = @issuedQty,
+                updated_at = GETDATE()
+            WHERE id = @itemId
+          `);
+      }
+
+      // Update the request status to 'Issued'
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('issuedBy', sql.NVarChar, userId)
+        .input('issuanceNotes', sql.NVarChar, issuance_notes || '')
+        .query(`
+          UPDATE stock_issuance_requests
+          SET approval_status = 'Issued',
+              request_status = 'Issued',
+              issued_at = GETDATE(),
+              issued_by = @issuedBy,
+              issuance_notes = @issuanceNotes,
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      // Add history entry if there's a request_approvals record
+      const raResult = await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, id)
+        .query(`SELECT id FROM request_approvals WHERE request_id = @requestId`);
+
+      if (raResult.recordset.length > 0) {
+        const approvalId = raResult.recordset[0].id;
+        
+        // Get next step number
+        const stepResult = await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`SELECT ISNULL(MAX(step_number), 0) + 1 as next_step FROM approval_history WHERE request_approval_id = @approvalId`);
+        
+        const nextStep = stepResult.recordset[0].next_step;
+
+        // Clear current step flags
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`UPDATE approval_history SET is_current_step = 0 WHERE request_approval_id = @approvalId`);
+
+        // Insert issued history entry
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .input('actionBy', sql.NVarChar, userId)
+          .input('comments', sql.NVarChar, issuance_notes || 'Items physically issued to requester')
+          .input('stepNumber', sql.Int, nextStep)
+          .query(`
+            INSERT INTO approval_history
+            (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+            VALUES (@approvalId, 'completed', @actionBy, @comments, @stepNumber, 1)
+          `);
+
+        // Update request_approvals status
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`UPDATE request_approvals SET current_status = 'completed', updated_date = GETDATE() WHERE id = @approvalId`);
+      }
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: `Items issued successfully for request ${request.request_number}`,
+        data: {
+          request_id: id,
+          request_number: request.request_number,
+          items_issued: itemsResult.recordset.length,
+          issued_at: new Date().toISOString(),
+          issued_by: userId
+        }
+      });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('Error processing issuance:', error);
+    res.status(500).json({ error: 'Failed to process issuance', details: error.message });
+  }
+});
+
+// ============================================================================
+// POST /api/stock-issuance/acknowledge/:id - Requester confirms physical receipt
+// ============================================================================
+router.post('/acknowledge/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const userId = req.session?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Verify the request exists and belongs to this user
+    const requestResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('userId', sql.NVarChar, userId)
+      .query(`
+        SELECT * FROM stock_issuance_requests
+        WHERE id = @id AND requester_user_id = @userId
+      `);
+
+    if (requestResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found or not authorized' });
+    }
+
+    const request = requestResult.recordset[0];
+    if (request.approval_status !== 'Issued') {
+      return res.status(400).json({ error: 'Request must be in Issued status to acknowledge receipt' });
+    }
+
+    // Update to Completed
+    await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        UPDATE stock_issuance_requests
+        SET approval_status = 'Completed',
+            request_status = 'Completed',
+            updated_at = GETDATE()
+        WHERE id = @id
+      `);
+
+    res.json({ success: true, message: 'Receipt acknowledged. Request completed.' });
+  } catch (error) {
+    console.error('Error acknowledging receipt:', error);
+    res.status(500).json({ error: 'Failed to acknowledge receipt', details: error.message });
   }
 });
 
