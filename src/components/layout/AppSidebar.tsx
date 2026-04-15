@@ -332,8 +332,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show inventory menu if user has inventory permissions
-    if (canViewInventory || canManageInventory) {
+    // Show inventory menu only for admin/inventory managers, not store keepers
+    if ((canViewInventory || canManageInventory) && !canAccessStoreKeeperMenu) {
       const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleInventoryItems.length > 0) {
         groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });
