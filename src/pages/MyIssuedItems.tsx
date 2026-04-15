@@ -121,19 +121,23 @@ export default function MyIssuedItems() {
     if (item.current_return_status === 'Overdue') {
       return <Badge className="bg-red-500">Overdue</Badge>;
     }
-    if (item.status === 'Returned') {
+    const status = item.status || (item as any).approval_status || 'Issued';
+    if (item.current_return_status === 'Overdue') {
+      return <Badge className="bg-red-500">Overdue</Badge>;
+    }
+    if (status === 'Returned') {
       return <Badge className="bg-green-500">Returned</Badge>;
     }
-    if (item.status === 'Issued') {
+    if (status === 'Issued' || status === 'Approved by Admin' || status === 'Approved') {
       return <Badge className="bg-blue-500">In Use</Badge>;
     }
-    if (item.status === 'Damaged') {
+    if (status === 'Damaged') {
       return <Badge className="bg-orange-500">Damaged</Badge>;
     }
-    if (item.status === 'Lost') {
+    if (status === 'Lost') {
       return <Badge className="bg-gray-500">Lost</Badge>;
     }
-    return <Badge>{item.status}</Badge>;
+    return <Badge>{status}</Badge>;
   };
 
   const getReturnStatusIcon = (status: string) => {
@@ -329,8 +333,8 @@ export default function MyIssuedItems() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {filteredItems.map((item) => (
-                      <tr key={item.ledger_id} className="hover:bg-gray-50">
+                    {filteredItems.map((item, idx) => (
+                      <tr key={(item as any).id || item.ledger_id || idx} className="hover:bg-gray-50">
                         <td className="px-4 py-4">
                           <div>
                             <div className="font-medium text-sm">{item.nomenclature}</div>
@@ -345,12 +349,12 @@ export default function MyIssuedItems() {
                           <span className="font-semibold">{item.issued_quantity}</span>
                         </td>
                         <td className="px-4 py-4 text-right">
-                          <span className="font-semibold">₨ {item.total_value.toLocaleString()}</span>
+                          <span className="font-semibold">₨ {(item.total_value || 0).toLocaleString()}</span>
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            {formatDateDMY(item.issued_at)}
+                            {formatDateDMY(item.issued_at || (item as any).created_at)}
                           </div>
                           {item.issued_by_name && (
                             <div className="text-xs text-gray-500 mt-1">
