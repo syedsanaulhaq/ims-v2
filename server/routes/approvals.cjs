@@ -124,6 +124,7 @@ router.get('/admin/pending', requireAuth, requirePermission('stock_request.view_
     const result = await pool.request()
       .query(`
         SELECT 
+          sir.id as request_id,
           sir.id,
           sir.request_number,
           sir.request_type,
@@ -1117,11 +1118,15 @@ router.get('/:approvalId', async (req, res, next) => {
           ra.*,
           submitter.FullName as submitted_by_name,
           current_approver.FullName as current_approver_name,
-          sir.request_type as scope_type
+          sir.request_type as scope_type,
+          sir.request_number,
+          sir.requester_user_id,
+          requester.FullName as requester_name
         FROM request_approvals ra
         LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
         LEFT JOIN AspNetUsers current_approver ON ra.current_approver_id = current_approver.Id
         LEFT JOIN stock_issuance_requests sir ON ra.request_id = sir.id
+        LEFT JOIN AspNetUsers requester ON sir.requester_user_id = requester.Id
         WHERE ra.id = @approvalId
       `);
 
