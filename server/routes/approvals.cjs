@@ -702,6 +702,7 @@ router.get('/my-approvals', async (req, res) => {
           ra.request_id,
           ra.request_type,
           sir.request_type as scope_type,
+          sir.request_number,
           ra.submitted_date,
           ra.current_status,
           ra.submitted_by,
@@ -760,6 +761,7 @@ router.get('/my-approvals', async (req, res) => {
       approvals.push({
         id: approval.id,
         request_id: approval.request_id,
+        request_number: approval.request_number,
         request_type: approval.request_type || 'stock_issuance',
         scope_type: approval.scope_type || 'Individual',
         title: approval.title || 'Stock Issuance Request',

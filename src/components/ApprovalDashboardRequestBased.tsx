@@ -19,7 +19,7 @@ interface RequestSummary {
   submitted_by_name: string;
   submitted_date: string;
   current_approver_name?: string;
-  request_status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'return' | 'reject' | 'pending';
+  request_status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'return' | 'reject' | 'pending' | 'completed';
   total_items: number;
   approved_items: number;
   rejected_items: number;
@@ -184,6 +184,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       return 'pending';
     }
     
+    if (status === 'completed' || status === 'issued') return 'completed';
     if (status === 'approve_wing' || status === 'approved') return 'approve_wing';
     if (status === 'reject' || status === 'rejected') return 'reject';
     if (status === 'forward_admin' || status === 'forwarded_to_admin' || status === 'forwarded') return 'forward_admin';
@@ -204,6 +205,8 @@ const ApprovalDashboardRequestBased: React.FC = () => {
         return 'bg-purple-100 text-purple-800 border-purple-300';
       case 'return':
         return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'completed':
+        return 'bg-teal-100 text-teal-800 border-teal-300';
       default:
         return 'bg-yellow-100 text-yellow-800 border-yellow-300';
     }
@@ -221,6 +224,8 @@ const ApprovalDashboardRequestBased: React.FC = () => {
         return '↗ Forward to Supervisor';
       case 'return':
         return '↩ Returned';
+      case 'completed':
+        return '✓ Completed';
       default:
         return 'Pending';
     }
@@ -548,7 +553,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {request.request_id}
+                            {(request.approval as any)?.request_number || request.request_id}
                           </h3>
                           <Badge className="text-xs">
                             {request.request_type.replace('_', ' ').toUpperCase()}
@@ -750,7 +755,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <h3 className="text-lg font-semibold text-gray-900">
-                              {request.request_id}
+                              {(request.approval as any)?.request_number || request.request_id}
                             </h3>
                             <Badge className="text-xs">
                               {request.request_type.replace('_', ' ').toUpperCase()}
