@@ -507,6 +507,15 @@ router.get('/:id', async (req, res) => {
         } else if (actionType === 'returned') {
           action = 'Returned';
           comments = comments || 'Request returned for revision';
+        } else if (actionType === 'sent_to_store_keeper') {
+          action = 'Sent to Wing Store';
+          comments = comments || 'Approved items sent to wing store keeper for issuance';
+        } else if (actionType === 'issued') {
+          action = 'Issued';
+          comments = comments || 'Items physically issued to requester';
+        } else if (actionType === 'completed') {
+          action = 'Issued';
+          comments = comments || 'Items issued to requester by wing store keeper';
         }
 
         approvalHistory.push({
@@ -917,7 +926,7 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
           WHERE id = @id
         `);
 
-      // Add history entry if there's a request_approvals record
+      // Add history entries if there's a request_approvals record
       const raResult = await transaction.request()
         .input('requestId', sql.UniqueIdentifier, id)
         .query(`SELECT id FROM request_approvals WHERE request_id = @requestId`);
@@ -930,23 +939,35 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
           .input('approvalId', sql.UniqueIdentifier, approvalId)
           .query(`SELECT ISNULL(MAX(step_number), 0) + 1 as next_step FROM approval_history WHERE request_approval_id = @approvalId`);
         
-        const nextStep = stepResult.recordset[0].next_step;
+        let nextStep = stepResult.recordset[0].next_step;
 
         // Clear current step flags
         await transaction.request()
           .input('approvalId', sql.UniqueIdentifier, approvalId)
           .query(`UPDATE approval_history SET is_current_step = 0 WHERE request_approval_id = @approvalId`);
 
-        // Insert issued history entry
+        // Step 1: "Sent to Wing Store Keeper" - shows admin forwarded items to wing store keeper
         await transaction.request()
           .input('approvalId', sql.UniqueIdentifier, approvalId)
-          .input('actionBy', sql.NVarChar, userId)
-          .input('comments', sql.NVarChar, issuance_notes || `Items issued by wing store keeper ${issuerName}`)
+          .input('actionBy', sql.NVarChar, request.admin_id || request.supervisor_id || userId)
+          .input('comments', sql.NVarChar, `Items sent to wing store keeper (${issuerName}) for physical issuance`)
           .input('stepNumber', sql.Int, nextStep)
           .query(`
             INSERT INTO approval_history
             (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
-            VALUES (@approvalId, 'completed', @actionBy, @comments, @stepNumber, 1)
+            VALUES (@approvalId, 'sent_to_store_keeper', @actionBy, @comments, @stepNumber, 0)
+          `);
+
+        // Step 2: "Issued" - wing store keeper issues items to requester
+        await transaction.request()
+          .input('approvalId2', sql.UniqueIdentifier, approvalId)
+          .input('issuedBy', sql.NVarChar, userId)
+          .input('issueComments', sql.NVarChar, issuance_notes || `Items physically issued to requester by ${issuerName}`)
+          .input('issueStep', sql.Int, nextStep + 1)
+          .query(`
+            INSERT INTO approval_history
+            (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+            VALUES (@approvalId2, 'issued', @issuedBy, @issueComments, @issueStep, 1)
           `);
 
         // Update request_approvals status

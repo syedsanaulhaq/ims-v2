@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText, Forward } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText, Forward, Truck, PackageCheck } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { getApiBaseUrl } from '@/services/invmisApi';
@@ -630,28 +630,36 @@ const RequestDetailsPage: React.FC = () => {
                       }`}>
                         <div className="flex-shrink-0">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            history.action === 'approved' 
+                            history.action === 'approved' || history.action === 'Approved'
                               ? 'bg-green-100' 
-                              : history.action === 'rejected' 
+                              : history.action === 'rejected' || history.action === 'Rejected'
                                 ? 'bg-red-100' 
-                                : history.action === 'submitted'
+                                : history.action === 'submitted' || history.action === 'Submitted'
                                   ? 'bg-blue-100'
-                                  : history.action === 'pending'
+                                  : history.action === 'pending' || history.action === 'Pending'
                                     ? 'bg-yellow-100'
-                                    : history.action === 'forwarded'
+                                    : history.action === 'forwarded' || history.action === 'Forwarded'
                                       ? 'bg-purple-100'
-                                      : 'bg-gray-100'
+                                      : history.action === 'Sent to Wing Store'
+                                        ? 'bg-orange-100'
+                                        : history.action === 'Issued'
+                                          ? 'bg-teal-100'
+                                          : 'bg-gray-100'
                           }`}>
-                            {history.action === 'approved' ? (
+                            {history.action === 'approved' || history.action === 'Approved' ? (
                               <CheckCircle size={16} className="text-green-600" />
-                            ) : history.action === 'rejected' ? (
+                            ) : history.action === 'rejected' || history.action === 'Rejected' ? (
                               <XCircle size={16} className="text-red-600" />
-                            ) : history.action === 'submitted' ? (
+                            ) : history.action === 'submitted' || history.action === 'Submitted' ? (
                               <FileText size={16} className="text-blue-600" />
-                            ) : history.action === 'pending' ? (
+                            ) : history.action === 'pending' || history.action === 'Pending' ? (
                               <Clock size={16} className="text-yellow-600" />
-                            ) : history.action === 'forwarded' ? (
+                            ) : history.action === 'forwarded' || history.action === 'Forwarded' ? (
                               <Forward size={16} className="text-purple-600" />
+                            ) : history.action === 'Sent to Wing Store' ? (
+                              <Truck size={16} className="text-orange-600" />
+                            ) : history.action === 'Issued' ? (
+                              <PackageCheck size={16} className="text-teal-600" />
                             ) : (
                               <User size={16} className="text-gray-600" />
                             )}
@@ -664,24 +672,29 @@ const RequestDetailsPage: React.FC = () => {
                               {history.approver_name}
                             </span>
                             <span className={`ml-2 capitalize ${
-                              history.action === 'pending' ? 'text-yellow-600' : 'text-gray-600'
+                              history.action === 'pending' || history.action === 'Pending' ? 'text-yellow-600' 
+                              : history.action === 'Sent to Wing Store' ? 'text-orange-600'
+                              : history.action === 'Issued' ? 'text-teal-600'
+                              : 'text-gray-600'
                             }`}>
                               {(() => {
                                 const act = history.action;
-                                if (act === 'submitted') {
+                                if (act === 'submitted' || act === 'Submitted') {
                                   if (history.submitted_to) {
                                     return `Submitted Request → to ${history.submitted_to}`;
                                   }
                                   return 'Submitted Request';
                                 }
-                                if (act === 'pending') {
+                                if (act === 'pending' || act === 'Pending') {
                                   return history.is_current_step ? '- Currently reviewing' : '- Pending';
                                 }
-                                if (act === 'approved') return 'Approved';
-                                if (act === 'rejected') return 'Rejected';
-                                if (act === 'forwarded') return history.forwarded_to_name ? `Forwarded → To ${history.forwarded_to_name}` : 'Forwarded to Admin';
+                                if (act === 'approved' || act === 'Approved') return 'Approved';
+                                if (act === 'rejected' || act === 'Rejected') return 'Rejected';
+                                if (act === 'forwarded' || act === 'Forwarded') return history.forwarded_to_name ? `Forwarded → To ${history.forwarded_to_name}` : 'Forwarded to Admin';
+                                if (act === 'Sent to Wing Store') return 'Sent to Wing Store Keeper';
+                                if (act === 'Issued') return 'Issued to Requester';
                                 // fallback: capitalize words
-                                return act.replace('_', ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                                return act.replace('_', ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                               })()}
                             </span>
                             {history.is_current_step && (
