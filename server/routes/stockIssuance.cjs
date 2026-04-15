@@ -281,12 +281,13 @@ router.get('/issued-items', async (req, res) => {
         sir.is_returnable,
         u.FullName as requester_name,
         sir.submitted_at as created_at,
-        sir.request_type as purpose
+        sir.request_type as purpose,
+        sir.approval_status
       FROM stock_issuance_items sii
       INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
       LEFT JOIN item_masters im ON sii.item_master_id = im.id
       LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      WHERE sir.approval_status = 'Approved' OR sir.approval_status = 'Issued'
+      WHERE (sir.approval_status IN ('Approved', 'Approved by Admin', 'Approved by Supervisor', 'Issued'))
     `;
 
     let request = pool.request();
