@@ -856,7 +856,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 <SelectContent>
                   <SelectItem value="approve_wing">
                     <span className="flex items-center gap-2">
-                      ✓ Approve from Wing
+                      ✓ {isAdmin ? 'Approve from Admin Stock' : 'Approve from Wing'}
                     </span>
                   </SelectItem>
                   {!isAdmin && (
@@ -988,7 +988,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   <div className="grid grid-cols-5 gap-2 min-w-fit border border-gray-200 p-2 rounded">
                     {/* Grid should have 5 columns - Return button is the 5th */}
                     {/* Option 1 - Approve */}
-                    {request?.current_status === 'pending' ? (
+                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'approve_wing'
                           ? 'bg-green-100 border-green-500'
@@ -1003,7 +1003,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           className="mb-2"
                         />
                         <div className="text-sm font-medium text-green-700">✓ Approve</div>
-                        <div className="text-xs text-gray-600 mt-1">From Wing</div>
+                        <div className="text-xs text-gray-600 mt-1">{isAdmin ? 'From Admin' : 'From Wing'}</div>
                       </label>
                     ) : (
                       <div className={`p-2 border rounded flex flex-col items-center text-center ${
@@ -1012,7 +1012,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           : 'bg-gray-100 border-gray-300'
                       }`}>
                         <div className="text-sm font-medium text-green-700">✓ Approve</div>
-                        <div className="text-xs text-gray-600 mt-1">From Wing</div>
+                        <div className="text-xs text-gray-600 mt-1">{isAdmin ? 'From Admin' : 'From Wing'}</div>
                       </div>
                     )}
 
@@ -1048,7 +1048,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     )}
 
                     {/* Option 3 - Forward to Supervisor */}
-                    {request?.current_status === 'pending' ? (
+                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'forward_supervisor'
                           ? 'bg-blue-100 border-blue-500'
@@ -1077,7 +1077,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     )}
 
                     {/* Option 4 - Reject */}
-                    {request?.current_status === 'pending' ? (
+                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'reject'
                           ? 'bg-red-100 border-red-500'
@@ -1106,7 +1106,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     )}
 
                     {/* Option 5 - Return */}
-                    {request?.current_status === 'pending' ? (
+                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'return'
                           ? 'bg-orange-100 border-orange-500'
