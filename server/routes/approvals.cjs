@@ -724,6 +724,7 @@ router.get('/my-approvals', async (req, res) => {
         ) item_counts ON item_counts.request_id = ra.request_id
         WHERE ra.current_approver_id = @userId
         AND sir.id IS NOT NULL
+        AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
         ${decisionFilter ? `AND (
           ra.request_id IN (
             SELECT DISTINCT ra2.request_id FROM request_approvals ra2
