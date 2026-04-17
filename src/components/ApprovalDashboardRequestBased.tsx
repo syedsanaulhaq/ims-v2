@@ -63,9 +63,16 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       // Get all approvals for this user from all statuses
       const allStatuses = ['pending', 'approved', 'rejected', 'forwarded', 'returned'] as const;
       const allApprovals: RequestApproval[] = [];
+      // Track which backend status each approval came from
+      const approvalSourceStatus = new Map<string, string>();
       
       for (const status of allStatuses) {
         const approvals = await approvalForwardingService.getMyApprovalsByStatus(userId, status as any);
+        for (const a of approvals) {
+          if (!approvalSourceStatus.has(a.request_id)) {
+            approvalSourceStatus.set(a.request_id, status);
+          }
+        }
         allApprovals.push(...approvals);
       }
 
@@ -103,8 +110,9 @@ const ApprovalDashboardRequestBased: React.FC = () => {
           const detailData = await detailResponse.json();
           const fullApproval = detailData.data || detailData;
 
-          // Get request status
-          const requestStatus = getRequestStatusFromApproval(approval);
+          // Determine card category from the backend source status + current_status
+          const sourceStatus = approvalSourceStatus.get(requestId) || 'pending';
+          const requestStatus = getRequestStatusFromApproval(approval, sourceStatus);
           
           const summary: RequestSummary = {
             id: approval.id,
@@ -162,7 +170,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       if (activeFilter !== 'pending') {
         filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
       } else {
-        filteredRequests = filteredRequests.filter(r => r.request_status === 'pending' || r.pending_items > 0);
+        filteredRequests = filteredRequests.filter(r => r.request_status === 'pending');
       }
 
       setRequests(filteredRequests);
@@ -174,22 +182,27 @@ const ApprovalDashboardRequestBased: React.FC = () => {
     }
   };
 
-  const getRequestStatusFromApproval = (approval: RequestApproval): RequestSummary['request_status'] => {
-    // Try to infer request status from approval's current_status or other metadata
-    const status = (approval as any).request_status || (approval as any).my_action || approval.current_status;
+  const getRequestStatusFromApproval = (approval: RequestApproval, sourceStatus: string): RequestSummary['request_status'] => {
+    // sourceStatus = which backend query returned this ('pending', 'approved', 'forwarded', 'rejected', 'returned')
+    // For 'pending' source: these are things assigned to me that I need to act on -> show as pending
+    if (sourceStatus === 'pending') return 'pending';
     
-    // If current user is an admin, treat forwarded_to_admin as pending (it's their task now)
-    const isAdmin = (user as any)?.ims_roles?.some((r: any) => r.role_name === 'IMS_ADMIN');
-    if (isAdmin && (status === 'forward_admin' || status === 'forwarded_to_admin' || status === 'forwarded')) {
-      return 'pending';
+    // For 'approved' source: things I was involved in that are now approved
+    if (sourceStatus === 'approved') return 'approve_wing';
+    
+    // For 'rejected' source: things I rejected
+    if (sourceStatus === 'rejected') return 'reject';
+    
+    // For 'returned' source: things I returned
+    if (sourceStatus === 'returned') return 'return';
+    
+    // For 'forwarded' source: things I forwarded - split by direction
+    if (sourceStatus === 'forwarded') {
+      const status = approval.current_status;
+      if (status === 'forwarded_to_supervisor') return 'forward_supervisor';
+      return 'forward_admin'; // default for forwarded
     }
     
-    if (status === 'completed' || status === 'issued') return 'completed';
-    if (status === 'approve_wing' || status === 'approved') return 'approve_wing';
-    if (status === 'reject' || status === 'rejected') return 'reject';
-    if (status === 'forward_admin' || status === 'forwarded_to_admin' || status === 'forwarded') return 'forward_admin';
-    if (status === 'forward_supervisor' || status === 'forwarded_to_supervisor') return 'forward_supervisor';
-    if (status === 'return' || status === 'returned') return 'return';
     return 'pending';
   };
 

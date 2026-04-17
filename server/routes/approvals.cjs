@@ -289,6 +289,41 @@ router.get('/request/:requestId', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/approvals/request/:requestId/status - Get approval workflow status
+// Returns the current_status from request_approvals for a given request
+// ============================================================================
+router.get('/request/:requestId/status', async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .query(`
+        SELECT ra.current_status, ra.current_approver_id,
+               u.FullName as current_approver_name
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers u ON u.Id = ra.current_approver_id
+        WHERE ra.request_id = @requestId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.json({ success: true, current_status: null, current_approver_name: null });
+    }
+
+    const row = result.recordset[0];
+    res.json({
+      success: true,
+      current_status: row.current_status,
+      current_approver_name: row.current_approver_name
+    });
+  } catch (error) {
+    console.error('❌ Error fetching request status:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch status' });
+  }
+});
+
+// ============================================================================
 // POST /api/approvals/supervisor/approve - Supervisor approve request
 // ============================================================================
 router.post('/supervisor/approve', requireAuth, requirePermission('stock_request.approve_supervisor'), async (req, res) => {
@@ -680,18 +715,47 @@ router.get('/my-approvals', async (req, res) => {
     const status = req.query.status || 'pending';
     const pool = getPool();
 
-    // First try request_approvals table (workflow-based approach)
-    let decisionFilter = '';
+    // Build WHERE clause based on requested status
+    // "pending" = things I need to act on (I'm current approver, not yet decided)
+    // "approved" = things I approved (or were approved in chain I was part of)
+    // "forwarded" = things I forwarded to someone else
+    // "rejected"/"returned" = things I rejected/returned
+    let statusFilter = '';
     if (status === 'pending') {
-      decisionFilter = "ai.decision_type = 'PENDING'";
+      // Requests assigned to me that are pending my action
+      statusFilter = `ra.current_approver_id = @userId
+        AND ra.current_status IN ('pending', 'forwarded_to_admin', 'forwarded_to_supervisor')`;
     } else if (status === 'approved') {
-      decisionFilter = "ai.decision_type = 'APPROVE_FROM_STOCK'";
+      // Requests where I took an approve action (check approval_history)
+      statusFilter = `ra.current_status IN ('approved', 'completed')
+        AND EXISTS (
+          SELECT 1 FROM approval_history ah
+          WHERE ah.request_approval_id = ra.id
+          AND ah.action_by = @userId
+        )`;
     } else if (status === 'rejected') {
-      decisionFilter = "ai.decision_type = 'REJECT'";
+      statusFilter = `ra.current_status = 'rejected'
+        AND EXISTS (
+          SELECT 1 FROM approval_history ah
+          WHERE ah.request_approval_id = ra.id
+          AND ah.action_by = @userId
+        )`;
     } else if (status === 'returned') {
-      decisionFilter = "ai.decision_type = 'RETURN'";
+      statusFilter = `ra.current_status = 'returned'
+        AND EXISTS (
+          SELECT 1 FROM approval_history ah
+          WHERE ah.request_approval_id = ra.id
+          AND ah.action_by = @userId
+        )`;
     } else if (status === 'forwarded') {
-      decisionFilter = "ai.decision_type IN ('FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN')";
+      // Requests I forwarded (I'm in the history as forwarder, but I'm no longer the approver)
+      statusFilter = `ra.current_approver_id != @userId
+        AND EXISTS (
+          SELECT 1 FROM approval_history ah
+          WHERE ah.request_approval_id = ra.id
+          AND ah.action_by = @userId
+          AND ah.action_type IN ('forwarded_to_admin', 'forwarded_to_supervisor')
+        )`;
     }
 
     const approvalsResult = await pool.request()
@@ -722,21 +786,9 @@ router.get('/my-approvals', async (req, res) => {
           FROM stock_issuance_items
           GROUP BY request_id
         ) item_counts ON item_counts.request_id = ra.request_id
-        WHERE ra.current_approver_id = @userId
-        AND sir.id IS NOT NULL
+        WHERE sir.id IS NOT NULL
         AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
-        ${decisionFilter ? `AND (
-          ra.request_id IN (
-            SELECT DISTINCT ra2.request_id FROM request_approvals ra2
-            INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
-            WHERE ${decisionFilter}
-          )
-          ${status === 'pending' ? `OR (ra.current_status = 'pending' AND NOT EXISTS (
-            SELECT 1 FROM approval_items ai2 WHERE ai2.request_approval_id = ra.id
-          ))
-          OR ra.current_status = 'forwarded_to_admin'
-          OR ra.current_status = 'forwarded_to_supervisor'` : ''}
-        )` : ''}
+        AND (${statusFilter})
         ORDER BY ra.submitted_date DESC
       `);
 
@@ -1085,6 +1137,49 @@ router.post('/:approvalId/approve', async (req, res) => {
             `);
 
           console.log('✅ Stock deducted from admin stock and issuance records updated for request:', requestId);
+        }
+      }
+
+      // ====================================================================
+      // SYNC stock_issuance_requests status for non-approval actions
+      // (forwarding, rejection, return) so requester's My Requests page is accurate
+      // ====================================================================
+      if (overallStatus !== 'approved') {
+        const reqIdResult2 = await transaction.request()
+          .input('approvalId', sql.NVarChar, approvalId)
+          .query(`SELECT request_id FROM request_approvals WHERE id = @approvalId`);
+        const syncRequestId = reqIdResult2.recordset[0]?.request_id;
+        
+        if (syncRequestId) {
+          let sirStatus = 'Pending';
+          let sirApprovalStatus = 'Pending Supervisor Review';
+          
+          if (overallStatus === 'forwarded_to_admin') {
+            sirStatus = 'Pending';
+            sirApprovalStatus = 'Forwarded to Admin';
+          } else if (overallStatus === 'forwarded_to_supervisor') {
+            sirStatus = 'Pending';
+            sirApprovalStatus = 'Forwarded to Supervisor';
+          } else if (overallStatus === 'rejected') {
+            sirStatus = 'Rejected';
+            sirApprovalStatus = 'Rejected';
+          } else if (overallStatus === 'returned') {
+            sirStatus = 'Returned';
+            sirApprovalStatus = 'Returned for Revision';
+          }
+
+          await transaction.request()
+            .input('syncRequestId', sql.UniqueIdentifier, syncRequestId)
+            .input('sirStatus', sql.NVarChar, sirStatus)
+            .input('sirApprovalStatus', sql.NVarChar, sirApprovalStatus)
+            .query(`
+              UPDATE stock_issuance_requests
+              SET approval_status = @sirApprovalStatus,
+                  updated_at = GETDATE()
+              WHERE id = @syncRequestId
+            `);
+          
+          console.log(`📋 Synced stock_issuance_requests approval_status to '${sirApprovalStatus}' for request:`, syncRequestId);
         }
       }
 

@@ -51,11 +51,12 @@ const MyRequestsPage: React.FC = () => {
   const [requests, setRequests] = useState<SubmittedRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'submitted' | 'pending' | 'approved' | 'rejected'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'forwarded_to_supervisor' | 'forwarded_to_admin' | 'approved' | 'rejected'>('all');
   const [dashboardStats, setDashboardStats] = useState({
     total: 0,
-    submitted: 0,
     pending: 0,
+    forwarded_to_supervisor: 0,
+    forwarded_to_admin: 0,
     approved: 0,
     rejected: 0
   });
@@ -100,6 +101,7 @@ const MyRequestsPage: React.FC = () => {
           const mappedRequests = await Promise.all(
             userRequests.map(async (request: any) => {
               let approvalItems = [];
+              let approvalStatus = '';
               try {
                 const approvalResponse = await fetch(
                   `http://localhost:3001/api/approvals/request/${request.id}/items`,
@@ -110,9 +112,54 @@ const MyRequestsPage: React.FC = () => {
                   if (approvalData.success && approvalData.data) {
                     approvalItems = approvalData.data;
                   }
+                  // Get the approval status from request_approvals
+                  if (approvalData.approval_status) {
+                    approvalStatus = approvalData.approval_status;
+                  }
                 }
               } catch (err) {
                 console.log('Could not fetch approval items for request:', request.id);
+              }
+
+              // Also try to get the request_approvals status directly
+              let currentApproverName = '';
+              if (!approvalStatus) {
+                try {
+                  const raResponse = await fetch(
+                    `http://localhost:3001/api/approvals/request/${request.id}/status`,
+                    { credentials: 'include' }
+                  );
+                  if (raResponse.ok) {
+                    const raData = await raResponse.json();
+                    if (raData.success) {
+                      approvalStatus = raData.current_status || '';
+                      currentApproverName = raData.current_approver_name || '';
+                    }
+                  }
+                } catch (err) {
+                  // fallback to stock_issuance_requests status
+                }
+              }
+
+              // Determine the effective display status
+              let effectiveStatus = request.request_status?.toLowerCase() || 'pending';
+              if (approvalStatus) {
+                // Map request_approvals.current_status to display status
+                if (approvalStatus === 'forwarded_to_admin') effectiveStatus = 'forwarded_to_admin';
+                else if (approvalStatus === 'forwarded_to_supervisor') effectiveStatus = 'forwarded_to_supervisor';
+                else if (approvalStatus === 'approved' || approvalStatus === 'completed') effectiveStatus = 'approved';
+                else if (approvalStatus === 'rejected') effectiveStatus = 'rejected';
+                else if (approvalStatus === 'returned') effectiveStatus = 'returned';
+                else if (approvalStatus === 'pending') effectiveStatus = 'pending';
+              }
+              // Also check approval_status from stock_issuance_requests as fallback
+              const sirApprovalStatus = (request.approval_status || '').toLowerCase();
+              if (effectiveStatus === 'pending' && sirApprovalStatus.includes('forwarded to admin')) {
+                effectiveStatus = 'forwarded_to_admin';
+              } else if (effectiveStatus === 'pending' && sirApprovalStatus.includes('forwarded to supervisor')) {
+                effectiveStatus = 'forwarded_to_supervisor';
+              } else if (effectiveStatus === 'pending' && sirApprovalStatus.includes('approved')) {
+                effectiveStatus = 'approved';
               }
               
               return {
@@ -122,8 +169,8 @@ const MyRequestsPage: React.FC = () => {
                 description: request.justification || request.purpose || 'Request for inventory items',
                 requested_date: request.created_at,
                 submitted_date: request.submitted_at,
-                current_status: request.request_status?.toLowerCase() || 'pending',
-                current_approver_name: 'N/A',
+                current_status: effectiveStatus,
+                current_approver_name: currentApproverName || 'N/A',
                 items: request.items?.map((item: any) => ({
                   id: item.id,
                   item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
@@ -145,8 +192,9 @@ const MyRequestsPage: React.FC = () => {
           // Calculate stats
           setDashboardStats({
             total: mappedRequests.length,
-            submitted: mappedRequests.filter(r => r.current_status === 'submitted').length,
             pending: mappedRequests.filter(r => r.current_status === 'pending').length,
+            forwarded_to_supervisor: mappedRequests.filter(r => r.current_status === 'forwarded_to_supervisor').length,
+            forwarded_to_admin: mappedRequests.filter(r => r.current_status === 'forwarded_to_admin').length,
             approved: mappedRequests.filter(r => r.current_status === 'approved').length,
             rejected: mappedRequests.filter(r => r.current_status === 'rejected').length
           });
@@ -168,7 +216,8 @@ const MyRequestsPage: React.FC = () => {
       request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       request.description.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesFilter = activeFilter === 'all' || request.current_status === activeFilter;
+    const matchesFilter = activeFilter === 'all' || request.current_status === activeFilter
+      || (activeFilter === 'pending' && (request.current_status === 'pending' || request.current_status === 'submitted'));
     
     return matchesSearch && matchesFilter;
   });
@@ -205,7 +254,7 @@ const MyRequestsPage: React.FC = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
         <button
           onClick={() => setActiveFilter('all')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
@@ -226,25 +275,6 @@ const MyRequestsPage: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveFilter('submitted')}
-          className={`transition-all duration-300 rounded-lg border-l-4 ${
-            activeFilter === 'submitted' 
-              ? 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 shadow-lg' 
-              : 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 hover:shadow-xl'
-          }`}
-        >
-          <Card className="h-full bg-transparent border-none shadow-none">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-purple-700 font-semibold">Submitted</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-purple-600">{dashboardStats.submitted}</div>
-              <p className="text-xs text-gray-600 mt-2">Just submitted</p>
-            </CardContent>
-          </Card>
-        </button>
-
-        <button
           onClick={() => setActiveFilter('pending')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'pending' 
@@ -258,7 +288,45 @@ const MyRequestsPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-yellow-600">{dashboardStats.pending}</div>
-              <p className="text-xs text-gray-600 mt-2">Awaiting approval</p>
+              <p className="text-xs text-gray-600 mt-2">Awaiting action</p>
+            </CardContent>
+          </Card>
+        </button>
+
+        <button
+          onClick={() => setActiveFilter('forwarded_to_supervisor')}
+          className={`transition-all duration-300 rounded-lg border-l-4 ${
+            activeFilter === 'forwarded_to_supervisor' 
+              ? 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 shadow-lg' 
+              : 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 hover:shadow-xl'
+          }`}
+        >
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-purple-700 font-semibold">To Supervisor</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-purple-600">{dashboardStats.forwarded_to_supervisor}</div>
+              <p className="text-xs text-gray-600 mt-2">With supervisor</p>
+            </CardContent>
+          </Card>
+        </button>
+
+        <button
+          onClick={() => setActiveFilter('forwarded_to_admin')}
+          className={`transition-all duration-300 rounded-lg border-l-4 ${
+            activeFilter === 'forwarded_to_admin' 
+              ? 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-l-indigo-500 shadow-lg' 
+              : 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-l-indigo-500 hover:shadow-xl'
+          }`}
+        >
+          <Card className="h-full bg-transparent border-none shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-indigo-700 font-semibold">To Admin</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-indigo-600">{dashboardStats.forwarded_to_admin}</div>
+              <p className="text-xs text-gray-600 mt-2">With admin</p>
             </CardContent>
           </Card>
         </button>
@@ -365,7 +433,7 @@ const MyRequestsPage: React.FC = () => {
                         {request.priority}
                       </Badge>
                       <Badge className={getStatusClass(request.current_status)}>
-                        {request.current_status.charAt(0).toUpperCase() + request.current_status.slice(1)}
+                        {getStatusLabel(request.current_status)}
                       </Badge>
                     </div>
                   </div>
@@ -389,7 +457,7 @@ const MyRequestsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {request.current_status === 'pending' && request.current_approver_name && (
+                  {['pending', 'forwarded_to_supervisor', 'forwarded_to_admin'].includes(request.current_status) && request.current_approver_name && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-3 text-sm">
                       <span className="font-medium">With:</span> {request.current_approver_name}
                     </div>
@@ -435,15 +503,33 @@ const getPriorityClass = (priority: string) => {
   return classes[priority as keyof typeof classes] || classes.Medium;
 };
 
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    'submitted': 'Submitted',
+    'pending': 'Pending',
+    'forwarded_to_supervisor': 'With Supervisor',
+    'forwarded_to_admin': 'With Admin',
+    'approved': 'Approved',
+    'rejected': 'Rejected',
+    'returned': 'Returned',
+    'completed': 'Completed',
+    'finalized': 'Finalized'
+  };
+  return labels[status] || status.charAt(0).toUpperCase() + status.slice(1);
+};
+
 const getStatusClass = (status: string) => {
-  const classes = {
+  const classes: Record<string, string> = {
     'submitted': 'bg-purple-100 text-purple-800',
     'pending': 'bg-yellow-100 text-yellow-800',
+    'forwarded_to_supervisor': 'bg-purple-100 text-purple-800',
+    'forwarded_to_admin': 'bg-indigo-100 text-indigo-800',
     'approved': 'bg-green-100 text-green-800',
     'rejected': 'bg-red-100 text-red-800',
+    'returned': 'bg-orange-100 text-orange-800',
     'finalized': 'bg-blue-100 text-blue-800'
   };
-  return classes[status as keyof typeof classes] || classes.pending;
+  return classes[status] || classes.pending;
 };
 
 export default MyRequestsPage;
