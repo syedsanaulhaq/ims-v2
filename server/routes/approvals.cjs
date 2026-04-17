@@ -723,10 +723,16 @@ router.get('/my-approvals', async (req, res) => {
           GROUP BY request_id
         ) item_counts ON item_counts.request_id = ra.request_id
         WHERE ra.current_approver_id = @userId
-        ${decisionFilter ? `AND ra.request_id IN (
-          SELECT DISTINCT ra2.request_id FROM request_approvals ra2
-          INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
-          WHERE ${decisionFilter}
+        AND sir.id IS NOT NULL
+        ${decisionFilter ? `AND (
+          ra.request_id IN (
+            SELECT DISTINCT ra2.request_id FROM request_approvals ra2
+            INNER JOIN approval_items ai ON ai.request_approval_id = ra2.id
+            WHERE ${decisionFilter}
+          )
+          ${status === 'pending' ? `OR (ra.current_status = 'pending' AND NOT EXISTS (
+            SELECT 1 FROM approval_items ai2 WHERE ai2.request_approval_id = ra.id
+          ))` : ''}
         )` : ''}
         ORDER BY ra.submitted_date DESC
       `);
@@ -1139,7 +1145,7 @@ router.get('/:approvalId', async (req, res, next) => {
     const approval = approvalResult.recordset[0];
 
     // Get approval items
-    const itemsResult = await pool.request()
+    let itemsResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)
       .query(`
         SELECT 
@@ -1151,6 +1157,51 @@ router.get('/:approvalId', async (req, res, next) => {
         WHERE ai.request_approval_id = @approvalId
         ORDER BY ai.created_at
       `);
+
+    // Self-healing: if no approval_items exist, create them from stock_issuance_items
+    if (itemsResult.recordset.length === 0 && approval.request_id) {
+      console.log(`⚠️ Self-healing: No approval_items for approval ${approvalId}, creating from stock_issuance_items`);
+      const stockItems = await pool.request()
+        .input('requestId', sql.UniqueIdentifier, approval.request_id)
+        .query(`SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity FROM stock_issuance_items WHERE request_id = @requestId`);
+
+      for (const item of stockItems.recordset) {
+        try {
+          await pool.request()
+            .input('approvalId', sql.UniqueIdentifier, approvalId)
+            .input('itemId', sql.UniqueIdentifier, item.id)
+            .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id || null)
+            .input('nomenclature', sql.NVarChar(sql.MAX), item.nomenclature)
+            .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name)
+            .input('qty', sql.Int, item.requested_quantity)
+            .query(`
+              IF NOT EXISTS (SELECT 1 FROM approval_items WHERE id = @itemId)
+              INSERT INTO approval_items 
+                (id, request_approval_id, item_master_id, nomenclature, custom_item_name, requested_quantity, decision_type, created_at, updated_at)
+              VALUES 
+                (@itemId, @approvalId, @itemMasterId, @nomenclature, @customName, @qty, 'PENDING', GETDATE(), GETDATE())
+            `);
+        } catch (itemErr) {
+          console.error(`❌ Self-healing failed for item ${item.nomenclature}:`, itemErr.message);
+        }
+      }
+
+      // Re-query after self-healing
+      if (stockItems.recordset.length > 0) {
+        itemsResult = await pool.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`
+            SELECT 
+              ai.*,
+              im.item_code,
+              im.description as item_description
+            FROM approval_items ai
+            LEFT JOIN item_masters im ON ai.item_master_id = im.id
+            WHERE ai.request_approval_id = @approvalId
+            ORDER BY ai.created_at
+          `);
+      }
+    }
 
     const approvalData = {
       ...approval,

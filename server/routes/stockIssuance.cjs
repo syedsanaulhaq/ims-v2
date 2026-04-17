@@ -701,27 +701,34 @@ const createStockIssuanceRequest = async (req, res) => {
 
           const approvalId = approvalResult.recordset[0].id;
 
-          // Create approval_items from stock_issuance_items
-          if (items && items.length > 0) {
-            const insertedItems = await pool.request()
-              .input('requestId', sql.UniqueIdentifier, requestId)
-              .query(`SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity FROM stock_issuance_items WHERE request_id = @requestId`);
+          // Create approval_items from stock_issuance_items (always query from DB, don't rely on req.body.items)
+          const insertedItems = await pool.request()
+            .input('requestId', sql.UniqueIdentifier, requestId)
+            .query(`SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity FROM stock_issuance_items WHERE request_id = @requestId`);
 
+          if (insertedItems.recordset.length > 0) {
             for (const item of insertedItems.recordset) {
-              await pool.request()
-                .input('approvalId', sql.UniqueIdentifier, approvalId)
-                .input('itemId', sql.UniqueIdentifier, item.id)
-                .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
-                .input('nomenclature', sql.NVarChar(sql.MAX), item.nomenclature)
-                .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name)
-                .input('qty', sql.Int, item.requested_quantity)
-                .query(`
-                  INSERT INTO approval_items 
-                    (id, request_approval_id, item_master_id, nomenclature, custom_item_name, requested_quantity, decision_type, created_at, updated_at)
-                  VALUES 
-                    (@itemId, @approvalId, @itemMasterId, @nomenclature, @customName, @qty, 'PENDING', GETDATE(), GETDATE())
-                `);
+              try {
+                await pool.request()
+                  .input('approvalId', sql.UniqueIdentifier, approvalId)
+                  .input('itemId', sql.UniqueIdentifier, item.id)
+                  .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id || null)
+                  .input('nomenclature', sql.NVarChar(sql.MAX), item.nomenclature)
+                  .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name)
+                  .input('qty', sql.Int, item.requested_quantity)
+                  .query(`
+                    IF NOT EXISTS (SELECT 1 FROM approval_items WHERE id = @itemId)
+                    INSERT INTO approval_items 
+                      (id, request_approval_id, item_master_id, nomenclature, custom_item_name, requested_quantity, decision_type, created_at, updated_at)
+                    VALUES 
+                      (@itemId, @approvalId, @itemMasterId, @nomenclature, @customName, @qty, 'PENDING', GETDATE(), GETDATE())
+                  `);
+              } catch (itemErr) {
+                console.error(`❌ Failed to create approval_item for ${item.nomenclature}:`, itemErr.message);
+              }
             }
+          } else {
+            console.warn(`⚠️ No stock_issuance_items found for request ${requestId} - approval_items not created`);
           }
 
           console.log(`✅ Created approval record ${approvalId} for request ${requestId}, assigned to ${approverId}`);
