@@ -795,6 +795,52 @@ router.post('/items', requireAuth, async (req, res) => {
       }
 
       await transaction.commit();
+      
+      // After items are added, create approval_items for any existing request_approvals that don't have them yet
+      try {
+        const approvalResult = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, request_id)
+          .query(`
+            SELECT ra.id as approval_id 
+            FROM request_approvals ra 
+            WHERE ra.request_id = @requestId 
+            AND NOT EXISTS (SELECT 1 FROM approval_items ai WHERE ai.request_approval_id = ra.id)
+          `);
+        
+        if (approvalResult.recordset.length > 0) {
+          const approvalId = approvalResult.recordset[0].approval_id;
+          
+          // Get the items we just inserted
+          const insertedItems = await pool.request()
+            .input('requestId', sql.UniqueIdentifier, request_id)
+            .query(`SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity FROM stock_issuance_items WHERE request_id = @requestId`);
+          
+          for (const item of insertedItems.recordset) {
+            try {
+              await pool.request()
+                .input('approvalId', sql.UniqueIdentifier, approvalId)
+                .input('itemId', sql.UniqueIdentifier, item.id)
+                .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id || null)
+                .input('nomenclature', sql.NVarChar(500), item.nomenclature)
+                .input('customName', sql.NVarChar(500), item.custom_item_name)
+                .input('qty', sql.Int, item.requested_quantity)
+                .query(`
+                  IF NOT EXISTS (SELECT 1 FROM approval_items WHERE id = @itemId)
+                  INSERT INTO approval_items 
+                    (id, request_approval_id, item_master_id, nomenclature, custom_item_name, requested_quantity, decision_type, created_at, updated_at)
+                  VALUES 
+                    (@itemId, @approvalId, @itemMasterId, @nomenclature, @customName, @qty, 'PENDING', GETDATE(), GETDATE())
+                `);
+            } catch (itemErr) {
+              console.error(`❌ Failed to create approval_item for ${item.nomenclature}:`, itemErr.message);
+            }
+          }
+          console.log(`✅ Created ${insertedItems.recordset.length} approval_items for request ${request_id}`);
+        }
+      } catch (approvalErr) {
+        console.error('❌ Failed to create approval_items after item submission:', approvalErr.message);
+      }
+      
       res.status(201).json({ success: true, items_count: items.length });
     } catch (err) {
       await transaction.rollback();
