@@ -733,7 +733,9 @@ router.get('/my-approvals', async (req, res) => {
           )
           ${status === 'pending' ? `OR (ra.current_status = 'pending' AND NOT EXISTS (
             SELECT 1 FROM approval_items ai2 WHERE ai2.request_approval_id = ra.id
-          ))` : ''}
+          ))
+          OR ra.current_status = 'forwarded_to_admin'
+          OR ra.current_status = 'forwarded_to_supervisor'` : ''}
         )` : ''}
         ORDER BY ra.submitted_date DESC
       `);
