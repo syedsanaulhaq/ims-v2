@@ -168,7 +168,7 @@ const ItemMasterManagement = () => {
       manufacturer: item.manufacturer || '',
       nomenclature: item.nomenclature,
       category_id: item.category_id,
-      sub_category_id: item.sub_category_id,
+      sub_category_id: item.sub_category_id || '',
       unit: item.unit,
       specifications: item.specifications || '',
       description: item.description || '',
@@ -201,7 +201,7 @@ const ItemMasterManagement = () => {
         manufacturer: formData.manufacturer || null,
         nomenclature: formData.nomenclature,
         category_id: formData.category_id,
-        sub_category_id: formData.sub_category_id,
+        sub_category_id: formData.sub_category_id || null,
         unit: formData.unit,
         specifications: formData.specifications || null,
         description: formData.description || null,
@@ -708,16 +708,15 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sub-Category *
+                    Sub-Category
                   </label>
                   <select
-                    required
                     value={formData.sub_category_id}
                     onChange={(e) => setFormData({...formData, sub_category_id: e.target.value})}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     disabled={!formData.category_id}
                   >
-                    <option value="">Select Sub-Category</option>
+                    <option value="">Select Sub-Category (Optional)</option>
                     {filteredSubCategories.map(subCat => (
                       <option key={subCat.id} value={subCat.id}>
                         {subCat.sub_category_name}
