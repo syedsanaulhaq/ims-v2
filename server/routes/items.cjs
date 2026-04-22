@@ -233,45 +233,15 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
         }
 
         if (existingItem) {
-          itemId = existingItem.id;
           action = 'updated';
 
+          // Delete the existing record then re-insert fresh
           await pool.request()
-            .input('id', sql.UniqueIdentifier, itemId)
-            .input('item_code', sql.NVarChar, trimmedItemCode)
-            .input('nomenclature', sql.NVarChar, row.nomenclature.trim())
-            .input('manufacturer', sql.NVarChar, row.manufacturer?.trim() || null)
-            .input('unit', sql.NVarChar, row.unit?.trim() || null)
-            .input('specifications', sql.NVarChar, row.specifications?.trim() || null)
-            .input('description', sql.NVarChar, row.description?.trim() || null)
-            .input('category_id', sql.UniqueIdentifier, category_id)
-            .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
-            .input('status', sql.NVarChar, row.status?.trim() || 'Active')
-            .input('minimum_stock_level', sql.Int, row.minimum_stock_level ? parseInt(row.minimum_stock_level) : null)
-            .input('maximum_stock_level', sql.Int, row.maximum_stock_level ? parseInt(row.maximum_stock_level) : null)
-            .input('reorder_point', sql.Int, row.reorder_level ? parseInt(row.reorder_level) : null)
-            .input('updated_at', sql.DateTime, now)
-            .query(`
-              UPDATE item_masters
-              SET item_code = @item_code,
-                  nomenclature = @nomenclature,
-                  manufacturer = @manufacturer,
-                  unit = @unit,
-                  specifications = @specifications,
-                  description = @description,
-                  category_id = @category_id,
-                  sub_category_id = @sub_category_id,
-                  status = @status,
-                  minimum_stock_level = @minimum_stock_level,
-                  maximum_stock_level = @maximum_stock_level,
-                  reorder_point = @reorder_point,
-                  is_deleted = 0,
-                  deleted_at = NULL,
-                  deleted_by = NULL,
-                  updated_at = @updated_at
-              WHERE id = @id
-            `);
-        } else {
+            .input('old_id', sql.UniqueIdentifier, existingItem.id)
+            .query(`DELETE FROM item_masters WHERE id = @old_id`);
+        }
+
+        {
           await pool.request()
             .input('id', sql.UniqueIdentifier, itemId)
             .input('item_code', sql.NVarChar, trimmedItemCode)
