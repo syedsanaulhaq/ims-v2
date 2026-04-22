@@ -502,8 +502,8 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
             <p className="text-sm text-gray-600">
               Showing {items.filter(item => {
                 const matchesSearch = searchTerm === '' || 
-                  item.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  (item.item_code ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  (item.nomenclature ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                   (item.specifications && item.specifications.toLowerCase().includes(searchTerm.toLowerCase()));
                 const matchesCategory = categoryFilter === 'all' || item.category_name === categoryFilter;
                 const matchesSubCategory = subCategoryFilter === 'all' || item.sub_category_name === subCategoryFilter;
@@ -560,8 +560,8 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
                 {items
                   .filter(item => {
                     const matchesSearch = searchTerm === '' || 
-                      item.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      (item.item_code ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      (item.nomenclature ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                       (item.specifications && item.specifications.toLowerCase().includes(searchTerm.toLowerCase()));
                     const matchesCategory = categoryFilter === 'all' || item.category_name === categoryFilter;
                     const matchesSubCategory = subCategoryFilter === 'all' || item.sub_category_name === subCategoryFilter;
