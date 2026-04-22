@@ -950,13 +950,17 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
                 <div className="mt-4 space-y-3">
                   <div className="bg-green-50 border border-green-200 rounded-md p-4">
                     <h4 className="font-semibold text-green-900 mb-2">
-                      ✅ Successfully imported: {uploadResult.success.length} items
+                      ✅ Import complete: {uploadResult.success.length} successful rows
                     </h4>
+                    <div className="text-sm text-green-800 space-y-1">
+                      <div>Added: {uploadResult.created?.length || 0}</div>
+                      <div>Updated by item code: {uploadResult.updated?.length || 0}</div>
+                    </div>
                     {uploadResult.success.length > 0 && uploadResult.success.length <= 10 && (
                       <ul className="text-sm text-green-800 space-y-1 mt-2">
                         {uploadResult.success.map((item: any, idx: number) => (
                           <li key={idx}>
-                            Row {item.row}: {item.nomenclature} ({item.item_code})
+                            Row {item.row}: {item.nomenclature} ({item.item_code}) - {item.action === 'updated' ? 'updated' : 'added'}
                           </li>
                         ))}
                       </ul>

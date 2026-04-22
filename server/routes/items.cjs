@@ -158,6 +158,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
     const pool = getPool();
     const results = {
       success: [],
+      created: [],
+      updated: [],
       errors: [],
       total: records.length
     };
@@ -211,61 +213,111 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
           }
         }
 
-        // Check for duplicate item_code if provided
-        if (row.item_code && row.item_code.trim()) {
-          const existingItem = await pool.request()
-            .input('item_code', sql.NVarChar, row.item_code.trim())
-            .query('SELECT id FROM item_masters WHERE item_code = @item_code');
-          
-          if (existingItem.recordset.length > 0) {
-            results.errors.push({
-              row: i + 2,
-              error: `Duplicate item_code: ${row.item_code}`,
-              data: row
-            });
-            continue;
-          }
+        const trimmedItemCode = row.item_code?.trim() || null;
+        const now = new Date();
+        let itemId = uuidv4();
+        let action = 'created';
+
+        // Upsert by item_code when provided.
+        let existingItem = null;
+        if (trimmedItemCode) {
+          const existingItemResult = await pool.request()
+            .input('item_code', sql.NVarChar, trimmedItemCode)
+            .query(`
+              SELECT id, is_deleted
+              FROM item_masters
+              WHERE item_code = @item_code
+            `);
+
+          existingItem = existingItemResult.recordset[0] || null;
         }
 
-        // Insert the item
-        const itemId = uuidv4();
-        await pool.request()
-          .input('id', sql.UniqueIdentifier, itemId)
-          .input('item_code', sql.NVarChar, row.item_code?.trim() || null)
-          .input('nomenclature', sql.NVarChar, row.nomenclature.trim())
-          .input('manufacturer', sql.NVarChar, row.manufacturer?.trim() || null)
-          .input('unit', sql.NVarChar, row.unit?.trim() || null)
-          .input('specifications', sql.NVarChar, row.specifications?.trim() || null)
-          .input('description', sql.NVarChar, row.description?.trim() || null)
-          .input('category_id', sql.UniqueIdentifier, category_id)
-          .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
-          .input('status', sql.NVarChar, row.status?.trim() || 'Active')
-          .input('minimum_stock_level', sql.Int, row.minimum_stock_level ? parseInt(row.minimum_stock_level) : null)
-          .input('maximum_stock_level', sql.Int, row.maximum_stock_level ? parseInt(row.maximum_stock_level) : null)
-          .input('reorder_point', sql.Int, row.reorder_level ? parseInt(row.reorder_level) : null)
-          .input('created_at', sql.DateTime, new Date())
-          .input('updated_at', sql.DateTime, new Date())
-          .query(`
-            INSERT INTO item_masters (
-              id, item_code, nomenclature, manufacturer, unit, specifications, description,
-              category_id, sub_category_id, status,
-              minimum_stock_level, maximum_stock_level, reorder_point,
-              created_at, updated_at
-            )
-            VALUES (
-              @id, @item_code, @nomenclature, @manufacturer, @unit, @specifications, @description,
-              @category_id, @sub_category_id, @status,
-              @minimum_stock_level, @maximum_stock_level, @reorder_point,
-              @created_at, @updated_at
-            )
-          `);
+        if (existingItem) {
+          itemId = existingItem.id;
+          action = 'updated';
 
-        results.success.push({
+          await pool.request()
+            .input('id', sql.UniqueIdentifier, itemId)
+            .input('item_code', sql.NVarChar, trimmedItemCode)
+            .input('nomenclature', sql.NVarChar, row.nomenclature.trim())
+            .input('manufacturer', sql.NVarChar, row.manufacturer?.trim() || null)
+            .input('unit', sql.NVarChar, row.unit?.trim() || null)
+            .input('specifications', sql.NVarChar, row.specifications?.trim() || null)
+            .input('description', sql.NVarChar, row.description?.trim() || null)
+            .input('category_id', sql.UniqueIdentifier, category_id)
+            .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
+            .input('status', sql.NVarChar, row.status?.trim() || 'Active')
+            .input('minimum_stock_level', sql.Int, row.minimum_stock_level ? parseInt(row.minimum_stock_level) : null)
+            .input('maximum_stock_level', sql.Int, row.maximum_stock_level ? parseInt(row.maximum_stock_level) : null)
+            .input('reorder_point', sql.Int, row.reorder_level ? parseInt(row.reorder_level) : null)
+            .input('updated_at', sql.DateTime, now)
+            .query(`
+              UPDATE item_masters
+              SET item_code = @item_code,
+                  nomenclature = @nomenclature,
+                  manufacturer = @manufacturer,
+                  unit = @unit,
+                  specifications = @specifications,
+                  description = @description,
+                  category_id = @category_id,
+                  sub_category_id = @sub_category_id,
+                  status = @status,
+                  minimum_stock_level = @minimum_stock_level,
+                  maximum_stock_level = @maximum_stock_level,
+                  reorder_point = @reorder_point,
+                  is_deleted = 0,
+                  deleted_at = NULL,
+                  deleted_by = NULL,
+                  updated_at = @updated_at
+              WHERE id = @id
+            `);
+        } else {
+          await pool.request()
+            .input('id', sql.UniqueIdentifier, itemId)
+            .input('item_code', sql.NVarChar, trimmedItemCode)
+            .input('nomenclature', sql.NVarChar, row.nomenclature.trim())
+            .input('manufacturer', sql.NVarChar, row.manufacturer?.trim() || null)
+            .input('unit', sql.NVarChar, row.unit?.trim() || null)
+            .input('specifications', sql.NVarChar, row.specifications?.trim() || null)
+            .input('description', sql.NVarChar, row.description?.trim() || null)
+            .input('category_id', sql.UniqueIdentifier, category_id)
+            .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
+            .input('status', sql.NVarChar, row.status?.trim() || 'Active')
+            .input('minimum_stock_level', sql.Int, row.minimum_stock_level ? parseInt(row.minimum_stock_level) : null)
+            .input('maximum_stock_level', sql.Int, row.maximum_stock_level ? parseInt(row.maximum_stock_level) : null)
+            .input('reorder_point', sql.Int, row.reorder_level ? parseInt(row.reorder_level) : null)
+            .input('created_at', sql.DateTime, now)
+            .input('updated_at', sql.DateTime, now)
+            .query(`
+              INSERT INTO item_masters (
+                id, item_code, nomenclature, manufacturer, unit, specifications, description,
+                category_id, sub_category_id, status,
+                minimum_stock_level, maximum_stock_level, reorder_point,
+                created_at, updated_at
+              )
+              VALUES (
+                @id, @item_code, @nomenclature, @manufacturer, @unit, @specifications, @description,
+                @category_id, @sub_category_id, @status,
+                @minimum_stock_level, @maximum_stock_level, @reorder_point,
+                @created_at, @updated_at
+              )
+            `);
+        }
+
+        const successEntry = {
           row: i + 2,
+          action,
           item_code: row.item_code || 'N/A',
           nomenclature: row.nomenclature,
           itemId
-        });
+        };
+
+        results.success.push(successEntry);
+        if (action === 'updated') {
+          results.updated.push(successEntry);
+        } else {
+          results.created.push(successEntry);
+        }
 
       } catch (error) {
         console.error(`❌ Error processing row ${i + 2}:`, error);
@@ -281,7 +333,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Processed ${results.total} rows: ${results.success.length} successful, ${results.errors.length} errors`,
+      message: `Processed ${results.total} rows: ${results.created.length} created, ${results.updated.length} updated, ${results.errors.length} errors`,
       results
     });
 
