@@ -331,6 +331,7 @@ function App() {
                 }>
                   <Route index element={<StockIssuance />} />
                   <Route path="dashboard" element={<StockIssuanceDashboard />} />
+                  <Route path=":requestId" element={<RequestDetailsPage />} />
                   <Route path="processing" element={<StockIssuanceProcessing />} />
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="edit/:id" element={<StockIssuancePersonal />} />
