@@ -38,9 +38,20 @@ window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<R
     url = url.replace('http://localhost:3001', BASE_URL);
     console.log('🔄 Fetch URL rewritten (absolute):', url);
   }
+
+  // Ensure session cookies are sent to backend API unless explicitly overridden.
+  // This prevents accidental 401s on protected routes when callers omit credentials.
+  let requestInit = init;
+  const isBackendCall = typeof url === 'string' && url.startsWith(BASE_URL);
+  if (isBackendCall && (!requestInit || requestInit.credentials === undefined)) {
+    requestInit = {
+      ...(requestInit || {}),
+      credentials: 'include',
+    };
+  }
   
   // Call original fetch with modified URL
-  return originalFetch(url, init);
+  return originalFetch(url, requestInit);
 };
 
 console.log('✅ Global fetch wrapper initialized with base URL:', BASE_URL);

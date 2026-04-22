@@ -122,7 +122,9 @@ export function StockIssuanceDashboard() {
       console.log('🔄 Loading stock issuance dashboard data...');
       
       // Try direct API call first
-      const directResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`);
+      const directResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
+        credentials: 'include',
+      });
       if (!directResponse.ok) {
         throw new Error(`API request failed: ${directResponse.status}`);
       }
@@ -254,6 +256,7 @@ export function StockIssuanceDashboard() {
     try {
       const response = await fetch(`/api/stock-issuance/requests/${requestToFinalize.id}/finalize`, {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
