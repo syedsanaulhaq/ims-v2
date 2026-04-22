@@ -371,7 +371,7 @@ router.get('/opening-balance', async (req, res) => {
         im.item_code,
         im.nomenclature,
         im.unit,
-        ic.name AS category_name,
+        c.category_name AS category_name,
         obe.quantity_received,
         obe.quantity_already_issued,
         (obe.quantity_received - obe.quantity_already_issued) AS quantity_available,
@@ -386,7 +386,7 @@ router.get('/opening-balance', async (req, res) => {
         fy.year_label
       FROM opening_balance_entries obe
       JOIN item_masters im ON obe.item_master_id = im.id
-      LEFT JOIN item_categories ic ON im.category_id = ic.id
+      LEFT JOIN categories c ON im.category_id = c.id
       LEFT JOIN financial_years fy ON obe.financial_year = fy.year_code
       WHERE obe.status = 'ACTIVE'
     `;
@@ -671,7 +671,7 @@ router.get('/yearwise-inventory', async (req, res) => {
         im.item_code,
         im.nomenclature,
         im.unit,
-        ic.name AS category_name,
+        c.category_name AS category_name,
         
         -- Opening balance for this year (closing of previous year)
         ISNULL((
@@ -707,7 +707,7 @@ router.get('/yearwise-inventory', async (req, res) => {
         
       FROM opening_balance_entries obe
       JOIN item_masters im ON obe.item_master_id = im.id
-      LEFT JOIN item_categories ic ON im.category_id = ic.id
+      LEFT JOIN categories c ON im.category_id = c.id
       LEFT JOIN financial_years fy ON obe.financial_year = fy.year_code
       WHERE obe.status = 'ACTIVE'
     `;
@@ -728,7 +728,7 @@ router.get('/yearwise-inventory', async (req, res) => {
         im.item_code,
         im.nomenclature,
         im.unit,
-        ic.name
+        c.category_name
       ORDER BY obe.financial_year DESC, im.nomenclature
     `;
     
