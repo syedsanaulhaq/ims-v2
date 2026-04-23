@@ -1006,7 +1006,63 @@ router.get('/stock-breakdown', async (req, res) => {
     const { search, category_id, low_stock, show_zero_stock } = req.query;
 
     let query = `
-      SELECT 
+      WITH sqb AS (
+        SELECT
+          im.id AS item_master_id,
+          im.nomenclature,
+          im.item_code,
+          im.unit,
+          im.specifications,
+          c.id AS category_id,
+          c.category_name,
+          sc.id AS sub_category_id,
+          sc.sub_category_name,
+          ISNULL(SUM(CASE
+            WHEN sa.acquisition_number LIKE 'OPB-%'
+            THEN ISNULL(sa.quantity_received, 0) - ISNULL(sa.quantity_issued, 0)
+            ELSE 0
+          END), 0) AS opening_balance_quantity,
+          CASE
+            WHEN COUNT(sa.id) > 0 THEN ISNULL(SUM(CASE
+              WHEN sa.acquisition_number NOT LIKE 'OPB-%' AND sa.acquisition_number IS NOT NULL
+              THEN ISNULL(sa.quantity_received, 0) - ISNULL(sa.quantity_issued, 0)
+              ELSE 0
+            END), 0)
+            ELSE ISNULL(cis.current_quantity, 0)
+          END AS new_acquisition_quantity,
+          CASE
+            WHEN COUNT(sa.id) > 0 THEN ISNULL(SUM(ISNULL(sa.quantity_received, 0) - ISNULL(sa.quantity_issued, 0)), 0)
+            ELSE ISNULL(cis.current_quantity, 0)
+          END AS total_quantity,
+          ISNULL(SUM(ISNULL(sa.quantity_received, 0)), 0) AS total_received,
+          ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0) AS total_issued,
+          CASE
+            WHEN MAX(sa.updated_at) > cis.last_updated OR cis.last_updated IS NULL
+            THEN MAX(sa.updated_at)
+            ELSE cis.last_updated
+          END AS last_transaction_date,
+          COUNT(sa.id) AS acquisition_count,
+          COUNT(CASE WHEN sa.acquisition_number LIKE 'OPB-%' THEN 1 END) AS opening_balance_count,
+          COUNT(CASE WHEN sa.acquisition_number NOT LIKE 'OPB-%' AND sa.acquisition_number IS NOT NULL THEN 1 END) AS new_acquisition_count
+        FROM item_masters im
+        LEFT JOIN categories c ON im.category_id = c.id
+        LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
+        LEFT JOIN stock_acquisitions sa ON im.id = sa.item_master_id
+        LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+        GROUP BY
+          im.id,
+          im.nomenclature,
+          im.item_code,
+          im.unit,
+          im.specifications,
+          c.id,
+          c.category_name,
+          sc.id,
+          sc.sub_category_name,
+          cis.current_quantity,
+          cis.last_updated
+      )
+      SELECT
         sqb.item_master_id,
         sqb.nomenclature,
         sqb.item_code,
@@ -1025,7 +1081,7 @@ router.get('/stock-breakdown', async (req, res) => {
         sqb.acquisition_count,
         sqb.opening_balance_count,
         sqb.new_acquisition_count
-      FROM vw_stock_quantity_breakdown sqb
+      FROM sqb
       WHERE 1=1
     `;
 
