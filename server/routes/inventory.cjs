@@ -977,7 +977,7 @@ router.get('/current-stock/summary', async (req, res) => {
         SUM(cis.current_quantity) as total_quantity,
         COUNT(DISTINCT c.id) as total_categories,
         (SELECT COUNT(*) FROM current_inventory_stock WHERE current_quantity < 10) as low_stock_items,
-        (SELECT COUNT(*) FROM stock_acquisitions WHERE status = 'completed') as total_acquisitions,
+        (SELECT COUNT(*) FROM stock_acquisitions WHERE UPPER(ISNULL(status, '')) = 'COMPLETED') as total_acquisitions,
         MAX(cis.last_updated) as last_updated
       FROM current_inventory_stock cis
       INNER JOIN item_masters im ON cis.item_master_id = im.id
@@ -1152,8 +1152,8 @@ router.get('/current-stock/:id/history', async (req, res) => {
         INNER JOIN purchase_orders po ON d.po_id = po.id
         LEFT JOIN stock_acquisitions sa ON sa.delivery_id = d.id
         WHERE di.item_master_id = @itemId
-          AND d.delivery_status = 'completed'
-          AND di.quality_status = 'good'
+          AND UPPER(ISNULL(d.delivery_status, '')) = 'COMPLETED'
+          AND UPPER(ISNULL(di.quality_status, 'GOOD')) = 'GOOD'
         ORDER BY d.receiving_date DESC
       `);
 
