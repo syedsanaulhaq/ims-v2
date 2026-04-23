@@ -901,23 +901,22 @@ export default function OpeningBalanceEntry() {
                     <Button type="button" variant="outline" onClick={downloadSampleCsv}>
                       Download Sample CSV
                     </Button>
-                    <input
-                      id="opening-balance-csv-upload"
-                      type="file"
-                      accept=".csv,text/csv"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleCsvImport(file);
-                        e.currentTarget.value = '';
-                      }}
-                    />
-                    <label
-                      htmlFor="opening-balance-csv-upload"
-                      className="cursor-pointer px-4 py-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium inline-flex items-center justify-center"
-                    >
-                      Upload CSV
-                    </label>
+                    <div className="relative inline-flex">
+                      <input
+                        id="opening-balance-csv-upload"
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleCsvImport(file);
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                      <span className="px-4 py-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium inline-flex items-center justify-center">
+                        Upload CSV
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <pre className="mt-3 text-xs bg-gray-50 border rounded p-2 overflow-x-auto">{sampleCsv}</pre>
