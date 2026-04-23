@@ -66,6 +66,30 @@ const handleDeliveryUpload = (req, res, next) => {
   });
 };
 
+const formatDateOnly = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const toLocalMidday = (dateOnly) => {
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+};
+
+const isDateBefore = (leftDateOnly, rightDateOnly) => {
+  return toLocalMidday(leftDateOnly) < toLocalMidday(rightDateOnly);
+};
+
 // GET /api/deliveries - List all deliveries
 router.get('/', async (req, res) => {
   try {
@@ -611,10 +635,15 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
       notes,
       items: itemsJson
     } = bodyData;
+
+    const deliveryDateOnly = formatDateOnly(delivery_date);
     
     // Validate required fields
     if (!delivery_date) {
       return res.status(400).json({ error: 'Delivery date is required' });
+    }
+    if (!deliveryDateOnly) {
+      return res.status(400).json({ error: 'Invalid delivery date format' });
     }
     if (!delivery_personnel) {
       return res.status(400).json({ error: 'Delivery personnel is required' });
@@ -645,6 +674,34 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
     const challanFilePath = req.file ? `/uploads/challans/${req.file.filename}` : null;
 
     const pool = getPool();
+
+    // Validate go-live / opening-balance rules before saving delivery.
+    const goLiveCheck = await pool.request().query(`
+      SELECT 
+        (SELECT setting_value FROM system_settings WHERE setting_key = 'go_live_date') AS go_live_date,
+        (SELECT setting_value FROM system_settings WHERE setting_key = 'opening_balance_completed') AS opening_balance_completed
+    `);
+
+    const goLiveStatus = goLiveCheck.recordset[0] || {};
+    const goLiveDateOnly = formatDateOnly(goLiveStatus.go_live_date);
+
+    if (goLiveStatus.opening_balance_completed !== 'true') {
+      return res.status(400).json({
+        error: 'Opening Balance Required',
+        details: 'Opening balance must be entered before creating deliveries. Please complete the Opening Balance Entry first.',
+        code: 'OPENING_BALANCE_REQUIRED'
+      });
+    }
+
+    if (goLiveDateOnly && isDateBefore(deliveryDateOnly, goLiveDateOnly)) {
+      return res.status(400).json({
+        error: 'Invalid Delivery Date',
+        details: `Delivery date (${deliveryDateOnly}) cannot be before the system go-live date (${goLiveDateOnly}).`,
+        code: 'DELIVERY_DATE_BEFORE_GO_LIVE',
+        go_live_date: goLiveDateOnly
+      });
+    }
+
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
 
@@ -689,7 +746,7 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
         .input('po_id', sql.UniqueIdentifier, poId)
         .input('po_number', sql.NVarChar, po_number)
         .input('tender_id', sql.UniqueIdentifier, tender_id)
-        .input('delivery_date', sql.DateTime2, delivery_date || new Date())
+        .input('delivery_date', sql.DateTime2, toLocalMidday(deliveryDateOnly))
         .input('delivery_personnel', sql.NVarChar, delivery_personnel || null)
         .input('delivery_chalan', sql.NVarChar, delivery_chalan || null)
         .input('chalan_file_path', sql.NVarChar, challanFilePath)
@@ -798,6 +855,7 @@ router.post('/:id/receive', async (req, res) => {
     
     const bodyData = req.body || {};
     const { received_by, receiving_date, notes } = bodyData;
+    const receivingDateOnly = formatDateOnly(receiving_date || new Date());
 
     if (!received_by) {
       return res.status(400).json({ error: 'received_by is required' });
@@ -826,17 +884,14 @@ router.post('/:id/receive', async (req, res) => {
     }
     
     // Check if delivery/receiving date is before go-live date
-    const effectiveReceivingDate = receiving_date ? new Date(receiving_date) : new Date();
-    if (goLiveStatus.go_live_date) {
-      const goLiveDate = new Date(goLiveStatus.go_live_date);
-      if (effectiveReceivingDate < goLiveDate) {
+    const goLiveDateOnly = formatDateOnly(goLiveStatus.go_live_date);
+    if (goLiveDateOnly && receivingDateOnly && isDateBefore(receivingDateOnly, goLiveDateOnly)) {
         return res.status(400).json({ 
           error: 'Invalid Receiving Date',
-          details: `Receiving date (${effectiveReceivingDate.toISOString().split('T')[0]}) cannot be before the system go-live date (${goLiveStatus.go_live_date}). The go-live date was set when the Opening Balance was entered.`,
+          details: `Receiving date (${receivingDateOnly}) cannot be before the system go-live date (${goLiveDateOnly}). The go-live date was set when the Opening Balance was entered.`,
           code: 'DATE_BEFORE_GO_LIVE',
-          go_live_date: goLiveStatus.go_live_date
+          go_live_date: goLiveDateOnly
         });
-      }
     }
     // ============================================================
 
@@ -862,17 +917,14 @@ router.post('/:id/receive', async (req, res) => {
     }
     
     // Also check if delivery_date is before go-live date
-    if (goLiveStatus.go_live_date && deliveryCheck.recordset[0].delivery_date) {
-      const deliveryDate = new Date(deliveryCheck.recordset[0].delivery_date);
-      const goLiveDate = new Date(goLiveStatus.go_live_date);
-      if (deliveryDate < goLiveDate) {
+    const deliveryDateOnly = formatDateOnly(deliveryCheck.recordset[0].delivery_date);
+    if (goLiveDateOnly && deliveryDateOnly && isDateBefore(deliveryDateOnly, goLiveDateOnly)) {
         return res.status(400).json({ 
           error: 'Invalid Delivery Date',
-          details: `This delivery was created with a date (${deliveryDate.toISOString().split('T')[0]}) before the system go-live date (${goLiveStatus.go_live_date}). Please update the delivery date first.`,
+          details: `This delivery was created with a date (${deliveryDateOnly}) before the system go-live date (${goLiveDateOnly}). Please update the delivery date first.`,
           code: 'DELIVERY_DATE_BEFORE_GO_LIVE',
-          go_live_date: goLiveStatus.go_live_date
+          go_live_date: goLiveDateOnly
         });
-      }
     }
 
     // Call stored procedure to create stock transactions
