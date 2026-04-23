@@ -41,7 +41,7 @@ interface PurchaseOrder {
 const ReceiveDelivery: React.FC = () => {
   const { poId } = useParams<{ poId: string }>();
   const navigate = useNavigate();
-  const { user } = useSession();
+  const { getCurrentUserId } = useSession();
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -211,15 +211,34 @@ const ReceiveDelivery: React.FC = () => {
       setSuccess(`Delivery created successfully: ${createData.delivery_number}`);
 
       // Confirm receipt to trigger stock transaction
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) {
+        throw new Error('Current user session is missing. Please log in again and retry.');
+      }
+
       const receiveResponse = await fetch(`${getApiBaseUrl()}/deliveries/${deliveryId}/receive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          received_by: user?.user_id,
-          receiving_date: new Date().toISOString()
+          received_by: currentUserId,
+          receiving_date: new Date().toISOString(),
+          notes
         })
       });
-      if (!receiveResponse.ok) throw new Error('Failed to receive delivery');
+
+      if (!receiveResponse.ok) {
+        let receiveError = 'Failed to receive delivery';
+
+        try {
+          const errorData = await receiveResponse.json();
+          receiveError = errorData.details || errorData.error || receiveError;
+        } catch {
+          // Fall back to the default message when the response is not JSON.
+        }
+
+        throw new Error(receiveError);
+      }
+
       const receiveData = await receiveResponse.json();
 
       setSuccess(
@@ -235,7 +254,7 @@ const ReceiveDelivery: React.FC = () => {
 
     } catch (err: any) {
       console.error('Error creating delivery:', err);
-      setError(err.response?.data?.error || 'Failed to create delivery');
+      setError(err.message || 'Failed to create delivery');
     } finally {
       setSubmitting(false);
     }
