@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Check, X } from 'lucide-react';
+import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface Tender {
   id: number;
@@ -61,6 +62,7 @@ export default function CreatePurchaseOrder() {
   const [poDetail, setPoDetail] = useState<string>('It is submitted that the following items may kindly be provided to this Commission Secretariat at the earliest to meet the official requirements as per annual tender rates. Furthermore, the supplier may be requested to furnish the corresponding bill/invoice to this office after delivery of the items, so that necessary arrangements for payment can be made in accordance with the prescribed financial rules and procedures.');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
     fetchTenders();
@@ -83,7 +85,7 @@ export default function CreatePurchaseOrder() {
 
   const fetchTenderDetails = async (tenderId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
+      const response = await fetch(`${apiBaseUrl}/tenders/${tenderId}`);
       if (!response.ok) throw new Error('Failed to fetch tender details');
       const data = await response.json();
       setSelectedTender(data);
@@ -96,7 +98,7 @@ export default function CreatePurchaseOrder() {
     return new Promise<void>((resolve) => {
       (async () => {
         try {
-          const response = await fetch('http://localhost:3001/api/vendors');
+          const response = await fetch(`${apiBaseUrl}/vendors`);
           if (!response.ok) throw new Error('Failed to fetch vendors');
           let data = await response.json();
           
@@ -141,7 +143,7 @@ export default function CreatePurchaseOrder() {
 
   const fetchTenders = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/tenders');
+      const response = await fetch(`${apiBaseUrl}/tenders`);
       if (!response.ok) throw new Error('Failed to fetch tenders');
       const data = await response.json();
       setTenders(data.filter((t: Tender) => t.id)); // Filter valid tenders
@@ -154,7 +156,7 @@ export default function CreatePurchaseOrder() {
   const fetchTenderItems = async (tenderId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/items`);
+      const response = await fetch(`${apiBaseUrl}/tenders/${tenderId}/items`);
       if (!response.ok) throw new Error('Failed to fetch tender items');
       const data = await response.json();
       console.log('📦 Raw tender items from API:', data);
@@ -296,7 +298,7 @@ export default function CreatePurchaseOrder() {
         itemSpecifications: itemSpecifications // PO-specific specifications
       };
       console.log('🚀 SENDING PO CREATION REQUEST:', payload);
-      const response = await fetch('http://localhost:3001/api/purchase-orders', {
+      const response = await fetch(`${apiBaseUrl}/purchase-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
