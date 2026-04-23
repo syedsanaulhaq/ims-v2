@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,6 @@ interface OpeningBalanceItem {
 export default function OpeningBalanceEntry() {
   const navigate = useNavigate();
   const location = useLocation();
-  const csvFileInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -903,18 +902,20 @@ export default function OpeningBalanceEntry() {
                       Download Sample CSV
                     </Button>
                     <input
-                      ref={csvFileInputRef}
+                      id="opening-balance-csv-upload"
                       type="file"
-                      accept=".csv"
-                      className="hidden"
+                      accept=".csv,text/csv"
+                      className="sr-only"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) handleCsvImport(file);
                         e.currentTarget.value = '';
                       }}
                     />
-                    <Button type="button" variant="outline" onClick={() => csvFileInputRef.current?.click()}>
-                      Upload CSV
+                    <Button type="button" variant="outline" asChild>
+                      <label htmlFor="opening-balance-csv-upload" className="cursor-pointer">
+                        Upload CSV
+                      </label>
                     </Button>
                   </div>
                 </div>
