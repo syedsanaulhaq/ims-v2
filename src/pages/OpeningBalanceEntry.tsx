@@ -905,18 +905,19 @@ export default function OpeningBalanceEntry() {
                       id="opening-balance-csv-upload"
                       type="file"
                       accept=".csv,text/csv"
-                      className="sr-only"
+                      className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) handleCsvImport(file);
                         e.currentTarget.value = '';
                       }}
                     />
-                    <Button type="button" variant="outline" asChild>
-                      <label htmlFor="opening-balance-csv-upload" className="cursor-pointer">
-                        Upload CSV
-                      </label>
-                    </Button>
+                    <label
+                      htmlFor="opening-balance-csv-upload"
+                      className="cursor-pointer px-4 py-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium inline-flex items-center justify-center"
+                    >
+                      Upload CSV
+                    </label>
                   </div>
                 </div>
                 <pre className="mt-3 text-xs bg-gray-50 border rounded p-2 overflow-x-auto">{sampleCsv}</pre>
