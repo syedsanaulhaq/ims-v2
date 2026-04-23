@@ -196,6 +196,32 @@ router.post('/opening-balance', async (req, res) => {
     try {
       await transaction.begin();
 
+      // Backward-compatibility: production may lag behind latest schema migrations.
+      const schemaFlagsResult = await transaction.request().query(`
+        SELECT
+          CASE WHEN EXISTS (
+            SELECT 1 FROM sys.columns
+            WHERE object_id = OBJECT_ID('opening_balance_entries')
+              AND name = 'financial_year'
+          ) THEN 1 ELSE 0 END AS opening_has_financial_year,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM sys.columns
+            WHERE object_id = OBJECT_ID('opening_balance_entries')
+              AND name = 'processed_to_stock'
+          ) THEN 1 ELSE 0 END AS opening_has_processed_to_stock,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM sys.columns
+            WHERE object_id = OBJECT_ID('stock_acquisitions')
+              AND name = 'financial_year'
+          ) THEN 1 ELSE 0 END AS stock_has_financial_year
+      `);
+
+      const schemaFlags = schemaFlagsResult.recordset[0] || {
+        opening_has_financial_year: 0,
+        opening_has_processed_to_stock: 0,
+        stock_has_financial_year: 0
+      };
+
       const createdEntries = [];
 
       // Get the financial year to use - from request or auto-detect
@@ -220,7 +246,7 @@ router.post('/opening-balance', async (req, res) => {
           .input('remarks', sql.NVarChar, remarks || null)
           .input('status', sql.NVarChar, entryStatus)
           .input('financial_year', sql.NVarChar, fyToUse)
-          .query(`
+          .query(schemaFlags.opening_has_financial_year ? `
             INSERT INTO opening_balance_entries (
               id, tender_id, tender_reference, tender_title, item_master_id,
               quantity_received, quantity_already_issued, unit_cost,
@@ -230,6 +256,17 @@ router.post('/opening-balance', async (req, res) => {
               @id, @tender_id, @tender_reference, @tender_title, @item_master_id,
               @quantity_received, @quantity_already_issued, @unit_cost,
               @source_type, @acquisition_date, @entered_by, @remarks, @status, @financial_year
+            )
+          ` : `
+            INSERT INTO opening_balance_entries (
+              id, tender_id, tender_reference, tender_title, item_master_id,
+              quantity_received, quantity_already_issued, unit_cost,
+              source_type, acquisition_date, entered_by, remarks, status
+            )
+            VALUES (
+              @id, @tender_id, @tender_reference, @tender_title, @item_master_id,
+              @quantity_received, @quantity_already_issued, @unit_cost,
+              @source_type, @acquisition_date, @entered_by, @remarks, @status
             )
           `);
 
@@ -248,7 +285,7 @@ router.post('/opening-balance', async (req, res) => {
           .input('processed_by', sql.NVarChar, entered_by)
           .input('notes', sql.NVarChar, `Opening Balance: ${finalReference}`)
           .input('financial_year', sql.NVarChar, fyToUse)
-          .query(`
+          .query(schemaFlags.stock_has_financial_year ? `
             INSERT INTO stock_acquisitions (
               id, acquisition_number, item_master_id,
               quantity_received, quantity_issued,
@@ -259,16 +296,29 @@ router.post('/opening-balance', async (req, res) => {
               @quantity_received, @quantity_issued,
               @unit_cost, @delivery_date, @processed_by, 'completed', @notes, @financial_year
             )
+          ` : `
+            INSERT INTO stock_acquisitions (
+              id, acquisition_number, item_master_id,
+              quantity_received, quantity_issued,
+              unit_cost, delivery_date, processed_by, status, notes
+            )
+            VALUES (
+              @acq_id, @acq_number, @item_master_id,
+              @quantity_received, @quantity_issued,
+              @unit_cost, @delivery_date, @processed_by, 'completed', @notes
+            )
           `);
 
         // Mark opening balance as processed
-        await transaction.request()
-          .input('entry_id', sql.UniqueIdentifier, entryId)
-          .query(`
-            UPDATE opening_balance_entries
-            SET processed_to_stock = 1
-            WHERE id = @entry_id
-          `);
+        if (schemaFlags.opening_has_processed_to_stock) {
+          await transaction.request()
+            .input('entry_id', sql.UniqueIdentifier, entryId)
+            .query(`
+              UPDATE opening_balance_entries
+              SET processed_to_stock = 1
+              WHERE id = @entry_id
+            `);
+        }
 
         // Update current_inventory_stock (this is what the inventory dashboard reads)
         const currentQty = item.quantity_received - (item.quantity_already_issued || 0);
