@@ -522,6 +522,96 @@ router.post('/:id/restore', async (req, res) => {
   }
 });
 
+// ============================================================================
+// POST /api/items-master/cleanup/remove-without-codes - Remove items without item_code
+// ============================================================================
+router.post('/cleanup/remove-without-codes', async (req, res) => {
+  try {
+    const pool = getPool();
+    const deletedBy = req.user?.id || null;
+
+    console.log('🧹 Starting cleanup: removing items without item_code...');
+
+    // Step 1: Find items without item_code
+    const itemsResult = await pool.request().query(`
+      SELECT id, nomenclature
+      FROM item_masters
+      WHERE (item_code IS NULL OR item_code = '' OR TRIM(item_code) = '')
+        AND is_deleted = 0
+    `);
+
+    if (itemsResult.recordset.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No items without item_code found',
+        removed: 0
+      });
+    }
+
+    const itemIds = itemsResult.recordset.map(item => `'${item.id}'`).join(',');
+
+    // Step 2: Check for dependencies
+    const dependenciesResult = await pool.request().query(`
+      SELECT 'purchase_order_items' as table_name, COUNT(*) as count
+      FROM purchase_order_items
+      WHERE item_id IN (${itemIds}) AND is_deleted = 0
+      UNION ALL
+      SELECT 'stock_acquisitions', COUNT(*)
+      FROM stock_acquisitions
+      WHERE item_id IN (${itemIds}) AND is_deleted = 0
+      UNION ALL
+      SELECT 'deliveries', COUNT(*)
+      FROM deliveries
+      WHERE item_id IN (${itemIds}) AND is_deleted = 0
+      UNION ALL
+      SELECT 'tender_items', COUNT(*)
+      FROM tender_items
+      WHERE item_id IN (${itemIds}) AND is_deleted = 0
+    `);
+
+    const hasDependencies = dependenciesResult.recordset.some(dep => dep.count > 0);
+    if (hasDependencies) {
+      const deps = dependenciesResult.recordset.filter(d => d.count > 0);
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete items with active dependencies',
+        dependencies: deps
+      });
+    }
+
+    // Step 3: Soft delete items without item_code
+    const deleteResult = await pool.request()
+      .input('deletedBy', sql.UniqueIdentifier, deletedBy)
+      .query(`
+        UPDATE item_masters
+        SET is_deleted = 1, 
+            deleted_at = GETDATE(),
+            deleted_by = @deletedBy
+        WHERE (item_code IS NULL OR item_code = '' OR TRIM(item_code) = '')
+          AND is_deleted = 0
+      `);
+
+    console.log(`✅ Soft-deleted ${deleteResult.rowsAffected[0]} items`);
+
+    res.json({
+      success: true,
+      message: `Successfully soft-deleted ${deleteResult.rowsAffected[0]} items without item_code`,
+      removed: deleteResult.rowsAffected[0],
+      items: itemsResult.recordset.map(item => ({
+        id: item.id,
+        nomenclature: item.nomenclature
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error cleaning up items without codes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cleanup items',
+      details: error.message
+    });
+  }
+});
+
 console.log('✅ Item Master Routes Loaded');
 
 module.exports = router;
