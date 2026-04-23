@@ -55,6 +55,7 @@ export default function CreatePurchaseOrder() {
   const [itemVendors, setItemVendors] = useState<{ [key: string]: string }>({});
   const [itemQuantities, setItemQuantities] = useState<{ [key: string]: number }>({});
   const [itemSpecifications, setItemSpecifications] = useState<{ [key: string]: string }>({});
+  const [itemSearchQuery, setItemSearchQuery] = useState<string>('');
   const [poDate, setPoDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [fileNumber, setFileNumber] = useState<string>('');
   const [poDetail, setPoDetail] = useState<string>('It is submitted that the following items may kindly be provided to this Commission Secretariat at the earliest to meet the official requirements as per annual tender rates. Furthermore, the supplier may be requested to furnish the corresponding bill/invoice to this office after delivery of the items, so that necessary arrangements for payment can be made in accordance with the prescribed financial rules and procedures.');
@@ -234,10 +235,18 @@ export default function CreatePurchaseOrder() {
   };
 
   const handleSelectAll = (checked: boolean) => {
+    const filteredItemIds = tenderItems
+      .filter((item) => (item.nomenclature || '').toLowerCase().includes(itemSearchQuery.toLowerCase().trim()))
+      .map((item) => item.id);
+
     if (checked) {
-      setSelectedItems(new Set(tenderItems.map(item => item.id)));
+      const newSelection = new Set(selectedItems);
+      filteredItemIds.forEach((id) => newSelection.add(id));
+      setSelectedItems(newSelection);
     } else {
-      setSelectedItems(new Set());
+      const newSelection = new Set(selectedItems);
+      filteredItemIds.forEach((id) => newSelection.delete(id));
+      setSelectedItems(newSelection);
     }
   };
 
@@ -329,6 +338,13 @@ export default function CreatePurchaseOrder() {
     return sum + (price * (item?.quantity || 1));
   }, 0);
 
+  const filteredTenderItems = tenderItems.filter((item) =>
+    (item.nomenclature || '').toLowerCase().includes(itemSearchQuery.toLowerCase().trim())
+  );
+  const filteredItemIds = filteredTenderItems.map((item) => item.id);
+  const selectedFilteredCount = filteredItemIds.filter((id) => selectedItems.has(id)).length;
+  const allFilteredSelected = filteredItemIds.length > 0 && selectedFilteredCount === filteredItemIds.length;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -403,7 +419,7 @@ export default function CreatePurchaseOrder() {
             <Card>
               <CardHeader>
                 <CardTitle>Step 2: Select Items</CardTitle>
-                <CardDescription>Choose items from this tender ({tenderItems.length} items)</CardDescription>
+                <CardDescription>Choose items from this tender ({filteredTenderItems.length} shown of {tenderItems.length})</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {loading && <p className="text-slate-600">Loading items...</p>}
@@ -414,6 +430,15 @@ export default function CreatePurchaseOrder() {
 
                 {!loading && tenderItems.length > 0 && (
                   <>
+                    <div className="max-w-md">
+                      <Input
+                        type="text"
+                        value={itemSearchQuery}
+                        onChange={(e) => setItemSearchQuery(e.target.value)}
+                        placeholder="Filter by item name..."
+                        className="border-slate-300"
+                      />
+                    </div>
                     {/* Debug: Log vendor state */}
                     {console.log('📦 Rendering items table. Vendor state:', {
                       vendorCount: Object.keys(vendors).length,
@@ -424,11 +449,11 @@ export default function CreatePurchaseOrder() {
                     <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="flex items-center gap-3">
                         <Checkbox
-                          checked={selectedItems.size === tenderItems.length && tenderItems.length > 0}
+                          checked={allFilteredSelected}
                           onCheckedChange={handleSelectAll}
                         />
                         <span className="font-medium text-slate-700">
-                          Select All ({selectedItems.size} selected)
+                          Select Filtered ({selectedFilteredCount}/{filteredTenderItems.length})
                         </span>
                       </div>
                       <div className="text-right">
@@ -444,7 +469,7 @@ export default function CreatePurchaseOrder() {
                       <table className="w-full text-sm">
                         <thead className="bg-slate-100 border-b border-slate-200">
                           <tr>
-                            <th className="px-3 py-2 text-left"><input type="checkbox" onChange={(e) => handleSelectAll(e.target.checked)} /></th>
+                            <th className="px-3 py-2 text-left"><input type="checkbox" checked={allFilteredSelected} onChange={(e) => handleSelectAll(e.target.checked)} /></th>
                             <th className="px-3 py-2 text-left font-semibold text-slate-700">Item</th>
                             <th className="px-3 py-2 text-left font-semibold text-slate-700">Vendor</th>
                             <th className="px-3 py-2 text-left font-semibold text-slate-700">Specification</th>
@@ -454,7 +479,7 @@ export default function CreatePurchaseOrder() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                          {tenderItems.map((item) => (
+                          {filteredTenderItems.map((item) => (
                             <tr key={item.id} className="hover:bg-slate-50 transition">
                               {/* Checkbox */}
                               <td className="px-3 py-3">
