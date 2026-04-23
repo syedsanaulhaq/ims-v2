@@ -332,8 +332,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show inventory menu only for admin/inventory managers, not store keepers
-    if ((canViewInventory || canManageInventory) && !canAccessStoreKeeperMenu) {
+    // Show inventory menu for super admins and inventory managers.
+    // Store-keeper exclusion should not hide inventory menu from super admins.
+    if ((isSuperAdmin || canViewInventory || canManageInventory) && (!canAccessStoreKeeperMenu || isSuperAdmin)) {
       const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleInventoryItems.length > 0) {
         groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });
