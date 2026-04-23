@@ -187,8 +187,10 @@ router.post('/opening-balance', async (req, res) => {
     // Auto-generate reference if not provided
     const finalReference = tender_reference || `Opening Balance - ${new Date().toISOString().split('T')[0]}`;
     
-    // Get status from request - default to 'pending'
+    // Request status controls overall workflow state in system_settings.
+    // Keep row status ACTIVE so saved entries remain editable/visible in list queries.
     const entryStatus = req.body.status || 'pending';
+    const rowStatus = 'ACTIVE';
 
     const pool = await getPool();
     const transaction = pool.transaction();
@@ -244,7 +246,7 @@ router.post('/opening-balance', async (req, res) => {
           .input('acquisition_date', sql.Date, acquisition_date || new Date())
           .input('entered_by', sql.NVarChar, entered_by)  // NVARCHAR to match AspNetUsers.Id
           .input('remarks', sql.NVarChar, remarks || null)
-          .input('status', sql.NVarChar, entryStatus)
+          .input('status', sql.NVarChar, rowStatus)
           .input('financial_year', sql.NVarChar, fyToUse)
           .query(schemaFlags.opening_has_financial_year ? `
             INSERT INTO opening_balance_entries (
@@ -438,7 +440,7 @@ router.get('/opening-balance', async (req, res) => {
       JOIN item_masters im ON obe.item_master_id = im.id
       LEFT JOIN categories c ON im.category_id = c.id
       LEFT JOIN financial_years fy ON obe.financial_year = fy.year_code
-      WHERE obe.status = 'ACTIVE'
+      WHERE UPPER(ISNULL(obe.status, 'ACTIVE')) IN ('ACTIVE', 'PENDING', 'COMPLETED')
     `;
     
     let request = pool.request();
