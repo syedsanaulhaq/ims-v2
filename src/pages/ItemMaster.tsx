@@ -602,12 +602,6 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
                     </button>
                   </th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                    <button type="button" onClick={() => handleSort('sub_category_name')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
-                      Sub-Category
-                      <span className="text-xs">{getSortIndicator('sub_category_name')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                     <button type="button" onClick={() => handleSort('unit')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
                       Unit
                       <span className="text-xs">{getSortIndicator('unit')}</span>
@@ -633,9 +627,6 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
                     </td>
                     <td className="px-4 py-2 text-sm text-gray-600">
                       {item.category_name}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
-                      {item.sub_category_name}
                     </td>
                     <td className="px-4 py-2 text-sm">
                       {item.unit}
