@@ -65,6 +65,8 @@ const ItemMasterManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [subCategoryFilter, setSubCategoryFilter] = useState('all');
+  const [sortColumn, setSortColumn] = useState<keyof ItemMaster>('item_code');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Form state
   const [showModal, setShowModal] = useState(false);
@@ -93,6 +95,48 @@ const ItemMasterManagement = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
+
+  const filteredItems = items.filter(item => {
+    const matchesSearch = searchTerm === '' || 
+      (item.item_code ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.nomenclature ?? '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === 'all' || item.category_name === categoryFilter;
+    const matchesSubCategory = subCategoryFilter === 'all' || item.sub_category_name === subCategoryFilter;
+    return matchesSearch && matchesCategory && matchesSubCategory;
+  });
+
+  const sortedItems = [...filteredItems].sort((leftItem, rightItem) => {
+    const leftValue = String(leftItem[sortColumn] ?? '').toLowerCase();
+    const rightValue = String(rightItem[sortColumn] ?? '').toLowerCase();
+
+    if (leftValue < rightValue) {
+      return sortDirection === 'asc' ? -1 : 1;
+    }
+
+    if (leftValue > rightValue) {
+      return sortDirection === 'asc' ? 1 : -1;
+    }
+
+    return 0;
+  });
+
+  const handleSort = (column: keyof ItemMaster) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+
+    setSortColumn(column);
+    setSortDirection('asc');
+  };
+
+  const getSortIndicator = (column: keyof ItemMaster) => {
+    if (sortColumn !== column) {
+      return '↕';
+    }
+
+    return sortDirection === 'asc' ? '↑' : '↓';
+  };
 
   // Load categories and subcategories
   const loadCategories = async () => {
@@ -500,14 +544,7 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
           <div>
             <h2 className="text-lg font-semibold">Items List</h2>
             <p className="text-sm text-gray-600">
-              Showing {items.filter(item => {
-                const matchesSearch = searchTerm === '' || 
-                  (item.item_code ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  (item.nomenclature ?? '').toLowerCase().includes(searchTerm.toLowerCase());
-                const matchesCategory = categoryFilter === 'all' || item.category_name === categoryFilter;
-                const matchesSubCategory = subCategoryFilter === 'all' || item.sub_category_name === subCategoryFilter;
-                return matchesSearch && matchesCategory && matchesSubCategory;
-              }).length} of {items.length} items
+              Showing {filteredItems.length} of {items.length} items
             </p>
           </div>
           <div className="flex gap-2">
@@ -546,26 +583,47 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Code</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Nomenclature</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Category</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Sub-Category</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Unit</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Specifications</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                    <button type="button" onClick={() => handleSort('item_code')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
+                      Code
+                      <span className="text-xs">{getSortIndicator('item_code')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                    <button type="button" onClick={() => handleSort('nomenclature')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
+                      Nomenclature
+                      <span className="text-xs">{getSortIndicator('nomenclature')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                    <button type="button" onClick={() => handleSort('category_name')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
+                      Category
+                      <span className="text-xs">{getSortIndicator('category_name')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                    <button type="button" onClick={() => handleSort('sub_category_name')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
+                      Sub-Category
+                      <span className="text-xs">{getSortIndicator('sub_category_name')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                    <button type="button" onClick={() => handleSort('unit')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
+                      Unit
+                      <span className="text-xs">{getSortIndicator('unit')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                    <button type="button" onClick={() => handleSort('specifications')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
+                      Specifications
+                      <span className="text-xs">{getSortIndicator('specifications')}</span>
+                    </button>
+                  </th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {items
-                  .filter(item => {
-                    const matchesSearch = searchTerm === '' || 
-                      (item.item_code ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      (item.nomenclature ?? '').toLowerCase().includes(searchTerm.toLowerCase());
-                    const matchesCategory = categoryFilter === 'all' || item.category_name === categoryFilter;
-                    const matchesSubCategory = subCategoryFilter === 'all' || item.sub_category_name === subCategoryFilter;
-                    return matchesSearch && matchesCategory && matchesSubCategory;
-                  })
-                  .map((item) => (
+                {sortedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm font-mono font-medium text-blue-600">
                       {item.item_code}
