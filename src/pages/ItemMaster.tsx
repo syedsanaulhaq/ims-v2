@@ -583,7 +583,7 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 w-56 min-w-[220px] whitespace-nowrap">
                     <button type="button" onClick={() => handleSort('item_code')} className="flex items-center gap-1 hover:text-blue-600 transition-colors">
                       Code
                       <span className="text-xs">{getSortIndicator('item_code')}</span>
@@ -625,7 +625,7 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
               <tbody className="divide-y divide-gray-200">
                 {sortedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm font-mono font-medium text-blue-600">
+                    <td className="px-4 py-2 text-sm font-mono font-medium text-blue-600 whitespace-nowrap w-56 min-w-[220px]">
                       {item.item_code}
                     </td>
                     <td className="px-4 py-2 text-sm font-medium">
