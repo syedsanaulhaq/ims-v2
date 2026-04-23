@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ interface OpeningBalanceItem {
 export default function OpeningBalanceEntry() {
   const navigate = useNavigate();
   const location = useLocation();
+  const csvFileInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -901,19 +902,20 @@ export default function OpeningBalanceEntry() {
                     <Button type="button" variant="outline" onClick={downloadSampleCsv}>
                       Download Sample CSV
                     </Button>
-                    <label className="inline-flex items-center">
-                      <input
-                        type="file"
-                        accept=".csv"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleCsvImport(file);
-                          e.currentTarget.value = '';
-                        }}
-                      />
-                      <Button type="button" variant="outline">Upload CSV</Button>
-                    </label>
+                    <input
+                      ref={csvFileInputRef}
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleCsvImport(file);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                    <Button type="button" variant="outline" onClick={() => csvFileInputRef.current?.click()}>
+                      Upload CSV
+                    </Button>
                   </div>
                 </div>
                 <pre className="mt-3 text-xs bg-gray-50 border rounded p-2 overflow-x-auto">{sampleCsv}</pre>
