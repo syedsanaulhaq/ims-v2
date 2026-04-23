@@ -16,14 +16,14 @@ SELECT
   created_at,
   is_deleted
 FROM item_masters
-WHERE item_code IS NULL OR item_code = '' OR TRIM(item_code) = '';
+WHERE item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = '';
 
 -- Step 2: Count items without item_code
 PRINT ''
 PRINT '=== COUNT OF ITEMS WITHOUT ITEM_CODE ==='
 SELECT COUNT(*) as items_without_code
 FROM item_masters
-WHERE (item_code IS NULL OR item_code = '' OR TRIM(item_code) = '')
+WHERE (item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = '')
   AND is_deleted = 0;
 
 -- Step 3: Check dependencies in other tables
@@ -33,28 +33,28 @@ SELECT 'purchase_order_items' as reference_table, COUNT(*) as count
 FROM purchase_order_items
 WHERE item_id IN (
   SELECT id FROM item_masters 
-  WHERE item_code IS NULL OR item_code = '' OR TRIM(item_code) = ''
+  WHERE item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = ''
 )
 UNION ALL
 SELECT 'stock_acquisitions', COUNT(*)
 FROM stock_acquisitions
 WHERE item_id IN (
   SELECT id FROM item_masters 
-  WHERE item_code IS NULL OR item_code = '' OR TRIM(item_code) = ''
+  WHERE item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = ''
 )
 UNION ALL
 SELECT 'deliveries', COUNT(*)
 FROM deliveries
 WHERE item_id IN (
   SELECT id FROM item_masters 
-  WHERE item_code IS NULL OR item_code = '' OR TRIM(item_code) = ''
+  WHERE item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = ''
 )
 UNION ALL
 SELECT 'tender_items', COUNT(*)
 FROM tender_items
 WHERE item_id IN (
   SELECT id FROM item_masters 
-  WHERE item_code IS NULL OR item_code = '' OR TRIM(item_code) = ''
+  WHERE item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = ''
 );
 
 -- Step 4: Soft delete items without item_code
@@ -62,7 +62,7 @@ PRINT ''
 PRINT '=== SOFT DELETING ITEMS WITHOUT ITEM_CODE ==='
 UPDATE item_masters
 SET is_deleted = 1, deleted_at = GETDATE()
-WHERE (item_code IS NULL OR item_code = '' OR TRIM(item_code) = '')
+WHERE (item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = '')
   AND is_deleted = 0;
 
 -- Step 5: Confirmation - show remaining active items

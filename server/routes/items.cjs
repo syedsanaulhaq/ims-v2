@@ -536,7 +536,7 @@ router.post('/cleanup/remove-without-codes', async (req, res) => {
     const itemsResult = await pool.request().query(`
       SELECT id, nomenclature
       FROM item_masters
-      WHERE (item_code IS NULL OR item_code = '' OR TRIM(item_code) = '')
+      WHERE (item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = '')
         AND is_deleted = 0
     `);
 
@@ -587,7 +587,7 @@ router.post('/cleanup/remove-without-codes', async (req, res) => {
         SET is_deleted = 1, 
             deleted_at = GETDATE(),
             deleted_by = @deletedBy
-        WHERE (item_code IS NULL OR item_code = '' OR TRIM(item_code) = '')
+        WHERE (item_code IS NULL OR item_code = '' OR LTRIM(RTRIM(item_code)) = '')
           AND is_deleted = 0
       `);
 
