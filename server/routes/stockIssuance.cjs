@@ -149,9 +149,9 @@ router.get('/requests', requireAuth, async (req, res) => {
         o.intOfficeID as 'office.office_id',
         o.strOfficeName as 'office.office_name'
       FROM stock_issuance_requests sir
-      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
-      LEFT JOIN tblOffices o ON sir.requester_office_id = o.intOfficeID
+      LEFT JOIN AspNetUsers u ON CONVERT(NVARCHAR(450), sir.requester_user_id) = CONVERT(NVARCHAR(450), u.Id)
+      LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
+      LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
     `;
 
     // Build WHERE clause
@@ -195,20 +195,20 @@ router.get('/requests', requireAuth, async (req, res) => {
           `);
         
         if (skCheck.recordset.length > 0) {
-          conditions.push('sir.requester_wing_id = @autoWingId');
-          request = request.input('autoWingId', sql.Int, userWingId);
+          conditions.push('CONVERT(NVARCHAR(100), sir.requester_wing_id) = @autoWingId');
+          request = request.input('autoWingId', sql.NVarChar(100), String(userWingId));
           console.log(`🏢 Store keeper wing filter: wing ${userWingId} for user ${userId}`);
         }
       }
     }
 
     if (wing_id) {
-      conditions.push('sir.requester_wing_id = @wingId');
-      request = request.input('wingId', sql.Int, wing_id);
+      conditions.push('CONVERT(NVARCHAR(100), sir.requester_wing_id) = @wingId');
+      request = request.input('wingId', sql.NVarChar(100), String(wing_id));
     }
 
     if (requester_id) {
-      conditions.push('sir.requester_user_id = @requesterId');
+      conditions.push('CONVERT(NVARCHAR(450), sir.requester_user_id) = @requesterId');
       request = request.input('requesterId', sql.NVarChar(450), requester_id);
     }
 
@@ -224,7 +224,7 @@ router.get('/requests', requireAuth, async (req, res) => {
     const transformedData = await Promise.all(result.recordset.map(async (row) => {
       // Get items for this request
       const itemsResult = await pool.request()
-        .input('requestId', sql.UniqueIdentifier, row.id)
+        .input('requestId', sql.NVarChar(100), String(row.id))
         .query(`
           SELECT 
             sii.id,
@@ -240,7 +240,7 @@ router.get('/requests', requireAuth, async (req, res) => {
             im.unit
           FROM stock_issuance_items sii
           LEFT JOIN item_masters im ON sii.item_master_id = im.id
-          WHERE sii.request_id = @requestId
+          WHERE CONVERT(NVARCHAR(100), sii.request_id) = @requestId
             AND (
               COL_LENGTH('stock_issuance_items', 'is_deleted') IS NULL
               OR sii.is_deleted = 0
