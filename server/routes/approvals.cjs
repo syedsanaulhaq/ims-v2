@@ -55,6 +55,16 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
     const supervisorId = req.query.supervisor_id || req.session.userId;
     let wingId = req.query.wing_id;
 
+    const schemaResult = await pool.request().query(`
+      SELECT
+        MAX(CASE WHEN name = 'is_deleted' THEN 1 ELSE 0 END) AS has_is_deleted,
+        MAX(CASE WHEN name = 'submitted_at' THEN 1 ELSE 0 END) AS has_submitted_at
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('stock_issuance_requests')
+    `);
+
+    const schemaFlags = schemaResult.recordset[0] || {};
+
     // If no wing_id provided, get user's wing from database
     if (!wingId) {
       const userWingResult = await pool.request()
@@ -78,7 +88,7 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
 
     // Use inline query instead of view for better compatibility
     const result = await pool.request()
-      .input('wingId', sql.Int, wingId)
+      .input('wingId', sql.NVarChar(100), String(wingId))
       .query(`
         SELECT 
           sir.id,
@@ -91,18 +101,18 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
           sir.requester_user_id,
           sir.requester_wing_id,
           CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 1 ELSE 0 END as is_urgent,
-          DATEDIFF(HOUR, sir.submitted_at, GETDATE()) as pending_hours,
+          DATEDIFF(HOUR, ${schemaFlags.has_submitted_at ? 'sir.submitted_at' : 'sir.created_at'}, GETDATE()) as pending_hours,
           u.FullName as requester_name,
           w.Name as wing_name
         FROM stock_issuance_requests sir
-        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-        LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
-        WHERE sir.requester_wing_id = @wingId
+        LEFT JOIN AspNetUsers u ON CONVERT(NVARCHAR(450), sir.requester_user_id) = CONVERT(NVARCHAR(450), u.Id)
+        LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
+        WHERE CONVERT(NVARCHAR(100), sir.requester_wing_id) = @wingId
           AND sir.approval_status IN ('Pending', 'pending', 'Submitted', 'Pending Supervisor Review')
-          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
+          AND (${schemaFlags.has_is_deleted ? '(sir.is_deleted = 0 OR sir.is_deleted IS NULL)' : '1=1'})
         ORDER BY 
           CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 0 ELSE 1 END,
-          sir.submitted_at ASC
+          ${schemaFlags.has_submitted_at ? 'sir.submitted_at' : 'sir.created_at'} ASC
       `);
 
     console.log(`📋 Found ${result.recordset.length} pending requests for wing ${wingId}`);
