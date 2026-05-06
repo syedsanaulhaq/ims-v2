@@ -72,6 +72,53 @@ router.get('/requests', requireAuth, async (req, res) => {
     const { status, wing_id, requester_id, includeDeleted } = req.query;
     const userId = req.session?.userId;
 
+    // Production can lag behind schema updates. Detect optional columns dynamically
+    // so this endpoint still returns data instead of failing with "Invalid column name".
+    const schemaResult = await pool.request().query(`
+      SELECT
+        MAX(CASE WHEN name = 'requester_branch_id' THEN 1 ELSE 0 END) AS has_requester_branch_id,
+        MAX(CASE WHEN name = 'is_returnable' THEN 1 ELSE 0 END) AS has_is_returnable,
+        MAX(CASE WHEN name = 'expected_return_date' THEN 1 ELSE 0 END) AS has_expected_return_date,
+        MAX(CASE WHEN name = 'is_deleted' THEN 1 ELSE 0 END) AS has_is_deleted,
+        MAX(CASE WHEN name = 'deleted_at' THEN 1 ELSE 0 END) AS has_deleted_at,
+        MAX(CASE WHEN name = 'deleted_by' THEN 1 ELSE 0 END) AS has_deleted_by,
+        MAX(CASE WHEN name = 'submitted_at' THEN 1 ELSE 0 END) AS has_submitted_at,
+        MAX(CASE WHEN name = 'created_at' THEN 1 ELSE 0 END) AS has_created_at,
+        MAX(CASE WHEN name = 'updated_at' THEN 1 ELSE 0 END) AS has_updated_at
+      FROM sys.columns
+      WHERE object_id = OBJECT_ID('stock_issuance_requests')
+    `);
+
+    const schemaFlags = schemaResult.recordset[0] || {};
+
+    const requesterBranchExpr = schemaFlags.has_requester_branch_id
+      ? 'sir.requester_branch_id'
+      : 'NULL';
+    const isReturnableExpr = schemaFlags.has_is_returnable
+      ? 'sir.is_returnable'
+      : 'CAST(0 AS BIT)';
+    const expectedReturnDateExpr = schemaFlags.has_expected_return_date
+      ? 'sir.expected_return_date'
+      : 'NULL';
+    const isDeletedExpr = schemaFlags.has_is_deleted
+      ? 'sir.is_deleted'
+      : 'CAST(0 AS BIT)';
+    const deletedAtExpr = schemaFlags.has_deleted_at
+      ? 'sir.deleted_at'
+      : 'NULL';
+    const deletedByExpr = schemaFlags.has_deleted_by
+      ? 'sir.deleted_by'
+      : 'NULL';
+    const submittedAtExpr = schemaFlags.has_submitted_at
+      ? 'sir.submitted_at'
+      : (schemaFlags.has_created_at ? 'sir.created_at' : 'GETDATE()');
+    const createdAtExpr = schemaFlags.has_created_at
+      ? 'sir.created_at'
+      : (schemaFlags.has_submitted_at ? 'sir.submitted_at' : 'GETDATE()');
+    const updatedAtExpr = schemaFlags.has_updated_at
+      ? 'sir.updated_at'
+      : createdAtExpr;
+
     let query = `
       SELECT 
         sir.id,
@@ -80,20 +127,20 @@ router.get('/requests', requireAuth, async (req, res) => {
         sir.requester_user_id,
         sir.requester_wing_id,
         sir.requester_office_id,
-        sir.requester_branch_id,
+        ${requesterBranchExpr} as requester_branch_id,
         sir.purpose,
         sir.urgency_level,
         sir.justification,
-        sir.is_returnable,
-        sir.expected_return_date,
+        ${isReturnableExpr} as is_returnable,
+        ${expectedReturnDateExpr} as expected_return_date,
         ISNULL(sir.approval_status, sir.request_status) as approval_status,
         ISNULL(sir.request_status, sir.approval_status) as request_status,
-        ISNULL(sir.submitted_at, sir.created_at) as submitted_at,
-        ISNULL(sir.created_at, sir.submitted_at) as created_at,
-        sir.updated_at,
-        sir.is_deleted,
-        sir.deleted_at,
-        sir.deleted_by,
+        ISNULL(${submittedAtExpr}, ${createdAtExpr}) as submitted_at,
+        ISNULL(${createdAtExpr}, ${submittedAtExpr}) as created_at,
+        ${updatedAtExpr} as updated_at,
+        ${isDeletedExpr} as is_deleted,
+        ${deletedAtExpr} as deleted_at,
+        ${deletedByExpr} as deleted_by,
         u.Id as 'requester.user_id',
         u.FullName as 'requester.full_name',
         u.UserName as 'requester.user_name',
@@ -111,7 +158,7 @@ router.get('/requests', requireAuth, async (req, res) => {
     const conditions = [];
     let request = pool.request();
 
-    if (includeDeleted !== 'true') {
+    if (includeDeleted !== 'true' && schemaFlags.has_is_deleted) {
       conditions.push('(sir.is_deleted = 0 OR sir.is_deleted IS NULL)');
     }
 
@@ -194,7 +241,11 @@ router.get('/requests', requireAuth, async (req, res) => {
           FROM stock_issuance_items sii
           LEFT JOIN item_masters im ON sii.item_master_id = im.id
           WHERE sii.request_id = @requestId
-            AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
+            AND (
+              COL_LENGTH('stock_issuance_items', 'is_deleted') IS NULL
+              OR sii.is_deleted = 0
+              OR sii.is_deleted IS NULL
+            )
         `);
 
       return {
