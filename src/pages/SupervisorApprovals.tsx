@@ -33,6 +33,7 @@ interface RequestItem {
 }
 
 interface PendingRequest {
+  id?: string;
   request_id: string;
   request_number: string;
   request_type: string;
@@ -68,6 +69,17 @@ const SupervisorApprovals: React.FC = () => {
   const [comments, setComments] = useState('');
   const [forwardingReason, setForwardingReason] = useState('');
 
+  const getRequestIdentifier = (request: PendingRequest): string => {
+    const candidate =
+      request.request_id ||
+      request.id ||
+      (request as any).stock_issuance_request_id ||
+      (request as any).requestId ||
+      (request as any).id;
+
+    return candidate ? String(candidate) : '';
+  };
+
   useEffect(() => {
     if (user?.wing_id) {
       fetchPendingRequests();
@@ -90,15 +102,49 @@ const SupervisorApprovals: React.FC = () => {
   };
 
   const fetchRequestDetails = async (requestId: string) => {
+    const fallbackRequest = pendingRequests.find((r) => getRequestIdentifier(r) === requestId);
     try {
       const response = await fetch(`http://localhost:3001/api/approvals/request/${requestId}`, {
         credentials: 'include'
       });
       const data = await response.json();
+
+      if (!response.ok || !data?.request) {
+        setSelectedRequest({
+          request: {
+            id: requestId,
+            request_id: requestId,
+            request_number: fallbackRequest?.request_number,
+            requester_name: fallbackRequest?.requester_name,
+            submitted_at: fallbackRequest?.submitted_at,
+            urgency_level: fallbackRequest?.urgency_level,
+            purpose: fallbackRequest?.purpose,
+          },
+          items: [],
+          history: [],
+        });
+        setShowModal(true);
+        return;
+      }
+
       setSelectedRequest(data);
       setShowModal(true);
     } catch (error) {
       console.error('Error fetching request details:', error);
+      setSelectedRequest({
+        request: {
+          id: requestId,
+          request_id: requestId,
+          request_number: fallbackRequest?.request_number,
+          requester_name: fallbackRequest?.requester_name,
+          submitted_at: fallbackRequest?.submitted_at,
+          urgency_level: fallbackRequest?.urgency_level,
+          purpose: fallbackRequest?.purpose,
+        },
+        items: [],
+        history: [],
+      });
+      setShowModal(true);
     }
   };
 
@@ -108,8 +154,12 @@ const SupervisorApprovals: React.FC = () => {
     setActionLoading(true);
     try {
       let endpoint = '';
+      const effectiveRequestId =
+        selectedRequest.request?.id ||
+        selectedRequest.request?.request_id;
+
       let body: any = {
-        requestId: selectedRequest.request.id,
+        requestId: effectiveRequestId,
         supervisorId: user?.user_id,
         comments
       };
@@ -260,7 +310,7 @@ const SupervisorApprovals: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Total Items</p>
               <p className="text-2xl font-bold text-gray-900">
-                {pendingRequests.reduce((sum, r) => sum + r.total_items, 0)}
+                {pendingRequests.reduce((sum, r) => sum + (Number(r.total_items) || 0), 0)}
               </p>
             </div>
             <Package className="text-green-500" size={32} />
@@ -306,9 +356,17 @@ const SupervisorApprovals: React.FC = () => {
         <div className="grid gap-4">
           {filteredRequests.map((request) => (
             <div
-              key={request.request_id}
+              key={getRequestIdentifier(request) || request.request_number}
               className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 cursor-pointer border-l-4 border-blue-500"
-              onClick={() => fetchRequestDetails(request.request_id)}
+              onClick={() => {
+                const requestId = getRequestIdentifier(request);
+                if (!requestId) {
+                  console.error('Missing request identifier for selected request:', request);
+                  alert('Unable to open this request because its identifier is missing.');
+                  return;
+                }
+                fetchRequestDetails(requestId);
+              }}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
@@ -359,7 +417,7 @@ const SupervisorApprovals: React.FC = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
-                Request Details: {selectedRequest.request.request_number}
+                Request Details: {selectedRequest.request?.request_number || 'N/A'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -375,21 +433,23 @@ const SupervisorApprovals: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Requester</p>
-                    <p className="font-semibold">{selectedRequest.request.requester_name}</p>
+                    <p className="font-semibold">{selectedRequest.request?.requester_name || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Submitted</p>
                     <p className="font-semibold">
-                      {new Date(selectedRequest.request.submitted_at).toLocaleString()}
+                      {selectedRequest.request?.submitted_at
+                        ? new Date(selectedRequest.request.submitted_at).toLocaleString()
+                        : 'N/A'}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Urgency</p>
-                    <p className="font-semibold">{selectedRequest.request.urgency_level}</p>
+                    <p className="font-semibold">{selectedRequest.request?.urgency_level || 'N/A'}</p>
                   </div>
                   <div className="col-span-2 md:col-span-3">
                     <p className="text-sm text-gray-600">Purpose</p>
-                    <p className="font-semibold">{selectedRequest.request.purpose}</p>
+                    <p className="font-semibold">{selectedRequest.request?.purpose || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -410,7 +470,7 @@ const SupervisorApprovals: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedRequest.items.map((item) => (
+                      {(selectedRequest.items || []).map((item) => (
                         <tr key={item.id}>
                           <td className="px-4 py-4">
                             <p className="font-medium text-gray-900">
@@ -469,7 +529,7 @@ const SupervisorApprovals: React.FC = () => {
                     <div className="flex gap-4">
                       <button
                         onClick={() => openActionModal('approve')}
-                        disabled={selectedRequest.items.some(i => !i.can_fulfill_from_wing && !i.is_custom_item)}
+                        disabled={(selectedRequest.items || []).some(i => !i.can_fulfill_from_wing && !i.is_custom_item)}
                         className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         <CheckCircle size={20} />
@@ -554,11 +614,11 @@ const SupervisorApprovals: React.FC = () => {
               )}
 
               {/* Approval History */}
-              {selectedRequest.history.length > 0 && (
+              {(selectedRequest.history || []).length > 0 && (
                 <div className="mt-6 border-t pt-6">
                   <h3 className="text-lg font-semibold mb-4">Approval History</h3>
                   <div className="space-y-3">
-                    {selectedRequest.history.map((entry, index) => (
+                    {(selectedRequest.history || []).map((entry, index) => (
                       <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                         <MessageSquare className="text-gray-400 mt-1" size={20} />
                         <div className="flex-1">
