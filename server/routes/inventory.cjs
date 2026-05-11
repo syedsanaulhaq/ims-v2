@@ -1006,7 +1006,23 @@ router.get('/stock-breakdown', async (req, res) => {
     const { search, category_id, low_stock, show_zero_stock } = req.query;
 
     let query = `
-      WITH sqb AS (
+      WITH issued_requests AS (
+        SELECT
+          sii.item_master_id,
+          SUM(
+            ISNULL(
+              TRY_CAST(NULLIF(LTRIM(RTRIM(CAST(sii.issued_quantity AS NVARCHAR(50)))), '') AS INT),
+              ISNULL(TRY_CAST(NULLIF(LTRIM(RTRIM(CAST(sii.requested_quantity AS NVARCHAR(50)))), '') AS INT), 0)
+            )
+          ) AS total_issued_requests
+        FROM stock_issuance_items sii
+        INNER JOIN stock_issuance_requests sir
+          ON CONVERT(NVARCHAR(100), sir.id) = CONVERT(NVARCHAR(100), sii.request_id)
+        WHERE UPPER(ISNULL(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
+          AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
+        GROUP BY sii.item_master_id
+      ),
+      sqb AS (
         SELECT
           im.id AS item_master_id,
           im.nomenclature,
@@ -1028,14 +1044,40 @@ router.get('/stock-breakdown', async (req, res) => {
               THEN ISNULL(sa.quantity_received, 0) - ISNULL(sa.quantity_issued, 0)
               ELSE 0
             END), 0)
-            ELSE ISNULL(cis.current_quantity, 0)
+            ELSE CASE
+              WHEN ISNULL(cis.current_quantity, 0) - ISNULL(ir.total_issued_requests, 0) > 0
+              THEN ISNULL(cis.current_quantity, 0) - ISNULL(ir.total_issued_requests, 0)
+              ELSE 0
+            END
           END AS new_acquisition_quantity,
           CASE
-            WHEN COUNT(sa.id) > 0 THEN ISNULL(SUM(ISNULL(sa.quantity_received, 0) - ISNULL(sa.quantity_issued, 0)), 0)
-            ELSE ISNULL(cis.current_quantity, 0)
+            WHEN COUNT(sa.id) > 0 THEN CASE
+              WHEN ISNULL(SUM(ISNULL(sa.quantity_received, 0)), 0) -
+                   (CASE
+                      WHEN ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0) > ISNULL(ir.total_issued_requests, 0)
+                      THEN ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0)
+                      ELSE ISNULL(ir.total_issued_requests, 0)
+                    END) > 0
+              THEN ISNULL(SUM(ISNULL(sa.quantity_received, 0)), 0) -
+                   (CASE
+                      WHEN ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0) > ISNULL(ir.total_issued_requests, 0)
+                      THEN ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0)
+                      ELSE ISNULL(ir.total_issued_requests, 0)
+                    END)
+              ELSE 0
+            END
+            ELSE CASE
+              WHEN ISNULL(cis.current_quantity, 0) - ISNULL(ir.total_issued_requests, 0) > 0
+              THEN ISNULL(cis.current_quantity, 0) - ISNULL(ir.total_issued_requests, 0)
+              ELSE 0
+            END
           END AS total_quantity,
           ISNULL(SUM(ISNULL(sa.quantity_received, 0)), 0) AS total_received,
-          ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0) AS total_issued,
+          CASE
+            WHEN ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0) > ISNULL(ir.total_issued_requests, 0)
+            THEN ISNULL(SUM(ISNULL(sa.quantity_issued, 0)), 0)
+            ELSE ISNULL(ir.total_issued_requests, 0)
+          END AS total_issued,
           CASE
             WHEN MAX(sa.updated_at) > cis.last_updated OR cis.last_updated IS NULL
             THEN MAX(sa.updated_at)
@@ -1049,6 +1091,7 @@ router.get('/stock-breakdown', async (req, res) => {
         LEFT JOIN sub_categories sc ON im.sub_category_id = sc.id
         LEFT JOIN stock_acquisitions sa ON im.id = sa.item_master_id
         LEFT JOIN current_inventory_stock cis ON im.id = cis.item_master_id
+        LEFT JOIN issued_requests ir ON ir.item_master_id = im.id
         GROUP BY
           im.id,
           im.nomenclature,
@@ -1059,6 +1102,7 @@ router.get('/stock-breakdown', async (req, res) => {
           c.category_name,
           sc.id,
           sc.sub_category_name,
+            ir.total_issued_requests,
           cis.current_quantity,
           cis.last_updated
       )
