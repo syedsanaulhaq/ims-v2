@@ -999,9 +999,20 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
     await transaction.begin();
 
     try {
+      // Detect optional acquisition stock columns for schema compatibility.
+      const hasQtyAvailableResult = await transaction.request().query(`
+        SELECT CASE WHEN COL_LENGTH('stock_acquisitions', 'quantity_available') IS NOT NULL THEN 1 ELSE 0 END AS has_qty_available
+      `);
+      const hasQtyAvailable = hasQtyAvailableResult.recordset[0]?.has_qty_available === 1;
+
       // Update each item's status to 'Issued' and set issued_quantity
       for (const item of itemsResult.recordset) {
-        const issuedQty = item.approved_quantity || item.requested_quantity;
+        const issuedQty = Number(item.approved_quantity || item.requested_quantity || 0);
+
+        if (!issuedQty || issuedQty <= 0) {
+          throw new Error(`Invalid issued quantity for item ${item.id}`);
+        }
+
         await transaction.request()
           .input('itemId', sql.UniqueIdentifier, item.id)
           .input('issuedQty', sql.NVarChar, String(issuedQty))
@@ -1012,6 +1023,65 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
                 updated_at = GETDATE()
             WHERE id = @itemId
           `);
+
+        // Deduct stock from acquisitions first (FIFO) when quantity_available is supported.
+        let deductedFromAcquisitions = 0;
+
+        if (hasQtyAvailable && item.item_master_id) {
+          const stockResult = await transaction.request()
+            .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+            .query(`
+              SELECT id, ISNULL(quantity_available, 0) AS quantity_available
+              FROM stock_acquisitions
+              WHERE item_master_id = @item_master_id
+                AND ISNULL(quantity_available, 0) > 0
+              ORDER BY acquisition_date ASC, created_at ASC
+            `);
+
+          let remainingQty = issuedQty;
+
+          for (const stock of stockResult.recordset) {
+            if (remainingQty <= 0) break;
+
+            const deductQty = Math.min(remainingQty, Number(stock.quantity_available || 0));
+            if (deductQty <= 0) continue;
+
+            await transaction.request()
+              .input('acquisitionId', sql.UniqueIdentifier, stock.id)
+              .input('deductQty', sql.Int, deductQty)
+              .query(`
+                UPDATE stock_acquisitions
+                SET quantity_available = ISNULL(quantity_available, 0) - @deductQty,
+                    quantity_issued = ISNULL(quantity_issued, 0) + @deductQty,
+                    updated_at = GETDATE()
+                WHERE id = @acquisitionId
+              `);
+
+            remainingQty -= deductQty;
+            deductedFromAcquisitions += deductQty;
+          }
+        }
+
+        const remainingToDeduct = issuedQty - deductedFromAcquisitions;
+
+        // Fallback for item setups backed by current_inventory_stock instead of acquisitions.
+        if (remainingToDeduct > 0 && item.item_master_id) {
+          const cisUpdateResult = await transaction.request()
+            .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
+            .input('remainingQty', sql.Int, remainingToDeduct)
+            .query(`
+              UPDATE current_inventory_stock
+              SET current_quantity = current_quantity - @remainingQty,
+                  last_updated = GETDATE(),
+                  last_transaction_date = GETDATE()
+              WHERE item_master_id = @itemMasterId
+                AND current_quantity >= @remainingQty
+            `);
+
+          if (!cisUpdateResult.rowsAffected || cisUpdateResult.rowsAffected[0] === 0) {
+            throw new Error(`Insufficient available stock for item ${item.item_master_id}`);
+          }
+        }
       }
 
       // Update the request status to 'Issued'
