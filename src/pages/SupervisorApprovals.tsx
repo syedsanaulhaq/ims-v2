@@ -458,33 +458,33 @@ const SupervisorApprovals: React.FC = () => {
               <div className="mb-6">
                 <h3 className="text-lg font-semibold mb-4">Requested Items</h3>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
+                  <table className="w-full table-fixed divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Wing Stock</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Admin Stock</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="w-[30%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                        <th className="w-[18%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                        <th className="w-[10%] px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty</th>
+                        <th className="w-[12%] px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Wing Stock</th>
+                        <th className="w-[12%] px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Admin Stock</th>
+                        <th className="w-[18%] px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {(selectedRequest.items || []).map((item) => (
                         <tr key={item.id}>
-                          <td className="px-4 py-4">
-                            <p className="font-medium text-gray-900">
+                          <td className="px-3 py-3 align-top">
+                            <p className="font-medium text-gray-900 text-sm leading-5 line-clamp-2 break-words" title={item.is_custom_item ? item.custom_item_description : item.nomenclature}>
                               {item.is_custom_item ? item.custom_item_description : item.nomenclature}
                             </p>
                           </td>
-                          <td className="px-4 py-4 text-sm text-gray-600">
-                            {item.is_custom_item ? 'Custom' : item.category_name}
+                          <td className="px-3 py-3 text-sm text-gray-700 align-top break-words">
+                            {item.is_custom_item ? 'Custom' : (item.category_name || 'Uncategorized')}
                           </td>
-                          <td className="px-4 py-4 text-center">
+                          <td className="px-3 py-3 text-center align-top">
                             <span className="font-semibold">{item.requested_quantity}</span>
-                            <span className="text-xs text-gray-500 ml-1">{item.unit_of_measurement}</span>
+                            <span className="text-xs text-gray-500 ml-1 whitespace-nowrap">{item.unit_of_measurement}</span>
                           </td>
-                          <td className="px-4 py-4 text-center">
+                          <td className="px-3 py-3 text-center align-top">
                             {item.is_custom_item ? (
                               <span className="text-gray-400">N/A</span>
                             ) : (
@@ -493,7 +493,7 @@ const SupervisorApprovals: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-center">
+                          <td className="px-3 py-3 text-center align-top">
                             {item.is_custom_item ? (
                               <span className="text-gray-400">N/A</span>
                             ) : (
@@ -502,7 +502,7 @@ const SupervisorApprovals: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-center">
+                          <td className="px-3 py-3 text-center align-top whitespace-nowrap">
                             {getStockStatusBadge(item)}
                           </td>
                         </tr>

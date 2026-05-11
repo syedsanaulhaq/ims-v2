@@ -257,9 +257,14 @@ router.get('/request/:requestId', async (req, res) => {
     const itemsResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`
-        SELECT sii.*, im.nomenclature, im.unit
+        SELECT
+          sii.*, 
+          im.nomenclature,
+          im.unit,
+          COALESCE(c.category_name, im.category_name, '') AS category_name
         FROM stock_issuance_items sii
         LEFT JOIN item_masters im ON sii.item_master_id = im.id
+        LEFT JOIN categories c ON im.category_id = c.id
         WHERE sii.request_id = @requestId
           AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
       `);
