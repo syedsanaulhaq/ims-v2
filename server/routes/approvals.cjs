@@ -261,10 +261,14 @@ router.get('/request/:requestId', async (req, res) => {
           sii.*, 
           im.nomenclature,
           im.unit,
-          COALESCE(c.category_name, im.category_name, '') AS category_name
+          COALESCE(
+            NULLIF(LTRIM(RTRIM(c.category_name)), ''),
+            'Uncategorized'
+          ) AS category_name
         FROM stock_issuance_items sii
         LEFT JOIN item_masters im ON sii.item_master_id = im.id
-        LEFT JOIN categories c ON im.category_id = c.id
+        LEFT JOIN categories c
+          ON CONVERT(NVARCHAR(100), im.category_id) = CONVERT(NVARCHAR(100), c.id)
         WHERE sii.request_id = @requestId
           AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
       `);
