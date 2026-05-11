@@ -244,6 +244,15 @@ router.get('/request/:requestId', async (req, res) => {
 
     const request = requestResult.recordset[0];
 
+    const tableExistsResult = await pool.request().query(`
+      SELECT
+        CASE WHEN OBJECT_ID('stock_wing') IS NOT NULL THEN 1 ELSE 0 END AS has_stock_wing,
+        CASE WHEN OBJECT_ID('stock_admin') IS NOT NULL THEN 1 ELSE 0 END AS has_stock_admin,
+        CASE WHEN OBJECT_ID('issuance_approval_history') IS NOT NULL THEN 1 ELSE 0 END AS has_issuance_history
+    `);
+
+    const tableFlags = tableExistsResult.recordset[0] || {};
+
     // Get request items
     const itemsResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -252,45 +261,78 @@ router.get('/request/:requestId', async (req, res) => {
         FROM stock_issuance_items sii
         LEFT JOIN item_masters im ON sii.item_master_id = im.id
         WHERE sii.request_id = @requestId
+          AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
       `);
 
     // Check stock availability
     const itemsWithAvailability = await Promise.all(
       itemsResult.recordset.map(async (item) => {
         if (item.is_custom_item) {
-          return { ...item, wing_stock_available: 'N/A', admin_stock_available: 'N/A' };
+          return {
+            ...item,
+            wing_stock_available: 'N/A',
+            admin_stock_available: 'N/A',
+            can_fulfill_from_wing: false,
+            can_fulfill_from_admin: false
+          };
         }
 
-        const wingStock = await pool.request()
-          .input('itemId', sql.UniqueIdentifier, item.item_master_id)
-          .input('wingId', sql.Int, request.requester_wing_id)
-          .query(`SELECT available_quantity FROM stock_wing WHERE item_master_id = @itemId AND wing_id = @wingId`);
+        const requestedQty = Number(item.approved_quantity || item.requested_quantity || 0);
+        let wingAvailable = 0;
+        let adminAvailable = 0;
 
-        const adminStock = await pool.request()
-          .input('itemId', sql.UniqueIdentifier, item.item_master_id)
-          .query(`SELECT available_quantity FROM stock_admin WHERE item_master_id = @itemId`);
+        if (tableFlags.has_stock_wing) {
+          const wingStock = await pool.request()
+            .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+            .input('wingId', sql.Int, request.requester_wing_id)
+            .query(`SELECT TOP 1 available_quantity FROM stock_wing WHERE item_master_id = @itemId AND wing_id = @wingId`);
+          wingAvailable = Number(wingStock.recordset[0]?.available_quantity || 0);
+        }
+
+        if (tableFlags.has_stock_admin) {
+          const adminStock = await pool.request()
+            .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+            .query(`SELECT TOP 1 available_quantity FROM stock_admin WHERE item_master_id = @itemId`);
+          adminAvailable = Number(adminStock.recordset[0]?.available_quantity || 0);
+        }
+
+        // Fallback for environments without stock_wing/stock_admin tables.
+        if (!tableFlags.has_stock_wing && !tableFlags.has_stock_admin) {
+          const cisStock = await pool.request()
+            .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+            .query(`SELECT TOP 1 current_quantity FROM current_inventory_stock WHERE item_master_id = @itemId`);
+          const qty = Number(cisStock.recordset[0]?.current_quantity || 0);
+          wingAvailable = qty;
+          adminAvailable = qty;
+        }
 
         return {
           ...item,
-          wing_stock_available: wingStock.recordset.length > 0 ? wingStock.recordset[0].available_quantity : 0,
-          admin_stock_available: adminStock.recordset.length > 0 ? adminStock.recordset[0].available_quantity : 0
+          wing_stock_available: wingAvailable,
+          admin_stock_available: adminAvailable,
+          can_fulfill_from_wing: wingAvailable >= requestedQty,
+          can_fulfill_from_admin: adminAvailable >= requestedQty
         };
       })
     );
 
     // Get approval history
-    const historyResult = await pool.request()
-      .input('requestId', sql.UniqueIdentifier, request.request_id)
-      .query(`
-        SELECT * FROM issuance_approval_history
-        WHERE request_id = @requestId
-        ORDER BY action_date DESC
-      `);
+    let historyRows = [];
+    if (tableFlags.has_issuance_history) {
+      const historyResult = await pool.request()
+        .input('requestId', sql.UniqueIdentifier, request.id)
+        .query(`
+          SELECT * FROM issuance_approval_history
+          WHERE request_id = @requestId
+          ORDER BY action_date DESC
+        `);
+      historyRows = historyResult.recordset;
+    }
 
     res.json({
       request,
       items: itemsWithAvailability,
-      history: historyResult.recordset
+      history: historyRows
     });
   } catch (error) {
     console.error('❌ Error fetching request details:', error);
