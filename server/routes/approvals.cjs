@@ -463,7 +463,7 @@ router.post('/supervisor/approve', requireAuth, requirePermission('stock_request
 // ============================================================================
 // POST /api/approvals/supervisor/forward - Supervisor forward to admin
 // ============================================================================
-router.post('/supervisor/forward', requireAuth, requirePermission('stock_request.forward_to_admin'), async (req, res) => {
+router.post('/supervisor/forward', requireAuth, requirePermission('stock_request.forward'), async (req, res) => {
   try {
     const { requestId, supervisorId, forwardingReason, comments } = req.body;
     const pool = getPool();

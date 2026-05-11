@@ -1001,7 +1001,10 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
     try {
       // Detect optional acquisition stock columns for schema compatibility.
       const hasQtyAvailableResult = await transaction.request().query(`
-        SELECT CASE WHEN COL_LENGTH('stock_acquisitions', 'quantity_available') IS NOT NULL THEN 1 ELSE 0 END AS has_qty_available
+        SELECT CASE
+          WHEN COL_LENGTH('stock_acquisitions', 'quantity_available') IS NOT NULL
+           AND ISNULL(COLUMNPROPERTY(OBJECT_ID('stock_acquisitions'), 'quantity_available', 'IsComputed'), 0) = 0
+          THEN 1 ELSE 0 END AS has_qty_available
       `);
       const hasQtyAvailable = hasQtyAvailableResult.recordset[0]?.has_qty_available === 1;
 
