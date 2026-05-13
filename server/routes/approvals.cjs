@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
+const { ensureTables, getWorkflowSteps, advanceWorkflow, getWorkflowRoles, getUserWorkflowRoles } = require('../utils/workflowEngine.cjs');
 
 // ============================================================================
 // Middleware: Authentication and Permission Checking
@@ -45,6 +46,333 @@ const requirePermission = (permission) => {
     }
   };
 };
+
+// ============================================================================
+// GET /api/approvals/workflow/configs - List workflow config by group
+// ============================================================================
+router.get('/workflow/configs', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTables(pool);
+
+    const groupNumber = req.query.group_number ? Number(req.query.group_number) : null;
+
+    let query = `
+      SELECT group_number, step_order, designation_value, match_mode
+      FROM ims_dynamic_workflow_steps
+      WHERE is_active = 1
+    `;
+
+    const request = pool.request();
+    if (groupNumber) {
+      request.input('groupNumber', sql.Int, groupNumber);
+      query += ' AND group_number = @groupNumber';
+    }
+
+    query += ' ORDER BY group_number ASC, step_order ASC, designation_value ASC';
+
+    const result = await request.query(query);
+    const grouped = {};
+
+    for (const row of result.recordset || []) {
+      if (!grouped[row.group_number]) {
+        grouped[row.group_number] = [];
+      }
+
+      let step = grouped[row.group_number].find((s) => s.step_order === row.step_order);
+      if (!step) {
+        step = { step_order: row.step_order, designations: [] };
+        grouped[row.group_number].push(step);
+      }
+
+      step.designations.push({
+        value: row.designation_value,
+        match_mode: row.match_mode || 'prefix'
+      });
+    }
+
+    const data = Object.keys(grouped).map((group) => ({
+      group_number: Number(group),
+      steps: grouped[group].sort((a, b) => a.step_order - b.step_order)
+    }));
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ Error loading workflow configs:', error);
+    res.status(500).json({ success: false, error: 'Failed to load workflow configs', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/approvals/workflow/roles - List IMS workflow roles
+// ============================================================================
+router.get('/workflow/roles', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTables(pool);
+    const roles = await getWorkflowRoles(pool);
+    res.json({ success: true, data: roles });
+  } catch (error) {
+    console.error('❌ Error loading workflow roles:', error);
+    res.status(500).json({ success: false, error: 'Failed to load workflow roles', details: error.message });
+  }
+});
+
+// Backward-compatible alias for older frontend calls.
+router.get('/workflow/designations', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTables(pool);
+    const roles = await getWorkflowRoles(pool);
+    res.json({ success: true, data: roles });
+  } catch (error) {
+    console.error('❌ Error loading workflow roles via designations alias:', error);
+    res.status(500).json({ success: false, error: 'Failed to load workflow roles', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/approvals/workflow/role-assignments - List users and assigned workflow roles
+// ============================================================================
+router.get('/workflow/role-assignments', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTables(pool);
+
+    const result = await pool.request().query(`
+      SELECT
+        u.Id AS user_id,
+        u.FullName,
+        u.Email,
+        STRING_AGG(wr.role_name, '|') WITHIN GROUP (ORDER BY wr.role_name) AS roles_csv
+      FROM AspNetUsers u
+      LEFT JOIN ims_user_workflow_roles uwr
+        ON uwr.user_id = u.Id
+       AND uwr.is_active = 1
+      LEFT JOIN ims_workflow_roles wr
+        ON wr.id = uwr.workflow_role_id
+       AND wr.is_active = 1
+      GROUP BY u.Id, u.FullName, u.Email
+      ORDER BY u.FullName ASC
+    `);
+
+    const data = (result.recordset || []).map((row) => ({
+      user_id: row.user_id,
+      full_name: row.FullName,
+      email: row.Email,
+      roles: row.roles_csv ? String(row.roles_csv).split('|').filter(Boolean) : []
+    }));
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ Error loading workflow role assignments:', error);
+    res.status(500).json({ success: false, error: 'Failed to load workflow role assignments', details: error.message });
+  }
+});
+
+// ============================================================================
+// PUT /api/approvals/workflow/role-assignments/:userId - Replace user workflow roles
+// Payload: { roles: ['DD Admin', 'Storekeeper'] }
+// ============================================================================
+router.put('/workflow/role-assignments/:userId', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
+  try {
+    const userId = String(req.params.userId || '').trim();
+    const roles = Array.isArray(req.body?.roles)
+      ? req.body.roles.map((r) => String(r || '').trim()).filter(Boolean)
+      : [];
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'Valid userId is required' });
+    }
+
+    const pool = getPool();
+    await ensureTables(pool);
+
+    if (roles.length > 0) {
+      const roleLookup = await pool.request().query(`
+        SELECT role_name
+        FROM ims_workflow_roles
+        WHERE is_active = 1
+      `);
+
+      const valid = new Set((roleLookup.recordset || []).map((row) => String(row.role_name)));
+      const unknown = roles.filter((role) => !valid.has(role));
+      if (unknown.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `Unknown workflow role(s): ${unknown.join(', ')}`
+        });
+      }
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      await transaction.request()
+        .input('userId', sql.NVarChar(450), userId)
+        .query(`
+          UPDATE ims_user_workflow_roles
+          SET is_active = 0,
+              updated_at = GETDATE()
+          WHERE user_id = @userId
+            AND is_active = 1
+        `);
+
+      for (const roleName of roles) {
+        await transaction.request()
+          .input('userId', sql.NVarChar(450), userId)
+          .input('roleName', sql.NVarChar(100), roleName)
+          .query(`
+            MERGE ims_user_workflow_roles AS target
+            USING (
+              SELECT @userId AS user_id, wr.id AS workflow_role_id
+              FROM ims_workflow_roles wr
+              WHERE wr.role_name = @roleName
+                AND wr.is_active = 1
+            ) AS src
+            ON target.user_id = src.user_id
+               AND target.workflow_role_id = src.workflow_role_id
+            WHEN MATCHED THEN
+              UPDATE SET
+                is_active = 1,
+                updated_at = GETDATE()
+            WHEN NOT MATCHED THEN
+              INSERT (user_id, workflow_role_id, is_active, created_at, updated_at)
+              VALUES (src.user_id, src.workflow_role_id, 1, GETDATE(), GETDATE());
+          `);
+      }
+
+      await transaction.commit();
+      res.json({ success: true, message: 'Workflow role assignment updated successfully' });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error updating workflow role assignment:', error);
+    res.status(500).json({ success: false, error: 'Failed to update workflow role assignment', details: error.message });
+  }
+});
+
+// ============================================================================
+// PUT /api/approvals/workflow/configs/:groupNumber - Replace group workflow steps
+// Payload: { steps: [ { step_order: 1, roles: ['DD Admin'] }, ... ] }
+// ============================================================================
+router.put('/workflow/configs/:groupNumber', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
+  try {
+    const groupNumber = Number(req.params.groupNumber);
+    const steps = Array.isArray(req.body?.steps) ? req.body.steps : [];
+
+    if (!Number.isInteger(groupNumber) || groupNumber <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid groupNumber is required' });
+    }
+
+    if (steps.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one workflow step is required' });
+    }
+
+    const pool = getPool();
+    await ensureTables(pool);
+
+    const normalizedSteps = [];
+    for (const rawStep of steps) {
+      const stepOrder = Number(rawStep.step_order);
+      const rawRoles = Array.isArray(rawStep.roles)
+        ? rawStep.roles
+        : (Array.isArray(rawStep.designations)
+          ? rawStep.designations
+          : (Array.isArray(rawStep.designation_options) ? rawStep.designation_options : []));
+
+      const roles = rawRoles
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+
+      if (!Number.isInteger(stepOrder) || stepOrder <= 0) {
+        return res.status(400).json({ success: false, error: 'Each step must have a positive step_order' });
+      }
+
+      if (roles.length === 0) {
+        return res.status(400).json({ success: false, error: `Step ${stepOrder} must include at least one role` });
+      }
+
+      normalizedSteps.push({ step_order: stepOrder, roles });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      await transaction.request()
+        .input('groupNumber', sql.Int, groupNumber)
+        .query(`
+          UPDATE ims_dynamic_workflow_steps
+          SET is_active = 0,
+              updated_at = GETDATE()
+          WHERE group_number = @groupNumber
+            AND is_active = 1
+        `);
+
+      for (const step of normalizedSteps) {
+        for (const roleName of step.roles) {
+          const matchMode = 'exact';
+
+          await transaction.request()
+            .input('groupNumber', sql.Int, groupNumber)
+            .input('stepOrder', sql.Int, step.step_order)
+            .input('designationValue', sql.NVarChar(200), roleName)
+            .input('matchMode', sql.NVarChar(20), matchMode)
+            .query(`
+              INSERT INTO ims_dynamic_workflow_steps
+              (group_number, step_order, designation_value, match_mode, is_active, created_at, updated_at)
+              VALUES
+              (@groupNumber, @stepOrder, @designationValue, @matchMode, 1, GETDATE(), GETDATE())
+            `);
+        }
+      }
+
+      await transaction.commit();
+      res.json({ success: true, message: 'Workflow configuration updated successfully' });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error updating workflow config:', error);
+    res.status(500).json({ success: false, error: 'Failed to update workflow config', details: error.message });
+  }
+});
+
+// ============================================================================
+// DELETE /api/approvals/workflow/configs/:groupNumber - Remove group workflow steps
+// ============================================================================
+router.delete('/workflow/configs/:groupNumber', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
+  try {
+    const groupNumber = Number(req.params.groupNumber);
+
+    if (!Number.isInteger(groupNumber) || groupNumber <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid groupNumber is required' });
+    }
+
+    const pool = getPool();
+    await ensureTables(pool);
+
+    await pool.request()
+      .input('groupNumber', sql.Int, groupNumber)
+      .query(`
+        UPDATE ims_dynamic_workflow_steps
+        SET is_active = 0,
+            updated_at = GETDATE()
+        WHERE group_number = @groupNumber
+          AND is_active = 1
+      `);
+
+    res.json({ success: true, message: `Workflow deleted for Group ${groupNumber}` });
+  } catch (error) {
+    console.error('❌ Error deleting workflow config:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete workflow config', details: error.message });
+  }
+});
 
 // ============================================================================
 // GET /api/approvals/supervisor/pending - Get pending requests for supervisor
@@ -944,15 +1272,17 @@ router.post('/:approvalId/approve', async (req, res) => {
       const userInfoResult = await pool.request()
         .input('userId', sql.NVarChar, userId)
         .query(`
-          SELECT FullName, 
-                 COALESCE(tblUserDesignations.designation_name, 'Supervisor') as designation_name
+          SELECT FullName
           FROM AspNetUsers 
-          LEFT JOIN tblUserDesignations ON AspNetUsers.intDesignationID = tblUserDesignations.intDesignationID
           WHERE Id = @userId
         `);
       if (userInfoResult.recordset.length > 0) {
         actualApproverName = userInfoResult.recordset[0].FullName;
-        actualApproverDesignation = userInfoResult.recordset[0].designation_name;
+      }
+
+      const userRoles = await getUserWorkflowRoles(pool, userId);
+      if (userRoles.length > 0) {
+        actualApproverDesignation = userRoles.join(', ');
       }
     } catch (e) {
       console.log('⚠️ Could not get user info, using request body values');
@@ -974,6 +1304,10 @@ router.post('/:approvalId/approve', async (req, res) => {
       const hasForwardToAdmin = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_ADMIN');
       const hasForwardToSupervisor = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_SUPERVISOR');
       const hasForwardActions = hasForwardToAdmin || hasForwardToSupervisor;
+      let newApproverId = null;
+      let isDynamicStepTransition = false;
+      let dynamicTransitionLabel = '';
+      let requestId = null;
 
       if (hasReturnActions) {
         overallStatus = 'returned';
@@ -988,9 +1322,34 @@ router.post('/:approvalId/approve', async (req, res) => {
         overallStatus = 'approved';
       }
 
+      const approvalRowResult = await transaction.request()
+        .input('approvalId', sql.NVarChar, approvalId)
+        .query(`
+          SELECT request_id
+          FROM request_approvals
+          WHERE id = @approvalId
+        `);
+
+      requestId = approvalRowResult.recordset?.[0]?.request_id || null;
+
+      // Dynamic workflow transition: an "approved" action may move to next configured step,
+      // and only the final step becomes fully approved.
+      if (overallStatus === 'approved' && !hasForwardActions && !hasReturnActions && requestId) {
+        const transition = await advanceWorkflow(transaction, requestId, userId);
+        if (transition?.ok) {
+          if (transition.completed) {
+            overallStatus = 'approved';
+          } else {
+            overallStatus = 'pending';
+            newApproverId = transition.approverId;
+            isDynamicStepTransition = true;
+            dynamicTransitionLabel = `Pending Step ${transition.nextStepOrder} of ${transition.totalSteps}`;
+          }
+        }
+      }
+
       // Update approval record
       // If forwarding, find the target user to reassign current_approver_id
-      let newApproverId = null;
       if (hasForwardToAdmin) {
         // Find an IMS_ADMIN user (preferably in the same wing)
         const adminResult = await transaction.request()
@@ -1078,11 +1437,14 @@ router.post('/:approvalId/approve', async (req, res) => {
         `);
 
       // Determine a meaningful comment for the history entry
-      const historyActionType = hasReturnActions ? 'returned' : overallStatus;
+      const historyActionType = isDynamicStepTransition
+        ? 'approved_step'
+        : (hasReturnActions ? 'returned' : overallStatus);
       let historyComment = approval_comments || '';
       if (!historyComment) {
         if (historyActionType === 'forwarded_to_admin') historyComment = 'Forwarded request to Admin for approval';
         else if (historyActionType === 'forwarded_to_supervisor') historyComment = 'Forwarded request to Wing Supervisor';
+        else if (historyActionType === 'approved_step') historyComment = dynamicTransitionLabel || 'Step approved and forwarded to next designation';
         else if (historyActionType === 'approved') historyComment = 'Request approved';
         else if (historyActionType === 'rejected') historyComment = 'Request rejected';
         else if (historyActionType === 'returned') historyComment = 'Request returned for revision';
@@ -1106,13 +1468,6 @@ router.post('/:approvalId/approve', async (req, res) => {
       // STOCK DEDUCTION & ISSUANCE - When request is approved
       // ====================================================================
       if (overallStatus === 'approved' && item_allocations && Array.isArray(item_allocations)) {
-        // Get the request_id from request_approvals
-        const reqIdResult = await transaction.request()
-          .input('approvalId', sql.NVarChar, approvalId)
-          .query(`SELECT request_id FROM request_approvals WHERE id = @approvalId`);
-        
-        const requestId = reqIdResult.recordset[0]?.request_id;
-        
         if (requestId) {
           for (const allocation of item_allocations) {
             if (allocation.decision_type === 'APPROVE_FROM_STOCK' && allocation.allocated_quantity > 0) {
@@ -1189,7 +1544,7 @@ router.post('/:approvalId/approve', async (req, res) => {
             .query(`
               UPDATE stock_issuance_requests 
               SET request_status = 'Approved',
-                  approval_status = 'Approved by Admin',
+                  approval_status = 'Approved by Workflow',
                   approved_at = GETDATE(),
                   approved_by = @approvedBy,
                   issuance_source = 'admin_store',
@@ -1206,16 +1561,16 @@ router.post('/:approvalId/approve', async (req, res) => {
       // (forwarding, rejection, return) so requester's My Requests page is accurate
       // ====================================================================
       if (overallStatus !== 'approved') {
-        const reqIdResult2 = await transaction.request()
-          .input('approvalId', sql.NVarChar, approvalId)
-          .query(`SELECT request_id FROM request_approvals WHERE id = @approvalId`);
-        const syncRequestId = reqIdResult2.recordset[0]?.request_id;
+        const syncRequestId = requestId;
         
         if (syncRequestId) {
           let sirStatus = 'Pending';
           let sirApprovalStatus = 'Pending Supervisor Review';
           
-          if (overallStatus === 'forwarded_to_admin') {
+          if (isDynamicStepTransition) {
+            sirStatus = 'Pending';
+            sirApprovalStatus = dynamicTransitionLabel || 'Pending Next Approval Step';
+          } else if (overallStatus === 'forwarded_to_admin') {
             sirStatus = 'Pending';
             sirApprovalStatus = 'Forwarded to Admin';
           } else if (overallStatus === 'forwarded_to_supervisor') {

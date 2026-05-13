@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { getPool, sql } = require('../db/connection.cjs');
+const { initializeWorkflowForRequest, bindRequestApprovalId } = require('../utils/workflowEngine.cjs');
 
 const requireAuth = (req, res, next) => {
   if (!req.session || !req.session.userId) {
@@ -693,45 +694,57 @@ const createStockIssuanceRequest = async (req, res) => {
       // After successful commit, create approval workflow records
       try {
         const userId = requester_user_id || req.session.userId;
-        
-        // Find a supervisor in the same wing (HOD first, then any admin-level user)
-        const supervisorResult = await pool.request()
-          .input('wingId', sql.Int, wingId)
-          .input('requesterId', sql.NVarChar(450), userId)
-          .query(`
-            SELECT TOP 1 u.Id as user_id, u.FullName
-            FROM AspNetUsers u
-            INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
-            INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
-            WHERE u.intWingID = @wingId
-              AND u.Id != @requesterId
-              AND (r.Name LIKE '%Admin%' OR r.Name LIKE '%DG%' OR r.Name LIKE '%ADG%' 
-                   OR r.Name LIKE '%Manager%' OR r.Name LIKE '%Director%' OR r.Name LIKE '%HoD%')
-            ORDER BY 
-              CASE WHEN r.Name LIKE '%HoD%' THEN 1 
-                   WHEN r.Name LIKE '%Director%' THEN 2
-                   WHEN r.Name LIKE '%Manager%' THEN 3
-                   ELSE 4 END
-          `);
-
+        let dynamicWorkflowResult = null;
         let approverId = null;
-        if (supervisorResult.recordset.length > 0) {
-          approverId = supervisorResult.recordset[0].user_id;
-        } else {
-          // Fallback: any admin-level user in the same wing (even the requester if sole admin)
-          const fallbackResult = await pool.request()
+
+        // Dynamic workflow: resolve first approver from group->designation steps.
+        try {
+          dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null);
+          if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
+            approverId = dynamicWorkflowResult.approverId;
+          }
+        } catch (dynamicError) {
+          console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
+        }
+        
+        // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
+        if (!approverId) {
+          const supervisorResult = await pool.request()
             .input('wingId', sql.Int, wingId)
+            .input('requesterId', sql.NVarChar(450), userId)
             .query(`
-              SELECT TOP 1 u.Id as user_id
+              SELECT TOP 1 u.Id as user_id, u.FullName
               FROM AspNetUsers u
               INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
               INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
               WHERE u.intWingID = @wingId
+                AND u.Id != @requesterId
                 AND (r.Name LIKE '%Admin%' OR r.Name LIKE '%DG%' OR r.Name LIKE '%ADG%'
                      OR r.Name LIKE '%Manager%' OR r.Name LIKE '%Director%' OR r.Name LIKE '%HoD%')
+              ORDER BY
+                CASE WHEN r.Name LIKE '%HoD%' THEN 1
+                     WHEN r.Name LIKE '%Director%' THEN 2
+                     WHEN r.Name LIKE '%Manager%' THEN 3
+                     ELSE 4 END
             `);
-          if (fallbackResult.recordset.length > 0) {
-            approverId = fallbackResult.recordset[0].user_id;
+
+          if (supervisorResult.recordset.length > 0) {
+            approverId = supervisorResult.recordset[0].user_id;
+          } else {
+            const fallbackResult = await pool.request()
+              .input('wingId', sql.Int, wingId)
+              .query(`
+                SELECT TOP 1 u.Id as user_id
+                FROM AspNetUsers u
+                INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
+                INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
+                WHERE u.intWingID = @wingId
+                  AND (r.Name LIKE '%Admin%' OR r.Name LIKE '%DG%' OR r.Name LIKE '%ADG%'
+                       OR r.Name LIKE '%Manager%' OR r.Name LIKE '%Director%' OR r.Name LIKE '%HoD%')
+              `);
+            if (fallbackResult.recordset.length > 0) {
+              approverId = fallbackResult.recordset[0].user_id;
+            }
           }
         }
 
@@ -751,6 +764,20 @@ const createStockIssuanceRequest = async (req, res) => {
             `);
 
           const approvalId = approvalResult.recordset[0].id;
+
+            if (dynamicWorkflowResult?.ok) {
+              await bindRequestApprovalId(pool, requestId, approvalId);
+
+              await pool.request()
+                .input('requestId', sql.UniqueIdentifier, requestId)
+                .input('approvalStatus', sql.NVarChar(100), `Pending Step ${dynamicWorkflowResult.currentStepOrder} of ${dynamicWorkflowResult.totalSteps}`)
+                .query(`
+                  UPDATE stock_issuance_requests
+                  SET approval_status = @approvalStatus,
+                      updated_at = GETDATE()
+                  WHERE id = @requestId
+                `);
+            }
 
           // Create approval_items from stock_issuance_items (always query from DB, don't rely on req.body.items)
           const insertedItems = await pool.request()

@@ -1,569 +1,659 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  approvalForwardingService, 
-  ApprovalWorkflow, 
-  WorkflowApprover,
-  AddWorkflowApproverPayload 
-} from '../services/approvalForwardingService';
-import { erpDatabaseService } from '../services/erpDatabaseService';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Plus, Save, Trash2, RefreshCcw, Settings2, Group, CheckCircle2, AlertTriangle, Search, X } from 'lucide-react';
 
-interface User {
-  Id: string;
-  FullName: string;
-  Role: string;
-  intDesignationID?: number;
-  intOfficeID?: number;
-  intWingID?: number;
-  wingName?: string;
-}
+type WorkflowDesignationStep = {
+  step_order: number;
+  roles: string[];
+};
+
+type WorkflowGroupConfig = {
+  group_number: number;
+  steps: WorkflowDesignationStep[];
+};
+
+const GROUP_OPTIONS = [1, 2, 3, 4, 5, 6];
 
 export const WorkflowAdmin: React.FC = () => {
-  const [workflows, setWorkflows] = useState<ApprovalWorkflow[]>([]);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
-  const [workflowApprovers, setWorkflowApprovers] = useState<WorkflowApprover[]>([]);
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [configs, setConfigs] = useState<WorkflowGroupConfig[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<number>(1);
+  const [steps, setSteps] = useState<WorkflowDesignationStep[]>([
+    { step_order: 1, roles: [] }
+  ]);
   const [loading, setLoading] = useState(true);
-  
-  // Form states
-  const [showCreateWorkflow, setShowCreateWorkflow] = useState(false);
-  const [showAddApprover, setShowAddApprover] = useState(false);
-  const [userSearchTerm, setUserSearchTerm] = useState('');
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [refreshCounter, setRefreshCounter] = useState(0);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [newWorkflow, setNewWorkflow] = useState({
-    workflow_name: '',
-    request_type: '',
-    description: ''
-  });
-  const [newApprover, setNewApprover] = useState({
-    user_id: '',
-    can_approve: true,
-    can_forward: true,
-    can_finalize: false,
-    approver_role: ''
-  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [stepSearchTerms, setStepSearchTerms] = useState<Record<number, string>>({});
+  const [duplicateSourceGroup, setDuplicateSourceGroup] = useState<number | null>(null);
+  const [duplicateTargetGroup, setDuplicateTargetGroup] = useState<number>(1);
+  const [editorMode, setEditorMode] = useState<'insert' | 'edit'>('insert');
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedWorkflow) {
-      loadWorkflowApprovers(selectedWorkflow);
-    }
-  }, [selectedWorkflow]);
-
-  // Debug: Log when workflowApprovers state changes
-  useEffect(() => {
-    console.log('📊 workflowApprovers state changed:', workflowApprovers.length, 'items');
-  }, [workflowApprovers]);
-
-  // Filter users based on search term
-  const filteredUsers = availableUsers.filter(user =>
-    user.FullName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-    user.wingName?.toLowerCase().includes(userSearchTerm.toLowerCase())
+  const currentConfig = useMemo(
+    () => configs.find((config) => config.group_number === selectedGroup) || null,
+    [configs, selectedGroup]
   );
 
-  // Handle click outside to close dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowUserDropdown(false);
-      }
-    };
+  const sortedConfigs = useMemo(
+    () => [...configs].sort((a, b) => a.group_number - b.group_number),
+    [configs]
+  );
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+  const normalizeRole = (value: string | { value: string; match_mode?: string }) => {
+    if (typeof value === 'string') return value;
+    return value?.value || '';
+  };
+
+  const filteredRolesForStep = (stepOrder: number) => {
+    const term = (stepSearchTerms[stepOrder] || '').toLowerCase().trim();
+    const source = availableRoles || [];
+    if (!term) return source.slice(0, 12);
+    return source.filter((d) => d.toLowerCase().includes(term)).slice(0, 12);
+  };
+
+  const formatFlowText = (config: WorkflowGroupConfig) => {
+    const orderedSteps = [...(config.steps || [])].sort((a, b) => a.step_order - b.step_order);
+    const chain = orderedSteps
+      .map((step) => (step.roles || []).filter(Boolean).join(' / '))
+      .filter(Boolean)
+      .join(' -> ');
+
+    return chain ? `Group ${config.group_number} -> ${chain}` : `Group ${config.group_number}`;
+  };
+
+  useEffect(() => {
+    void loadWorkflowData();
   }, []);
 
-  const loadInitialData = async () => {
+  const loadWorkflowData = async () => {
     try {
       setLoading(true);
-      const [workflowsData, usersData, wingsData] = await Promise.all([
-        approvalForwardingService.getWorkflows(),
-        erpDatabaseService.getActiveUsers(),
-        erpDatabaseService.getWingsInformation()
+      setError(null);
+
+      const [configsResponse, rolesResponse] = await Promise.all([
+        fetch('http://localhost:3001/api/approvals/workflow/configs', { credentials: 'include' }),
+        fetch('http://localhost:3001/api/approvals/workflow/roles', { credentials: 'include' })
       ]);
-      
-      // Map wing names to users
-      const usersWithWings = usersData.map(user => ({
-        ...user,
-        wingName: wingsData.find(wing => wing.Id === user.intWingID)?.Name || 'Unknown Wing'
+
+      const configsData = await configsResponse.json();
+      const rolesData = await rolesResponse.json();
+
+      if (!configsResponse.ok) {
+        throw new Error(configsData.error || 'Failed to load workflow configs');
+      }
+
+      if (!rolesResponse.ok) {
+        throw new Error(rolesData.error || 'Failed to load roles');
+      }
+
+      const normalizedConfigs: WorkflowGroupConfig[] = (configsData.data || []).map((groupConfig: any) => ({
+        group_number: Number(groupConfig.group_number),
+        steps: (groupConfig.steps || []).map((step: any) => ({
+          step_order: Number(step.step_order),
+          roles: (step.designations || step.roles || [])
+            .map((value: any) => normalizeRole(value))
+            .filter(Boolean)
+        }))
       }));
-      
-      console.log('🔍 Workflows loaded:', workflowsData);
-      console.log('👥 Users loaded:', usersWithWings);
-      console.log('� Wings loaded:', wingsData);
-      
-      setWorkflows(workflowsData);
-      setAvailableUsers(usersWithWings);
-    } catch (error) {
-      console.error('Error loading initial data:', error);
+
+      setConfigs(normalizedConfigs);
+      setAvailableRoles(rolesData.data || []);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load workflow admin data');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadWorkflowApprovers = async (workflowId: string) => {
-    try {
-      console.log('🔄 Loading approvers for workflow:', workflowId);
-      const approvers = await approvalForwardingService.getWorkflowApprovers(workflowId);
-      console.log('📋 Loaded approvers:', approvers);
-      console.log('📊 Current workflowApprovers state before update:', workflowApprovers.length);
-      setWorkflowApprovers(approvers);
-      console.log('📊 Setting workflowApprovers to:', approvers.length, 'items');
-    } catch (error) {
-      console.error('❌ Error loading workflow approvers:', error);
-    }
+  const updateStepRoles = (stepOrder: number, roleName: string, checked: boolean) => {
+    setSteps((prev) =>
+      prev.map((step) => {
+        if (step.step_order !== stepOrder) return step;
+
+        const existing = new Set(step.roles);
+        if (checked) {
+          existing.add(roleName);
+        } else {
+          existing.delete(roleName);
+        }
+
+        return {
+          ...step,
+          roles: Array.from(existing)
+        };
+      })
+    );
   };
 
-  const handleCreateWorkflow = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await approvalForwardingService.createWorkflow({
-        ...newWorkflow,
-        is_active: true
-      });
-      
-      // Refresh workflows
-      await loadInitialData();
-      
-      // Reset form
-      setNewWorkflow({
-        workflow_name: '',
-        request_type: '',
-        description: ''
-      });
-      setShowCreateWorkflow(false);
-      
-      alert('Workflow created successfully!');
-    } catch (error: any) {
-      console.error('Error creating workflow:', error);
-      alert(`Failed to create workflow: ${error.message}`);
-    }
+  const addStep = () => {
+    setSteps((prev) => {
+      const nextStepOrder = prev.length > 0 ? Math.max(...prev.map((step) => step.step_order)) + 1 : 1;
+      return [...prev, { step_order: nextStepOrder, roles: [] }];
+    });
   };
 
-  const handleAddApprover = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedWorkflow) return;
-    
-    try {
-      const selectedUser = availableUsers.find(u => u.Id === newApprover.user_id);
-      if (!selectedUser) {
-        alert('Please select a valid user');
-        return;
-      }
+  const removeStep = (stepOrder: number) => {
+    setSteps((prev) => {
+      const filtered = prev.filter((step) => step.step_order !== stepOrder);
+      return filtered.length > 0
+        ? filtered.map((step, index) => ({ ...step, step_order: index + 1 }))
+        : [{ step_order: 1, roles: [] }];
+    });
 
-      console.log('🔄 Adding approver with data:', {
-        workflowId: selectedWorkflow,
-        approver: {
-          user_id: newApprover.user_id,
-          can_approve: newApprover.can_approve,
-          can_forward: newApprover.can_forward,
-          can_finalize: newApprover.can_finalize,
-          approver_role: newApprover.approver_role
+    setStepSearchTerms((prev) => {
+      const next: Record<number, string> = {};
+      Object.keys(prev).forEach((key) => {
+        const numericKey = Number(key);
+        if (numericKey !== stepOrder) {
+          next[numericKey] = prev[numericKey];
         }
       });
+      return next;
+    });
+  };
 
-      const result = await approvalForwardingService.addWorkflowApprover(selectedWorkflow, {
-        user_id: newApprover.user_id,
-        can_approve: newApprover.can_approve,
-        can_forward: newApprover.can_forward,
-        can_finalize: newApprover.can_finalize,
-        approver_role: newApprover.approver_role
+  const saveWorkflow = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      const payload = {
+        steps: steps
+          .filter((step) => step.roles.length > 0)
+          .map((step, index) => ({
+            step_order: index + 1,
+            roles: step.roles
+          }))
+      };
+
+      if (payload.steps.length === 0) {
+        throw new Error('Add at least one role to save the workflow');
+      }
+
+      const response = await fetch(`http://localhost:3001/api/approvals/workflow/configs/${selectedGroup}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload)
       });
-      
-      console.log('✅ Approver added successfully:', result);
-      
-      // Small delay to ensure database transaction is committed
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Refresh approvers
-      console.log('🔄 Refreshing approvers list...');
-      await loadWorkflowApprovers(selectedWorkflow);
-      
-      // Force re-render
-      setRefreshCounter(prev => prev + 1);
-      console.log('🔄 Forced re-render with counter:', refreshCounter + 1);
-      
-      // Reset form
-      setNewApprover({
-        user_id: '',
-        can_approve: true,
-        can_forward: true,
-        can_finalize: false,
-        approver_role: ''
-      });
-      setUserSearchTerm('');
-      setShowUserDropdown(false);
-      setShowAddApprover(false);
-      
-      alert('Approver added successfully!');
-    } catch (error: any) {
-      console.error('❌ Error adding approver:', error);
-      alert(`Failed to add approver: ${error.message}`);
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save workflow');
+      }
+
+      setSuccess(`Workflow saved for Group ${selectedGroup}`);
+      setEditorMode('insert');
+      setSteps([{ step_order: 1, roles: [] }]);
+      setStepSearchTerms({});
+      await loadWorkflowData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save workflow');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeleteApprover = async (approverId: string) => {
-    if (!selectedWorkflow) return;
-    
-    const confirmed = confirm('Are you sure you want to remove this approver from the workflow?');
+  const resetToCurrent = () => {
+    if (editorMode === 'edit' && currentConfig) {
+      setSteps(currentConfig.steps.map((step) => ({
+        step_order: step.step_order,
+        roles: [...step.roles]
+      })));
+    } else {
+      setSteps([{ step_order: 1, roles: [] }]);
+    }
+    setError(null);
+    setSuccess(null);
+    setStepSearchTerms({});
+  };
+
+  const editWorkflowGroup = (groupNumber: number) => {
+    const config = configs.find((item) => item.group_number === groupNumber) || null;
+    setSelectedGroup(groupNumber);
+    setEditorMode('edit');
+    if (config?.steps?.length) {
+      setSteps(config.steps.map((step) => ({
+        step_order: step.step_order,
+        roles: [...step.roles]
+      })));
+    } else {
+      setSteps([{ step_order: 1, roles: [] }]);
+    }
+    setStepSearchTerms({});
+    setError(null);
+    setSuccess(`Editing Group ${groupNumber}`);
+  };
+
+  const deleteWorkflowGroup = async (groupNumber: number) => {
+    const confirmed = window.confirm(`Delete workflow for Group ${groupNumber}?`);
     if (!confirmed) return;
-    
+
     try {
-      console.log('🗑️ Deleting approver:', { workflowId: selectedWorkflow, approverId });
-      
-      await approvalForwardingService.deleteWorkflowApprover(selectedWorkflow, approverId);
-      
-      console.log('✅ Approver deleted successfully');
-      
-      // Refresh the approvers list
-      await loadWorkflowApprovers(selectedWorkflow);
-      
-      alert('Approver removed successfully!');
-    } catch (error: any) {
-      console.error('❌ Error deleting approver:', error);
-      alert(`Failed to remove approver: ${error.message}`);
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      const response = await fetch(`http://localhost:3001/api/approvals/workflow/configs/${groupNumber}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete workflow');
+      }
+
+      if (selectedGroup === groupNumber) {
+        setSteps([{ step_order: 1, roles: [] }]);
+      }
+
+      setSuccess(`Workflow deleted for Group ${groupNumber}`);
+      await loadWorkflowData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete workflow');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openDuplicateDialog = (sourceGroupNumber: number) => {
+    const defaultTarget = GROUP_OPTIONS.find((group) => group !== sourceGroupNumber) || 1;
+    setDuplicateSourceGroup(sourceGroupNumber);
+    setDuplicateTargetGroup(defaultTarget);
+    setError(null);
+  };
+
+  const closeDuplicateDialog = () => {
+    setDuplicateSourceGroup(null);
+  };
+
+  const duplicateWorkflowGroup = async () => {
+    if (!duplicateSourceGroup) return;
+
+    const sourceGroupNumber = duplicateSourceGroup;
+    const sourceConfig = configs.find((config) => config.group_number === sourceGroupNumber);
+    if (!sourceConfig || !sourceConfig.steps?.length) {
+      setError(`No workflow found to duplicate for Group ${sourceGroupNumber}`);
+      return;
+    }
+
+    const targetGroup = Number(duplicateTargetGroup);
+    if (!Number.isInteger(targetGroup) || targetGroup < 1 || targetGroup > 6) {
+      setError('Please enter a valid target group number between 1 and 6');
+      return;
+    }
+
+    if (targetGroup === sourceGroupNumber) {
+      setError('Source and target group cannot be the same for duplication');
+      return;
+    }
+
+    const payload = {
+      steps: sourceConfig.steps
+        .filter((step) => step.roles.length > 0)
+        .map((step, index) => ({
+          step_order: index + 1,
+          roles: [...step.roles]
+        }))
+    };
+
+    if (payload.steps.length === 0) {
+      setError(`No steps available to duplicate from Group ${sourceGroupNumber}`);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      const response = await fetch(`http://localhost:3001/api/approvals/workflow/configs/${targetGroup}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to duplicate workflow');
+      }
+
+      setSuccess(`Workflow duplicated: Group ${sourceGroupNumber} -> Group ${targetGroup}`);
+      setSelectedGroup(targetGroup);
+      closeDuplicateDialog();
+      await loadWorkflowData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to duplicate workflow');
+    } finally {
+      setSaving(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading workflow administration...</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 text-blue-700 mb-4">
+            <Settings2 className="h-6 w-6 animate-spin" />
+          </div>
+          <div className="text-slate-700 font-medium">Loading workflow administration...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Workflow Administration
-        </h1>
-        <button
-          onClick={() => setShowCreateWorkflow(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Workflow
-        </button>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Workflow Configuration</h1>
+              <p className="mt-1 text-sm text-gray-600">
+                Select group, then add step rows with searchable multi-select roles.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={loadWorkflowData}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={resetToCurrent}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={saveWorkflow}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Saving...' : 'Save Workflow'}
+              </button>
+            </div>
+          </div>
+        </div>
 
-      {/* Create Workflow Modal */}
-      {showCreateWorkflow && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Create New Workflow</h3>
-            <form onSubmit={handleCreateWorkflow} className="space-y-4">
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {success}
+          </div>
+        )}
+
+        {duplicateSourceGroup && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <div className="mb-3 text-sm font-semibold text-amber-900">
+              Duplicate Group {duplicateSourceGroup} Workflow
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-end">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Workflow Name
-                </label>
-                <input
-                  type="text"
-                  value={newWorkflow.workflow_name}
-                  onChange={(e) => setNewWorkflow({...newWorkflow, workflow_name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Request Type
-                </label>
+                <label className="mb-1 block text-xs font-medium text-amber-900">Target Group</label>
                 <select
-                  value={newWorkflow.request_type}
-                  onChange={(e) => setNewWorkflow({...newWorkflow, request_type: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
+                  value={duplicateTargetGroup}
+                  onChange={(e) => setDuplicateTargetGroup(Number(e.target.value))}
+                  className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
                 >
-                  <option value="">Select request type...</option>
-                  <option value="stock_issuance">Stock Issuance</option>
-                  <option value="tender">Tender</option>
-                  <option value="procurement">Procurement</option>
-                  <option value="asset_disposal">Asset Disposal</option>
+                  {GROUP_OPTIONS.filter((group) => group !== duplicateSourceGroup).map((group) => (
+                    <option key={group} value={group}>
+                      Group {group}
+                    </option>
+                  ))}
                 </select>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={newWorkflow.description}
-                  onChange={(e) => setNewWorkflow({...newWorkflow, description: e.target.value})}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div className="flex space-x-3 pt-4">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Create Workflow
-                </button>
+              <div className="md:col-span-2 flex flex-wrap gap-2 md:justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowCreateWorkflow(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                  onClick={closeDuplicateDialog}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
+                <button
+                  type="button"
+                  onClick={duplicateWorkflowGroup}
+                  disabled={saving}
+                  className="rounded-md border border-amber-300 bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {saving ? 'Duplicating...' : 'Confirm Duplicate'}
+                </button>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Workflows List */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Panel - Workflows */}
-        <div className="bg-white border border-gray-200 rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Approval Workflows ({workflows.length})
-            </h2>
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Saved Workflows</h2>
+            <span className="text-sm text-gray-600">{sortedConfigs.length} configured group(s)</span>
           </div>
-          
-          <div className="divide-y divide-gray-200">
-            {workflows.map((workflow) => (
-              <div 
-                key={workflow.id}
-                className={`p-4 cursor-pointer hover:bg-gray-50 ${
-                  selectedWorkflow === workflow.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                }`}
-                onClick={() => {
-                  console.log('🎯 Selecting workflow:', workflow.id, workflow.workflow_name);
-                  setSelectedWorkflow(workflow.id);
-                }}
-              >
-                <div className="font-medium text-gray-900">
-                  {workflow.workflow_name}
-                </div>
-                <div className="text-sm text-gray-600">
-                  Type: {workflow.request_type.replace('_', ' ')}
-                </div>
-                {workflow.description && (
-                  <div className="text-sm text-gray-500 mt-1">
-                    {workflow.description}
-                  </div>
-                )}
-                <div className={`inline-block px-2 py-1 rounded text-xs font-medium mt-2 ${
-                  workflow.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {workflow.is_active ? 'Active' : 'Inactive'}
-                </div>
-              </div>
-            ))}
-            
-            {workflows.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No workflows configured yet
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Right Panel - Workflow Details */}
-        <div className="bg-white border border-gray-200 rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {selectedWorkflow ? 'Workflow Approvers' : 'Select a Workflow'}
-            </h2>
-            {selectedWorkflow && (
-              <button
-                onClick={() => setShowAddApprover(true)}
-                className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700"
-              >
-                Add Approver
-              </button>
-            )}
-          </div>
-          
-          {selectedWorkflow ? (
-            <div className="divide-y divide-gray-200">
-              {workflowApprovers.map((approver) => {
-                // Log when rendering each approver
-                console.log('🎨 Rendering approver:', approver.user_name);
-                return (
-                <div key={approver.id} className="p-4">
-                  <div className="font-medium text-gray-900">
-                    {approver.user_name}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {approver.user_designation}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Role: {approver.approver_role}
-                  </div>
-                  <div className="flex space-x-2 mt-2">
-                    {approver.can_approve && (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                        Can Approve
-                      </span>
-                    )}
-                    {approver.can_forward && (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                        Can Forward
-                      </span>
-                    )}
-                    {approver.can_finalize && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
-                        Can Finalize
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex justify-end mt-3">
-                    <button
-                      onClick={() => handleDeleteApprover(approver.id)}
-                      className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700"
-                      title="Remove this approver from the workflow"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-                );
-              })}
-              
-              {workflowApprovers.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No approvers configured for this workflow
-                </div>
-              )}
+          {sortedConfigs.length === 0 ? (
+            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+              No workflows saved yet.
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              Select a workflow to view and manage approvers
+            <div className="overflow-x-auto">
+              <table className="min-w-full border border-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-700">Group</th>
+                    <th className="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-700">Flow</th>
+                    <th className="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedConfigs.map((config) => (
+                    <tr key={config.group_number}>
+                      <td className="border-b border-gray-100 px-3 py-2 text-gray-900">Group {config.group_number}</td>
+                      <td className="border-b border-gray-100 px-3 py-2 text-gray-700">{formatFlowText(config)}</td>
+                      <td className="border-b border-gray-100 px-3 py-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editWorkflowGroup(config.group_number)}
+                            className="rounded-md border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDuplicateDialog(config.group_number)}
+                            disabled={saving}
+                            className="rounded-md border border-amber-200 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                          >
+                            Duplicate
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteWorkflowGroup(config.group_number)}
+                            disabled={saving}
+                            className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Add Approver Modal */}
-      {showAddApprover && selectedWorkflow && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Add Approver</h3>
-            <form onSubmit={handleAddApprover} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select User ({availableUsers.length} users available)
-                </label>
-                <div className="relative" ref={dropdownRef}>
-                  <input
-                    type="text"
-                    placeholder="Search users by name or wing..."
-                    value={userSearchTerm}
-                    onChange={(e) => {
-                      setUserSearchTerm(e.target.value);
-                      setShowUserDropdown(true);
-                    }}
-                    onFocus={() => setShowUserDropdown(true)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {showUserDropdown && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {filteredUsers.length > 0 ? (
-                        filteredUsers.map((user) => (
-                          <div
-                            key={user.Id}
-                            onClick={() => {
-                              setNewApprover({...newApprover, user_id: user.Id});
-                              setUserSearchTerm(`${user.FullName} - ${user.wingName}`);
-                              setShowUserDropdown(false);
-                            }}
-                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="font-medium text-gray-900">{user.FullName}</div>
-                            <div className="text-sm text-gray-600">{user.wingName}</div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-gray-500">No users found</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {/* Hidden field to store selected user ID for form validation */}
-                <input type="hidden" value={newApprover.user_id} required />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Approver Role
-                </label>
-                <input
-                  type="text"
-                  value={newApprover.approver_role}
-                  onChange={(e) => setNewApprover({...newApprover, approver_role: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Department Head, Finance Officer"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Permissions
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={newApprover.can_approve}
-                      onChange={(e) => setNewApprover({...newApprover, can_approve: e.target.checked})}
-                      className="mr-2"
-                    />
-                    Can Approve
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={newApprover.can_forward}
-                      onChange={(e) => setNewApprover({...newApprover, can_forward: e.target.checked})}
-                      className="mr-2"
-                    />
-                    Can Forward
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={newApprover.can_finalize}
-                      onChange={(e) => setNewApprover({...newApprover, can_finalize: e.target.checked})}
-                      className="mr-2"
-                    />
-                    Can Finalize
-                  </label>
-                </div>
-              </div>
-              
-              <div className="flex space-x-3 pt-4">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                >
-                  Add Approver
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddApprover(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-end">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Group</label>
+              <select
+                value={selectedGroup}
+                onChange={(e) => {
+                  setSelectedGroup(Number(e.target.value));
+                  setEditorMode('insert');
+                  setSteps([{ step_order: 1, roles: [] }]);
+                  setStepSearchTerms({});
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              >
+                {GROUP_OPTIONS.map((group) => (
+                  <option key={group} value={group}>
+                    Group {group}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2 text-sm text-gray-600">
+              Current saved workflow:
+              <span className="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                {currentConfig ? `${currentConfig.steps.length} step(s) configured` : 'No workflow configured'}
+              </span>
+              <span className="ml-2 inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                Mode: {editorMode === 'edit' ? 'Edit' : 'Insert (Blank)'}
+              </span>
+            </div>
           </div>
         </div>
-      )}
+
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Workflow Steps</h2>
+            <button
+              type="button"
+              onClick={addStep}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Plus className="h-4 w-4" />
+              Add Step
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {steps.map((step) => (
+              <div key={step.step_order} className="rounded-lg border border-gray-200 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-sm font-semibold text-gray-900">Step {step.step_order}</div>
+                  {steps.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeStep(step.step_order)}
+                      className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="mb-3">
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Search Roles</label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={stepSearchTerms[step.step_order] || ''}
+                      onChange={(e) =>
+                        setStepSearchTerms((prev) => ({
+                          ...prev,
+                          [step.step_order]: e.target.value
+                        }))
+                      }
+                      placeholder="Type to search role"
+                      className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                  <div className="max-h-48 space-y-1 overflow-y-auto">
+                    {filteredRolesForStep(step.step_order).map((roleName) => {
+                      const checked = step.roles.includes(roleName);
+                      return (
+                        <label key={`${step.step_order}-${roleName}`} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-white">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => updateStepRoles(step.step_order, roleName, e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                          />
+                          <span className="text-sm text-gray-800">{roleName}</span>
+                        </label>
+                      );
+                    })}
+                    {filteredRolesForStep(step.step_order).length === 0 && (
+                      <div className="px-2 py-2 text-sm text-gray-500">No role found</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {step.roles.map((roleName) => (
+                    <span
+                      key={`${step.step_order}-selected-${roleName}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800"
+                    >
+                      {roleName}
+                      <button
+                        type="button"
+                        onClick={() => updateStepRoles(step.step_order, roleName, false)}
+                        className="rounded-full p-0.5 hover:bg-blue-200"
+                        aria-label={`Remove ${roleName}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {step.roles.length === 0 && (
+                    <span className="text-xs text-gray-500">No roles selected</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
+            <button
+              type="button"
+              onClick={addStep}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Plus className="h-4 w-4" />
+              Add Step
+            </button>
+            <button
+              type="button"
+              onClick={saveWorkflow}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? 'Saving...' : 'Save Workflow'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
