@@ -33,6 +33,7 @@
     "switch:staging": "powershell -Command \"./switch-env.ps1 test\"",
     "switch:prod": "powershell -Command \"./switch-env.ps1 prod\"",
     "test:e2e": "playwright test",
+    "test:regression": "playwright test tests/e2e/workflow-regression.spec.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:setup": "playwright install chromium",
     "test:system": "npm run switch:test && npm run build && npm run test:e2e"
