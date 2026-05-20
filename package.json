@@ -31,7 +31,11 @@
     "switch:dev": "powershell -Command \"./switch-env.ps1 dev\"",
     "switch:test": "powershell -Command \"./switch-env.ps1 test\"",
     "switch:staging": "powershell -Command \"./switch-env.ps1 test\"",
-    "switch:prod": "powershell -Command \"./switch-env.ps1 prod\""
+    "switch:prod": "powershell -Command \"./switch-env.ps1 prod\"",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:setup": "playwright install chromium",
+    "test:system": "npm run switch:test && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -104,6 +108,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@eslint/js": "^9.9.0",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.5.5",

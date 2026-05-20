@@ -40,6 +40,15 @@ app.use(requestLogger);
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'ims-api',
+    environment: config.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ============================================================================
 // Routes (To be implemented from original backend-server.cjs)
 // ============================================================================

@@ -1,5 +1,22 @@
 // Environment configuration
-require('dotenv').config({ path: '.env.sqlserver' });
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+const nodeEnv = process.env.NODE_ENV || 'development';
+const envCandidates = [
+  process.env.ENV_FILE,
+  '.env',
+  `.env-${nodeEnv}`,
+  '.env.sqlserver'
+].filter(Boolean);
+
+for (const envFile of envCandidates) {
+  const envPath = path.resolve(process.cwd(), envFile);
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath, override: false });
+  }
+}
 
 const config = {
   // Server
