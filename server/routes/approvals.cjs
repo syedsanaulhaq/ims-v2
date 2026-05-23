@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
-const { ensureTables, getWorkflowSteps, advanceWorkflow, getWorkflowRoles, getUserWorkflowRoles } = require('../utils/workflowEngine.cjs');
+const { ensureTables, getWorkflowSteps, advanceWorkflow, getWorkflowRoles } = require('../utils/workflowEngine.cjs');
 
 // ============================================================================
 // Middleware: Authentication and Permission Checking
@@ -104,7 +104,7 @@ router.get('/workflow/configs', requireAuth, requirePermission('stock_request.vi
 });
 
 // ============================================================================
-// GET /api/approvals/workflow/roles - List IMS workflow roles
+// GET /api/approvals/workflow/roles - List active IMS roles for workflow steps
 // ============================================================================
 router.get('/workflow/roles', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
   try {
@@ -132,7 +132,7 @@ router.get('/workflow/designations', requireAuth, requirePermission('stock_reque
 });
 
 // ============================================================================
-// GET /api/approvals/workflow/role-assignments - List users and assigned workflow roles
+// GET /api/approvals/workflow/role-assignments - List users and assigned IMS roles
 // ============================================================================
 router.get('/workflow/role-assignments', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
   try {
@@ -146,11 +146,11 @@ router.get('/workflow/role-assignments', requireAuth, requirePermission('stock_r
         u.Email,
         STRING_AGG(wr.role_name, '|') WITHIN GROUP (ORDER BY wr.role_name) AS roles_csv
       FROM AspNetUsers u
-      LEFT JOIN ims_user_workflow_roles uwr
-        ON uwr.user_id = u.Id
-       AND uwr.is_active = 1
-      LEFT JOIN ims_workflow_roles wr
-        ON wr.id = uwr.workflow_role_id
+      LEFT JOIN ims_user_roles ur
+        ON ur.user_id = u.Id
+       AND ur.is_active = 1
+      LEFT JOIN ims_roles wr
+        ON wr.id = ur.role_id
        AND wr.is_active = 1
       GROUP BY u.Id, u.FullName, u.Email
       ORDER BY u.FullName ASC
@@ -171,8 +171,8 @@ router.get('/workflow/role-assignments', requireAuth, requirePermission('stock_r
 });
 
 // ============================================================================
-// PUT /api/approvals/workflow/role-assignments/:userId - Replace user workflow roles
-// Payload: { roles: ['DD Admin', 'Storekeeper'] }
+// PUT /api/approvals/workflow/role-assignments/:userId - Upsert IMS roles for a user
+// Payload: { roles: ['IMS_ADMIN', 'DD Admin'] }
 // ============================================================================
 router.put('/workflow/role-assignments/:userId', requireAuth, requirePermission('stock_request.approve_admin'), async (req, res) => {
   try {
@@ -188,19 +188,14 @@ router.put('/workflow/role-assignments/:userId', requireAuth, requirePermission(
     const pool = getPool();
     await ensureTables(pool);
 
-    if (roles.length > 0) {
-      const roleLookup = await pool.request().query(`
-        SELECT role_name
-        FROM ims_workflow_roles
-        WHERE is_active = 1
-      `);
+    const validRoles = new Set(await getWorkflowRoles(pool));
 
-      const valid = new Set((roleLookup.recordset || []).map((row) => String(row.role_name)));
-      const unknown = roles.filter((role) => !valid.has(role));
+    if (roles.length > 0) {
+      const unknown = roles.filter((role) => !validRoles.has(role));
       if (unknown.length > 0) {
         return res.status(400).json({
           success: false,
-          error: `Unknown workflow role(s): ${unknown.join(', ')}`
+          error: `Unknown IMS role(s): ${unknown.join(', ')}`
         });
       }
     }
@@ -209,37 +204,33 @@ router.put('/workflow/role-assignments/:userId', requireAuth, requirePermission(
     await transaction.begin();
 
     try {
-      await transaction.request()
-        .input('userId', sql.NVarChar(450), userId)
-        .query(`
-          UPDATE ims_user_workflow_roles
-          SET is_active = 0,
-              updated_at = GETDATE()
-          WHERE user_id = @userId
-            AND is_active = 1
-        `);
-
       for (const roleName of roles) {
         await transaction.request()
           .input('userId', sql.NVarChar(450), userId)
           .input('roleName', sql.NVarChar(100), roleName)
+          .input('assignedBy', sql.NVarChar(450), req.session.userId || null)
           .query(`
-            MERGE ims_user_workflow_roles AS target
+            MERGE ims_user_roles AS target
             USING (
-              SELECT @userId AS user_id, wr.id AS workflow_role_id
-              FROM ims_workflow_roles wr
+              SELECT @userId AS user_id, wr.id AS role_id
+              FROM ims_roles wr
               WHERE wr.role_name = @roleName
                 AND wr.is_active = 1
             ) AS src
             ON target.user_id = src.user_id
-               AND target.workflow_role_id = src.workflow_role_id
+               AND target.role_id = src.role_id
+               AND target.scope_type = 'Global'
+               AND target.scope_office_id IS NULL
+               AND target.scope_wing_id IS NULL
+               AND target.scope_branch_id IS NULL
             WHEN MATCHED THEN
               UPDATE SET
                 is_active = 1,
-                updated_at = GETDATE()
+                assigned_by = @assignedBy,
+                assigned_at = GETDATE()
             WHEN NOT MATCHED THEN
-              INSERT (user_id, workflow_role_id, is_active, created_at, updated_at)
-              VALUES (src.user_id, src.workflow_role_id, 1, GETDATE(), GETDATE());
+              INSERT (user_id, role_id, scope_type, assigned_by, assigned_at, is_active)
+              VALUES (src.user_id, src.role_id, 'Global', @assignedBy, GETDATE(), 1);
           `);
       }
 
@@ -297,6 +288,18 @@ router.put('/workflow/configs/:groupNumber', requireAuth, requirePermission('sto
       }
 
       normalizedSteps.push({ step_order: stepOrder, roles });
+    }
+
+    const validRoles = new Set(await getWorkflowRoles(pool));
+    const unknownRoles = normalizedSteps
+      .flatMap((step) => step.roles)
+      .filter((roleName) => !validRoles.has(roleName));
+
+    if (unknownRoles.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `These roles do not exist in IMS roles: ${Array.from(new Set(unknownRoles)).join(', ')}`
+      });
     }
 
     const transaction = new sql.Transaction(pool);

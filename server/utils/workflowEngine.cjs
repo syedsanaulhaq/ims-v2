@@ -31,9 +31,9 @@ const getWorkflowRoles = async (pool) => {
 
   const result = await pool.request().query(`
     SELECT role_name
-    FROM ims_workflow_roles
+    FROM ims_roles
     WHERE is_active = 1
-    ORDER BY role_name ASC
+    ORDER BY COALESCE(NULLIF(display_name, ''), role_name) ASC, role_name ASC
   `);
 
   return (result.recordset || []).map((row) => row.role_name).filter(Boolean);
@@ -45,11 +45,11 @@ const getUserWorkflowRoles = async (pool, userId) => {
   const result = await pool.request()
     .input('userId', sql.NVarChar(450), userId)
     .query(`
-      SELECT wr.role_name
-      FROM ims_user_workflow_roles uwr
-      INNER JOIN ims_workflow_roles wr ON wr.id = uwr.workflow_role_id
-      WHERE uwr.user_id = @userId
-        AND uwr.is_active = 1
+      SELECT DISTINCT wr.role_name
+      FROM ims_user_roles ur
+      INNER JOIN ims_roles wr ON wr.id = ur.role_id
+      WHERE ur.user_id = @userId
+        AND ur.is_active = 1
         AND wr.is_active = 1
       ORDER BY wr.role_name ASC
     `);
@@ -65,10 +65,10 @@ const getUsersWithWorkflowRoles = async (pool) => {
       u.Id AS user_id,
       u.FullName,
       wr.role_name
-    FROM ims_user_workflow_roles uwr
-    INNER JOIN ims_workflow_roles wr ON wr.id = uwr.workflow_role_id
-    INNER JOIN AspNetUsers u ON u.Id = uwr.user_id
-    WHERE uwr.is_active = 1
+    FROM ims_user_roles ur
+    INNER JOIN ims_roles wr ON wr.id = ur.role_id
+    INNER JOIN AspNetUsers u ON u.Id = ur.user_id
+    WHERE ur.is_active = 1
       AND wr.is_active = 1
       AND u.Id IS NOT NULL
       AND wr.role_name IS NOT NULL
@@ -129,69 +129,6 @@ const ensureTables = async (pool) => {
         updated_at DATETIME NOT NULL DEFAULT GETDATE()
       );
     END
-
-    IF OBJECT_ID('ims_workflow_roles', 'U') IS NULL
-    BEGIN
-      CREATE TABLE ims_workflow_roles (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        role_name NVARCHAR(100) NOT NULL UNIQUE,
-        is_active BIT NOT NULL DEFAULT 1,
-        created_at DATETIME NOT NULL DEFAULT GETDATE(),
-        updated_at DATETIME NOT NULL DEFAULT GETDATE()
-      );
-    END
-
-    IF OBJECT_ID('ims_user_workflow_roles', 'U') IS NULL
-    BEGIN
-      CREATE TABLE ims_user_workflow_roles (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        user_id NVARCHAR(450) NOT NULL,
-        workflow_role_id INT NOT NULL,
-        is_active BIT NOT NULL DEFAULT 1,
-        created_at DATETIME NOT NULL DEFAULT GETDATE(),
-        updated_at DATETIME NOT NULL DEFAULT GETDATE(),
-        CONSTRAINT FK_ims_user_workflow_roles_role
-          FOREIGN KEY (workflow_role_id) REFERENCES ims_workflow_roles(id),
-        CONSTRAINT UQ_ims_user_workflow_roles_user_role
-          UNIQUE (user_id, workflow_role_id)
-      );
-
-      CREATE INDEX IX_ims_user_workflow_roles_user
-      ON ims_user_workflow_roles(user_id, is_active);
-
-      CREATE INDEX IX_ims_user_workflow_roles_role
-      ON ims_user_workflow_roles(workflow_role_id, is_active);
-    END
-
-    IF NOT EXISTS (SELECT 1 FROM ims_workflow_roles WHERE role_name = 'DG Admin')
-      INSERT INTO ims_workflow_roles (role_name, is_active, created_at, updated_at)
-      VALUES ('DG Admin', 1, GETDATE(), GETDATE());
-
-    IF NOT EXISTS (SELECT 1 FROM ims_workflow_roles WHERE role_name = 'DD Admin')
-      INSERT INTO ims_workflow_roles (role_name, is_active, created_at, updated_at)
-      VALUES ('DD Admin', 1, GETDATE(), GETDATE());
-
-    IF NOT EXISTS (SELECT 1 FROM ims_workflow_roles WHERE role_name = 'AD Admin-I')
-      INSERT INTO ims_workflow_roles (role_name, is_active, created_at, updated_at)
-      VALUES ('AD Admin-I', 1, GETDATE(), GETDATE());
-
-    IF NOT EXISTS (SELECT 1 FROM ims_workflow_roles WHERE role_name = 'AD Admin-II')
-      INSERT INTO ims_workflow_roles (role_name, is_active, created_at, updated_at)
-      VALUES ('AD Admin-II', 1, GETDATE(), GETDATE());
-
-    UPDATE ims_workflow_roles
-    SET is_active = 0,
-        updated_at = GETDATE()
-    WHERE role_name = 'AD Admin'
-      AND is_active = 1;
-
-    IF NOT EXISTS (SELECT 1 FROM ims_workflow_roles WHERE role_name = 'Storekeeper')
-      INSERT INTO ims_workflow_roles (role_name, is_active, created_at, updated_at)
-      VALUES ('Storekeeper', 1, GETDATE(), GETDATE());
-
-    IF NOT EXISTS (SELECT 1 FROM ims_workflow_roles WHERE role_name = 'Transport Supervisor')
-      INSERT INTO ims_workflow_roles (role_name, is_active, created_at, updated_at)
-      VALUES ('Transport Supervisor', 1, GETDATE(), GETDATE());
   `);
 
   tablesEnsured = true;
