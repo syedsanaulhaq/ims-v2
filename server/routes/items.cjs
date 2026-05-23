@@ -25,6 +25,22 @@ const upload = multer({
   }
 });
 
+let groupFieldEnsured = false;
+
+const ensureItemGroupField = async (pool) => {
+  if (groupFieldEnsured) return;
+
+  await pool.request().query(`
+    IF OBJECT_ID('item_masters', 'U') IS NOT NULL
+      AND COL_LENGTH('item_masters', 'group_number') IS NULL
+    BEGIN
+      ALTER TABLE item_masters ADD group_number INT NULL;
+    END
+  `);
+
+  groupFieldEnsured = true;
+};
+
 const normalizeGroupNumber = (value) => {
   if (value === null || value === undefined || value === '') return null;
 
@@ -58,6 +74,17 @@ const normalizeGroupNumber = (value) => {
 
   return romanToNumber[token] || null;
 };
+
+router.use(async (req, res, next) => {
+  try {
+    const pool = getPool();
+    await ensureItemGroupField(pool);
+    next();
+  } catch (error) {
+    console.error('❌ Error ensuring item group_number field:', error);
+    res.status(500).json({ error: 'Failed to initialize item group field' });
+  }
+});
 
 // ============================================================================
 // GET /api/items-master - Get all active items with optional category filtering

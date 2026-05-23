@@ -238,6 +238,7 @@ router.get('/requests', requireAuth, async (req, res) => {
             sii.custom_item_name,
             sii.unit_price,
             im.nomenclature as master_nomenclature,
+            im.group_number,
             im.unit
           FROM stock_issuance_items sii
           LEFT JOIN item_masters im ON sii.item_master_id = im.id
@@ -294,7 +295,8 @@ router.get('/requests', requireAuth, async (req, res) => {
           item_type: item.item_type,
           custom_item_name: item.custom_item_name,
           unit_price: item.unit_price,
-          unit: item.unit
+          unit: item.unit,
+          group_number: item.group_number || null
         }))
       };
     }));
@@ -363,6 +365,7 @@ router.get('/issued-items', async (req, res) => {
         sir.request_number,
         sii.item_master_id,
         COALESCE(im.nomenclature, sii.nomenclature) as nomenclature,
+        im.group_number,
         sii.requested_quantity as issued_quantity,
         sii.approved_quantity,
         im.unit,
@@ -453,6 +456,7 @@ router.get('/:id', async (req, res) => {
         SELECT 
           sii.*,
           im.nomenclature,
+          im.group_number,
           im.unit
         FROM stock_issuance_items sii
         LEFT JOIN item_masters im ON sii.item_master_id = im.id

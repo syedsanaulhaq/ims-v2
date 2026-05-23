@@ -658,6 +658,7 @@ router.get('/request/:requestId', async (req, res) => {
         SELECT
           sii.*, 
           im.nomenclature,
+          im.group_number,
           im.unit,
           COALESCE(
             NULLIF(LTRIM(RTRIM(c.category_name)), ''),
