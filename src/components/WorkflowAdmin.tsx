@@ -105,14 +105,16 @@ export const WorkflowAdmin: React.FC = () => {
       }));
 
       setConfigs(normalizedConfigs);
-      const roleRows = Array.isArray(rolesData?.roles)
-        ? rolesData.roles
-        : Array.isArray(rolesData?.data)
-          ? rolesData.data
-          : [];
+      const roleRows = Array.isArray(rolesData)
+        ? rolesData
+        : Array.isArray(rolesData?.roles)
+          ? rolesData.roles
+          : Array.isArray(rolesData?.data)
+            ? rolesData.data
+            : [];
 
       const normalizedRoles = roleRows
-        .map((role: any) => String(role?.role_name || role || '').trim())
+        .map((role: any) => String(role?.role_name || role?.name || role || '').trim())
         .filter((roleName: string) => WORKFLOW_ROLE_NAMES.includes(roleName));
 
       setAvailableRoles(normalizedRoles);
