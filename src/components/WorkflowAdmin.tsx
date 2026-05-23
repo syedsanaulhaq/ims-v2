@@ -12,6 +12,14 @@ type WorkflowGroupConfig = {
 };
 
 const GROUP_OPTIONS = [1, 2, 3, 4, 5, 6];
+const WORKFLOW_ROLE_NAMES = [
+  'AD Admin-I',
+  'AD Admin-II',
+  'DD Admin',
+  'DG Admin',
+  'Storekeeper',
+  'Transport Supervisor'
+];
 
 export const WorkflowAdmin: React.FC = () => {
   const [configs, setConfigs] = useState<WorkflowGroupConfig[]>([]);
@@ -72,7 +80,7 @@ export const WorkflowAdmin: React.FC = () => {
 
       const [configsResponse, rolesResponse] = await Promise.all([
         fetch('http://localhost:3001/api/approvals/workflow/configs', { credentials: 'include' }),
-        fetch('http://localhost:3001/api/approvals/workflow/roles', { credentials: 'include' })
+        fetch('http://localhost:3001/api/permissions/roles', { credentials: 'include' })
       ]);
 
       const configsData = await configsResponse.json();
@@ -97,9 +105,16 @@ export const WorkflowAdmin: React.FC = () => {
       }));
 
       setConfigs(normalizedConfigs);
-      const normalizedRoles = Array.isArray(rolesData?.data)
-        ? rolesData.data.map((role: any) => String(role || '').trim()).filter(Boolean)
-        : [];
+      const roleRows = Array.isArray(rolesData?.roles)
+        ? rolesData.roles
+        : Array.isArray(rolesData?.data)
+          ? rolesData.data
+          : [];
+
+      const normalizedRoles = roleRows
+        .map((role: any) => String(role?.role_name || role || '').trim())
+        .filter((roleName: string) => WORKFLOW_ROLE_NAMES.includes(roleName));
+
       setAvailableRoles(normalizedRoles);
     } catch (err: any) {
       setError(err?.message || 'Failed to load workflow admin data');

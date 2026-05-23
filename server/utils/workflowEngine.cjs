@@ -1,17 +1,21 @@
 const { sql } = require('../db/connection.cjs');
 
 let tablesEnsured = false;
+
+const normalize = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
 const WORKFLOW_ROLE_NAMES = [
-  'DG Admin',
-  'DD Admin',
   'AD Admin-I',
   'AD Admin-II',
+  'DD Admin',
+  'DG Admin',
   'Storekeeper',
   'Transport Supervisor'
 ];
-const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES.map((role) => `'${role.replace(/'/g, "''")}'`).join(', ');
 
-const normalize = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
+  .map((_, index) => `@role${index}`)
+  .join(', ');
 
 const parseGroupFromDescription = (description) => {
   const text = String(description || '');
@@ -38,7 +42,12 @@ const roleMatches = (userRole, ruleValue) => {
 const getWorkflowRoles = async (pool) => {
   await ensureTables(pool);
 
-  const result = await pool.request().query(`
+  const request = pool.request();
+  WORKFLOW_ROLE_NAMES.forEach((role, index) => {
+    request.input(`role${index}`, sql.NVarChar(100), role);
+  });
+
+  const result = await request.query(`
     SELECT role_name
     FROM ims_roles
     WHERE is_active = 1
@@ -52,8 +61,14 @@ const getWorkflowRoles = async (pool) => {
 const getUserWorkflowRoles = async (pool, userId) => {
   await ensureTables(pool);
 
-  const result = await pool.request()
-    .input('userId', sql.NVarChar(450), userId)
+  const request = pool.request()
+    .input('userId', sql.NVarChar(450), userId);
+
+  WORKFLOW_ROLE_NAMES.forEach((role, index) => {
+    request.input(`role${index}`, sql.NVarChar(100), role);
+  });
+
+  const result = await request
     .query(`
       SELECT DISTINCT wr.role_name
       FROM ims_user_roles ur
@@ -71,7 +86,12 @@ const getUserWorkflowRoles = async (pool, userId) => {
 const getUsersWithWorkflowRoles = async (pool) => {
   await ensureTables(pool);
 
-  const result = await pool.request().query(`
+  const request = pool.request();
+  WORKFLOW_ROLE_NAMES.forEach((role, index) => {
+    request.input(`role${index}`, sql.NVarChar(100), role);
+  });
+
+  const result = await request.query(`
     SELECT
       u.Id AS user_id,
       u.FullName,
@@ -81,10 +101,10 @@ const getUsersWithWorkflowRoles = async (pool) => {
     INNER JOIN AspNetUsers u ON u.Id = ur.user_id
     WHERE ur.is_active = 1
       AND wr.is_active = 1
-      AND wr.role_name IN (${WORKFLOW_ROLE_FILTER_SQL})
       AND u.Id IS NOT NULL
       AND wr.role_name IS NOT NULL
       AND LTRIM(RTRIM(wr.role_name)) <> ''
+      AND wr.role_name IN (${WORKFLOW_ROLE_FILTER_SQL})
     ORDER BY u.Id, wr.role_name
   `);
 
@@ -377,10 +397,10 @@ const advanceWorkflow = async (pool, requestId, actorId) => {
 
 module.exports = {
   ensureTables,
-  WORKFLOW_ROLE_NAMES,
   getWorkflowSteps,
   getWorkflowRoles,
   getUserWorkflowRoles,
+  WORKFLOW_ROLE_NAMES,
   initializeWorkflowForRequest,
   bindRequestApprovalId,
   advanceWorkflow,

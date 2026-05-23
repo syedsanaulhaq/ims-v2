@@ -6,9 +6,17 @@
 const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
-const { ensureTables, WORKFLOW_ROLE_NAMES, getWorkflowSteps, advanceWorkflow, getWorkflowRoles } = require('../utils/workflowEngine.cjs');
+const {
+  ensureTables,
+  getWorkflowSteps,
+  advanceWorkflow,
+  getWorkflowRoles,
+  WORKFLOW_ROLE_NAMES
+} = require('../utils/workflowEngine.cjs');
 
-const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES.map((role) => `'${role.replace(/'/g, "''")}'`).join(', ');
+const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
+  .map((_, index) => `@role${index}`)
+  .join(', ');
 
 // ============================================================================
 // Middleware: Authentication and Permission Checking
@@ -141,7 +149,12 @@ router.get('/workflow/role-assignments', requireAuth, requirePermission('stock_r
     const pool = getPool();
     await ensureTables(pool);
 
-    const result = await pool.request().query(`
+    const request = pool.request();
+    WORKFLOW_ROLE_NAMES.forEach((role, index) => {
+      request.input(`role${index}`, sql.NVarChar(100), role);
+    });
+
+    const result = await request.query(`
       SELECT
         u.Id AS user_id,
         u.FullName,
