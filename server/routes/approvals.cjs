@@ -11,7 +11,8 @@ const {
   getWorkflowSteps,
   advanceWorkflow,
   getWorkflowRoles,
-  WORKFLOW_ROLE_NAMES
+  WORKFLOW_ROLE_NAMES,
+  parseGroupFromDescription
 } = require('../utils/workflowEngine.cjs');
 
 const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
@@ -110,6 +111,53 @@ router.get('/workflow/configs', requireAuth, requirePermission('stock_request.vi
   } catch (error) {
     console.error('❌ Error loading workflow configs:', error);
     res.status(500).json({ success: false, error: 'Failed to load workflow configs', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/approvals/workflow/group-items - Group checker data for workflow setup
+// ============================================================================
+router.get('/workflow/group-items', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
+  try {
+    const pool = getPool();
+
+    const result = await pool.request().query(`
+      SELECT
+        im.id,
+        im.nomenclature,
+        im.description
+      FROM item_masters im
+      ORDER BY im.nomenclature ASC
+    `);
+
+    const grouped = new Map();
+    for (let groupNumber = 1; groupNumber <= 6; groupNumber += 1) {
+      grouped.set(groupNumber, []);
+    }
+
+    for (const row of result.recordset || []) {
+      const groupNumber = parseGroupFromDescription(row.description);
+      if (!groupNumber || groupNumber < 1 || groupNumber > 6) continue;
+
+      grouped.get(groupNumber).push({
+        id: row.id,
+        nomenclature: row.nomenclature || 'Unnamed Item',
+        description: row.description || ''
+      });
+    }
+
+    const data = Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([group_number, items]) => ({
+        group_number,
+        item_count: items.length,
+        items
+      }));
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ Error loading workflow group items:', error);
+    res.status(500).json({ success: false, error: 'Failed to load group items', details: error.message });
   }
 });
 

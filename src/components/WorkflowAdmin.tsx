@@ -11,6 +11,18 @@ type WorkflowGroupConfig = {
   steps: WorkflowDesignationStep[];
 };
 
+type GroupCheckerItem = {
+  id: string;
+  nomenclature: string;
+  description: string;
+};
+
+type GroupCheckerGroup = {
+  group_number: number;
+  item_count: number;
+  items: GroupCheckerItem[];
+};
+
 const GROUP_OPTIONS = [1, 2, 3, 4, 5, 6];
 const WORKFLOW_ROLE_NAMES = [
   'AD Admin-I',
@@ -36,6 +48,10 @@ export const WorkflowAdmin: React.FC = () => {
   const [duplicateSourceGroup, setDuplicateSourceGroup] = useState<number | null>(null);
   const [duplicateTargetGroup, setDuplicateTargetGroup] = useState<number>(1);
   const [editorMode, setEditorMode] = useState<'insert' | 'edit'>('insert');
+  const [checkerOpen, setCheckerOpen] = useState(false);
+  const [checkerLoading, setCheckerLoading] = useState(false);
+  const [checkerError, setCheckerError] = useState<string | null>(null);
+  const [checkerGroups, setCheckerGroups] = useState<GroupCheckerGroup[]>([]);
 
   const currentConfig = useMemo(
     () => configs.find((config) => config.group_number === selectedGroup) || null,
@@ -356,6 +372,48 @@ export const WorkflowAdmin: React.FC = () => {
     }
   };
 
+  const loadGroupCheckerData = async () => {
+    try {
+      setCheckerLoading(true);
+      setCheckerError(null);
+
+      const response = await fetch('http://localhost:3001/api/approvals/workflow/group-items', {
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load group checker data');
+      }
+
+      const normalized: GroupCheckerGroup[] = Array.isArray(data?.data)
+        ? data.data.map((group: any) => ({
+          group_number: Number(group.group_number),
+          item_count: Number(group.item_count || 0),
+          items: Array.isArray(group.items)
+            ? group.items.map((item: any) => ({
+              id: String(item.id || ''),
+              nomenclature: String(item.nomenclature || 'Unnamed Item'),
+              description: String(item.description || '')
+            }))
+            : []
+        }))
+        : [];
+
+      setCheckerGroups(normalized);
+    } catch (err: any) {
+      setCheckerError(err?.message || 'Failed to load group checker data');
+      setCheckerGroups([]);
+    } finally {
+      setCheckerLoading(false);
+    }
+  };
+
+  const openGroupChecker = async () => {
+    setCheckerOpen(true);
+    await loadGroupCheckerData();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -381,6 +439,14 @@ export const WorkflowAdmin: React.FC = () => {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={openGroupChecker}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Group className="h-4 w-4" />
+                Group Checker
+              </button>
               <button
                 type="button"
                 onClick={loadWorkflowData}
@@ -457,6 +523,85 @@ export const WorkflowAdmin: React.FC = () => {
                 >
                   {saving ? 'Duplicating...' : 'Confirm Duplicate'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {checkerOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Group Item Checker</h3>
+                  <p className="text-sm text-gray-600">Review items in each group before assigning workflow roles.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={loadGroupCheckerData}
+                    className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCheckerOpen(false)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[75vh] overflow-y-auto p-5">
+                {checkerLoading && (
+                  <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                    Loading group items...
+                  </div>
+                )}
+
+                {!checkerLoading && checkerError && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {checkerError}
+                  </div>
+                )}
+
+                {!checkerLoading && !checkerError && (
+                  <div className="space-y-4">
+                    {checkerGroups.map((group) => (
+                      <div key={`group-checker-${group.group_number}`} className="rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-sm font-semibold text-gray-900">Group {group.group_number}</div>
+                          <div className="text-xs font-medium text-gray-600">{group.item_count} item(s)</div>
+                        </div>
+                        {group.items.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-gray-500">No mapped items found for this group.</div>
+                        ) : (
+                          <div className="max-h-64 overflow-y-auto">
+                            <table className="min-w-full text-sm">
+                              <thead className="bg-white sticky top-0">
+                                <tr>
+                                  <th className="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-700">Nomenclature</th>
+                                  <th className="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-700">Description</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.items.map((item) => (
+                                  <tr key={`${group.group_number}-${item.id}`}>
+                                    <td className="border-b border-gray-100 px-3 py-2 text-gray-900">{item.nomenclature}</td>
+                                    <td className="border-b border-gray-100 px-3 py-2 text-gray-700">{item.description || '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
