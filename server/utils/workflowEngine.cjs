@@ -1,6 +1,15 @@
 const { sql } = require('../db/connection.cjs');
 
 let tablesEnsured = false;
+const WORKFLOW_ROLE_NAMES = [
+  'DG Admin',
+  'DD Admin',
+  'AD Admin-I',
+  'AD Admin-II',
+  'Storekeeper',
+  'Transport Supervisor'
+];
+const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES.map((role) => `'${role.replace(/'/g, "''")}'`).join(', ');
 
 const normalize = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -33,7 +42,8 @@ const getWorkflowRoles = async (pool) => {
     SELECT role_name
     FROM ims_roles
     WHERE is_active = 1
-    ORDER BY COALESCE(NULLIF(display_name, ''), role_name) ASC, role_name ASC
+      AND role_name IN (${WORKFLOW_ROLE_FILTER_SQL})
+    ORDER BY role_name ASC
   `);
 
   return (result.recordset || []).map((row) => row.role_name).filter(Boolean);
@@ -51,6 +61,7 @@ const getUserWorkflowRoles = async (pool, userId) => {
       WHERE ur.user_id = @userId
         AND ur.is_active = 1
         AND wr.is_active = 1
+        AND wr.role_name IN (${WORKFLOW_ROLE_FILTER_SQL})
       ORDER BY wr.role_name ASC
     `);
 
@@ -70,6 +81,7 @@ const getUsersWithWorkflowRoles = async (pool) => {
     INNER JOIN AspNetUsers u ON u.Id = ur.user_id
     WHERE ur.is_active = 1
       AND wr.is_active = 1
+      AND wr.role_name IN (${WORKFLOW_ROLE_FILTER_SQL})
       AND u.Id IS NOT NULL
       AND wr.role_name IS NOT NULL
       AND LTRIM(RTRIM(wr.role_name)) <> ''
@@ -365,6 +377,7 @@ const advanceWorkflow = async (pool, requestId, actorId) => {
 
 module.exports = {
   ensureTables,
+  WORKFLOW_ROLE_NAMES,
   getWorkflowSteps,
   getWorkflowRoles,
   getUserWorkflowRoles,

@@ -72,7 +72,7 @@ export const WorkflowAdmin: React.FC = () => {
 
       const [configsResponse, rolesResponse] = await Promise.all([
         fetch('http://localhost:3001/api/approvals/workflow/configs', { credentials: 'include' }),
-        fetch('http://localhost:3001/api/permissions/roles', { credentials: 'include' })
+        fetch('http://localhost:3001/api/approvals/workflow/roles', { credentials: 'include' })
       ]);
 
       const configsData = await configsResponse.json();
@@ -83,7 +83,7 @@ export const WorkflowAdmin: React.FC = () => {
       }
 
       if (!rolesResponse.ok) {
-        throw new Error(rolesData.error || 'Failed to load IMS roles');
+        throw new Error(rolesData.error || 'Failed to load workflow roles');
       }
 
       const normalizedConfigs: WorkflowGroupConfig[] = (configsData.data || []).map((groupConfig: any) => ({
@@ -97,8 +97,8 @@ export const WorkflowAdmin: React.FC = () => {
       }));
 
       setConfigs(normalizedConfigs);
-      const normalizedRoles = Array.isArray(rolesData)
-        ? rolesData.map((role: any) => String(role?.role_name || '').trim()).filter(Boolean)
+      const normalizedRoles = Array.isArray(rolesData?.data)
+        ? rolesData.data.map((role: any) => String(role || '').trim()).filter(Boolean)
         : [];
       setAvailableRoles(normalizedRoles);
     } catch (err: any) {
@@ -360,7 +360,7 @@ export const WorkflowAdmin: React.FC = () => {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Workflow Configuration</h1>
               <p className="mt-1 text-sm text-gray-600">
-                Select group, then add step rows with searchable multi-select IMS system roles.
+                Select group, then add step rows with searchable multi-select workflow roles.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
