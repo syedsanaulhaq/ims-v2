@@ -121,6 +121,27 @@ router.get('/workflow/group-items', requireAuth, requirePermission('stock_reques
   try {
     const pool = getPool();
 
+    const parseGroupFromItemDescription = (description) => {
+      const parsedNumber = parseGroupFromDescription(description);
+      if (parsedNumber) return parsedNumber;
+
+      const text = String(description || '').trim();
+      const romanMatch = text.match(/group\s*[-:]?\s*([ivx]+)/i);
+      if (!romanMatch) return null;
+
+      const roman = romanMatch[1].toUpperCase();
+      const romanToNumber = {
+        I: 1,
+        II: 2,
+        III: 3,
+        IV: 4,
+        V: 5,
+        VI: 6
+      };
+
+      return romanToNumber[roman] || null;
+    };
+
     const result = await pool.request().query(`
       SELECT
         im.id,
@@ -136,7 +157,7 @@ router.get('/workflow/group-items', requireAuth, requirePermission('stock_reques
     }
 
     for (const row of result.recordset || []) {
-      const groupNumber = parseGroupFromDescription(row.description);
+      const groupNumber = parseGroupFromItemDescription(row.description);
       if (!groupNumber || groupNumber < 1 || groupNumber > 6) continue;
 
       grouped.get(groupNumber).push({
