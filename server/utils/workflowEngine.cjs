@@ -4,6 +4,29 @@ let tablesEnsured = false;
 
 const normalize = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+const parseGroupToken = (value) => {
+  if (value === null || value === undefined) return null;
+
+  const text = String(value).trim().toUpperCase();
+  if (!text) return null;
+
+  if (/^\d+$/.test(text)) {
+    const parsed = Number(text);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  const romanToNumber = {
+    I: 1,
+    II: 2,
+    III: 3,
+    IV: 4,
+    V: 5,
+    VI: 6
+  };
+
+  return romanToNumber[text] || null;
+};
+
 const WORKFLOW_ROLE_NAMES = [
   'AD Admin-I',
   'AD Admin-II',
@@ -19,16 +42,22 @@ const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
 
 const parseGroupFromDescription = (description) => {
   const text = String(description || '');
-  const groupMatch = text.match(/group\s*[-:]?\s*(\d{1,2})/i);
+  const groupMatch = text.match(/group\s*[-:]?\s*([ivx]+|\d{1,2})/i);
   if (groupMatch) {
-    const parsed = Number(groupMatch[1]);
+    const parsed = parseGroupToken(groupMatch[1]);
     if (Number.isInteger(parsed) && parsed > 0) return parsed;
   }
 
   const digitMatch = text.match(/\b([1-9])\b/);
-  if (digitMatch) return Number(digitMatch[1]);
+  if (digitMatch) return parseGroupToken(digitMatch[1]);
 
   return null;
+};
+
+const resolveItemMasterGroupNumber = (groupNumber, description) => {
+  const parsedGroupNumber = parseGroupToken(groupNumber);
+  if (parsedGroupNumber) return parsedGroupNumber;
+  return parseGroupFromDescription(description);
 };
 
 const roleMatches = (userRole, ruleValue) => {
@@ -161,6 +190,37 @@ const ensureTables = async (pool) => {
         updated_at DATETIME NOT NULL DEFAULT GETDATE()
       );
     END
+
+    IF OBJECT_ID('item_masters', 'U') IS NOT NULL
+    BEGIN
+      IF COL_LENGTH('item_masters', 'group_number') IS NULL
+      BEGIN
+        ALTER TABLE item_masters ADD group_number INT NULL;
+      END
+
+      EXEC sp_executesql N'
+        ;WITH item_groups AS (
+          SELECT
+            id,
+            UPPER(REPLACE(REPLACE(LTRIM(RTRIM(COALESCE(description, ''''))), '' '', ''''), '':'', ''-'')) AS normalized_description
+          FROM item_masters
+          WHERE group_number IS NULL
+        )
+        UPDATE im
+        SET group_number = CASE
+          WHEN ig.normalized_description LIKE ''GROUP-VI%'' OR ig.normalized_description LIKE ''GROUP6%'' OR ig.normalized_description LIKE ''GROUP-6%'' THEN 6
+          WHEN ig.normalized_description LIKE ''GROUP-V%'' OR ig.normalized_description LIKE ''GROUP5%'' OR ig.normalized_description LIKE ''GROUP-5%'' THEN 5
+          WHEN ig.normalized_description LIKE ''GROUP-IV%'' OR ig.normalized_description LIKE ''GROUP4%'' OR ig.normalized_description LIKE ''GROUP-4%'' THEN 4
+          WHEN ig.normalized_description LIKE ''GROUP-III%'' OR ig.normalized_description LIKE ''GROUP3%'' OR ig.normalized_description LIKE ''GROUP-3%'' THEN 3
+          WHEN ig.normalized_description LIKE ''GROUP-II%'' OR ig.normalized_description LIKE ''GROUP2%'' OR ig.normalized_description LIKE ''GROUP-2%'' THEN 2
+          WHEN ig.normalized_description LIKE ''GROUP-I%'' OR ig.normalized_description LIKE ''GROUP1%'' OR ig.normalized_description LIKE ''GROUP-1%'' THEN 1
+          ELSE NULL
+        END
+        FROM item_masters im
+        INNER JOIN item_groups ig ON ig.id = im.id
+        WHERE im.group_number IS NULL;
+      ';
+    END
   `);
 
   tablesEnsured = true;
@@ -201,7 +261,7 @@ const getGroupFromRequestItems = async (pool, requestId) => {
   const result = await pool.request()
     .input('requestId', sql.UniqueIdentifier, requestId)
     .query(`
-      SELECT im.description
+      SELECT im.group_number, im.description
       FROM stock_issuance_items sii
       LEFT JOIN item_masters im ON im.id = sii.item_master_id
       WHERE sii.request_id = @requestId
@@ -209,7 +269,7 @@ const getGroupFromRequestItems = async (pool, requestId) => {
 
   const groups = new Set();
   for (const row of result.recordset || []) {
-    const group = parseGroupFromDescription(row.description);
+    const group = resolveItemMasterGroupNumber(row.group_number, row.description);
     if (group) groups.add(group);
   }
 
@@ -401,6 +461,7 @@ module.exports = {
   getWorkflowRoles,
   getUserWorkflowRoles,
   WORKFLOW_ROLE_NAMES,
+  resolveItemMasterGroupNumber,
   initializeWorkflowForRequest,
   bindRequestApprovalId,
   advanceWorkflow,

@@ -25,6 +25,40 @@ const upload = multer({
   }
 });
 
+const normalizeGroupNumber = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+
+  const raw = String(value).trim().toUpperCase();
+  if (!raw) return null;
+
+  const romanToNumber = {
+    I: 1,
+    II: 2,
+    III: 3,
+    IV: 4,
+    V: 5,
+    VI: 6
+  };
+
+  if (/^\d+$/.test(raw)) {
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 6 ? parsed : null;
+  }
+
+  if (romanToNumber[raw]) return romanToNumber[raw];
+
+  const prefixed = raw.match(/^GROUP\s*[-:]?\s*([IVX]+|\d{1,2})$/i);
+  if (!prefixed) return null;
+
+  const token = String(prefixed[1]).toUpperCase();
+  if (/^\d+$/.test(token)) {
+    const parsed = Number(token);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 6 ? parsed : null;
+  }
+
+  return romanToNumber[token] || null;
+};
+
 // ============================================================================
 // GET /api/items-master - Get all active items with optional category filtering
 // ============================================================================
@@ -43,6 +77,7 @@ router.get('/', async (req, res) => {
         im.id,
         im.item_code,
         im.nomenclature,
+        im.group_number,
         im.unit,
         im.specifications,
         im.category_id,
@@ -111,8 +146,10 @@ router.get('/:id', async (req, res) => {
           im.id,
           im.item_code,
           im.nomenclature,
+          im.group_number,
           im.unit,
           im.specifications,
+          im.description,
           im.category_id,
           im.sub_category_id,
           c.category_name,
@@ -214,6 +251,9 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
         }
 
         const trimmedItemCode = row.item_code?.trim() || null;
+        const rawGroupValue = row.group_number ?? row.group ?? row.item_group ?? null;
+        const hasGroupValue = rawGroupValue !== null && rawGroupValue !== undefined && String(rawGroupValue).trim() !== '';
+        const parsedGroupNumber = normalizeGroupNumber(rawGroupValue);
         const now = new Date();
         let itemId = uuidv4();
         let action = 'created';
@@ -245,6 +285,8 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
             .input('unit', sql.NVarChar, row.unit?.trim() || null)
             .input('specifications', sql.NVarChar, row.specifications?.trim() || null)
             .input('description', sql.NVarChar, row.description?.trim() || null)
+            .input('group_number', sql.Int, parsedGroupNumber)
+            .input('groupNumberProvided', sql.Bit, hasGroupValue ? 1 : 0)
             .input('category_id', sql.UniqueIdentifier, category_id)
             .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
             .input('status', sql.NVarChar, row.status?.trim() || 'Active')
@@ -260,6 +302,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
                   unit = @unit,
                   specifications = @specifications,
                   description = @description,
+                  group_number = CASE WHEN @groupNumberProvided = 1 THEN @group_number ELSE group_number END,
                   category_id = @category_id,
                   sub_category_id = @sub_category_id,
                   status = @status,
@@ -282,6 +325,7 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
             .input('unit', sql.NVarChar, row.unit?.trim() || null)
             .input('specifications', sql.NVarChar, row.specifications?.trim() || null)
             .input('description', sql.NVarChar, row.description?.trim() || null)
+            .input('group_number', sql.Int, parsedGroupNumber)
             .input('category_id', sql.UniqueIdentifier, category_id)
             .input('sub_category_id', sql.UniqueIdentifier, sub_category_id)
             .input('status', sql.NVarChar, row.status?.trim() || 'Active')
@@ -292,13 +336,13 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
             .input('updated_at', sql.DateTime, now)
             .query(`
               INSERT INTO item_masters (
-                id, item_code, nomenclature, manufacturer, unit, specifications, description,
+                id, item_code, nomenclature, manufacturer, unit, specifications, description, group_number,
                 category_id, sub_category_id, status,
                 minimum_stock_level, maximum_stock_level, reorder_point,
                 created_at, updated_at
               )
               VALUES (
-                @id, @item_code, @nomenclature, @manufacturer, @unit, @specifications, @description,
+                @id, @item_code, @nomenclature, @manufacturer, @unit, @specifications, @description, @group_number,
                 @category_id, @sub_category_id, @status,
                 @minimum_stock_level, @maximum_stock_level, @reorder_point,
                 @created_at, @updated_at
@@ -359,6 +403,7 @@ router.post('/', async (req, res) => {
       nomenclature,
       unit,
       specifications,
+      group_number,
       category_id,
       sub_category_id,
       status
@@ -376,14 +421,15 @@ router.post('/', async (req, res) => {
       .input('nomenclature', sql.NVarChar, nomenclature)
       .input('unit', sql.NVarChar, unit || null)
       .input('specifications', sql.NVarChar, specifications || null)
+      .input('group_number', sql.Int, normalizeGroupNumber(group_number))
       .input('category_id', sql.UniqueIdentifier, category_id || null)
       .input('sub_category_id', sql.UniqueIdentifier, sub_category_id || null)
       .input('status', sql.NVarChar, status || 'Active')
       .input('created_at', sql.DateTime, new Date())
       .input('updated_at', sql.DateTime, new Date())
       .query(`
-        INSERT INTO item_masters (id, item_code, nomenclature, unit, specifications, category_id, sub_category_id, status, created_at, updated_at)
-        VALUES (@id, @item_code, @nomenclature, @unit, @specifications, @category_id, @sub_category_id, @status, @created_at, @updated_at)
+        INSERT INTO item_masters (id, item_code, nomenclature, unit, specifications, group_number, category_id, sub_category_id, status, created_at, updated_at)
+        VALUES (@id, @item_code, @nomenclature, @unit, @specifications, @group_number, @category_id, @sub_category_id, @status, @created_at, @updated_at)
       `);
 
     res.status(201).json({
@@ -408,6 +454,7 @@ router.put('/:id', async (req, res) => {
       nomenclature,
       unit,
       specifications,
+      group_number,
       category_id,
       sub_category_id,
       status
@@ -421,6 +468,8 @@ router.put('/:id', async (req, res) => {
       .input('nomenclature', sql.NVarChar, nomenclature)
       .input('unit', sql.NVarChar, unit || null)
       .input('specifications', sql.NVarChar, specifications || null)
+      .input('group_number', sql.Int, normalizeGroupNumber(group_number))
+      .input('groupNumberProvided', sql.Bit, group_number !== undefined && group_number !== null && String(group_number).trim() !== '' ? 1 : 0)
       .input('category_id', sql.UniqueIdentifier, category_id || null)
       .input('sub_category_id', sql.UniqueIdentifier, sub_category_id || null)
       .input('status', sql.NVarChar, status || 'Active')
@@ -431,6 +480,7 @@ router.put('/:id', async (req, res) => {
             nomenclature = @nomenclature,
             unit = @unit,
             specifications = @specifications,
+            group_number = CASE WHEN @groupNumberProvided = 1 THEN @group_number ELSE group_number END,
             category_id = @category_id,
             sub_category_id = @sub_category_id,
             status = @status,

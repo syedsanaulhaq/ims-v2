@@ -12,7 +12,7 @@ const {
   advanceWorkflow,
   getWorkflowRoles,
   WORKFLOW_ROLE_NAMES,
-  parseGroupFromDescription
+  resolveItemMasterGroupNumber
 } = require('../utils/workflowEngine.cjs');
 
 const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
@@ -120,32 +120,13 @@ router.get('/workflow/configs', requireAuth, requirePermission('stock_request.vi
 router.get('/workflow/group-items', requireAuth, requirePermission('stock_request.view_all'), async (req, res) => {
   try {
     const pool = getPool();
-
-    const parseGroupFromItemDescription = (description) => {
-      const parsedNumber = parseGroupFromDescription(description);
-      if (parsedNumber) return parsedNumber;
-
-      const text = String(description || '').trim();
-      const romanMatch = text.match(/group\s*[-:]?\s*([ivx]+)/i);
-      if (!romanMatch) return null;
-
-      const roman = romanMatch[1].toUpperCase();
-      const romanToNumber = {
-        I: 1,
-        II: 2,
-        III: 3,
-        IV: 4,
-        V: 5,
-        VI: 6
-      };
-
-      return romanToNumber[roman] || null;
-    };
+    await ensureTables(pool);
 
     const result = await pool.request().query(`
       SELECT
         im.id,
         im.nomenclature,
+        im.group_number,
         im.description
       FROM item_masters im
       ORDER BY im.nomenclature ASC
@@ -157,12 +138,13 @@ router.get('/workflow/group-items', requireAuth, requirePermission('stock_reques
     }
 
     for (const row of result.recordset || []) {
-      const groupNumber = parseGroupFromItemDescription(row.description);
+      const groupNumber = resolveItemMasterGroupNumber(row.group_number, row.description);
       if (!groupNumber || groupNumber < 1 || groupNumber > 6) continue;
 
       grouped.get(groupNumber).push({
         id: row.id,
         nomenclature: row.nomenclature || 'Unnamed Item',
+        group_number: groupNumber,
         description: row.description || ''
       });
     }
