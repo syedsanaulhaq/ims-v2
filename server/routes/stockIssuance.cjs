@@ -772,9 +772,13 @@ const createStockIssuanceRequest = async (req, res) => {
             if (dynamicWorkflowResult?.ok) {
               await bindRequestApprovalId(pool, requestId, approvalId);
 
+              const laneStatusText = dynamicWorkflowResult.laneCount && dynamicWorkflowResult.laneCount > 1
+                ? `Pending ${dynamicWorkflowResult.laneCount} Group Lanes`
+                : `Pending Step ${dynamicWorkflowResult.currentStepOrder} of ${dynamicWorkflowResult.totalSteps}`;
+
               await pool.request()
                 .input('requestId', sql.UniqueIdentifier, requestId)
-                .input('approvalStatus', sql.NVarChar(100), `Pending Step ${dynamicWorkflowResult.currentStepOrder} of ${dynamicWorkflowResult.totalSteps}`)
+                .input('approvalStatus', sql.NVarChar(100), laneStatusText)
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,

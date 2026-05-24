@@ -180,15 +180,92 @@ const ensureTables = async (pool) => {
     IF OBJECT_ID('ims_request_workflow_state', 'U') IS NULL
     BEGIN
       CREATE TABLE ims_request_workflow_state (
-        request_id UNIQUEIDENTIFIER PRIMARY KEY,
+        request_id UNIQUEIDENTIFIER NOT NULL,
         request_approval_id UNIQUEIDENTIFIER NULL,
         group_number INT NOT NULL,
         current_step_order INT NOT NULL,
         total_steps INT NOT NULL,
         status NVARCHAR(30) NOT NULL DEFAULT 'pending',
+        current_approver_id NVARCHAR(450) NULL,
         created_at DATETIME NOT NULL DEFAULT GETDATE(),
-        updated_at DATETIME NOT NULL DEFAULT GETDATE()
+        updated_at DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT PK_ims_request_workflow_state PRIMARY KEY (request_id, group_number)
       );
+
+      CREATE INDEX IX_ims_request_workflow_state_request_status
+      ON ims_request_workflow_state(request_id, status);
+
+      CREATE INDEX IX_ims_request_workflow_state_approver_pending
+      ON ims_request_workflow_state(current_approver_id, status);
+    END
+
+    IF OBJECT_ID('ims_request_workflow_state', 'U') IS NOT NULL
+    BEGIN
+      IF COL_LENGTH('ims_request_workflow_state', 'current_approver_id') IS NULL
+      BEGIN
+        ALTER TABLE ims_request_workflow_state ADD current_approver_id NVARCHAR(450) NULL;
+      END
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = 'IX_ims_request_workflow_state_request_status'
+          AND object_id = OBJECT_ID('ims_request_workflow_state')
+      )
+      BEGIN
+        CREATE INDEX IX_ims_request_workflow_state_request_status
+        ON ims_request_workflow_state(request_id, status);
+      END
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = 'IX_ims_request_workflow_state_approver_pending'
+          AND object_id = OBJECT_ID('ims_request_workflow_state')
+      )
+      BEGIN
+        CREATE INDEX IX_ims_request_workflow_state_approver_pending
+        ON ims_request_workflow_state(current_approver_id, status);
+      END
+
+      DECLARE @existingPkName NVARCHAR(128) = (
+        SELECT kc.name
+        FROM sys.key_constraints kc
+        WHERE kc.parent_object_id = OBJECT_ID('ims_request_workflow_state')
+          AND kc.type = 'PK'
+      );
+
+      DECLARE @pkCols NVARCHAR(MAX) = (
+        SELECT STRING_AGG(c.name, ',') WITHIN GROUP (ORDER BY ic.key_ordinal)
+        FROM sys.key_constraints kc
+        INNER JOIN sys.index_columns ic
+          ON ic.object_id = kc.parent_object_id
+         AND ic.index_id = kc.unique_index_id
+        INNER JOIN sys.columns c
+          ON c.object_id = kc.parent_object_id
+         AND c.column_id = ic.column_id
+        WHERE kc.parent_object_id = OBJECT_ID('ims_request_workflow_state')
+          AND kc.type = 'PK'
+      );
+
+      IF @existingPkName IS NOT NULL AND ISNULL(@pkCols, '') = 'request_id'
+      BEGIN
+        IF EXISTS (
+          SELECT request_id, group_number
+          FROM ims_request_workflow_state
+          GROUP BY request_id, group_number
+          HAVING COUNT(*) > 1
+        )
+        BEGIN
+          ;THROW 51000, 'Duplicate workflow state rows exist for same request/group. Fix data before PK migration.', 1;
+        END
+
+        DECLARE @dropPkSql NVARCHAR(MAX) = N'ALTER TABLE ims_request_workflow_state DROP CONSTRAINT ' + QUOTENAME(@existingPkName) + N';';
+        EXEC sp_executesql @dropPkSql;
+
+        ALTER TABLE ims_request_workflow_state
+        ADD CONSTRAINT PK_ims_request_workflow_state PRIMARY KEY (request_id, group_number);
+      END
     END
 
     IF OBJECT_ID('item_masters', 'U') IS NOT NULL
@@ -302,57 +379,77 @@ const pickApproverForStep = async (pool, stepRules, excludedUserIds = []) => {
 const initializeWorkflowForRequest = async (pool, requestId, submittedBy, requestApprovalId = null) => {
   await ensureTables(pool);
 
-  const { groupNumber, groups } = await getGroupFromRequestItems(pool, requestId);
-  if (!groupNumber) {
+  const { groups } = await getGroupFromRequestItems(pool, requestId);
+  if (!groups.length) {
     return {
       ok: false,
-      code: groups.length > 1 ? 'mixed_groups' : 'group_missing',
+      code: 'group_missing',
       groups
     };
   }
 
-  const steps = await getWorkflowSteps(pool, groupNumber);
-  if (steps.length === 0) {
-    return { ok: false, code: 'workflow_not_defined', groupNumber };
+  const sortedGroups = Array.from(new Set(groups)).sort((a, b) => a - b);
+  const laneStates = [];
+
+  for (const groupNumber of sortedGroups) {
+    const steps = await getWorkflowSteps(pool, groupNumber);
+    if (steps.length === 0) {
+      return { ok: false, code: 'workflow_not_defined', groupNumber };
+    }
+
+    const firstStep = steps[0];
+    const approver = await pickApproverForStep(pool, firstStep.rules, [submittedBy]);
+    if (!approver) {
+      return { ok: false, code: 'approver_not_found', groupNumber, stepOrder: firstStep.step_order };
+    }
+
+    await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .input('groupNumber', sql.Int, groupNumber)
+      .input('requestApprovalId', sql.UniqueIdentifier, requestApprovalId)
+      .input('currentStepOrder', sql.Int, firstStep.step_order)
+      .input('totalSteps', sql.Int, steps.length)
+      .input('currentApproverId', sql.NVarChar(450), approver.user_id)
+      .query(`
+        MERGE ims_request_workflow_state AS target
+        USING (SELECT @requestId AS request_id, @groupNumber AS group_number) AS src
+        ON target.request_id = src.request_id AND target.group_number = src.group_number
+        WHEN MATCHED THEN
+          UPDATE SET
+            request_approval_id = @requestApprovalId,
+            current_step_order = @currentStepOrder,
+            total_steps = @totalSteps,
+            current_approver_id = @currentApproverId,
+            status = 'pending',
+            updated_at = GETDATE()
+        WHEN NOT MATCHED THEN
+          INSERT (request_id, request_approval_id, group_number, current_step_order, total_steps, status, current_approver_id, created_at, updated_at)
+          VALUES (@requestId, @requestApprovalId, @groupNumber, @currentStepOrder, @totalSteps, 'pending', @currentApproverId, GETDATE(), GETDATE());
+      `);
+
+    laneStates.push({
+      groupNumber,
+      currentStepOrder: firstStep.step_order,
+      totalSteps: steps.length,
+      approverId: approver.user_id,
+      approverName: approver.FullName,
+      approverRole: approver.matchedRole
+    });
   }
 
-  const firstStep = steps[0];
-  const approver = await pickApproverForStep(pool, firstStep.rules, [submittedBy]);
-  if (!approver) {
-    return { ok: false, code: 'approver_not_found', groupNumber, stepOrder: firstStep.step_order };
-  }
-
-  await pool.request()
-    .input('requestId', sql.UniqueIdentifier, requestId)
-    .input('requestApprovalId', sql.UniqueIdentifier, requestApprovalId)
-    .input('groupNumber', sql.Int, groupNumber)
-    .input('currentStepOrder', sql.Int, firstStep.step_order)
-    .input('totalSteps', sql.Int, steps.length)
-    .query(`
-      MERGE ims_request_workflow_state AS target
-      USING (SELECT @requestId AS request_id) AS src
-      ON target.request_id = src.request_id
-      WHEN MATCHED THEN
-        UPDATE SET
-          request_approval_id = @requestApprovalId,
-          group_number = @groupNumber,
-          current_step_order = @currentStepOrder,
-          total_steps = @totalSteps,
-          status = 'pending',
-          updated_at = GETDATE()
-      WHEN NOT MATCHED THEN
-        INSERT (request_id, request_approval_id, group_number, current_step_order, total_steps, status, created_at, updated_at)
-        VALUES (@requestId, @requestApprovalId, @groupNumber, @currentStepOrder, @totalSteps, 'pending', GETDATE(), GETDATE());
-    `);
+  const primaryLane = laneStates[0] || null;
 
   return {
     ok: true,
-    groupNumber,
-    currentStepOrder: firstStep.step_order,
-    totalSteps: steps.length,
-    approverId: approver.user_id,
-    approverName: approver.FullName,
-    approverRole: approver.matchedRole
+    groups: sortedGroups,
+    laneCount: laneStates.length,
+    lanes: laneStates,
+    groupNumber: primaryLane?.groupNumber || null,
+    currentStepOrder: primaryLane?.currentStepOrder || null,
+    totalSteps: primaryLane?.totalSteps || null,
+    approverId: primaryLane?.approverId || null,
+    approverName: primaryLane?.approverName || null,
+    approverRole: primaryLane?.approverRole || null
   };
 };
 
@@ -370,24 +467,46 @@ const bindRequestApprovalId = async (pool, requestId, requestApprovalId) => {
     `);
 };
 
-const advanceWorkflow = async (pool, requestId, actorId) => {
-  await ensureTables(pool);
+const resolveAdvanceGroups = async (pool, requestId, options = {}) => {
+  const explicitGroup = Number(options.groupNumber || 0);
+  if (explicitGroup > 0) return [explicitGroup];
 
-  const stateResult = await pool.request()
+  if (Array.isArray(options.touchedGroups) && options.touchedGroups.length > 0) {
+    return Array.from(new Set(options.touchedGroups.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))).sort((a, b) => a - b);
+  }
+
+  const result = await pool.request()
     .input('requestId', sql.UniqueIdentifier, requestId)
     .query(`
-      SELECT request_id, request_approval_id, group_number, current_step_order, total_steps, status
+      SELECT DISTINCT group_number
       FROM ims_request_workflow_state
       WHERE request_id = @requestId
     `);
 
+  return (result.recordset || [])
+    .map((row) => Number(row.group_number))
+    .filter((value) => Number.isInteger(value) && value > 0)
+    .sort((a, b) => a - b);
+};
+
+const advanceLane = async (pool, requestId, groupNumber, actorId) => {
+  const stateResult = await pool.request()
+    .input('requestId', sql.UniqueIdentifier, requestId)
+    .input('groupNumber', sql.Int, groupNumber)
+    .query(`
+      SELECT request_id, request_approval_id, group_number, current_step_order, total_steps, status
+      FROM ims_request_workflow_state
+      WHERE request_id = @requestId
+        AND group_number = @groupNumber
+    `);
+
   if (!stateResult.recordset?.length) {
-    return { ok: false, code: 'workflow_state_missing' };
+    return { ok: false, code: 'workflow_state_missing', groupNumber };
   }
 
   const state = stateResult.recordset[0];
   if (String(state.status).toLowerCase() === 'completed') {
-    return { ok: true, completed: true, alreadyCompleted: true };
+    return { ok: true, completed: true, alreadyCompleted: true, groupNumber };
   }
 
   const steps = await getWorkflowSteps(pool, state.group_number);
@@ -405,7 +524,8 @@ const advanceWorkflow = async (pool, requestId, actorId) => {
         ok: false,
         code: 'actor_not_allowed_for_step',
         actorRoles,
-        stepOrder: state.current_step_order
+        stepOrder: state.current_step_order,
+        groupNumber: state.group_number
       };
     }
   }
@@ -414,14 +534,17 @@ const advanceWorkflow = async (pool, requestId, actorId) => {
   if (!nextStep) {
     await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
+      .input('groupNumber', sql.Int, groupNumber)
       .query(`
         UPDATE ims_request_workflow_state
         SET status = 'completed',
+            current_approver_id = NULL,
             updated_at = GETDATE()
         WHERE request_id = @requestId
+          AND group_number = @groupNumber
       `);
 
-    return { ok: true, completed: true };
+    return { ok: true, completed: true, groupNumber };
   }
 
   const nextApprover = await pickApproverForStep(pool, nextStep.rules, [actorId]);
@@ -429,29 +552,95 @@ const advanceWorkflow = async (pool, requestId, actorId) => {
     return {
       ok: false,
       code: 'next_approver_not_found',
-      nextStepOrder: nextStep.step_order
+      nextStepOrder: nextStep.step_order,
+      groupNumber
     };
   }
 
   await pool.request()
     .input('requestId', sql.UniqueIdentifier, requestId)
+    .input('groupNumber', sql.Int, groupNumber)
     .input('nextStepOrder', sql.Int, nextStep.step_order)
+    .input('nextApproverId', sql.NVarChar(450), nextApprover.user_id)
     .query(`
       UPDATE ims_request_workflow_state
       SET current_step_order = @nextStepOrder,
+          current_approver_id = @nextApproverId,
           status = 'pending',
           updated_at = GETDATE()
       WHERE request_id = @requestId
+        AND group_number = @groupNumber
     `);
 
   return {
     ok: true,
     completed: false,
+    groupNumber,
     nextStepOrder: nextStep.step_order,
     totalSteps: steps.length,
     approverId: nextApprover.user_id,
     approverName: nextApprover.FullName,
     approverRole: nextApprover.matchedRole
+  };
+};
+
+const advanceWorkflow = async (pool, requestId, actorId, options = {}) => {
+  await ensureTables(pool);
+
+  const groupsToAdvance = await resolveAdvanceGroups(pool, requestId, options);
+  if (!groupsToAdvance.length) {
+    return { ok: false, code: 'workflow_state_missing' };
+  }
+
+  const laneResults = [];
+  for (const groupNumber of groupsToAdvance) {
+    const laneTransition = await advanceLane(pool, requestId, groupNumber, actorId);
+    laneResults.push(laneTransition);
+  }
+
+  const successful = laneResults.filter((lane) => lane.ok);
+  const failed = laneResults.filter((lane) => !lane.ok);
+
+  if (!successful.length) {
+    return {
+      ok: false,
+      code: failed[0]?.code || 'lane_transition_failed',
+      lanes: laneResults
+    };
+  }
+
+  const stateSummaryResult = await pool.request()
+    .input('requestId', sql.UniqueIdentifier, requestId)
+    .query(`
+      SELECT
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
+        COUNT(1) AS total_count
+      FROM ims_request_workflow_state
+      WHERE request_id = @requestId
+    `);
+
+  const summary = stateSummaryResult.recordset?.[0] || {};
+  const completedCount = Number(summary.completed_count || 0);
+  const pendingCount = Number(summary.pending_count || 0);
+  const totalCount = Number(summary.total_count || 0);
+
+  const nextLane = successful.find((lane) => !lane.completed && lane.approverId)
+    || laneResults.find((lane) => !lane.completed && lane.approverId)
+    || null;
+
+  return {
+    ok: true,
+    completed: totalCount > 0 && completedCount === totalCount,
+    laneCount: totalCount,
+    completedLanes: completedCount,
+    pendingLanes: pendingCount,
+    lanes: laneResults,
+    approverId: nextLane?.approverId || null,
+    approverName: nextLane?.approverName || null,
+    approverRole: nextLane?.approverRole || null,
+    nextStepOrder: nextLane?.nextStepOrder || null,
+    totalSteps: nextLane?.totalSteps || null
   };
 };
 

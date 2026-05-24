@@ -1403,10 +1403,40 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       requestId = approvalRowResult.recordset?.[0]?.request_id || null;
 
+      // Determine affected workflow lanes from item allocations so mixed-group requests
+      // can advance only the touched group lanes.
+      let touchedGroups = [];
+      if (requestId && Array.isArray(item_allocations) && item_allocations.length > 0) {
+        const allocationIds = item_allocations
+          .map((item) => item?.requested_item_id)
+          .filter(Boolean);
+
+        if (allocationIds.length > 0) {
+          const allocationIdCsv = allocationIds.join(',');
+          const groupResult = await transaction.request()
+            .input('allocationIdsCsv', sql.NVarChar(sql.MAX), allocationIdCsv)
+            .query(`
+              SELECT DISTINCT im.group_number
+              FROM approval_items ai
+              LEFT JOIN item_masters im ON im.id = ai.item_master_id
+              WHERE ai.id IN (
+                SELECT TRY_CONVERT(uniqueidentifier, LTRIM(RTRIM(value)))
+                FROM STRING_SPLIT(@allocationIdsCsv, ',')
+              )
+            `);
+
+          touchedGroups = (groupResult.recordset || [])
+            .map((row) => Number(row.group_number))
+            .filter((value) => Number.isInteger(value) && value > 0);
+        }
+      }
+
       // Dynamic workflow transition: an "approved" action may move to next configured step,
       // and only the final step becomes fully approved.
       if (overallStatus === 'approved' && !hasForwardActions && !hasReturnActions && requestId) {
-        const transition = await advanceWorkflow(transaction, requestId, userId);
+        const transition = await advanceWorkflow(transaction, requestId, userId, {
+          touchedGroups
+        });
         if (transition?.ok) {
           if (transition.completed) {
             overallStatus = 'approved';
