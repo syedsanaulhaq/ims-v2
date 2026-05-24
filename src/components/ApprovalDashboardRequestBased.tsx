@@ -26,6 +26,11 @@ interface RequestSummary {
   returned_items: number;
   forwarded_items: number;
   pending_items: number;
+  lane_count: number;
+  completed_lane_count: number;
+  rejected_lane_count: number;
+  pending_lane_count: number;
+  lane_parent_status: string;
   approval: RequestApproval;
 }
 
@@ -132,6 +137,11 @@ const ApprovalDashboardRequestBased: React.FC = () => {
             returned_items: 0,
             forwarded_items: 0,
             pending_items: 0,
+            lane_count: 0,
+            completed_lane_count: 0,
+            rejected_lane_count: 0,
+            pending_lane_count: 0,
+            lane_parent_status: 'pending',
             approval: { ...fullApproval, items: fullApproval.items || [] } as any
           };
 
@@ -153,6 +163,16 @@ const ApprovalDashboardRequestBased: React.FC = () => {
               summary.pending_items++;
             }
           });
+
+          // Mixed-group lane summary for quick card visibility.
+          const laneSummary = await approvalForwardingService.getRequestLanes(requestId).catch(() => null);
+          if (laneSummary) {
+            summary.lane_count = laneSummary.lane_count || 0;
+            summary.lane_parent_status = laneSummary.parent_status || 'pending';
+            summary.completed_lane_count = laneSummary.lanes.filter((lane) => lane.status === 'completed').length;
+            summary.rejected_lane_count = laneSummary.lanes.filter((lane) => lane.status === 'rejected').length;
+            summary.pending_lane_count = laneSummary.lanes.filter((lane) => lane.status !== 'completed' && lane.status !== 'rejected').length;
+          }
 
           requestMap.set(requestId, summary);
           
@@ -253,6 +273,13 @@ const ApprovalDashboardRequestBased: React.FC = () => {
   const handleActionComplete = () => {
     setRefreshTrigger(prev => prev + 1);
     setExpandedRequest(null);
+  };
+
+  const getLaneBadgeClass = (parentStatus: string) => {
+    if (parentStatus === 'approved') return 'bg-green-100 text-green-800 border-green-300';
+    if (parentStatus === 'partially_approved') return 'bg-blue-100 text-blue-800 border-blue-300';
+    if (parentStatus === 'rejected') return 'bg-red-100 text-red-800 border-red-300';
+    return 'bg-yellow-100 text-yellow-800 border-yellow-300';
   };
 
   const getFilteredRequests = () => {
@@ -583,6 +610,14 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                           >
                             {getStatusLabel(request.request_status)}
                           </Badge>
+                          {request.lane_count > 0 && (
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${getLaneBadgeClass(request.lane_parent_status)}`}
+                            >
+                              Lanes {request.completed_lane_count}/{request.lane_count}
+                            </Badge>
+                          )}
                         </div>
                         
                         <div className="text-sm text-gray-600 space-y-1 mb-3">
@@ -627,6 +662,12 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                             <div className="flex items-center gap-1 bg-yellow-100 px-2 py-1 rounded text-yellow-800">
                               <span>⏳</span>
                               <span className="font-bold">{request.pending_items}</span>
+                            </div>
+                          )}
+                          {request.lane_count > 0 && (
+                            <div className="flex items-center gap-1 bg-sky-100 px-2 py-1 rounded text-sky-800">
+                              <span>Lanes:</span>
+                              <span className="font-bold">{request.completed_lane_count}/{request.lane_count}</span>
                             </div>
                           )}
                         </div>
@@ -785,6 +826,14 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                             >
                               {getStatusLabel(request.request_status)}
                             </Badge>
+                            {request.lane_count > 0 && (
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${getLaneBadgeClass(request.lane_parent_status)}`}
+                              >
+                                Lanes {request.completed_lane_count}/{request.lane_count}
+                              </Badge>
+                            )}
                           </div>
                           
                           <div className="text-sm text-gray-600 space-y-1 mb-3">
@@ -821,6 +870,9 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                             )}
                             {request.pending_items > 0 && (
                               <div>⏳ <span className="font-bold">{request.pending_items}</span></div>
+                            )}
+                            {request.lane_count > 0 && (
+                              <div>Lanes <span className="font-bold text-sky-700">{request.completed_lane_count}/{request.lane_count}</span></div>
                             )}
                           </div>
                         </div>
