@@ -31,6 +31,7 @@ interface RequestSummary {
   rejected_lane_count: number;
   pending_lane_count: number;
   lane_parent_status: string;
+  lane_tooltip: string;
   approval: RequestApproval;
 }
 
@@ -142,6 +143,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
             rejected_lane_count: 0,
             pending_lane_count: 0,
             lane_parent_status: 'pending',
+            lane_tooltip: '',
             approval: { ...fullApproval, items: fullApproval.items || [] } as any
           };
 
@@ -172,6 +174,24 @@ const ApprovalDashboardRequestBased: React.FC = () => {
             summary.completed_lane_count = laneSummary.lanes.filter((lane) => lane.status === 'completed').length;
             summary.rejected_lane_count = laneSummary.lanes.filter((lane) => lane.status === 'rejected').length;
             summary.pending_lane_count = laneSummary.lanes.filter((lane) => lane.status !== 'completed' && lane.status !== 'rejected').length;
+            const pendingGroups = laneSummary.lanes
+              .filter((lane) => lane.status !== 'completed' && lane.status !== 'rejected')
+              .map((lane) => lane.group_number)
+              .join(', ');
+            const completedGroups = laneSummary.lanes
+              .filter((lane) => lane.status === 'completed')
+              .map((lane) => lane.group_number)
+              .join(', ');
+            const rejectedGroups = laneSummary.lanes
+              .filter((lane) => lane.status === 'rejected')
+              .map((lane) => lane.group_number)
+              .join(', ');
+            summary.lane_tooltip = [
+              `Parent: ${String(summary.lane_parent_status || 'pending').toUpperCase()}`,
+              `Completed: ${completedGroups || '-'}`,
+              `Pending: ${pendingGroups || '-'}`,
+              `Rejected: ${rejectedGroups || '-'}`
+            ].join(' | ');
           }
 
           requestMap.set(requestId, summary);
@@ -614,6 +634,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                             <Badge
                               variant="outline"
                               className={`text-xs ${getLaneBadgeClass(request.lane_parent_status)}`}
+                              title={request.lane_tooltip}
                             >
                               Lanes {request.completed_lane_count}/{request.lane_count}
                             </Badge>
@@ -830,6 +851,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
                               <Badge
                                 variant="outline"
                                 className={`text-xs ${getLaneBadgeClass(request.lane_parent_status)}`}
+                                title={request.lane_tooltip}
                               >
                                 Lanes {request.completed_lane_count}/{request.lane_count}
                               </Badge>

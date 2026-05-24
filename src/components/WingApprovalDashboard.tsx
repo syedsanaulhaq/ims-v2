@@ -179,8 +179,27 @@ export const WingApprovalDashboard: React.FC = () => {
     }
 
     const completedCount = laneSummary.lanes.filter((lane) => lane.status === 'completed').length;
+    const pendingGroups = laneSummary.lanes
+      .filter((lane) => lane.status !== 'completed' && lane.status !== 'rejected')
+      .map((lane) => lane.group_number)
+      .join(', ');
+    const completedGroups = laneSummary.lanes
+      .filter((lane) => lane.status === 'completed')
+      .map((lane) => lane.group_number)
+      .join(', ');
+    const rejectedGroups = laneSummary.lanes
+      .filter((lane) => lane.status === 'rejected')
+      .map((lane) => lane.group_number)
+      .join(', ');
+    const laneTooltip = [
+      `Parent: ${String(laneSummary.parent_status || 'pending').toUpperCase()}`,
+      `Completed: ${completedGroups || '-'}`,
+      `Pending: ${pendingGroups || '-'}`,
+      `Rejected: ${rejectedGroups || '-'}`
+    ].join(' | ');
+
     return (
-      <Badge className={`${getLaneBadgeClass(laneSummary.parent_status)} flex items-center gap-1`}>
+      <Badge className={`${getLaneBadgeClass(laneSummary.parent_status)} flex items-center gap-1`} title={laneTooltip}>
         Lanes {completedCount}/{laneSummary.lane_count}
       </Badge>
     );
