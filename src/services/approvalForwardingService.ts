@@ -75,6 +75,26 @@ export interface ApprovalHistory {
   is_current_step: boolean;
 }
 
+export interface ApprovalLane {
+  request_id: string;
+  group_number: number;
+  current_step_order: number;
+  total_steps: number;
+  status: 'pending' | 'completed' | 'rejected' | string;
+  current_approver_id?: string | null;
+  lane_approver_name?: string | null;
+  lane_item_count?: number;
+  lane_approved_items?: number;
+  lane_rejected_items?: number;
+}
+
+export interface RequestLaneSummary {
+  request_id: string;
+  parent_status: 'pending' | 'partially_approved' | 'approved' | 'rejected' | string;
+  lane_count: number;
+  lanes: ApprovalLane[];
+}
+
 class ApprovalForwardingService {
   
   // ======================
@@ -240,6 +260,24 @@ class ApprovalForwardingService {
     }
   }
 
+  async getMyLanePending(): Promise<ApprovalLane[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/approvals/my-lane-pending`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to fetch pending lanes');
+      }
+
+      return data.data || [];
+    } catch (error) {
+      console.error('Error fetching pending lanes:', error);
+      throw error;
+    }
+  }
+
   async getMyApprovalsByStatus(userId?: string, status?: string): Promise<RequestApproval[]> {
     try {
       // Use provided userId first, then session user, then let backend handle
@@ -323,6 +361,29 @@ class ApprovalForwardingService {
       return data.data;
     } catch (error) {
       console.error('Error fetching approval details:', error);
+      throw error;
+    }
+  }
+
+  async getRequestLanes(requestId: string): Promise<RequestLaneSummary> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/approvals/request/${requestId}/lanes`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to fetch request lanes');
+      }
+
+      return {
+        request_id: data.request_id,
+        parent_status: data.parent_status,
+        lane_count: data.lane_count || 0,
+        lanes: data.lanes || []
+      };
+    } catch (error) {
+      console.error('Error fetching request lanes:', error);
       throw error;
     }
   }

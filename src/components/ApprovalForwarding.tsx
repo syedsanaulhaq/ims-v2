@@ -6,7 +6,8 @@ import {
   RequestApproval, 
   ApprovalHistory, 
   WorkflowApprover,
-  ApprovalAction 
+  ApprovalAction,
+  RequestLaneSummary
 } from '../services/approvalForwardingService';
 import { sessionService } from '../services/sessionService';
 import InventoryCheckModal from './InventoryCheckModal';
@@ -42,6 +43,7 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
   const [selectedWorkflow, setSelectedWorkflow] = useState('');
   const [workflowUsers, setWorkflowUsers] = useState<any[]>([]);
   const [showActionPanel, setShowActionPanel] = useState(false);
+  const [laneSummary, setLaneSummary] = useState<RequestLaneSummary | null>(null);
   
   // Inventory check state
   const [showInventoryCheck, setShowInventoryCheck] = useState(false);
@@ -137,9 +139,14 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
         approvalForwardingService.getApprovalHistory(approvalId),
         approvalForwardingService.getAvailableForwarders(approvalId)
       ]);
+
+      const lanesData = approvalData?.request_id
+        ? await approvalForwardingService.getRequestLanes(approvalData.request_id).catch(() => null)
+        : null;
       
       setApproval(approvalData);
       setHistory(historyData);
+      setLaneSummary(lanesData);
       
       // Filter forwarders to only include other users in the workflow (not current user)
       const filteredForwarders = forwardersData.filter(f => f.user_id !== user?.user_id);
@@ -390,6 +397,14 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
 
   const canTakeAction = approval.current_status === 'pending';
   const currentUserCanFinalize = availableForwarders.some(f => f.can_finalize);
+  const parentStatusBadgeClass =
+    laneSummary?.parent_status === 'approved'
+      ? 'bg-green-100 text-green-800'
+      : laneSummary?.parent_status === 'partially_approved'
+        ? 'bg-blue-100 text-blue-800'
+        : laneSummary?.parent_status === 'rejected'
+          ? 'bg-red-100 text-red-800'
+          : 'bg-yellow-100 text-yellow-800';
 
   return (
     <div className="space-y-6">
@@ -448,6 +463,45 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
             </>
           )}
         </div>
+
+        {laneSummary && laneSummary.lane_count > 0 && (
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-gray-900">Group Workflow Lanes</h4>
+              <span className={`px-2 py-1 rounded text-xs font-medium ${parentStatusBadgeClass}`}>
+                Parent: {String(laneSummary.parent_status || 'pending').toUpperCase()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {laneSummary.lanes.map((lane) => {
+                const laneBadgeClass =
+                  lane.status === 'completed'
+                    ? 'bg-green-100 text-green-800'
+                    : lane.status === 'rejected'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-yellow-100 text-yellow-800';
+
+                return (
+                  <div key={`lane-${lane.group_number}`} className="rounded-md border border-gray-200 p-3 bg-gray-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-gray-900">Group {lane.group_number}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${laneBadgeClass}`}>
+                        {String(lane.status || 'pending').toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-gray-700 space-y-1">
+                      <div>Step: {lane.current_step_order || 0} of {lane.total_steps || 0}</div>
+                      <div>Approver: {lane.lane_approver_name || 'Unassigned'}</div>
+                      <div>Items: {lane.lane_item_count || 0}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Items Requested Section */}

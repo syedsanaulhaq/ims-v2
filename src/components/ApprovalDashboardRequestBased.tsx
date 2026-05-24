@@ -59,6 +59,10 @@ const ApprovalDashboardRequestBased: React.FC = () => {
     try {
       setLoading(true);
       const userId = (user as any)?.user_id || (user as any)?.Id;
+      const lanePending = await approvalForwardingService.getMyLanePending().catch(() => []);
+      const pendingRequestIdSet = new Set(
+        lanePending.map((lane: any) => String(lane.request_id)).filter(Boolean)
+      );
       
       // Get all approvals for this user from all statuses
       const allStatuses = ['pending', 'approved', 'rejected', 'forwarded', 'returned'] as const;
@@ -170,7 +174,9 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       if (activeFilter !== 'pending') {
         filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
       } else {
-        filteredRequests = filteredRequests.filter(r => r.request_status === 'pending');
+        filteredRequests = filteredRequests.filter(
+          r => r.request_status === 'pending' && pendingRequestIdSet.has(String(r.request_id))
+        );
       }
 
       setRequests(filteredRequests);
