@@ -19,6 +19,22 @@ const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
   .map((_, index) => `@role${index}`)
   .join(', ');
 
+const deriveParentLaneStatus = (lanes = []) => {
+  if (!Array.isArray(lanes) || lanes.length === 0) return 'pending';
+
+  const statuses = lanes.map((lane) => String(lane.status || '').toLowerCase());
+  const allCompleted = statuses.every((status) => status === 'completed');
+  const allRejected = statuses.every((status) => status === 'rejected');
+  const anyCompleted = statuses.some((status) => status === 'completed');
+  const anyPending = statuses.some((status) => status === 'pending');
+  const anyRejected = statuses.some((status) => status === 'rejected');
+
+  if (allCompleted) return 'approved';
+  if (allRejected) return 'rejected';
+  if (anyCompleted && (anyPending || anyRejected)) return 'partially_approved';
+  return 'pending';
+};
+
 // ============================================================================
 // Middleware: Authentication and Permission Checking
 // ============================================================================
@@ -608,6 +624,157 @@ router.get('/my-pending', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching my pending approvals:', error);
     res.status(500).json({ error: 'Failed to fetch pending approvals', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/approvals/my-lane-pending - Pending mixed-group lanes for current user
+// ============================================================================
+router.get('/my-lane-pending', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const userId = req.session.userId;
+    await ensureTables(pool);
+
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT
+          rws.request_id,
+          rws.group_number,
+          rws.current_step_order,
+          rws.total_steps,
+          rws.status,
+          rws.current_approver_id,
+          ra.id AS approval_id,
+          ra.current_status AS request_approval_status,
+          sir.request_number,
+          sir.request_type,
+          sir.purpose,
+          sir.urgency_level,
+          sir.submitted_at,
+          requester.FullName AS requester_name,
+          approver.FullName AS lane_approver_name,
+          COUNT(sii.id) AS lane_item_count
+        FROM ims_request_workflow_state rws
+        LEFT JOIN request_approvals ra ON ra.request_id = rws.request_id
+        LEFT JOIN stock_issuance_requests sir ON sir.id = rws.request_id
+        LEFT JOIN AspNetUsers requester ON requester.Id = sir.requester_user_id
+        LEFT JOIN AspNetUsers approver ON approver.Id = rws.current_approver_id
+        LEFT JOIN stock_issuance_items sii ON sii.request_id = rws.request_id
+        LEFT JOIN item_masters im ON im.id = sii.item_master_id
+        WHERE rws.status = 'pending'
+          AND rws.current_approver_id = @userId
+          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
+          AND (
+            COL_LENGTH('stock_issuance_items', 'is_deleted') IS NULL
+            OR sii.is_deleted = 0
+            OR sii.is_deleted IS NULL
+            OR sii.id IS NULL
+          )
+          AND (
+            im.id IS NULL
+            OR im.group_number = rws.group_number
+          )
+        GROUP BY
+          rws.request_id,
+          rws.group_number,
+          rws.current_step_order,
+          rws.total_steps,
+          rws.status,
+          rws.current_approver_id,
+          ra.id,
+          ra.current_status,
+          sir.request_number,
+          sir.request_type,
+          sir.purpose,
+          sir.urgency_level,
+          sir.submitted_at,
+          requester.FullName,
+          approver.FullName
+        ORDER BY sir.submitted_at DESC, rws.group_number ASC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset || [],
+      total: result.recordset?.length || 0
+    });
+  } catch (error) {
+    console.error('❌ Error fetching my lane pending approvals:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch lane pending approvals', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/approvals/request/:requestId/lanes - Lane breakdown for a request
+// ============================================================================
+router.get('/request/:requestId/lanes', requireAuth, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidRegex.test(requestId)) {
+      return res.status(400).json({ success: false, error: 'Invalid request ID format' });
+    }
+
+    const pool = getPool();
+    await ensureTables(pool);
+
+    const laneResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .query(`
+        SELECT
+          rws.request_id,
+          rws.group_number,
+          rws.current_step_order,
+          rws.total_steps,
+          rws.status,
+          rws.current_approver_id,
+          approver.FullName AS lane_approver_name,
+          COUNT(sii.id) AS lane_item_count,
+          SUM(CASE WHEN ai.decision_type = 'APPROVE_FROM_STOCK' THEN 1 ELSE 0 END) AS lane_approved_items,
+          SUM(CASE WHEN ai.decision_type = 'REJECT' THEN 1 ELSE 0 END) AS lane_rejected_items
+        FROM ims_request_workflow_state rws
+        LEFT JOIN AspNetUsers approver ON approver.Id = rws.current_approver_id
+        LEFT JOIN stock_issuance_items sii ON sii.request_id = rws.request_id
+        LEFT JOIN item_masters im ON im.id = sii.item_master_id
+        LEFT JOIN request_approvals ra ON ra.request_id = rws.request_id
+        LEFT JOIN approval_items ai ON ai.request_approval_id = ra.id AND ai.item_master_id = sii.item_master_id
+        WHERE rws.request_id = @requestId
+          AND (
+            COL_LENGTH('stock_issuance_items', 'is_deleted') IS NULL
+            OR sii.is_deleted = 0
+            OR sii.is_deleted IS NULL
+            OR sii.id IS NULL
+          )
+          AND (
+            im.id IS NULL
+            OR im.group_number = rws.group_number
+          )
+        GROUP BY
+          rws.request_id,
+          rws.group_number,
+          rws.current_step_order,
+          rws.total_steps,
+          rws.status,
+          rws.current_approver_id,
+          approver.FullName
+        ORDER BY rws.group_number ASC
+      `);
+
+    const lanes = laneResult.recordset || [];
+
+    res.json({
+      success: true,
+      request_id: requestId,
+      parent_status: deriveParentLaneStatus(lanes),
+      lane_count: lanes.length,
+      lanes
+    });
+  } catch (error) {
+    console.error('❌ Error loading request lanes:', error);
+    res.status(500).json({ success: false, error: 'Failed to load request lanes', details: error.message });
   }
 });
 
