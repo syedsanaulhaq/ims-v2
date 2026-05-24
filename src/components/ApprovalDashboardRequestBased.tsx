@@ -65,10 +65,11 @@ const ApprovalDashboardRequestBased: React.FC = () => {
     try {
       setLoading(true);
       const userId = (user as any)?.user_id || (user as any)?.Id;
-      const lanePending = await approvalForwardingService.getMyLanePending().catch(() => []);
+      const lanePending = await approvalForwardingService.getMyLanePending().catch(() => null);
       const pendingRequestIdSet = new Set(
-        lanePending.map((lane: any) => String(lane.request_id)).filter(Boolean)
+        (lanePending || []).map((lane: any) => String(lane.request_id)).filter(Boolean)
       );
+      const lanePendingAvailable = Array.isArray(lanePending);
       
       // Get all approvals for this user from all statuses
       const allStatuses = ['pending', 'approved', 'rejected', 'forwarded', 'returned'] as const;
@@ -214,9 +215,18 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       if (activeFilter !== 'pending') {
         filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
       } else {
-        filteredRequests = filteredRequests.filter(
-          r => r.request_status === 'pending' && pendingRequestIdSet.has(String(r.request_id))
-        );
+        filteredRequests = filteredRequests.filter((r) => {
+          if (r.request_status !== 'pending') return false;
+
+          // If lane endpoint is unavailable/failed, fall back to legacy pending behavior.
+          if (!lanePendingAvailable) return true;
+
+          // If no lane rows are available for this user, keep pending requests visible.
+          if (pendingRequestIdSet.size === 0) return true;
+
+          // For mixed-group workflow, honor lane assignment; for legacy requests with no lanes, keep visible.
+          return pendingRequestIdSet.has(String(r.request_id)) || (r.lane_count || 0) === 0;
+        });
       }
 
       setRequests(filteredRequests);
