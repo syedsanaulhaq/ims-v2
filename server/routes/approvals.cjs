@@ -1350,8 +1350,15 @@ router.get('/my-approvals', async (req, res) => {
     let statusFilter = '';
     if (status === 'pending') {
       // Requests assigned to me that are pending my action
-      statusFilter = `ra.current_approver_id = @userId
-        AND ra.current_status IN ('pending', 'forwarded_to_admin', 'forwarded_to_supervisor')`;
+      statusFilter = `(ra.current_approver_id = @userId
+          AND ra.current_status IN ('pending', 'forwarded_to_admin', 'forwarded_to_supervisor'))
+        OR EXISTS (
+          SELECT 1
+          FROM ims_request_workflow_state rws
+          WHERE rws.request_id = ra.request_id
+            AND rws.status = 'pending'
+            AND rws.current_approver_id = @userId
+        )`;
     } else if (status === 'approved') {
       // Requests where I took an approve action (check approval_history)
       statusFilter = `ra.current_status IN ('approved', 'completed')
@@ -1616,9 +1623,31 @@ router.post('/:approvalId/approve', async (req, res) => {
         }
       }
 
+      // Forward actions for mixed-group requests should move touched lanes to their
+      // next configured workflow approvers instead of assigning one static admin user.
+      if (hasForwardActions && !hasReturnActions && requestId) {
+        const transition = await advanceWorkflow(transaction, requestId, userId, {
+          touchedGroups
+        });
+
+        if (transition?.ok) {
+          overallStatus = transition.completed ? 'approved' : 'pending';
+          newApproverId = transition.approverId || null;
+          isDynamicStepTransition = !transition.completed;
+
+          if (!transition.completed) {
+            if ((transition.laneCount || 0) > 1) {
+              dynamicTransitionLabel = `Pending ${transition.pendingLanes || transition.laneCount} Group Lanes`;
+            } else {
+              dynamicTransitionLabel = `Pending Step ${transition.nextStepOrder} of ${transition.totalSteps}`;
+            }
+          }
+        }
+      }
+
       // Update approval record
       // If forwarding, find the target user to reassign current_approver_id
-      if (hasForwardToAdmin) {
+      if (hasForwardToAdmin && !newApproverId) {
         // Find an IMS_ADMIN user (preferably in the same wing)
         const adminResult = await transaction.request()
           .query(`
@@ -1631,7 +1660,7 @@ router.post('/:approvalId/approve', async (req, res) => {
         if (adminResult.recordset.length > 0) {
           newApproverId = adminResult.recordset[0].user_id;
         }
-      } else if (hasForwardToSupervisor) {
+      } else if (hasForwardToSupervisor && !newApproverId) {
         // Find a WING_SUPERVISOR user
         const supResult = await transaction.request()
           .query(`
@@ -1705,9 +1734,13 @@ router.post('/:approvalId/approve', async (req, res) => {
         `);
 
       // Determine a meaningful comment for the history entry
-      const historyActionType = isDynamicStepTransition
-        ? 'approved_step'
-        : (hasReturnActions ? 'returned' : overallStatus);
+      const historyActionType = hasForwardToAdmin
+        ? 'forwarded_to_admin'
+        : hasForwardToSupervisor
+          ? 'forwarded_to_supervisor'
+          : isDynamicStepTransition
+            ? 'approved_step'
+            : (hasReturnActions ? 'returned' : overallStatus);
       let historyComment = approval_comments || '';
       if (!historyComment) {
         if (historyActionType === 'forwarded_to_admin') historyComment = 'Forwarded request to Admin for approval';
