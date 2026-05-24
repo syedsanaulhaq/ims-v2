@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
   approvalForwardingService, 
-  RequestApproval 
+  RequestApproval,
+  RequestLaneSummary
 } from '../services/approvalForwardingService';
 import ApprovalForwarding from './ApprovalForwarding';
 import PerItemApprovalPanel from './PerItemApprovalPanel';
@@ -34,6 +35,7 @@ const ApprovalDashboard: React.FC = () => {
   const [itemsPerPage] = useState(5);
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [requestLanes, setRequestLanes] = useState<Record<string, RequestLaneSummary>>({});
 
   useEffect(() => {
     console.log('🔍 ApprovalDashboard: Current user from auth context:', user);
@@ -54,8 +56,34 @@ const ApprovalDashboard: React.FC = () => {
         approvalForwardingService.getApprovalDashboard(userId)
       ]);
 
-      console.log('📋 Approvals loaded:', approvalsData.length, 'for status:', activeFilter);
-      setPendingApprovals(approvalsData);
+      let filteredApprovals = approvalsData;
+      if (activeFilter === 'pending') {
+        const lanePending = await approvalForwardingService.getMyLanePending().catch(() => []);
+        const pendingRequestIds = new Set(
+          lanePending.map((lane) => String(lane.request_id)).filter(Boolean)
+        );
+        filteredApprovals = approvalsData.filter((approval) =>
+          pendingRequestIds.has(String(approval.request_id))
+        );
+      }
+
+      const uniqueRequestIds = Array.from(new Set(filteredApprovals.map((a) => String(a.request_id))));
+      const laneSummaries = await Promise.all(
+        uniqueRequestIds.map(async (requestId) => {
+          const summary = await approvalForwardingService.getRequestLanes(requestId).catch(() => null);
+          return [requestId, summary] as const;
+        })
+      );
+      const lanesMap: Record<string, RequestLaneSummary> = {};
+      for (const [requestId, summary] of laneSummaries) {
+        if (summary) {
+          lanesMap[requestId] = summary;
+        }
+      }
+
+      console.log('📋 Approvals loaded:', filteredApprovals.length, 'for status:', activeFilter);
+      setPendingApprovals(filteredApprovals);
+      setRequestLanes(lanesMap);
 
       // Set returned approvals from dashboard data
       setReturnedApprovals((dashboardData as any).my_returned || []);
@@ -171,6 +199,30 @@ const ApprovalDashboard: React.FC = () => {
 
   const getWingTotalPages = () => {
     return Math.ceil(getWingApprovals().length / itemsPerPage);
+  };
+
+  const getLaneBadgeClass = (parentStatus?: string) => {
+    if (parentStatus === 'approved') return 'bg-green-100 text-green-800 border-green-300';
+    if (parentStatus === 'partially_approved') return 'bg-blue-100 text-blue-800 border-blue-300';
+    if (parentStatus === 'rejected') return 'bg-red-100 text-red-800 border-red-300';
+    return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+  };
+
+  const renderLaneBadge = (requestId: string) => {
+    const laneSummary = requestLanes[String(requestId)];
+    if (!laneSummary || !laneSummary.lane_count) {
+      return null;
+    }
+
+    const completedCount = laneSummary.lanes.filter((lane) => lane.status === 'completed').length;
+    return (
+      <Badge
+        variant="outline"
+        className={`text-xs ${getLaneBadgeClass(laneSummary.parent_status)}`}
+      >
+        Lanes {completedCount}/{laneSummary.lane_count}
+      </Badge>
+    );
   };
 
   if (loading) {
@@ -396,6 +448,7 @@ const ApprovalDashboard: React.FC = () => {
                           >
                             {approval.current_status.toUpperCase()}
                           </Badge>
+                          {renderLaneBadge(approval.request_id)}
                         </div>
                         <div className="text-sm text-gray-600 space-y-1">
                           <div>Submitted by: <span className="font-medium text-gray-900">{approval.submitted_by_name}</span></div>
@@ -573,6 +626,7 @@ const ApprovalDashboard: React.FC = () => {
                           >
                             {approval.current_status.toUpperCase()}
                           </Badge>
+                          {renderLaneBadge(approval.request_id)}
                         </div>
                         <div className="text-sm text-gray-600 space-y-1">
                           <div>Submitted by: <span className="font-medium text-gray-900">{approval.submitted_by_name}</span></div>

@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   approvalForwardingService,
-  RequestApproval
+  RequestApproval,
+  RequestLaneSummary
 } from '../services/approvalForwardingService';
 import ApprovalForwarding from './ApprovalForwarding';
 import PerItemApprovalPanel from './PerItemApprovalPanel';
@@ -28,6 +29,7 @@ export const WingApprovalDashboard: React.FC = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'pending' | 'approved' | 'rejected' | 'forwarded'>('pending');
   const [wingName, setWingName] = useState<string>('');
+  const [requestLanes, setRequestLanes] = useState<Record<string, RequestLaneSummary>>({});
 
   useEffect(() => {
     console.log('🔍 WingApprovalDashboard: Current user from session context:', user);
@@ -75,9 +77,24 @@ export const WingApprovalDashboard: React.FC = () => {
         approvalForwardingService.getWingApprovalDashboard(wingId)
       ]);
 
+      const uniqueRequestIds = Array.from(new Set(approvalsData.map((a) => String(a.request_id))));
+      const laneSummaries = await Promise.all(
+        uniqueRequestIds.map(async (requestId) => {
+          const summary = await approvalForwardingService.getRequestLanes(requestId).catch(() => null);
+          return [requestId, summary] as const;
+        })
+      );
+      const lanesMap: Record<string, RequestLaneSummary> = {};
+      for (const [requestId, summary] of laneSummaries) {
+        if (summary) {
+          lanesMap[requestId] = summary;
+        }
+      }
+
       console.log('📋 Wing approvals loaded:', approvalsData.length, 'for status:', activeFilter);
       setPendingApprovals(approvalsData);
       setDashboardStats(dashboardData);
+      setRequestLanes(lanesMap);
 
     } catch (error) {
       console.error('❌ Error loading wing approval dashboard:', error);
@@ -144,6 +161,27 @@ export const WingApprovalDashboard: React.FC = () => {
     return (
       <Badge className={priorityColors[priority as keyof typeof priorityColors] || priorityColors.Medium}>
         {priority}
+      </Badge>
+    );
+  };
+
+  const getLaneBadgeClass = (parentStatus?: string) => {
+    if (parentStatus === 'approved') return 'bg-green-100 text-green-800 border-green-300';
+    if (parentStatus === 'partially_approved') return 'bg-blue-100 text-blue-800 border-blue-300';
+    if (parentStatus === 'rejected') return 'bg-red-100 text-red-800 border-red-300';
+    return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+  };
+
+  const renderLaneBadge = (requestId: string) => {
+    const laneSummary = requestLanes[String(requestId)];
+    if (!laneSummary || !laneSummary.lane_count) {
+      return null;
+    }
+
+    const completedCount = laneSummary.lanes.filter((lane) => lane.status === 'completed').length;
+    return (
+      <Badge className={`${getLaneBadgeClass(laneSummary.parent_status)} flex items-center gap-1`}>
+        Lanes {completedCount}/{laneSummary.lane_count}
       </Badge>
     );
   };
@@ -282,6 +320,7 @@ export const WingApprovalDashboard: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       {getStatusBadge((approval as any).status || approval.current_status)}
+                      {renderLaneBadge(approval.request_id)}
                       {getPriorityBadge((approval as any).priority || 'Medium')}
                     </div>
                   </div>
