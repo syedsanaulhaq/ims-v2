@@ -466,6 +466,7 @@ router.delete('/workflow/configs/:groupNumber', requireAuth, requirePermission('
 router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.view_wing'), async (req, res) => {
   try {
     const pool = getPool();
+    await ensureTables(pool);
     const supervisorId = req.query.supervisor_id || req.session.userId;
     let wingId = req.query.wing_id;
 
@@ -503,6 +504,7 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
     // Use inline query instead of view for better compatibility
     const result = await pool.request()
       .input('wingId', sql.NVarChar(100), String(wingId))
+      .input('supervisorId', sql.NVarChar(450), String(supervisorId))
       .query(`
         SELECT 
           sir.id,
@@ -522,7 +524,17 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
         LEFT JOIN AspNetUsers u ON CONVERT(NVARCHAR(450), sir.requester_user_id) = CONVERT(NVARCHAR(450), u.Id)
         LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
         WHERE CONVERT(NVARCHAR(100), sir.requester_wing_id) = @wingId
-          AND sir.approval_status IN ('Pending', 'pending', 'Submitted', 'Pending Supervisor Review')
+          AND (
+            sir.approval_status IN ('Pending', 'pending', 'Submitted', 'Pending Supervisor Review')
+            OR sir.approval_status LIKE 'Pending%'
+            OR EXISTS (
+              SELECT 1
+              FROM ims_request_workflow_state rws
+              WHERE rws.request_id = sir.id
+                AND rws.status = 'pending'
+                AND rws.current_approver_id = @supervisorId
+            )
+          )
           AND (${schemaFlags.has_is_deleted ? '(sir.is_deleted = 0 OR sir.is_deleted IS NULL)' : '1=1'})
         ORDER BY 
           CASE WHEN sir.urgency_level IN ('High', 'Critical') THEN 0 ELSE 1 END,
@@ -1033,6 +1045,7 @@ router.post('/supervisor/forward', requireAuth, requirePermission('stock_request
   try {
     const { requestId, supervisorId, forwardingReason, comments } = req.body;
     const pool = getPool();
+    await ensureTables(pool);
 
     if (!requestId || !supervisorId || !forwardingReason) {
       return res.status(400).json({ error: 'requestId, supervisorId, and forwardingReason are required' });
@@ -1042,15 +1055,82 @@ router.post('/supervisor/forward', requireAuth, requirePermission('stock_request
     await transaction.begin();
 
     try {
+      const approvalRow = await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .query(`
+          SELECT TOP 1 id, current_status
+          FROM request_approvals
+          WHERE request_id = @requestId
+          ORDER BY updated_date DESC, created_date DESC
+        `);
+
+      const approvalId = approvalRow.recordset?.[0]?.id || null;
+      let transition = null;
+      let nextApproverId = null;
+      let overallStatus = 'forwarded_to_admin';
+      let statusLabel = 'Forwarded to Admin';
+
+      // Advance all pending lanes for this request so mixed-group requests fan out
+      // to each group's next approver instead of a single static assignee.
+      transition = await advanceWorkflow(transaction, requestId, supervisorId, {});
+      if (transition?.ok) {
+        if (transition.completed) {
+          overallStatus = 'approved';
+          statusLabel = 'Approved';
+        } else {
+          overallStatus = 'pending';
+          nextApproverId = transition.approverId || null;
+          if ((transition.laneCount || 0) > 1) {
+            statusLabel = `Pending ${transition.pendingLanes || transition.laneCount} Group Lanes`;
+          } else {
+            statusLabel = `Pending Step ${transition.nextStepOrder || 1} of ${transition.totalSteps || 1}`;
+          }
+        }
+      }
+
+      if (approvalId) {
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .input('status', sql.NVarChar(50), overallStatus)
+          .input('nextApproverId', sql.NVarChar(450), nextApproverId)
+          .query(`
+            UPDATE request_approvals
+            SET current_status = @status,
+                updated_date = GETDATE()
+                ${nextApproverId ? ', current_approver_id = @nextApproverId' : ''}
+            WHERE id = @approvalId
+          `);
+
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .input('actorId', sql.NVarChar(450), supervisorId)
+          .input('comments', sql.NVarChar(sql.MAX), forwardingReason || comments || 'Forwarded to next workflow step')
+          .query(`
+            DECLARE @nextStep INT;
+            SELECT @nextStep = ISNULL(MAX(step_number), 0) + 1
+            FROM approval_history
+            WHERE request_approval_id = @approvalId;
+
+            UPDATE approval_history
+            SET is_current_step = 0
+            WHERE request_approval_id = @approvalId;
+
+            INSERT INTO approval_history
+            (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+            VALUES (@approvalId, 'forwarded_to_admin', @actorId, @comments, @nextStep, 1);
+          `);
+      }
+
       // Update request status
       await transaction.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
         .input('supervisorId', sql.NVarChar(450), supervisorId)
         .input('forwardingReason', sql.NVarChar(sql.MAX), forwardingReason)
         .input('comments', sql.NVarChar(sql.MAX), comments)
+        .input('statusLabel', sql.NVarChar(100), statusLabel)
         .query(`
           UPDATE stock_issuance_requests
-          SET approval_status = 'Forwarded to Admin',
+          SET approval_status = @statusLabel,
               supervisor_id = @supervisorId,
               supervisor_reviewed_at = GETDATE(),
               supervisor_comments = @comments,
@@ -1064,7 +1144,7 @@ router.post('/supervisor/forward', requireAuth, requirePermission('stock_request
         .input('requestId', sql.UniqueIdentifier, requestId)
         .input('actorId', sql.NVarChar(450), supervisorId)
         .input('action', sql.NVarChar(30), 'Forwarded')
-        .input('newStatus', sql.NVarChar(30), 'Forwarded to Admin')
+        .input('newStatus', sql.NVarChar(100), statusLabel)
         .input('reason', sql.NVarChar(sql.MAX), forwardingReason)
         .query(`
           INSERT INTO stock_issuance_approval_history 
@@ -1075,7 +1155,12 @@ router.post('/supervisor/forward', requireAuth, requirePermission('stock_request
 
       await transaction.commit();
       console.log(`✅ Supervisor forwarded request ${requestId} to admin`);
-      res.json({ success: true, message: 'Request forwarded to admin successfully', action: 'forwarded' });
+      res.json({
+        success: true,
+        message: 'Request forwarded through workflow successfully',
+        action: 'forwarded',
+        lane_transition: transition
+      });
     } catch (err) {
       await transaction.rollback();
       throw err;
@@ -1590,7 +1675,11 @@ router.post('/:approvalId/approve', async (req, res) => {
           const groupResult = await transaction.request()
             .input('allocationIdsCsv', sql.NVarChar(sql.MAX), allocationIdCsv)
             .query(`
-              SELECT DISTINCT im.group_number
+              SELECT DISTINCT
+                im.group_number,
+                im.description,
+                ai.nomenclature,
+                ai.custom_item_name
               FROM approval_items ai
               LEFT JOIN item_masters im ON im.id = ai.item_master_id
               WHERE ai.id IN (
@@ -1600,7 +1689,7 @@ router.post('/:approvalId/approve', async (req, res) => {
             `);
 
           touchedGroups = (groupResult.recordset || [])
-            .map((row) => Number(row.group_number))
+            .map((row) => resolveItemMasterGroupNumber(row.group_number, row.description || row.nomenclature || row.custom_item_name))
             .filter((value) => Number.isInteger(value) && value > 0);
         }
       }
