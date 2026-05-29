@@ -79,6 +79,22 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return hasForwardToAdminItem || status === 'forwarded_to_admin';
   };
 
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race<T>([
+        promise,
+        new Promise<T>((resolve) => {
+          timer = setTimeout(() => resolve(fallback), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
+  };
+
   useEffect(() => {
     loadDashboardData();
   }, [refreshTrigger, user, activeFilter]);
@@ -87,7 +103,11 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     try {
       setLoading(true);
       const userId = (user as any)?.user_id || (user as any)?.Id;
-      const lanePending = await approvalForwardingService.getMyLanePending().catch(() => null);
+      const lanePending = await withTimeout(
+        approvalForwardingService.getMyLanePending().catch(() => null),
+        6000,
+        null
+      );
       const pendingRequestIdSet = new Set(
         (lanePending || []).map((lane: any) => String(lane.request_id)).filter(Boolean)
       );
@@ -100,13 +120,21 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       const approvalSourceStatus = new Map<string, string>();
       
       for (const status of allStatuses) {
-        const approvals = await approvalForwardingService.getMyApprovalsByStatus(userId, status as any);
-        for (const a of approvals) {
-          if (!approvalSourceStatus.has(a.request_id)) {
-            approvalSourceStatus.set(a.request_id, status);
+        try {
+          const approvals = await withTimeout(
+            approvalForwardingService.getMyApprovalsByStatus(userId, status as any),
+            6000,
+            [] as RequestApproval[]
+          );
+          for (const a of approvals) {
+            if (!approvalSourceStatus.has(a.request_id)) {
+              approvalSourceStatus.set(a.request_id, status);
+            }
           }
+          allApprovals.push(...approvals);
+        } catch (statusError) {
+          console.warn(`Skipping approvals status '${status}' due to fetch error:`, statusError);
         }
-        allApprovals.push(...approvals);
       }
 
       // Fetch full details for each approval (which includes items)

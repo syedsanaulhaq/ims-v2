@@ -1998,7 +1998,13 @@ router.post('/:approvalId/approve', async (req, res) => {
           
           if (isDynamicStepTransition) {
             sirStatus = 'Pending';
-            sirApprovalStatus = dynamicTransitionLabel || 'Pending Next Approval Step';
+            if (hasForwardToAdmin) {
+              sirApprovalStatus = 'Forwarded to Admin';
+            } else if (hasForwardToSupervisor) {
+              sirApprovalStatus = 'Pending Supervisor Review';
+            } else {
+              sirApprovalStatus = 'Pending Supervisor Review';
+            }
           } else if (overallStatus === 'forwarded_to_admin') {
             sirStatus = 'Pending';
             sirApprovalStatus = 'Forwarded to Admin';
