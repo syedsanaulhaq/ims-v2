@@ -66,9 +66,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     if (explicitFlag === true || explicitFlag === 1) {
       return true;
     }
-    if (explicitFlag === false || explicitFlag === 0) {
-      return false;
-    }
 
     // Backward-compatible fallback for records created before explicit flag rollout.
     const items = Array.isArray((request.approval as any)?.items) ? (request.approval as any).items : [];
@@ -76,7 +73,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       String(item?.decision_type || '').trim().toUpperCase() === 'FORWARD_TO_ADMIN'
     );
     const status = String((request.approval as any)?.current_status || '').toLowerCase();
-    return hasForwardToAdminItem || status === 'forwarded_to_admin';
+    const forwardedByHistory = Boolean((request.approval as any)?.has_forwarded_to_admin_history);
+    return hasForwardToAdminItem || status === 'forwarded_to_admin' || forwardedByHistory;
   };
 
   const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {

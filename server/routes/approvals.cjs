@@ -2094,6 +2094,23 @@ router.get('/:approvalId', async (req, res, next) => {
 
     const approval = approvalResult.recordset[0];
 
+    // Legacy-safe signal for admin-page routing: some older rows may miss is_admin_workflow
+    // but still have a forward-to-admin action in history.
+    let hasForwardedToAdminHistory = false;
+    try {
+      const historyFlagResult = await pool.request()
+        .input('approvalId', sql.UniqueIdentifier, approvalId)
+        .query(`
+          SELECT TOP 1 1 AS forwarded
+          FROM approval_history
+          WHERE request_approval_id = @approvalId
+            AND action_type = 'forwarded_to_admin'
+        `);
+      hasForwardedToAdminHistory = historyFlagResult.recordset.length > 0;
+    } catch (historyFlagError) {
+      console.warn('Could not resolve forwarded_to_admin history flag:', historyFlagError.message);
+    }
+
     // Get approval items
     let itemsResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)
@@ -2155,6 +2172,7 @@ router.get('/:approvalId', async (req, res, next) => {
 
     const approvalData = {
       ...approval,
+      has_forwarded_to_admin_history: hasForwardedToAdminHistory,
       items: itemsResult.recordset,
       approval_items: itemsResult.recordset,
       request_items: itemsResult.recordset
