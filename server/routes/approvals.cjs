@@ -19,6 +19,11 @@ const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
   .map((_, index) => `@role${index}`)
   .join(', ');
 
+const ADMIN_CHAIN_ROLE_NAMES = ['DD Admin', 'AD Admin-I', 'AD Admin-II', 'Storekeeper'];
+const ADMIN_CHAIN_ROLE_FILTER_SQL = ADMIN_CHAIN_ROLE_NAMES
+  .map((_, index) => `@adminRole${index}`)
+  .join(', ');
+
 const deriveParentLaneStatus = (lanes = []) => {
   if (!Array.isArray(lanes) || lanes.length === 0) return 'pending';
 
@@ -648,8 +653,14 @@ router.get('/my-lane-pending', requireAuth, async (req, res) => {
     const userId = req.session.userId;
     await ensureTables(pool);
 
-    const result = await pool.request()
-      .input('userId', sql.NVarChar(450), userId)
+    const laneRequest = pool.request()
+      .input('userId', sql.NVarChar(450), userId);
+
+    ADMIN_CHAIN_ROLE_NAMES.forEach((role, index) => {
+      laneRequest.input(`adminRole${index}`, sql.NVarChar(100), role);
+    });
+
+    const result = await laneRequest
       .query(`
         SELECT
           rws.request_id,
@@ -676,7 +687,21 @@ router.get('/my-lane-pending', requireAuth, async (req, res) => {
         LEFT JOIN stock_issuance_items sii ON sii.request_id = rws.request_id
         LEFT JOIN item_masters im ON im.id = sii.item_master_id
         WHERE rws.status = 'pending'
-          AND rws.current_approver_id = @userId
+          AND (
+            rws.current_approver_id = @userId
+            OR EXISTS (
+              SELECT 1
+              FROM ims_user_roles me
+              INNER JOIN ims_user_roles assigned ON assigned.role_id = me.role_id
+              INNER JOIN ims_roles roleDef ON roleDef.id = me.role_id
+              WHERE me.user_id = @userId
+                AND me.is_active = 1
+                AND assigned.user_id = rws.current_approver_id
+                AND assigned.is_active = 1
+                AND roleDef.is_active = 1
+                AND roleDef.role_name IN (${ADMIN_CHAIN_ROLE_FILTER_SQL})
+            )
+          )
           AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
           AND (
             COL_LENGTH('stock_issuance_items', 'is_deleted') IS NULL
@@ -1438,8 +1463,23 @@ router.get('/my-approvals', async (req, res) => {
     let statusFilter = '';
     if (status === 'pending') {
       // Requests assigned to me that are pending my action
-      statusFilter = `(ra.current_approver_id = @userId
+      statusFilter = `((ra.current_approver_id = @userId
           AND ra.current_status IN ('pending', 'forwarded_to_admin', 'forwarded_to_supervisor'))
+        OR (
+          ra.current_status IN ('pending', 'forwarded_to_admin')
+          AND EXISTS (
+            SELECT 1
+            FROM ims_user_roles me
+            INNER JOIN ims_user_roles assigned ON assigned.role_id = me.role_id
+            INNER JOIN ims_roles roleDef ON roleDef.id = me.role_id
+            WHERE me.user_id = @userId
+              AND me.is_active = 1
+              AND assigned.user_id = ra.current_approver_id
+              AND assigned.is_active = 1
+              AND roleDef.is_active = 1
+              AND roleDef.role_name IN (${ADMIN_CHAIN_ROLE_FILTER_SQL})
+          )
+        ))
         OR EXISTS (
           SELECT 1
           FROM ims_request_workflow_state rws
@@ -1480,8 +1520,14 @@ router.get('/my-approvals', async (req, res) => {
         )`;
     }
 
-    const approvalsResult = await pool.request()
-      .input('userId', sql.NVarChar(450), userId)
+    const approvalsRequest = pool.request()
+      .input('userId', sql.NVarChar(450), userId);
+
+    ADMIN_CHAIN_ROLE_NAMES.forEach((role, index) => {
+      approvalsRequest.input(`adminRole${index}`, sql.NVarChar(100), role);
+    });
+
+    const approvalsResult = await approvalsRequest
       .query(`
         SELECT DISTINCT
           ra.id,
