@@ -432,31 +432,35 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   // Helper function to filter items by current approval status
   const getFilteredItems = () => {
     if (!request?.items || !Array.isArray(request.items)) return [];
+
+    const normalizeDecisionType = (value: any) => String(value || '').trim().toUpperCase();
     
     // Filter based on which card the user clicked (activeFilter)
     // not based on the approval's overall status
     
     // If user clicked pending, show items with PENDING decision type
-    // For admin users, also include FORWARD_TO_ADMIN items (they are pending admin action)
+    // Also include forwarded states because these are still pending decisions for current approver stage.
     if (activeFilter === 'pending') {
       return request.items.filter((item: any) => 
-        !item.decision_type || item.decision_type === '' || item.decision_type === 'PENDING' ||
-        (isAdmin && item.decision_type === 'FORWARD_TO_ADMIN')
+        ['', 'PENDING', 'FORWARD_TO_ADMIN', 'FORWARD_TO_SUPERVISOR'].includes(
+          normalizeDecisionType(item.decision_type)
+        )
       );
     }
     
     // If user clicked approved, show only approved items
     if (activeFilter === 'approved') {
       return request.items.filter((item: any) => 
-        item.decision_type === 'APPROVE_FROM_STOCK' || 
-        item.decision_type === 'APPROVE_FOR_PROCUREMENT'
+        ['APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT'].includes(
+          normalizeDecisionType(item.decision_type)
+        )
       );
     }
     
     // If user clicked rejected, show only rejected items
     if (activeFilter === 'rejected') {
       return request.items.filter((item: any) => 
-        item.decision_type === 'REJECT' && 
+        normalizeDecisionType(item.decision_type) === 'REJECT' && 
         !item.rejection_reason?.toLowerCase().includes('returned to requester')
       );
     }
@@ -464,8 +468,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // If user clicked returned, show only returned items
     if (activeFilter === 'returned') {
       return request.items.filter((item: any) => 
-        item.decision_type === 'RETURN' || 
-        (item.decision_type === 'REJECT' && 
+        normalizeDecisionType(item.decision_type) === 'RETURN' || 
+        (normalizeDecisionType(item.decision_type) === 'REJECT' && 
          item.rejection_reason?.toLowerCase().includes('returned to requester'))
       );
     }
@@ -473,8 +477,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // If user clicked forwarded, show only forwarded items
     if (activeFilter === 'forwarded') {
       return request.items.filter((item: any) => 
-        item.decision_type === 'FORWARD_TO_SUPERVISOR' || 
-        item.decision_type === 'FORWARD_TO_ADMIN'
+        ['FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN'].includes(
+          normalizeDecisionType(item.decision_type)
+        )
       );
     }
     

@@ -41,6 +41,7 @@ export interface RequestApproval {
   request_type: string;
   scope_type?: string; // 'Individual' or 'Organizational' from stock_issuance_requests
   workflow_id: string;
+  is_admin_workflow?: boolean;
   current_status: 'pending' | 'approved' | 'rejected' | 'finalized';
   current_approver_id: string;
   current_approver_name?: string;

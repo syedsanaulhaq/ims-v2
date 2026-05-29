@@ -229,6 +229,7 @@ function App() {
                   <Route path="approval-management" element={<ApprovalManagement />} />
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
                   <Route path="approval-dashboard-request-based" element={<ApprovalDashboardRequestBased />} />
+                  <Route path="approval-dashboard-request-based-admin" element={<ApprovalDashboardRequestBased viewMode="admin" />} />
                   <Route path="wing-approval-dashboard" element={<WingApprovalDashboard />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />
                   <Route path="wing-requests" element={<WingRequestsPage />} />

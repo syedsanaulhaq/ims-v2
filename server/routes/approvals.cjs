@@ -935,11 +935,12 @@ router.get('/request/:requestId/status', async (req, res) => {
   try {
     const { requestId } = req.params;
     const pool = getPool();
+    await ensureTables(pool);
 
     const result = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`
-        SELECT ra.current_status, ra.current_approver_id,
+        SELECT ra.current_status, ra.current_approver_id, COALESCE(ra.is_admin_workflow, 0) AS is_admin_workflow,
                u.FullName as current_approver_name
         FROM request_approvals ra
         LEFT JOIN AspNetUsers u ON u.Id = ra.current_approver_id
@@ -954,7 +955,8 @@ router.get('/request/:requestId/status', async (req, res) => {
     res.json({
       success: true,
       current_status: row.current_status,
-      current_approver_name: row.current_approver_name
+      current_approver_name: row.current_approver_name,
+      is_admin_workflow: !!row.is_admin_workflow
     });
   } catch (error) {
     console.error('❌ Error fetching request status:', error);
@@ -1426,6 +1428,7 @@ router.get('/my-approvals', async (req, res) => {
 
     const status = req.query.status || 'pending';
     const pool = getPool();
+    await ensureTables(pool);
 
     // Build WHERE clause based on requested status
     // "pending" = things I need to act on (I'm current approver, not yet decided)
@@ -1488,6 +1491,7 @@ router.get('/my-approvals', async (req, res) => {
           sir.request_number,
           ra.submitted_date,
           ra.current_status,
+          COALESCE(ra.is_admin_workflow, 0) AS is_admin_workflow,
           ra.submitted_by,
           ra.current_approver_id,
           u_requester.FullName as requester_name,
@@ -1552,6 +1556,7 @@ router.get('/my-approvals', async (req, res) => {
         submitted_by_name: approval.requester_name || 'Unknown User',
         current_approver_name: approval.current_approver_name,
         current_status: approval.current_status || 'pending',
+        is_admin_workflow: !!approval.is_admin_workflow,
         items: items,
         total_items: approval.total_items || 0,
         priority: 'Medium'
@@ -1594,6 +1599,7 @@ router.post('/:approvalId/approve', async (req, res) => {
     }
 
     const pool = getPool();
+    await ensureTables(pool);
 
     // Get approver info from DB
     let actualApproverName = approver_name || 'System';
@@ -1737,14 +1743,42 @@ router.post('/:approvalId/approve', async (req, res) => {
       // Update approval record
       // If forwarding, find the target user to reassign current_approver_id
       if (hasForwardToAdmin && !newApproverId) {
-        // Find an IMS_ADMIN user (preferably in the same wing)
+        // Fallback path when lane transition cannot produce next approver:
+        // keep the role chain aligned with workflow progression.
+        const actorRoles = await getUserWorkflowRoles(pool, userId);
+        const actorRoleSet = new Set((actorRoles || []).map((role) => String(role || '').trim()));
+
+        let preferredRoles = ['DD Admin', 'AD Admin-I', 'AD Admin-II', 'Storekeeper'];
+        if (actorRoleSet.has('DD Admin')) {
+          preferredRoles = ['AD Admin-I', 'AD Admin-II', 'Storekeeper'];
+        } else if (actorRoleSet.has('AD Admin-I') || actorRoleSet.has('AD Admin-II')) {
+          preferredRoles = ['Storekeeper'];
+        }
+
         const adminResult = await transaction.request()
+          .input('r1', sql.NVarChar(100), preferredRoles[0] || null)
+          .input('r2', sql.NVarChar(100), preferredRoles[1] || null)
+          .input('r3', sql.NVarChar(100), preferredRoles[2] || null)
+          .input('r4', sql.NVarChar(100), preferredRoles[3] || null)
+          .input('actorUserId', sql.NVarChar(450), userId)
           .query(`
-            SELECT TOP 1 ur.user_id 
+            SELECT TOP 1 ur.user_id,
+              CASE
+                WHEN r.role_name = @r1 THEN 1
+                WHEN r.role_name = @r2 THEN 2
+                WHEN r.role_name = @r3 THEN 3
+                WHEN r.role_name = @r4 THEN 4
+                ELSE 99
+              END AS role_priority
             FROM ims_user_roles ur
             INNER JOIN ims_roles r ON r.id = ur.role_id
-            WHERE r.role_name = 'IMS_ADMIN'
-            ORDER BY ur.user_id
+            INNER JOIN AspNetUsers u ON u.Id = ur.user_id
+            WHERE ur.is_active = 1
+              AND r.is_active = 1
+              AND u.ISACT = 1
+              AND ur.user_id <> @actorUserId
+              AND r.role_name IN (@r1, @r2, @r3, @r4)
+            ORDER BY role_priority ASC, u.FullName ASC
           `);
         if (adminResult.recordset.length > 0) {
           newApproverId = adminResult.recordset[0].user_id;
@@ -1771,6 +1805,7 @@ router.post('/:approvalId/approve', async (req, res) => {
         .input('approver_name', sql.NVarChar, actualApproverName)
         .input('approver_designation', sql.NVarChar, actualApproverDesignation)
         .input('approval_comments', sql.NVarChar, approval_comments || '')
+        .input('markAdminWorkflow', sql.Bit, hasForwardToAdmin ? 1 : 0)
         .input('newApproverId', sql.NVarChar, newApproverId)
         .query(`
           UPDATE request_approvals
@@ -1778,7 +1813,11 @@ router.post('/:approvalId/approve', async (req, res) => {
               updated_date = GETDATE(),
               approver_name = @approver_name,
               approver_designation = @approver_designation,
-              approval_comments = @approval_comments
+              approval_comments = @approval_comments,
+              is_admin_workflow = CASE
+                WHEN @markAdminWorkflow = 1 THEN 1
+                ELSE COALESCE(is_admin_workflow, 0)
+              END
               ${newApproverId ? ', current_approver_id = @newApproverId' : ''}
           WHERE id = @approvalId
         `);
@@ -2022,6 +2061,7 @@ router.get('/:approvalId', async (req, res, next) => {
     }
 
     const pool = getPool();
+    await ensureTables(pool);
 
     const approvalResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)

@@ -761,10 +761,10 @@ const createStockIssuanceRequest = async (req, res) => {
             .input('submittedBy', sql.NVarChar(450), userId)
             .query(`
               INSERT INTO request_approvals 
-                (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by, submitted_date, created_date, updated_date)
+                (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by, submitted_date, created_date, updated_date, is_admin_workflow)
               OUTPUT INSERTED.id
               VALUES 
-                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE())
+                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE(), 0)
             `);
 
           const approvalId = approvalResult.recordset[0].id;

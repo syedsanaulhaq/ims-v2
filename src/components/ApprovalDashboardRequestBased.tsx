@@ -35,7 +35,11 @@ interface RequestSummary {
   approval: RequestApproval;
 }
 
-const ApprovalDashboardRequestBased: React.FC = () => {
+interface ApprovalDashboardRequestBasedProps {
+  viewMode?: 'supervisor' | 'admin';
+}
+
+const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps> = ({ viewMode = 'supervisor' }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [requests, setRequests] = useState<RequestSummary[]>([]);
@@ -56,6 +60,24 @@ const ApprovalDashboardRequestBased: React.FC = () => {
   const [itemsPerPage] = useState(5);
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const isAdminWorkflowRequest = (request: RequestSummary) => {
+    const explicitFlag = (request.approval as any)?.is_admin_workflow;
+    if (explicitFlag === true || explicitFlag === 1) {
+      return true;
+    }
+    if (explicitFlag === false || explicitFlag === 0) {
+      return false;
+    }
+
+    // Backward-compatible fallback for records created before explicit flag rollout.
+    const items = Array.isArray((request.approval as any)?.items) ? (request.approval as any).items : [];
+    const hasForwardToAdminItem = items.some((item: any) =>
+      String(item?.decision_type || '').trim().toUpperCase() === 'FORWARD_TO_ADMIN'
+    );
+    const status = String((request.approval as any)?.current_status || '').toLowerCase();
+    return hasForwardToAdminItem || status === 'forwarded_to_admin';
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -209,8 +231,22 @@ const ApprovalDashboardRequestBased: React.FC = () => {
         }
       }
 
-      // Convert to array and filter by active filter
-      let filteredRequests = Array.from(requestMap.values());
+      // Split flows by page mode to keep supervisor and admin experiences isolated.
+      const scopedRequests = Array.from(requestMap.values()).filter((request) =>
+        viewMode === 'admin' ? isAdminWorkflowRequest(request) : !isAdminWorkflowRequest(request)
+      );
+
+      const scopedStatusCounts = {
+        pending_count: scopedRequests.filter(r => r.request_status === 'pending').length,
+        approve_wing_count: scopedRequests.filter(r => r.request_status === 'approve_wing').length,
+        reject_count: scopedRequests.filter(r => r.request_status === 'reject').length,
+        forward_admin_count: scopedRequests.filter(r => r.request_status === 'forward_admin').length,
+        forward_supervisor_count: scopedRequests.filter(r => r.request_status === 'forward_supervisor').length,
+        return_count: scopedRequests.filter(r => r.request_status === 'return').length,
+      };
+
+      // Filter by active tab
+      let filteredRequests = scopedRequests;
       
       if (activeFilter !== 'pending') {
         filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
@@ -230,7 +266,7 @@ const ApprovalDashboardRequestBased: React.FC = () => {
       }
 
       setRequests(filteredRequests);
-      setDashboardStats(statusCounts);
+      setDashboardStats(scopedStatusCounts);
     } catch (error) {
       console.error('Error loading request-based dashboard data:', error);
     } finally {
@@ -432,9 +468,13 @@ const ApprovalDashboardRequestBased: React.FC = () => {
     <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
       {/* Page Header */}
       <div>
-        <h1 className="text-4xl font-bold text-gray-900">My Approvals (Request-wise)</h1>
+        <h1 className="text-4xl font-bold text-gray-900">
+          {viewMode === 'admin' ? 'Admin Workflow Approvals (Request-wise)' : 'My Approvals (Request-wise)'}
+        </h1>
         <p className="text-lg text-gray-600 mt-2">
-          Manage requests by approval status
+          {viewMode === 'admin'
+            ? 'Review requests forwarded to admin workflow and return/forward decisions'
+            : 'Manage requests by approval status'}
         </p>
         <div className="flex items-center gap-2 mt-3">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">

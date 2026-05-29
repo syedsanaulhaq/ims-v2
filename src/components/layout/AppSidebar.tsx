@@ -107,6 +107,26 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
   const { hasPermission: isWingStoreKeeper } = usePermission('inventory.manage_store_keeper');
   const { hasPermission: isSuperAdmin } = usePermission('admin.super');
+
+  const roleNames = (user?.ims_roles || []).map(r => String(r.role_name || '').toUpperCase());
+  const hasApproverRole = roleNames.some(role =>
+    role === 'AD ADMIN-I' ||
+    role === 'AD ADMIN-II' ||
+    role === 'DD ADMIN' ||
+    role === 'STOREKEEPER' ||
+    role === 'WING_STORE_KEEPER' ||
+    role === 'CUSTOM_WING_STORE_KEEPER' ||
+    role === 'ADMINISTRATOR' ||
+    role === 'IMS_ADMIN'
+  );
+
+  const hasAdminApprovalRole = roleNames.some(role =>
+    role === 'AD ADMIN-I' ||
+    role === 'AD ADMIN-II' ||
+    role === 'DD ADMIN' ||
+    role === 'IMS_ADMIN' ||
+    role === 'ADMINISTRATOR'
+  );
   
   // Check if user has any store keeper role (including custom roles)
   const hasStoreKeeperRole = user?.ims_roles?.some(role => 
@@ -167,7 +187,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
       { title: "Stock Requests", icon: ClipboardList, path: "/procurement/my-requests", permission: 'procurement.view_own' },
-      { title: "My Approvals (Requests)", icon: CheckCircle, path: "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
+      { title: "My Approvals (Requests)", icon: CheckCircle, path: hasAdminApprovalRole ? "/dashboard/approval-dashboard-request-based-admin" : "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
       { title: "My Approvals (Items)", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
     ]
   };
@@ -285,6 +305,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   // Helper to check permission
   const checkPermission = (permissionKey?: string) => {
     if (!permissionKey) return true;
+    if (permissionKey === 'approval.approve') {
+      return canApprove || hasApproverRole;
+    }
     
     switch (permissionKey) {
       case 'inventory.view': return canViewInventory;
@@ -358,7 +381,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     }
 
     // Show request history menu if user has APPROVAL permissions (approvers only)
-    if (canApprove) {
+    if (canApprove || hasApproverRole) {
       const visibleRequestHistoryItems = requestHistoryMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleRequestHistoryItems.length > 0) {
         groups.push({ ...requestHistoryMenuGroup, items: visibleRequestHistoryItems });
@@ -366,7 +389,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     }
 
     // Show approval menu if user has APPROVAL permissions (approvers only)
-    if (canApprove) {
+    if (canApprove || hasApproverRole) {
       const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleApprovalItems.length > 0) {
         groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });

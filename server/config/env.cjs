@@ -3,25 +3,36 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 
-const nodeEnv = process.env.NODE_ENV || 'development';
-const envCandidates = [
-  process.env.ENV_FILE,
-  '.env',
-  `.env-${nodeEnv}`,
-  '.env.sqlserver'
-].filter(Boolean);
+// Resolve the runtime mode from process-level variables first.
+// File-loaded values should not silently change which env file we load.
+const runtimeEnv = process.env.NODE_ENV || process.env.ENVIRONMENT || 'development';
 
-for (const envFile of envCandidates) {
+const loadEnvFile = (envFile, override) => {
+  if (!envFile) return;
   const envPath = path.resolve(process.cwd(), envFile);
   if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath, override: false });
+    dotenv.config({ path: envPath, override });
   }
+};
+
+// 1) Load base defaults.
+loadEnvFile('.env', false);
+
+// 2) Allow explicit file override when provided.
+if (process.env.ENV_FILE) {
+  loadEnvFile(process.env.ENV_FILE, true);
+} else {
+  // 3) Load environment-specific file and override base values.
+  loadEnvFile(`.env-${runtimeEnv}`, true);
 }
+
+// 4) Load SQL Server overrides last.
+loadEnvFile('.env.sqlserver', true);
 
 const config = {
   // Server
   PORT: process.env.PORT || 3001,
-  NODE_ENV: process.env.NODE_ENV || 'development',
+  NODE_ENV: runtimeEnv,
   
   // Database
   DB_HOST: process.env.SQL_SERVER_HOST || process.env.DB_HOST || 'SYED-FAZLI-LAPT',

@@ -268,6 +268,26 @@ const ensureTables = async (pool) => {
       END
     END
 
+    IF OBJECT_ID('request_approvals', 'U') IS NOT NULL
+    BEGIN
+      IF COL_LENGTH('request_approvals', 'is_admin_workflow') IS NULL
+      BEGIN
+        ALTER TABLE request_approvals
+        ADD is_admin_workflow BIT NOT NULL CONSTRAINT DF_request_approvals_is_admin_workflow DEFAULT(0);
+      END
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = 'IX_request_approvals_admin_workflow'
+          AND object_id = OBJECT_ID('request_approvals')
+      )
+      BEGIN
+        CREATE INDEX IX_request_approvals_admin_workflow
+        ON request_approvals(is_admin_workflow, current_status, current_approver_id);
+      END
+    END
+
     IF OBJECT_ID('item_masters', 'U') IS NOT NULL
     BEGIN
       IF COL_LENGTH('item_masters', 'group_number') IS NULL

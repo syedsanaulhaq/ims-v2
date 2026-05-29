@@ -51,20 +51,41 @@ const ApprovalDashboard: React.FC = () => {
       const userId = (user as any)?.user_id || (user as any)?.Id;
       console.log('🔍 Loading dashboard for user:', user?.FullName, '(', userId, ') with filter:', activeFilter);
 
-      const [approvalsData, dashboardData] = await Promise.all([
+      const [approvalsResult, dashboardResult] = await Promise.allSettled([
         approvalForwardingService.getMyApprovalsByStatus(userId, activeFilter),
         approvalForwardingService.getApprovalDashboard(userId)
       ]);
 
+      const approvalsData = approvalsResult.status === 'fulfilled' ? approvalsResult.value : [];
+      const dashboardData = dashboardResult.status === 'fulfilled'
+        ? dashboardResult.value
+        : {
+            pending_count: 0,
+            approved_count: 0,
+            rejected_count: 0,
+            finalized_count: 0,
+            my_pending: [],
+            recent_actions: []
+          };
+
+      if (approvalsResult.status === 'rejected') {
+        console.error('Error fetching approvals list:', approvalsResult.reason);
+      }
+      if (dashboardResult.status === 'rejected') {
+        console.error('Error fetching approval dashboard stats:', dashboardResult.reason);
+      }
+
       let filteredApprovals = approvalsData;
       if (activeFilter === 'pending') {
-        const lanePending = await approvalForwardingService.getMyLanePending().catch(() => []);
-        const pendingRequestIds = new Set(
-          lanePending.map((lane) => String(lane.request_id)).filter(Boolean)
-        );
-        filteredApprovals = approvalsData.filter((approval) =>
-          pendingRequestIds.has(String(approval.request_id))
-        );
+        const lanePending = await approvalForwardingService.getMyLanePending().catch(() => null);
+        if (lanePending && lanePending.length > 0) {
+          const pendingRequestIds = new Set(
+            lanePending.map((lane) => String(lane.request_id)).filter(Boolean)
+          );
+          filteredApprovals = approvalsData.filter((approval) =>
+            pendingRequestIds.has(String(approval.request_id))
+          );
+        }
       }
 
       const uniqueRequestIds = Array.from(new Set(filteredApprovals.map((a) => String(a.request_id))));
