@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";import InitialSetupPageFresh from './pages/InitialSetupPageFresh';import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/theme-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { SessionProvider } from "@/contexts/SessionContext";
@@ -128,10 +129,11 @@ function App() {
       <AuthProvider>
         <NotificationProvider>
           <SessionProvider>
-            <TooltipProvider>
-              <Toaster />
-              <ShadcnToaster />
-              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <ThemeProvider attribute="class" defaultTheme="light" storageKey="ims-portal-theme">
+              <TooltipProvider>
+                <Toaster />
+                <ShadcnToaster />
+                <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                 <Routes>
                 {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />
@@ -392,8 +394,9 @@ function App() {
                 {/* 404 route */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
+                </BrowserRouter>
+              </TooltipProvider>
+            </ThemeProvider>
         </SessionProvider>
       </NotificationProvider>
     </AuthProvider>

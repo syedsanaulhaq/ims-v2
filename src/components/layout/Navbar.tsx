@@ -6,17 +6,24 @@ import UserInfo from "@/components/common/UserInfo";
 import NotificationDropdown from "@/components/ui/NotificationDropdown";
 import UserProfileDropdown from "@/components/ui/UserProfileDropdown";
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from 'next-themes';
 import { 
   ArrowLeft,
-  Bell,
   Mail,
   Moon,
-  User
+  Sun
 } from "lucide-react";
 
 const Navbar = () => {
   const { toast } = useToast();
   const { logout } = useAuth();
+  const { theme, setTheme } = useTheme();
+
+  const isDark = theme === 'dark';
+
+  const handleThemeToggle = () => {
+    setTheme(isDark ? 'light' : 'dark');
+  };
 
   const handleBackToDS = async () => {
     try {
@@ -32,15 +39,15 @@ const Navbar = () => {
   };
 
   return (
-    <div className="bg-white border-b border-gray-200 shadow-sm">
+    <div className="bg-card border-b border-border shadow-sm">
       <div className="flex items-center justify-between p-4">
         
         {/* Left Section - Sidebar Trigger & Title */}
         <div className="flex items-center space-x-4">
-          <SidebarTrigger className="text-gray-600 hover:bg-gray-100" />
+          <SidebarTrigger className="text-foreground hover:bg-accent" />
           <div className="flex items-center space-x-2">
             <div className="w-2 h-6 bg-teal-600"></div>
-            <h1 className="text-xl font-semibold text-gray-800">Inventory Management System</h1>
+            <h1 className="text-xl font-semibold text-foreground">Inventory Management System</h1>
           </div>
         </div>
 
@@ -51,13 +58,19 @@ const Navbar = () => {
           <NotificationDropdown />
 
           {/* Messages */}
-          <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+          <button className="p-2 text-foreground hover:bg-accent rounded-lg">
             <Mail className="w-5 h-5" />
           </button>
 
           {/* Dark Mode Toggle */}
-          <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-            <Moon className="w-5 h-5" />
+          <button
+            type="button"
+            onClick={handleThemeToggle}
+            className="p-2 text-foreground hover:bg-accent rounded-lg"
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
 
           {/* Back to DS Button */}
