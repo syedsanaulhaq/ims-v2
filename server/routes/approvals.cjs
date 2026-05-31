@@ -769,11 +769,16 @@ router.get('/request/:requestId/lanes', requireAuth, async (req, res) => {
           rws.status,
           rws.current_approver_id,
           approver.FullName AS lane_approver_name,
+          STRING_AGG(DISTINCT activeStep.designation_value, ', ') AS lane_role_label,
           COUNT(sii.id) AS lane_item_count,
           SUM(CASE WHEN ai.decision_type = 'APPROVE_FROM_STOCK' THEN 1 ELSE 0 END) AS lane_approved_items,
           SUM(CASE WHEN ai.decision_type = 'REJECT' THEN 1 ELSE 0 END) AS lane_rejected_items
         FROM ims_request_workflow_state rws
         LEFT JOIN AspNetUsers approver ON approver.Id = rws.current_approver_id
+        LEFT JOIN ims_dynamic_workflow_steps activeStep
+          ON activeStep.group_number = rws.group_number
+         AND activeStep.step_order = rws.current_step_order
+         AND activeStep.is_active = 1
         LEFT JOIN stock_issuance_items sii ON sii.request_id = rws.request_id
         LEFT JOIN item_masters im ON im.id = sii.item_master_id
         LEFT JOIN request_approvals ra ON ra.request_id = rws.request_id

@@ -23,6 +23,27 @@ interface RequestItem {
   approved_quantity?: number;
   unit: string;
   specifications?: string;
+  group_number?: number | null;
+  category_name?: string;
+}
+
+interface RequestLane {
+  request_id: string;
+  group_number: number;
+  current_step_order: number;
+  total_steps: number;
+  status: string;
+  current_approver_id?: string | null;
+  lane_approver_name?: string | null;
+  lane_role_label?: string | null;
+  lane_item_count?: number;
+}
+
+interface RequestLaneSummary {
+  request_id: string;
+  parent_status: string;
+  lane_count: number;
+  lanes: RequestLane[];
 }
 
 interface ApprovalHistoryItem {
@@ -83,6 +104,7 @@ const RequestDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedItemTracking, setSelectedItemTracking] = useState<ItemTracking | null>(null);
   const [itemTrackingLoading, setItemTrackingLoading] = useState(false);
+  const [laneSummary, setLaneSummary] = useState<RequestLaneSummary | null>(null);
 
   useEffect(() => {
     if (requestId) {
@@ -93,6 +115,7 @@ const RequestDetailsPage: React.FC = () => {
   const loadRequestDetails = async (id: string) => {
     try {
       setLoading(true);
+      setLaneSummary(null);
       
       // Use the working stock issuance API and find the specific request
       const response = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
@@ -131,12 +154,40 @@ const RequestDetailsPage: React.FC = () => {
                 requested_quantity: item.requested_quantity || 1,
                 approved_quantity: item.approved_quantity,
                 unit: 'units',
-                specifications: ''
+                specifications: '',
+                group_number: null,
+                category_name: ''
               })) || [],
               approval_items: [],
               approval_history: [] // Will be populated from API
             };
             
+            try {
+              const requestDetailsResp = await fetch(`http://localhost:3001/api/approvals/request/${foundRequest.id}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
+
+              if (requestDetailsResp.ok) {
+                const requestDetailsData = await requestDetailsResp.json();
+                if (Array.isArray(requestDetailsData?.items) && requestDetailsData.items.length > 0) {
+                  mappedRequest.items = requestDetailsData.items.map((item: any) => ({
+                    id: item.id,
+                    item_name: item.nomenclature || item.custom_item_name || item.item_name || 'Unknown Item',
+                    requested_quantity: item.requested_quantity || 1,
+                    approved_quantity: item.approved_quantity,
+                    unit: item.unit || 'units',
+                    specifications: '',
+                    group_number: typeof item.group_number === 'number' ? item.group_number : null,
+                    category_name: item.category_name || ''
+                  }));
+                }
+              }
+            } catch (err) {
+              console.warn('Failed to fetch request group details:', err);
+            }
+
             // Try to load detailed request info (including approval history and supervisor) from stock-issuance/:id
             try {
               const stockIssuanceResp = await fetch(`${getApiBaseUrl()}/stock-issuance/${foundRequest.id}`, {
@@ -223,6 +274,21 @@ const RequestDetailsPage: React.FC = () => {
               }
             } catch (err) {
               console.log('Could not fetch approval items for request:', foundRequest.id);
+            }
+
+            try {
+              const lanesResp = await fetch(`http://localhost:3001/api/approvals/request/${foundRequest.id}/lanes`, {
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
+              if (lanesResp.ok) {
+                const lanesData = await lanesResp.json();
+                if (lanesData?.success) {
+                  setLaneSummary(lanesData);
+                }
+              }
+            } catch (err) {
+              console.warn('Could not fetch lane summary for request:', foundRequest.id, err);
             }
             
             // Normalize approval history entries - preserve all fields
@@ -425,6 +491,21 @@ const RequestDetailsPage: React.FC = () => {
     return <Badge className={`${color} cursor-pointer hover:opacity-80 transition-opacity`}>{displayText}</Badge>;
   };
 
+  const getLaneStatusBadge = (status: string) => {
+    const normalized = String(status || 'pending').toLowerCase();
+    const color = normalized === 'completed'
+      ? 'bg-green-100 text-green-800'
+      : normalized === 'rejected'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-yellow-100 text-yellow-800';
+
+    return <Badge className={color}>{normalized.toUpperCase()}</Badge>;
+  };
+
+  const getItemsForLane = (groupNumber: number) => {
+    return request.items.filter((item) => item.group_number === groupNumber);
+  };
+
   const handleItemStatusClick = async (item: ApprovalItem) => {
     setItemTrackingLoading(true);
     try {
@@ -603,6 +684,58 @@ const RequestDetailsPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {laneSummary && laneSummary.lanes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock size={20} />
+                  Approval Workflow by Group
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-separate border-spacing-0">
+                    <thead>
+                      <tr>
+                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Group</th>
+                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Items</th>
+                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Current Role</th>
+                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Current Holder</th>
+                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Step</th>
+                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {laneSummary.lanes.map((lane) => {
+                        const laneItems = getItemsForLane(lane.group_number);
+                        return (
+                          <tr key={`lane-row-${lane.group_number}`}>
+                            <td className="border-b px-3 py-3 align-top font-medium text-gray-900">Group {lane.group_number}</td>
+                            <td className="border-b px-3 py-3 align-top text-gray-700">
+                              {laneItems.length > 0 ? (
+                                <div className="space-y-1">
+                                  {laneItems.map((item) => (
+                                    <div key={`lane-item-${lane.group_number}-${item.id}`}>{item.item_name}</div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-gray-500">No grouped items found</span>
+                              )}
+                            </td>
+                            <td className="border-b px-3 py-3 align-top text-gray-700">{lane.lane_role_label || 'Unassigned'}</td>
+                            <td className="border-b px-3 py-3 align-top text-gray-700">{lane.lane_approver_name || 'Unassigned'}</td>
+                            <td className="border-b px-3 py-3 align-top text-gray-700">{lane.current_step_order || 0} / {lane.total_steps || 0}</td>
+                            <td className="border-b px-3 py-3 align-top">{getLaneStatusBadge(lane.status)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Approval History Sidebar */}
