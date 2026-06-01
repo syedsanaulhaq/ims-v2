@@ -769,7 +769,7 @@ router.get('/request/:requestId/lanes', requireAuth, async (req, res) => {
           rws.status,
           rws.current_approver_id,
           approver.FullName AS lane_approver_name,
-          STRING_AGG(DISTINCT activeStep.designation_value, ', ') AS lane_role_label,
+          MAX(activeStep.designation_value) AS lane_role_label,
           COUNT(sii.id) AS lane_item_count,
           SUM(CASE WHEN ai.decision_type = 'APPROVE_FROM_STOCK' THEN 1 ELSE 0 END) AS lane_approved_items,
           SUM(CASE WHEN ai.decision_type = 'REJECT' THEN 1 ELSE 0 END) AS lane_rejected_items
