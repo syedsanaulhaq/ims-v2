@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText, Forward, Truck, PackageCheck } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Package, FileText, Forward, Truck, PackageCheck, Pencil } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { getApiBaseUrl } from '@/services/invmisApi';
@@ -685,57 +685,6 @@ const RequestDetailsPage: React.FC = () => {
             </CardContent>
           </Card>
 
-          {laneSummary && laneSummary.lanes.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock size={20} />
-                  Approval Workflow by Group
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-separate border-spacing-0">
-                    <thead>
-                      <tr>
-                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Group</th>
-                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Items</th>
-                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Current Role</th>
-                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Current Holder</th>
-                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Step</th>
-                        <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {laneSummary.lanes.map((lane) => {
-                        const laneItems = getItemsForLane(lane.group_number);
-                        return (
-                          <tr key={`lane-row-${lane.group_number}`}>
-                            <td className="border-b px-3 py-3 align-top font-medium text-gray-900">Group {lane.group_number}</td>
-                            <td className="border-b px-3 py-3 align-top text-gray-700">
-                              {laneItems.length > 0 ? (
-                                <div className="space-y-1">
-                                  {laneItems.map((item) => (
-                                    <div key={`lane-item-${lane.group_number}-${item.id}`}>{item.item_name}</div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-gray-500">No grouped items found</span>
-                              )}
-                            </td>
-                            <td className="border-b px-3 py-3 align-top text-gray-700">{lane.lane_role_label || 'Unassigned'}</td>
-                            <td className="border-b px-3 py-3 align-top text-gray-700">{lane.lane_approver_name || 'Unassigned'}</td>
-                            <td className="border-b px-3 py-3 align-top text-gray-700">{lane.current_step_order || 0} / {lane.total_steps || 0}</td>
-                            <td className="border-b px-3 py-3 align-top">{getLaneStatusBadge(lane.status)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* Approval History Sidebar */}
@@ -884,6 +833,76 @@ const RequestDetailsPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {laneSummary && laneSummary.lanes.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Clock size={20} />
+              Approval Workflow by Group
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/dashboard/workflow-admin')}
+            >
+              <Pencil size={14} className="mr-2" />
+              Edit Workflow
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-separate border-spacing-0">
+                <thead>
+                  <tr>
+                    <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Group</th>
+                    <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Items</th>
+                    <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Current Role</th>
+                    <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Current Holder</th>
+                    <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Step</th>
+                    <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Status</th>
+                    <th className="border-b px-3 py-2 text-left font-semibold text-gray-700">Edit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {laneSummary.lanes.map((lane) => {
+                    const laneItems = getItemsForLane(lane.group_number);
+                    return (
+                      <tr key={`lane-row-${lane.group_number}`}>
+                        <td className="border-b px-3 py-3 align-top font-medium text-gray-900">Group {lane.group_number}</td>
+                        <td className="border-b px-3 py-3 align-top text-gray-700">
+                          {laneItems.length > 0 ? (
+                            <div className="space-y-1">
+                              {laneItems.map((item) => (
+                                <div key={`lane-item-${lane.group_number}-${item.id}`}>{item.item_name}</div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-500">No grouped items found</span>
+                          )}
+                        </td>
+                        <td className="border-b px-3 py-3 align-top text-gray-700">{lane.lane_role_label || 'Unassigned'}</td>
+                        <td className="border-b px-3 py-3 align-top text-gray-700">{lane.lane_approver_name || 'Unassigned'}</td>
+                        <td className="border-b px-3 py-3 align-top text-gray-700">{lane.current_step_order || 0} / {lane.total_steps || 0}</td>
+                        <td className="border-b px-3 py-3 align-top">{getLaneStatusBadge(lane.status)}</td>
+                        <td className="border-b px-3 py-3 align-top">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigate(`/dashboard/workflow-admin?group=${lane.group_number}`)}
+                          >
+                            Edit
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Item Tracking Modal */}
       {selectedItemTracking && (
