@@ -36,9 +36,21 @@ interface PerItemApprovalPanelProps {
 
 interface ItemDecision {
   itemId: string;
-  decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null;
+  decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null;
   approvedQuantity: number;
   reason?: string;
+}
+
+interface RequestLane {
+  group_number: number;
+  current_step_order: number;
+  total_steps: number;
+  lane_role_label?: string | null;
+}
+
+interface WorkflowStep {
+  step_order: number;
+  roles: string[];
 }
 
 interface RequestItem {
@@ -118,11 +130,31 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [approverDesignation, setApproverDesignation] = useState('Wing Supervisor');
   const [approvalComments, setApprovalComments] = useState('');
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
-  const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null>(null);
+  const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null>(null);
+  const [itemGroupMap, setItemGroupMap] = useState<Record<string, number>>({});
+  const [laneByGroup, setLaneByGroup] = useState<Record<number, RequestLane>>({});
+  const [workflowByGroup, setWorkflowByGroup] = useState<Record<number, WorkflowStep[]>>({});
   
   // Check if current user is an admin
   const currentUser = sessionService.getCurrentUser();
-  const isAdmin = currentUser?.ims_roles?.some((r: any) => r.role_name === 'IMS_ADMIN') || false;
+  const normalizedRoleNames = (currentUser?.ims_roles || []).map((r: any) => String(r?.role_name || '').toUpperCase());
+  const isAdmin = normalizedRoleNames.includes('IMS_ADMIN');
+  const isAdminWorkflowRoleUser = normalizedRoleNames.some((role: string) =>
+    role === 'DG ADMIN' ||
+    role === 'DD ADMIN' ||
+    role === 'AD ADMIN-I' ||
+    role === 'AD ADMIN-II' ||
+    role === 'STOREKEEPER' ||
+    role === 'WING_STORE_KEEPER' ||
+    role === 'CUSTOM_WING_STORE_KEEPER' ||
+    role === 'IMS_ADMIN' ||
+    role === 'ADMINISTRATOR'
+  );
+
+  const isAdminWorkflowContext = isAdminWorkflowRoleUser && (
+    String(request?.current_status || '').toLowerCase() === 'forwarded_to_admin' ||
+    Boolean((request as any)?.is_admin_workflow)
+  );
 
   // Stock check state
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
@@ -238,13 +270,85 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       
       console.log('✅ FINAL: Loaded approval request with items:', data.items?.length || 0, 'items:', data.items);
       setRequest(data);
+
+      if (data.request_id) {
+        try {
+          const apiUrl = getApiUrl();
+
+          const requestDetailsResp = await fetch(`${apiUrl}/api/approvals/request/${data.request_id}`, {
+            credentials: 'include'
+          });
+          if (requestDetailsResp.ok) {
+            const requestDetailsData = await requestDetailsResp.json();
+            const groupedItems = Array.isArray(requestDetailsData?.items) ? requestDetailsData.items : [];
+            const groupMap: Record<string, number> = {};
+            groupedItems.forEach((it: any) => {
+              const key = String(it.id || '');
+              if (key && Number.isInteger(Number(it.group_number))) {
+                groupMap[key] = Number(it.group_number);
+              }
+            });
+            setItemGroupMap(groupMap);
+          }
+
+          const laneResp = await fetch(`${apiUrl}/api/approvals/request/${data.request_id}/lanes`, {
+            credentials: 'include'
+          });
+          if (laneResp.ok) {
+            const laneData = await laneResp.json();
+            const laneMap: Record<number, RequestLane> = {};
+            const lanes = Array.isArray(laneData?.lanes) ? laneData.lanes : [];
+            lanes.forEach((lane: any) => {
+              const groupNum = Number(lane.group_number);
+              if (Number.isInteger(groupNum) && groupNum > 0) {
+                laneMap[groupNum] = {
+                  group_number: groupNum,
+                  current_step_order: Number(lane.current_step_order || 0),
+                  total_steps: Number(lane.total_steps || 0),
+                  lane_role_label: lane.lane_role_label || null
+                };
+              }
+            });
+            setLaneByGroup(laneMap);
+
+            const uniqueGroups = Object.keys(laneMap).map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0);
+            const workflowEntries = await Promise.all(uniqueGroups.map(async (groupNumber) => {
+              try {
+                const cfgResp = await fetch(`${apiUrl}/api/approvals/workflow/configs?group_number=${groupNumber}`, {
+                  credentials: 'include'
+                });
+                if (!cfgResp.ok) return [groupNumber, []] as const;
+                const cfgData = await cfgResp.json();
+                const groupCfg = Array.isArray(cfgData?.data) ? cfgData.data.find((entry: any) => Number(entry.group_number) === groupNumber) : null;
+                const steps = Array.isArray(groupCfg?.steps)
+                  ? groupCfg.steps.map((step: any) => ({
+                      step_order: Number(step.step_order || 0),
+                      roles: Array.isArray(step.designations) ? step.designations.map((d: any) => String(d.value || '').trim()).filter(Boolean) : []
+                    })).filter((step: WorkflowStep) => step.step_order > 0)
+                  : [];
+                return [groupNumber, steps] as const;
+              } catch {
+                return [groupNumber, []] as const;
+              }
+            }));
+
+            const workflowMap: Record<number, WorkflowStep[]> = {};
+            workflowEntries.forEach(([groupNumber, steps]) => {
+              workflowMap[groupNumber] = steps;
+            });
+            setWorkflowByGroup(workflowMap);
+          }
+        } catch (ctxErr) {
+          console.warn('Failed to load workflow lane context for approval panel:', ctxErr);
+        }
+      }
       
       // Initialize item decisions from database values for highlighting
       if (data.items && Array.isArray(data.items)) {
         const initialDecisions = new Map<string, ItemDecision>();
         data.items.forEach((item: any) => {
           if (item.decision_type) {
-            let decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null = null;
+            let decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null = null;
             let approvedQty = 0;
             
             switch (item.decision_type) {
@@ -294,7 +398,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
   const setItemDecision = (
     itemId: string,
-    decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return',
+    decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor',
     approvedQty: number
   ) => {
     const newDecisions = new Map(itemDecisions);
@@ -308,7 +412,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setItemDecisions(newDecisions);
   };
 
-  const handleRequestStatusChange = (status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | null) => {
+  const handleRequestStatusChange = (status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null) => {
     setRequestStatus(status);
     
     const newDecisions = new Map<string, ItemDecision>();
@@ -369,6 +473,16 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             reason: 'Request returned to requester at request level'
           });
         });
+      } else if (status === 'return_supervisor') {
+        request.items.forEach((item: any) => {
+          const itemId = getItemId(item);
+          newDecisions.set(itemId, {
+            itemId,
+            decision: 'return_supervisor',
+            approvedQuantity: 0,
+            reason: 'Returned to supervisor for review'
+          });
+        });
       }
       
       if (newDecisions.size > 0) {
@@ -377,7 +491,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     }
   };
 
-  const handleItemDecisionChange = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return', approvedQty: number) => {
+  const handleItemDecisionChange = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor', approvedQty: number) => {
     setItemDecision(itemId, decision, approvedQty);
     
     // Update request status based on item decisions
@@ -393,7 +507,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // 1. If ANY item is returned → request = return (highest priority)
     // 2. If ALL items have the SAME status → request = that status
     // 3. Otherwise → don't auto-sync (allow mixed states)
-    const anyItemReturned = Array.from(newDecisions.values()).some(d => d.decision === 'return');
+    const anyItemReturned = Array.from(newDecisions.values()).some(d => d.decision === 'return' || d.decision === 'return_supervisor');
     
     // Auto-update request status based on item decisions
     if (anyItemReturned) {
@@ -495,13 +609,35 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const getDecisionSummary = () => {
     if (!request || !request.items) return { approveWing: 0, forwardAdmin: 0, forwardSupervisor: 0, reject: 0, undecided: 0 };
     const decisions = request.items.map(item => getItemDecision(getItemId(item)));
-    return {
+      return {
       approveWing: decisions.filter(d => d?.decision === 'approve_wing').length,
       forwardAdmin: decisions.filter(d => d?.decision === 'forward_admin').length,
-      forwardSupervisor: decisions.filter(d => d?.decision === 'forward_supervisor').length,
+        forwardSupervisor: decisions.filter(d => d?.decision === 'forward_supervisor' || d?.decision === 'return_supervisor').length,
       reject: decisions.filter(d => d?.decision === 'reject').length,
       undecided: decisions.filter(d => !d || !d.decision).length
     };
+  };
+
+  const getItemGroupNumber = (item: RequestItem): number | null => {
+    const key = String(getItemId(item));
+    const group = itemGroupMap[key];
+    return Number.isInteger(group) && group > 0 ? group : null;
+  };
+
+  const getNextForwardRoleLabel = (item: RequestItem): string => {
+    const groupNumber = getItemGroupNumber(item);
+    if (!groupNumber) return 'To Next Workflow Role';
+
+    const lane = laneByGroup[groupNumber];
+    const steps = workflowByGroup[groupNumber] || [];
+    if (lane && steps.length > 0) {
+      const nextStep = steps.find((step) => step.step_order === (lane.current_step_order + 1));
+      if (nextStep && nextStep.roles.length > 0) {
+        return `To ${nextStep.roles.join(' / ')}`;
+      }
+    }
+
+    return 'To Next Workflow Role';
   };
 
   const submitDecisions = async () => {
@@ -539,6 +675,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         } else if (decision?.decision === 'return') {
           decisionType = 'RETURN'; // Use explicit RETURN decision type
           allocatedQty = 0;
+        } else if (decision?.decision === 'return_supervisor') {
+          decisionType = 'FORWARD_TO_SUPERVISOR';
+          allocatedQty = 0;
         } else {
           decisionType = 'REJECT';
           allocatedQty = 0;
@@ -553,7 +692,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             : decision?.decision === 'return'
             ? (decision.reason || 'Request returned to requester for editing')
             : undefined,
-          forwarding_reason: (decision?.decision === 'forward_admin' || decision?.decision === 'forward_supervisor')
+          forwarding_reason: (decision?.decision === 'forward_admin' || decision?.decision === 'forward_supervisor' || decision?.decision === 'return_supervisor')
             ? (decision.reason || 'Forwarded for further approval')
             : undefined
         };
@@ -864,21 +1003,30 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       ✓ {isAdmin ? 'Approve from Admin Stock' : 'Approve from Wing'}
                     </span>
                   </SelectItem>
-                  {!isAdmin && (
+                  {(!isAdmin || isAdminWorkflowContext) && (
                   <SelectItem value="forward_admin">
                     <span className="flex items-center gap-2">
-                      ⏭ Forward to Admin
+                      ⏭ {isAdminWorkflowContext ? 'Forward to Next Workflow Role' : 'Forward to Admin'}
                     </span>
                   </SelectItem>
                   )}
+                  {!isAdminWorkflowContext && (
                   <SelectItem value="forward_supervisor">
                     <span className="flex items-center gap-2">
                       ↗ Forward to Supervisor
                     </span>
                   </SelectItem>
+                  )}
+                  {isAdminWorkflowContext && (
+                  <SelectItem value="return_supervisor">
+                    <span className="flex items-center gap-2">
+                      ↩ Return to Supervisor
+                    </span>
+                  </SelectItem>
+                  )}
                   <SelectItem value="return">
                     <span className="flex items-center gap-2">
-                      ↩ Return All
+                      ↩ Return All to Requester
                     </span>
                   </SelectItem>
                   <SelectItem value="reject">
@@ -893,6 +1041,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   <Badge className={`${
                     requestStatus === 'approve_wing' ? 'bg-green-100 text-green-800' :
                     requestStatus === 'forward_admin' ? 'bg-amber-100 text-amber-800' :
+                    requestStatus === 'return_supervisor' ? 'bg-blue-100 text-blue-800' :
                     requestStatus === 'forward_supervisor' ? 'bg-blue-100 text-blue-800' :
                     requestStatus === 'return' ? 'bg-orange-100 text-orange-800' :
                     requestStatus === 'reject' ? 'bg-red-100 text-red-800' :
@@ -900,7 +1049,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   }`}>
                     {requestStatus === 'approve_wing' ? '✓ Approve' :
                      requestStatus === 'forward_admin' ? '⏭ Forward to Admin' :
-                     requestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
+                    requestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
+                    requestStatus === 'return_supervisor' ? '↩ Return to Supervisor' :
                      requestStatus === 'return' ? '↩ Return' :
                      requestStatus === 'reject' ? '✗ Reject' : 'Selected'}
                   </Badge>
@@ -1022,7 +1172,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     )}
 
                     {/* Option 2 - Forward to Admin (hidden for admin users) */}
-                    {!isAdmin && (
+                    {(!isAdmin || isAdminWorkflowContext) && (
                     request?.current_status === 'pending' ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'forward_admin'
@@ -1038,7 +1188,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           className="mb-2"
                         />
                         <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
-                        <div className="text-xs text-gray-600 mt-1">To Admin</div>
+                        <div className="text-xs text-gray-600 mt-1">{isAdminWorkflowContext ? getNextForwardRoleLabel(item) : 'To Admin'}</div>
                       </label>
                     ) : (
                       <div className={`p-2 border rounded flex flex-col items-center text-center ${
@@ -1047,13 +1197,13 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           : 'bg-gray-100 border-gray-300'
                       }`}>
                         <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
-                        <div className="text-xs text-gray-600 mt-1">To Admin</div>
+                        <div className="text-xs text-gray-600 mt-1">{isAdminWorkflowContext ? getNextForwardRoleLabel(item) : 'To Admin'}</div>
                       </div>
                     )
                     )}
 
                     {/* Option 3 - Forward to Supervisor */}
-                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
+                    {!isAdminWorkflowContext && ((request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'forward_supervisor'
                           ? 'bg-blue-100 border-blue-500'
@@ -1079,7 +1229,35 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                         <div className="text-sm font-medium text-blue-700">↗ Forward</div>
                         <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
                       </div>
-                    )}
+                    ))}
+
+                    {isAdminWorkflowContext && ((request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
+                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
+                        decision?.decision === 'return_supervisor'
+                          ? 'bg-blue-100 border-blue-500'
+                          : 'bg-white border-gray-200 hover:border-blue-400'
+                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input
+                          type="radio"
+                          name={`decision-${itemId}`}
+                          checked={decision?.decision === 'return_supervisor'}
+                          onChange={() => handleItemDecisionChange(itemId, 'return_supervisor', 0)}
+                          disabled={shouldDisableControls()}
+                          className="mb-2"
+                        />
+                        <div className="text-sm font-medium text-blue-700">↩ Return</div>
+                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
+                      </label>
+                    ) : (
+                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
+                        decision?.decision === 'return_supervisor'
+                          ? 'bg-blue-100 border-blue-500'
+                          : 'bg-gray-100 border-gray-300'
+                      }`}>
+                        <div className="text-sm font-medium text-blue-700">↩ Return</div>
+                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
+                      </div>
+                    ))}
 
                     {/* Option 4 - Reject */}
                     {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (

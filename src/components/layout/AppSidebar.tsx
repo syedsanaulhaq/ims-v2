@@ -124,9 +124,13 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   );
 
   const hasAdminApprovalRole = roleNames.some(role =>
+    role === 'DG ADMIN' ||
     role === 'AD ADMIN-I' ||
     role === 'AD ADMIN-II' ||
     role === 'DD ADMIN' ||
+    role === 'STOREKEEPER' ||
+    role === 'WING_STORE_KEEPER' ||
+    role === 'CUSTOM_WING_STORE_KEEPER' ||
     role === 'IMS_ADMIN' ||
     role === 'ADMINISTRATOR'
   );
