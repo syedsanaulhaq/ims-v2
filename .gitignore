@@ -117,3 +117,13 @@ public/uploads/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Local backups and temporary scripts
+.env.backup.*
+temp-*
+check-*
+playwright-report/
+test-results/
+pw-e2e-results.json
+query_script.cjs
+
