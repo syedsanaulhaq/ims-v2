@@ -32,6 +32,7 @@ interface PerItemApprovalPanelProps {
   approvalId: string;
   onActionComplete?: () => void;
   activeFilter?: 'pending' | 'approved' | 'rejected' | 'returned' | 'forwarded' | 'all';
+  viewMode?: 'supervisor' | 'admin';
 }
 
 interface ItemDecision {
@@ -111,7 +112,8 @@ interface ApprovalRequest {
 export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   approvalId,
   onActionComplete,
-  activeFilter = 'pending'
+  activeFilter = 'pending',
+  viewMode = 'supervisor'
 }) => {
   // Debug: Confirm latest code is running
   console.log('🚀 PerItemApprovalPanel: Latest code loaded - Return button should be visible!');
@@ -152,6 +154,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   );
 
   const isAdminWorkflowContext = isAdminWorkflowRoleUser && (
+    viewMode === 'admin' ||
     String(request?.current_status || '').toLowerCase() === 'forwarded_to_admin' ||
     Boolean((request as any)?.is_admin_workflow)
   );
@@ -624,6 +627,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     return Number.isInteger(group) && group > 0 ? group : null;
   };
 
+  const isFinalStep = (item: RequestItem): boolean => {
+    const groupNumber = getItemGroupNumber(item);
+    if (!groupNumber) return true;
+
+    const lane = laneByGroup[groupNumber];
+    if (lane) {
+      return lane.current_step_order >= lane.total_steps;
+    }
+    return true;
+  };
+
   const getNextForwardRoleLabel = (item: RequestItem): string => {
     const groupNumber = getItemGroupNumber(item);
     if (!groupNumber) return 'To Next Workflow Role';
@@ -1000,13 +1014,13 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 <SelectContent>
                   <SelectItem value="approve_wing">
                     <span className="flex items-center gap-2">
-                      ✓ {isAdmin ? 'Approve from Admin Stock' : 'Approve from Wing'}
+                      ✓ {isAdminWorkflowContext ? 'Approve' : (isAdmin ? 'Approve from Admin Stock' : 'Approve from Wing')}
                     </span>
                   </SelectItem>
                   {(!isAdmin || isAdminWorkflowContext) && (
                   <SelectItem value="forward_admin">
                     <span className="flex items-center gap-2">
-                      ⏭ {isAdminWorkflowContext ? 'Forward to Next Workflow Role' : 'Forward to Admin'}
+                      ⏭ {isAdminWorkflowContext ? `Forward to ${getNextForwardRoleLabel(request.items[0])}` : 'Forward to Admin'}
                     </span>
                   </SelectItem>
                   )}
@@ -1047,8 +1061,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     requestStatus === 'reject' ? 'bg-red-100 text-red-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
-                    {requestStatus === 'approve_wing' ? '✓ Approve' :
-                     requestStatus === 'forward_admin' ? '⏭ Forward to Admin' :
+                    {requestStatus === 'approve_wing' ? (isAdminWorkflowContext && !isFinalStep(request.items[0]) ? `✓ Approve & Move to ${getNextForwardRoleLabel(request.items[0])}` : '✓ Approve') :
+                     requestStatus === 'forward_admin' ? (isAdminWorkflowContext ? `⏭ Forward to ${getNextForwardRoleLabel(request.items[0])}` : '⏭ Forward to Admin') :
                     requestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
                     requestStatus === 'return_supervisor' ? '↩ Return to Supervisor' :
                      requestStatus === 'return' ? '↩ Return' :
@@ -1106,13 +1120,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           decision.decision === 'approve_wing' ? 'bg-green-100 text-green-800 border-green-300' :
                           decision.decision === 'forward_admin' ? 'bg-amber-100 text-amber-800 border-amber-300' :
                           decision.decision === 'forward_supervisor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                          decision.decision === 'return_supervisor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
                           decision.decision === 'reject' ? 'bg-red-100 text-red-800 border-red-300' :
                           decision.decision === 'return' ? 'bg-orange-100 text-orange-800 border-orange-300' :
                           'bg-gray-100 text-gray-800 border-gray-300'
                         }`}>
-                          {decision.decision === 'approve_wing' ? '✓ Approved' :
-                           decision.decision === 'forward_admin' ? '⏭ Forwarded to Admin' :
-                           decision.decision === 'forward_supervisor' ? '⏭ Forwarded to Supervisor' :
+                          {decision.decision === 'approve_wing' ? (isAdminWorkflowContext && !isFinalStep(item) ? `✓ Approved (Forwarding to ${getNextForwardRoleLabel(item)})` : '✓ Approved') :
+                           decision.decision === 'forward_admin' ? (isAdminWorkflowContext ? `⏭ Forwarded to ${getNextForwardRoleLabel(item)}` : '⏭ Forwarded to Admin') :
+                           decision.decision === 'forward_supervisor' ? '↗ Forwarded to Supervisor' :
+                           decision.decision === 'return_supervisor' ? '↩ Returned to Supervisor' :
                            decision.decision === 'reject' ? '✗ Rejected' :
                            decision.decision === 'return' ? '↩ Returned' :
                            'Unknown'}
@@ -1157,8 +1173,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           disabled={shouldDisableControls()}
                           className="mb-2"
                         />
-                        <div className="text-sm font-medium text-green-700">✓ Approve</div>
-                        <div className="text-xs text-gray-600 mt-1">{isAdmin ? 'From Admin' : 'From Wing'}</div>
+                        <div className="text-sm font-medium text-green-700">
+                          {isAdminWorkflowContext && !isFinalStep(item) ? '✓ Approve & Move' : '✓ Approve'}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          {isAdminWorkflowContext && !isFinalStep(item) 
+                            ? getNextForwardRoleLabel(item) 
+                            : (isAdmin ? 'From Admin' : 'From Wing')
+                          }
+                        </div>
                       </label>
                     ) : (
                       <div className={`p-2 border rounded flex flex-col items-center text-center ${
@@ -1166,8 +1189,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           ? 'bg-green-100 border-green-500'
                           : 'bg-gray-100 border-gray-300'
                       }`}>
-                        <div className="text-sm font-medium text-green-700">✓ Approve</div>
-                        <div className="text-xs text-gray-600 mt-1">{isAdmin ? 'From Admin' : 'From Wing'}</div>
+                        <div className="text-sm font-medium text-green-700">
+                          {isAdminWorkflowContext && !isFinalStep(item) ? '✓ Approve & Move' : '✓ Approve'}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">
+                          {isAdminWorkflowContext && !isFinalStep(item) 
+                            ? getNextForwardRoleLabel(item) 
+                            : (isAdmin ? 'From Admin' : 'From Wing')
+                          }
+                        </div>
                       </div>
                     )}
 

@@ -797,6 +797,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                           approvalId={request.id}
                           onActionComplete={handleActionComplete}
                           activeFilter={activeFilter === 'pending' ? 'pending' : 'all' as any}
+                          viewMode={viewMode}
                         />
                       </div>
                     )}
@@ -1002,6 +1003,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                             approvalId={request.id}
                             onActionComplete={handleActionComplete}
                             activeFilter={activeFilter === 'pending' ? 'pending' : 'all' as any}
+                            viewMode={viewMode}
                           />
                         </div>
                       )}
