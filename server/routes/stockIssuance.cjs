@@ -990,7 +990,7 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
         INNER JOIN ims_roles ir ON ur.role_id = ir.id
         WHERE ur.user_id = @userId
           AND ir.is_active = 1
-          AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
+          AND (ir.role_name LIKE '%STORE_KEEPER%' OR ir.role_name LIKE '%STOREKEEPER%' OR ir.role_name = 'CUSTOM_WING_STORE_KEEPER')
       `);
 
     if (skCheck.recordset.length === 0) {
@@ -1032,6 +1032,9 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
 
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
+
+    // Track out-of-stock items for partial issuance response
+    const outOfStockItems = [];
 
     try {
       // Detect optional acquisition stock columns for schema compatibility.
@@ -1102,7 +1105,7 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
 
         const remainingToDeduct = issuedQty - deductedFromAcquisitions;
 
-        // Fallback for item setups backed by current_inventory_stock instead of acquisitions.
+        // Fallback: try current_inventory_stock
         if (remainingToDeduct > 0 && item.item_master_id) {
           const cisUpdateResult = await transaction.request()
             .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id)
@@ -1117,7 +1120,72 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
             `);
 
           if (!cisUpdateResult.rowsAffected || cisUpdateResult.rowsAffected[0] === 0) {
-            throw new Error(`Insufficient available stock for item ${item.item_master_id}`);
+            // ── Out of stock: log to required_items instead of crashing ──────
+            console.warn(`⚠️ Insufficient stock for item ${item.item_master_id} (${item.nomenclature}). Logging as required item.`);
+
+            // Check if an identical required item already exists for this request
+            const existingRequired = await transaction.request()
+              .input('srcId', sql.UniqueIdentifier, id)
+              .input('nom', sql.NVarChar, item.nomenclature)
+              .query(`
+                SELECT id FROM required_items
+                WHERE source_request_id = @srcId
+                  AND nomenclature = @nom
+                  AND status = 'Pending'
+                  AND is_deleted = 0
+              `);
+
+            if (existingRequired.recordset.length === 0) {
+              // Get wing name for context
+              let wingName = null;
+              if (request.requester_wing_id) {
+                try {
+                  const wRes = await transaction.request()
+                    .input('wid', sql.Int, request.requester_wing_id)
+                    .query(`SELECT Name FROM Wings WHERE Id = @wid`);
+                  wingName = wRes.recordset[0]?.Name || null;
+                } catch { /* wing name is optional */ }
+              }
+
+              await transaction.request()
+                .input('riId', sql.UniqueIdentifier, require('crypto').randomUUID())
+                .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id || null)
+                .input('nomenclature', sql.NVarChar, item.nomenclature || item.master_nomenclature || 'Unknown Item')
+                .input('qtyNeeded', sql.Int, remainingToDeduct)
+                .input('unit', sql.NVarChar, item.unit || null)
+                .input('srcRequestId', sql.UniqueIdentifier, id)
+                .input('srcRequestNum', sql.NVarChar, request.request_number || null)
+                .input('wingId', sql.Int, request.requester_wing_id || null)
+                .input('wingName', sql.NVarChar, wingName)
+                .input('urgency', sql.NVarChar, request.urgency_level || 'Medium')
+                .input('createdBy', sql.NVarChar, userId)
+                .query(`
+                  INSERT INTO required_items
+                  (id, item_master_id, nomenclature, quantity_needed, unit,
+                   source_request_id, source_request_number,
+                   requested_by_wing_id, requested_by_wing_name,
+                   urgency_level, status, created_by, created_at, updated_at)
+                  VALUES
+                  (@riId, @itemMasterId, @nomenclature, @qtyNeeded, @unit,
+                   @srcRequestId, @srcRequestNum,
+                   @wingId, @wingName,
+                   @urgency, 'Pending', @createdBy, GETDATE(), GETDATE())
+                `);
+            }
+
+            // Mark this item as Out of Stock in the issuance items
+            await transaction.request()
+              .input('itemId', sql.UniqueIdentifier, item.id)
+              .query(`
+                UPDATE stock_issuance_items
+                SET item_status = 'Out of Stock',
+                    issued_quantity = '0',
+                    updated_at = GETDATE()
+                WHERE id = @itemId
+              `);
+
+            outOfStockItems.push(item.nomenclature || item.master_nomenclature);
+            continue; // Skip to next item — don't block the whole issuance
           }
         }
       }
@@ -1190,13 +1258,19 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
 
       await transaction.commit();
 
+      const isPartial = outOfStockItems.length > 0;
       res.json({
         success: true,
-        message: `Items issued successfully for request ${request.request_number} by ${issuerName}`,
+        partial: isPartial,
+        message: isPartial
+          ? `Partial issuance: ${itemsResult.recordset.length - outOfStockItems.length} item(s) issued. ${outOfStockItems.length} item(s) flagged for procurement.`
+          : `Items issued successfully for request ${request.request_number} by ${issuerName}`,
         data: {
           request_id: id,
           request_number: request.request_number,
-          items_issued: itemsResult.recordset.length,
+          items_issued: itemsResult.recordset.length - outOfStockItems.length,
+          items_out_of_stock: outOfStockItems.length,
+          out_of_stock_items: outOfStockItems,
           issued_at: new Date().toISOString(),
           issued_by: userId,
           issued_by_name: issuerName
@@ -1213,7 +1287,381 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
+// POST /api/stock-issuance/dispatch/:id - Storekeeper dispatches items
+// dispatch_method: 'Direct' | 'NQ' | 'Driver'
+// Body: { dispatch_method, dispatcher_name, dispatch_notes }
+// ============================================================================
+router.post('/dispatch/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dispatch_method, dispatcher_name, dispatch_notes } = req.body;
+    const pool = getPool();
+    const userId = req.session?.userId;
+
+    if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+    if (!dispatch_method || !['Direct', 'NQ', 'Driver'].includes(dispatch_method)) {
+      return res.status(400).json({ error: 'dispatch_method must be Direct, NQ, or Driver' });
+    }
+    if ((dispatch_method === 'NQ' || dispatch_method === 'Driver') && !dispatcher_name) {
+      return res.status(400).json({ error: 'dispatcher_name is required for NQ and Driver delivery' });
+    }
+
+    const requestResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`SELECT * FROM stock_issuance_requests WHERE id = @id`);
+
+    if (requestResult.recordset.length === 0) return res.status(404).json({ error: 'Request not found' });
+
+    const request = requestResult.recordset[0];
+    const status = (request.approval_status || '').toLowerCase();
+
+    if (!status.includes('issued') && !status.includes('approved')) {
+      return res.status(400).json({ error: 'Request must be Issued/Approved before dispatch', current_status: request.approval_status });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      // Set the new dispatched status
+      const newStatus = dispatch_method === 'Direct' ? 'Delivered' : 'Dispatched';
+
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('method', sql.NVarChar(20), dispatch_method)
+        .input('dispatcherName', sql.NVarChar(200), dispatcher_name || null)
+        .input('notes', sql.NVarChar(sql.MAX), dispatch_notes || null)
+        .input('userId', sql.NVarChar(450), userId)
+        .input('newStatus', sql.NVarChar(30), newStatus)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET dispatch_method = @method,
+              dispatcher_name = @dispatcherName,
+              dispatch_notes = @notes,
+              dispatched_at = GETDATE(),
+              dispatched_by = @userId,
+              approval_status = @newStatus,
+              request_status = @newStatus,
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      // Log history
+      const raResult = await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, id)
+        .query(`SELECT id FROM request_approvals WHERE request_id = @requestId`);
+
+      if (raResult.recordset.length > 0) {
+        const approvalId = raResult.recordset[0].id;
+        const stepResult = await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`SELECT ISNULL(MAX(step_number), 0) + 1 as next_step FROM approval_history WHERE request_approval_id = @approvalId`);
+        const nextStep = stepResult.recordset[0].next_step;
+
+        const historyComment = dispatch_method === 'Direct'
+          ? `Items delivered directly to requester by Storekeeper`
+          : `Items dispatched via ${dispatch_method} (${dispatcher_name}) for delivery to requester`;
+
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .input('actionBy', sql.NVarChar(450), userId)
+          .input('comments', sql.NVarChar(sql.MAX), historyComment)
+          .input('stepNumber', sql.Int, nextStep)
+          .query(`
+            INSERT INTO approval_history
+            (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+            VALUES (@approvalId, 'dispatched', @actionBy, @comments, @stepNumber, 1)
+          `);
+      }
+
+      await transaction.commit();
+
+      const msg = dispatch_method === 'Direct'
+        ? 'Items marked as delivered directly to requester'
+        : `Items dispatched via ${dispatch_method} (${dispatcher_name})`;
+
+      res.json({ success: true, message: msg, dispatch_method, new_status: newStatus });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error dispatching items:', error);
+    res.status(500).json({ error: 'Failed to dispatch items', details: error.message });
+  }
+});
+
+// ============================================================================
+// POST /api/stock-issuance/confirm-receipt/:id - Requester confirms receipt
+// ============================================================================
+router.post('/confirm-receipt/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const userId = req.session?.userId;
+
+    if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+
+    const requestResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`SELECT * FROM stock_issuance_requests WHERE id = @id AND CONVERT(NVARCHAR(450), requester_user_id) = @userId`);
+
+    if (requestResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Request not found or you are not the requester' });
+    }
+
+    const request = requestResult.recordset[0];
+    const st = (request.approval_status || '').toLowerCase();
+    if (!['issued', 'dispatched', 'delivered'].includes(st)) {
+      return res.status(400).json({ error: 'Items must be Issued/Dispatched/Delivered before confirming receipt', current_status: request.approval_status });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('userId', sql.NVarChar(450), userId)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET delivery_confirmed_at = GETDATE(),
+              delivery_confirmed_by = @userId,
+              approval_status = 'Completed',
+              request_status = 'Completed',
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      // Log history
+      const raResult = await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, id)
+        .query(`SELECT id FROM request_approvals WHERE request_id = @requestId`);
+
+      if (raResult.recordset.length > 0) {
+        const approvalId = raResult.recordset[0].id;
+        const stepResult = await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`SELECT ISNULL(MAX(step_number), 0) + 1 as next_step FROM approval_history WHERE request_approval_id = @approvalId`);
+        const nextStep = stepResult.recordset[0].next_step;
+
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .input('actionBy', sql.NVarChar(450), userId)
+          .input('stepNumber', sql.Int, nextStep)
+          .query(`
+            INSERT INTO approval_history
+            (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+            VALUES (@approvalId, 'completed', @actionBy, 'Requester confirmed receipt of items', @stepNumber, 1)
+          `);
+
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`UPDATE request_approvals SET current_status = 'completed', updated_date = GETDATE() WHERE id = @approvalId`);
+      }
+
+      await transaction.commit();
+      res.json({ success: true, message: 'Receipt confirmed. Request completed successfully.', confirmed_at: new Date().toISOString() });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error confirming receipt:', error);
+    res.status(500).json({ error: 'Failed to confirm receipt', details: error.message });
+  }
+});
+
+// ============================================================================
+// POST /api/stock-issuance/delivery-proof/:id - NQ/Driver uploads signed doc
+// Accepts multipart/form-data with field 'proof_image'
+// ============================================================================
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+const uploadsDir = path.join(__dirname, '../uploads/delivery-proofs');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const proofStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `proof-${req.params.id}-${Date.now()}${ext}`);
+  }
+});
+const proofUpload = multer({
+  storage: proofStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|pdf/;
+    if (allowed.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only images and PDFs are allowed'));
+  }
+});
+
+router.post('/delivery-proof/:id', requireAuth, proofUpload.single('proof_image'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+    const pool = getPool();
+    const userId = req.session?.userId;
+
+    if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+    if (!req.file) return res.status(400).json({ error: 'No image file provided. Send field name: proof_image' });
+
+    const requestResult = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`SELECT id, approval_status, request_number FROM stock_issuance_requests WHERE id = @id`);
+
+    if (requestResult.recordset.length === 0) {
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    const request = requestResult.recordset[0];
+    const proofUrl = `/uploads/delivery-proofs/${req.file.filename}`;
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      // Update main request with proof URL
+      await transaction.request()
+        .input('id', sql.UniqueIdentifier, id)
+        .input('proofUrl', sql.NVarChar(sql.MAX), proofUrl)
+        .input('userId', sql.NVarChar(450), userId)
+        .query(`
+          UPDATE stock_issuance_requests
+          SET delivery_proof_url = @proofUrl,
+              delivery_proof_uploaded_at = GETDATE(),
+              delivery_proof_uploaded_by = @userId,
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      // Insert into proof gallery table
+      await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, id)
+        .input('fileName', sql.NVarChar(500), req.file.filename)
+        .input('filePath', sql.NVarChar(sql.MAX), proofUrl)
+        .input('fileSize', sql.Int, req.file.size)
+        .input('mimeType', sql.NVarChar(100), req.file.mimetype)
+        .input('uploadedBy', sql.NVarChar(450), userId)
+        .query(`
+          INSERT INTO issuance_delivery_proofs
+          (request_id, file_name, file_path, file_size, mime_type, uploaded_by, uploaded_at)
+          VALUES (@requestId, @fileName, @filePath, @fileSize, @mimeType, @uploadedBy, GETDATE())
+        `);
+
+      // Log history
+      const raResult = await transaction.request()
+        .input('requestId', sql.UniqueIdentifier, id)
+        .query(`SELECT id FROM request_approvals WHERE request_id = @requestId`);
+
+      if (raResult.recordset.length > 0) {
+        const approvalId = raResult.recordset[0].id;
+        const stepResult = await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .query(`SELECT ISNULL(MAX(step_number), 0) + 1 as next_step FROM approval_history WHERE request_approval_id = @approvalId`);
+        const nextStep = stepResult.recordset[0].next_step;
+
+        await transaction.request()
+          .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .input('actionBy', sql.NVarChar(450), userId)
+          .input('stepNumber', sql.Int, nextStep)
+          .input('comments', sql.NVarChar(sql.MAX), notes || 'Signed delivery document uploaded by dispatcher')
+          .query(`
+            INSERT INTO approval_history
+            (request_approval_id, action_type, action_by, comments, step_number, is_current_step)
+            VALUES (@approvalId, 'delivery_proof_uploaded', @actionBy, @comments, @stepNumber, 1)
+          `);
+      }
+
+      await transaction.commit();
+      res.json({
+        success: true,
+        message: 'Delivery proof uploaded successfully',
+        proof_url: proofUrl,
+        file_name: req.file.filename
+      });
+    } catch (err) {
+      await transaction.rollback();
+      if (req.file) fs.unlinkSync(req.file.path);
+      throw err;
+    }
+  } catch (error) {
+    console.error('❌ Error uploading delivery proof:', error);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Failed to upload delivery proof', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/stock-issuance/delivery-status/:id - Get delivery status for a request
+// ============================================================================
+router.get('/delivery-status/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT
+          sir.id,
+          sir.request_number,
+          sir.approval_status,
+          sir.request_status,
+          sir.issued_at,
+          sir.issued_by,
+          sir.issuance_notes,
+          sir.dispatch_method,
+          sir.dispatcher_name,
+          sir.dispatch_notes,
+          sir.dispatched_at,
+          sir.dispatched_by,
+          sir.delivery_confirmed_at,
+          sir.delivery_confirmed_by,
+          sir.delivery_proof_url,
+          sir.delivery_proof_uploaded_at,
+          issuer.FullName as issued_by_name,
+          dispatcher_u.FullName as dispatched_by_name,
+          confirmer.FullName as confirmed_by_name
+        FROM stock_issuance_requests sir
+        LEFT JOIN AspNetUsers issuer ON CONVERT(NVARCHAR(450), sir.issued_by) = issuer.Id
+        LEFT JOIN AspNetUsers dispatcher_u ON CONVERT(NVARCHAR(450), sir.dispatched_by) = dispatcher_u.Id
+        LEFT JOIN AspNetUsers confirmer ON CONVERT(NVARCHAR(450), sir.delivery_confirmed_by) = confirmer.Id
+        WHERE sir.id = @id
+      `);
+
+    if (result.recordset.length === 0) return res.status(404).json({ error: 'Request not found' });
+
+    // Also get proof gallery
+    const proofsResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT idp.*, u.FullName as uploader_name
+        FROM issuance_delivery_proofs idp
+        LEFT JOIN AspNetUsers u ON idp.uploaded_by = u.Id
+        WHERE idp.request_id = @requestId
+        ORDER BY idp.uploaded_at DESC
+      `);
+
+    res.json({
+      success: true,
+      data: {
+        ...result.recordset[0],
+        proof_gallery: proofsResult.recordset
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching delivery status:', error);
+    res.status(500).json({ error: 'Failed to fetch delivery status', details: error.message });
+  }
+});
+
+// ============================================================================
 // POST /api/stock-issuance/acknowledge/:id - Requester confirms physical receipt
+// (Legacy alias — kept for backward compat, delegates to confirm-receipt logic)
 // ============================================================================
 router.post('/acknowledge/:id', requireAuth, async (req, res) => {
   try {
@@ -1221,18 +1669,12 @@ router.post('/acknowledge/:id', requireAuth, async (req, res) => {
     const pool = getPool();
     const userId = req.session?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
+    if (!userId) return res.status(401).json({ error: 'User not authenticated' });
 
-    // Verify the request exists and belongs to this user
     const requestResult = await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .input('userId', sql.NVarChar, userId)
-      .query(`
-        SELECT * FROM stock_issuance_requests
-        WHERE id = @id AND requester_user_id = @userId
-      `);
+      .query(`SELECT * FROM stock_issuance_requests WHERE id = @id AND requester_user_id = @userId`);
 
     if (requestResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Request not found or not authorized' });
@@ -1243,7 +1685,6 @@ router.post('/acknowledge/:id', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Request must be in Issued status to acknowledge receipt' });
     }
 
-    // Update to Completed
     await pool.request()
       .input('id', sql.UniqueIdentifier, id)
       .query(`

@@ -139,7 +139,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const hasStoreKeeperRole = user?.ims_roles?.some(role => 
     role.role_name === 'WING_STORE_KEEPER' || 
     role.role_name === 'CUSTOM_WING_STORE_KEEPER' ||
-    role.role_name.includes('STORE_KEEPER')
+    role.role_name === 'STOREKEEPER' ||
+    role.role_name.includes('STORE_KEEPER') ||
+    role.role_name.includes('STOREKEEPER')
   ) || false;
   
   // Store keeper can view the menu if they have the permission OR the role
@@ -255,6 +257,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Procurement Menu",
     icon: Building2,
     items: [
+      { title: "Required Items (OOS)", icon: ClipboardList, path: "/dashboard/required-items", permission: 'procurement.manage' },
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Petty Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },

@@ -206,6 +206,31 @@ const CreateTender: React.FC = () => {
     };
 
     fetchInitialData();
+
+    // Load pre-filled items from required items pipeline if present
+    try {
+      const prefilledStr = sessionStorage.getItem('prefilled_tender_items');
+      if (prefilledStr) {
+        const items = JSON.parse(prefilledStr);
+        if (Array.isArray(items) && items.length > 0) {
+          const mappedItems = items.map((item: any, index: number) => ({
+            id: `prefilled-${Date.now()}-${index}`,
+            item_master_id: item.item_master_id,
+            nomenclature: item.nomenclature,
+            quantity: item.quantity,
+            estimated_unit_price: 0,
+            total_amount: 0,
+            specifications: '',
+            remarks: 'Imported from Out-of-Stock Pipeline',
+            vendor_id: ''
+          }));
+          setTenderItems(mappedItems);
+          sessionStorage.removeItem('prefilled_tender_items');
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse prefilled tender items:', e);
+    }
   }, []);
 
   // Helper function to refresh item masters
