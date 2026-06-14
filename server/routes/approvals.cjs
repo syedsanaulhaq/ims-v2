@@ -11,6 +11,7 @@ const {
   getWorkflowSteps,
   advanceWorkflow,
   getWorkflowRoles,
+  getUserWorkflowRoles,
   WORKFLOW_ROLE_NAMES,
   resolveItemMasterGroupNumber
 } = require('../utils/workflowEngine.cjs');
@@ -1640,9 +1641,9 @@ router.post('/:approvalId/approve', async (req, res) => {
     const {
       approver_name,
       approver_designation,
-      approval_comments
+      approval_comments,
+      item_allocations
     } = req.body;
-    let item_allocations = req.body.item_allocations;
 
     const userId = req.session?.userId;
     if (!userId) {
@@ -1655,6 +1656,7 @@ router.post('/:approvalId/approve', async (req, res) => {
     // Get approver info from DB
     let actualApproverName = approver_name || 'System';
     let actualApproverDesignation = approver_designation || 'Approver';
+    let currentUserRoles = [];
     try {
       const userInfoResult = await pool.request()
         .input('userId', sql.NVarChar, userId)
@@ -1668,31 +1670,15 @@ router.post('/:approvalId/approve', async (req, res) => {
       }
 
       const userRoles = await getUserWorkflowRoles(pool, userId);
-      if (userRoles.length > 0) {
-        actualApproverDesignation = userRoles.join(', ');
+      currentUserRoles = Array.isArray(userRoles) ? userRoles : [];
+      if (currentUserRoles.length > 0) {
+        actualApproverDesignation = currentUserRoles.join(', ');
       }
     } catch (e) {
       console.log('⚠️ Could not get user info, using request body values');
     }
 
-      console.log('✅ Processing per-item approval by user:', userId, 'items:', item_allocations?.length);
-
-      // ----------------------------------------------------------------
-      // Auto‑generate item_allocations when the frontend omitted them.
-      // This ensures the workflow engine can still calculate the overall
-      // status and advance the lanes for mixed‑group requests.
-      // ----------------------------------------------------------------
-      if (!Array.isArray(item_allocations) || item_allocations.length === 0) {
-        const itemsResult = await pool.request()
-          .input('approvalId', sql.NVarChar, approvalId)
-          .query(`SELECT id, requested_quantity FROM approval_items WHERE request_approval_id = @approvalId`);
-        item_allocations = itemsResult.recordset.map(row => ({
-          requested_item_id: row.id,
-          allocated_quantity: row.requested_quantity,
-          decision_type: 'APPROVE_FROM_STOCK'
-        }));
-        console.log('✅ Auto‑generated item_allocations for missing payload, count:', item_allocations.length);
-      }
+    console.log('✅ Processing per-item approval by user:', userId, 'items:', item_allocations?.length);
 
     const transaction = pool.transaction();
     await transaction.begin();
@@ -2041,7 +2027,7 @@ router.post('/:approvalId/approve', async (req, res) => {
             .query(`
               UPDATE stock_issuance_requests 
               SET request_status = 'Approved',
-                  approval_status = 'Approved by Workflow',
+                  approval_status = 'Approved by Admin',
                   approved_at = GETDATE(),
                   approved_by = @approvedBy,
                   issuance_source = 'admin_store',
@@ -2059,38 +2045,33 @@ router.post('/:approvalId/approve', async (req, res) => {
       // ====================================================================
       if (overallStatus !== 'approved') {
         const syncRequestId = requestId;
+        const isAdminChainActor = currentUserRoles.some((role) => ADMIN_CHAIN_ROLE_NAMES.includes(role));
         
         if (syncRequestId) {
           let sirStatus = 'Pending';
           let sirApprovalStatus = 'Pending Supervisor Review';
-
-          if (isDynamicStepTransition && newApproverId) {
-            // Determine role of the next approver to set a more accurate status.
-            const nextRoles = await getUserWorkflowRoles(pool, newApproverId);
-            if (nextRoles.includes('Storekeeper')) {
-              // Workflow has reached the Storekeeper step — mark as approved by admin
-              // so it appears in the Storekeeper's issuance queue (filter: LIKE 'Approved%').
-              sirApprovalStatus = 'Approved by Admin';
-            } else if (nextRoles.some(r => r.includes('AD Admin') || r.includes('DD Admin'))) {
+          
+          if (isDynamicStepTransition) {
+            sirStatus = 'Pending';
+            if (hasForwardToAdmin) {
               sirApprovalStatus = 'Forwarded to Admin';
+            } else if (hasForwardToSupervisor) {
+              sirApprovalStatus = 'Pending Supervisor Review';
             } else {
-              sirApprovalStatus = 'Forwarded to Admin';
+              sirApprovalStatus = 'Pending Supervisor Review';
             }
-          } else if (isDynamicStepTransition) {
-            // Next approver unknown — keep a generic forwarded status
-            sirApprovalStatus = 'Forwarded to Admin';
           } else if (overallStatus === 'forwarded_to_admin') {
             sirStatus = 'Pending';
             sirApprovalStatus = 'Forwarded to Admin';
           } else if (overallStatus === 'forwarded_to_supervisor') {
             sirStatus = 'Pending';
-            sirApprovalStatus = 'Forwarded to Supervisor';
+            sirApprovalStatus = 'Pending Supervisor Review';
           } else if (overallStatus === 'rejected') {
             sirStatus = 'Rejected';
-            sirApprovalStatus = 'Rejected';
+            sirApprovalStatus = isAdminChainActor ? 'Rejected by Admin' : 'Rejected by Supervisor';
           } else if (overallStatus === 'returned') {
             sirStatus = 'Returned';
-            sirApprovalStatus = 'Returned for Revision';
+            sirApprovalStatus = 'Pending Supervisor Review';
           }
 
           await transaction.request()
