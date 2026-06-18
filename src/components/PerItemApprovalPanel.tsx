@@ -42,6 +42,8 @@ interface ItemDecision {
   reason?: string;
 }
 
+type DecisionValue = Exclude<ItemDecision['decision'], null>;
+
 interface RequestLane {
   group_number: number;
   current_step_order: number;
@@ -133,6 +135,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [approvalComments, setApprovalComments] = useState('');
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
   const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [bulkDecision, setBulkDecision] = useState<DecisionValue | null>(null);
   const [itemGroupMap, setItemGroupMap] = useState<Record<string, number>>({});
   const [laneByGroup, setLaneByGroup] = useState<Record<number, RequestLane>>({});
   const [workflowByGroup, setWorkflowByGroup] = useState<Record<number, WorkflowStep[]>>({});
@@ -961,6 +965,299 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   }
 
   const summary = getDecisionSummary();
+  const filteredItems = getFilteredItems();
+
+  const toRomanNumeral = (num: number): string => {
+    const values: Array<[number, string]> = [
+      [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+      [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+      [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+    ];
+    let n = num;
+    let out = '';
+    values.forEach(([v, s]) => {
+      while (n >= v) {
+        out += s;
+        n -= v;
+      }
+    });
+    return out || String(num);
+  };
+
+  const groupedFilteredItems = filteredItems.reduce((acc: Array<{ groupNumber: number | null; label: string; items: RequestItem[] }>, item) => {
+    const groupNumber = getItemGroupNumber(item);
+    const label = groupNumber ? `Group-${toRomanNumeral(groupNumber)} (${groupNumber})` : 'Ungrouped';
+    const existing = acc.find((entry) => entry.groupNumber === groupNumber);
+    if (existing) {
+      existing.items.push(item);
+    } else {
+      acc.push({ groupNumber, label, items: [item] });
+    }
+    return acc;
+  }, []).sort((a, b) => {
+    if (a.groupNumber === null) return 1;
+    if (b.groupNumber === null) return -1;
+    return a.groupNumber - b.groupNumber;
+  });
+
+  const filteredItemIds = filteredItems.map((item) => getItemId(item)).filter(Boolean);
+  const selectedFilteredCount = filteredItemIds.filter((id) => selectedItemIds.has(id)).length;
+  const isAllFilteredSelected = filteredItemIds.length > 0 && selectedFilteredCount === filteredItemIds.length;
+
+  const toggleItemSelection = (itemId: string, checked: boolean) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(itemId);
+      } else {
+        next.delete(itemId);
+      }
+      return next;
+    });
+  };
+
+  const toggleGroupSelection = (groupItems: RequestItem[], checked: boolean) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      groupItems.forEach((item) => {
+        const id = getItemId(item);
+        if (!id) return;
+        if (checked) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+      });
+      return next;
+    });
+  };
+
+  const toggleAllFilteredSelection = (checked: boolean) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      filteredItemIds.forEach((id) => {
+        if (checked) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+      });
+      return next;
+    });
+  };
+
+  const applyBulkDecisionToSelection = () => {
+    if (!bulkDecision || selectedFilteredCount === 0) return;
+
+    selectedItemIds.forEach((itemId) => {
+      const item = filteredItems.find((it) => getItemId(it) === itemId);
+      if (!item) return;
+      const approvedQty = (
+        bulkDecision === 'approve_wing' ||
+        bulkDecision === 'forward_admin' ||
+        bulkDecision === 'forward_supervisor'
+      ) ? getItemQuantity(item) : 0;
+      handleItemDecisionChange(itemId, bulkDecision, approvedQty);
+    });
+  };
+
+  const renderGroupedTableView = () => {
+    if (filteredItems.length === 0) {
+      return (
+        <div className="text-center py-8 text-gray-500">
+          <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p>No items in this request</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4 max-h-[36rem] overflow-y-auto">
+        <div className="p-3 border rounded-lg bg-slate-50 flex flex-wrap items-center gap-3">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={isAllFilteredSelected}
+              onChange={(e) => toggleAllFilteredSelection(e.target.checked)}
+              disabled={shouldDisableControls()}
+            />
+            Select all items ({selectedFilteredCount}/{filteredItems.length})
+          </label>
+
+          {isDecisionStage && (
+            <>
+              <Select
+                value={bulkDecision || undefined}
+                onValueChange={(value) => setBulkDecision(value as DecisionValue)}
+                disabled={shouldDisableControls() || selectedFilteredCount === 0}
+              >
+                <SelectTrigger className="w-[240px] h-9 bg-white">
+                  <SelectValue placeholder="Bulk decision for selected..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approve_wing">Approve selected</SelectItem>
+                  {(!isAdmin || isAdminWorkflowContext) && (
+                    <SelectItem value="forward_admin">Forward selected</SelectItem>
+                  )}
+                  {!isAdminWorkflowContext && (
+                    <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
+                  )}
+                  {isAdminWorkflowContext && (
+                    <SelectItem value="return_supervisor">Return to supervisor</SelectItem>
+                  )}
+                  <SelectItem value="return">Return to requester</SelectItem>
+                  <SelectItem value="reject">Reject selected</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={applyBulkDecisionToSelection}
+                disabled={shouldDisableControls() || selectedFilteredCount === 0 || !bulkDecision}
+              >
+                Apply to Selected
+              </Button>
+            </>
+          )}
+        </div>
+
+        {groupedFilteredItems.map((group) => {
+          const groupIds = group.items.map((item) => getItemId(item)).filter(Boolean);
+          const selectedInGroup = groupIds.filter((id) => selectedItemIds.has(id)).length;
+          const groupAllSelected = groupIds.length > 0 && selectedInGroup === groupIds.length;
+
+          return (
+            <div key={group.label} className="border rounded-lg overflow-hidden bg-white">
+              <div className="px-3 py-2 border-b bg-gray-50 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <h4 className="font-semibold text-gray-900">{group.label}</h4>
+                  <Badge variant="outline" className="text-xs">{group.items.length} item{group.items.length > 1 ? 's' : ''}</Badge>
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs text-gray-700 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={groupAllSelected}
+                    onChange={(e) => toggleGroupSelection(group.items, e.target.checked)}
+                    disabled={shouldDisableControls()}
+                  />
+                  Select all in this group ({selectedInGroup}/{group.items.length})
+                </label>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-gray-100 text-gray-700">
+                    <tr>
+                      <th className="text-left px-3 py-2 w-12">Sel</th>
+                      <th className="text-left px-3 py-2">Item</th>
+                      <th className="text-left px-3 py-2 w-24">Qty</th>
+                      <th className="text-left px-3 py-2 w-56">Decision</th>
+                      <th className="text-left px-3 py-2 w-72">Comments</th>
+                      <th className="text-left px-3 py-2 w-48">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.items.map((item) => {
+                      const itemId = getItemId(item);
+                      const decision = getItemDecision(itemId);
+
+                      return (
+                        <tr key={itemId} className="border-t align-top hover:bg-gray-50">
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedItemIds.has(itemId)}
+                              onChange={(e) => toggleItemSelection(itemId, e.target.checked)}
+                              disabled={shouldDisableControls()}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-gray-900">{getItemName(item)}</div>
+                            <div className="text-xs text-gray-500">Code: {item.item_code || 'N/A'}</div>
+                          </td>
+                          <td className="px-3 py-2">{getItemQuantity(item)} {item.unit || 'units'}</td>
+                          <td className="px-3 py-2">
+                            {isDecisionStage ? (
+                              <Select
+                                value={decision?.decision || undefined}
+                                onValueChange={(value) => {
+                                  const decisionValue = value as DecisionValue;
+                                  const approvedQuantity = (
+                                    decisionValue === 'approve_wing' ||
+                                    decisionValue === 'forward_admin' ||
+                                    decisionValue === 'forward_supervisor'
+                                  ) ? getItemQuantity(item) : 0;
+                                  handleItemDecisionChange(itemId, decisionValue, approvedQuantity);
+                                }}
+                                disabled={shouldDisableControls()}
+                              >
+                                <SelectTrigger className="h-8 bg-white">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="approve_wing">Approve</SelectItem>
+                                  {(!isAdmin || isAdminWorkflowContext) && (
+                                    <SelectItem value="forward_admin">Forward</SelectItem>
+                                  )}
+                                  {!isAdminWorkflowContext && (
+                                    <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
+                                  )}
+                                  {isAdminWorkflowContext && (
+                                    <SelectItem value="return_supervisor">Return to supervisor</SelectItem>
+                                  )}
+                                  <SelectItem value="return">Return to requester</SelectItem>
+                                  <SelectItem value="reject">Reject</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-xs text-gray-500">Read-only</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <Input
+                              placeholder="Optional comments"
+                              value={decision?.reason || ''}
+                              onChange={(e) => {
+                                const newDecisions = new Map(itemDecisions);
+                                const currentDecision = newDecisions.get(itemId) || {
+                                  itemId,
+                                  decision: null,
+                                  approvedQuantity: 0,
+                                  reason: ''
+                                };
+                                newDecisions.set(itemId, {
+                                  ...currentDecision,
+                                  reason: e.target.value
+                                });
+                                setItemDecisions(newDecisions);
+                              }}
+                              disabled={shouldDisableControls()}
+                              className="h-8"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => checkStockAvailability(item)}>
+                                Check Stock
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => forwardToStoreKeeper(item)}>
+                                Forward to Store Keeper
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
   
   const isInWing = (item: RequestItem) => {
     // Check various indicators that item is available in wing
@@ -1092,304 +1389,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            {getFilteredItems().length > 0 ? (
-              getFilteredItems().map((item: any) => {
-                const itemId = getItemId(item);
-                const decision = getItemDecision(itemId);
-
-                const isReturnedItem = item.decision_type === 'RETURN' || (
-                  item.decision_type === 'REJECT' && 
-                  item.rejection_reason?.toLowerCase().includes('returned to requester')
-                );
-
-                return (
-                  <div key={itemId} className={`p-4 border rounded-lg ${
-                    isReturnedItem 
-                      ? 'bg-orange-50 border-orange-300 shadow-sm' 
-                      : 'bg-gray-50'
-                  }`}>
-                    {isReturnedItem && (
-                      <div className="mb-2">
-                        <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300 text-xs">
-                          ↩ Returned to Requester
-                        </Badge>
-                      </div>
-                    )}
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-gray-900">{getItemName(item)}</h4>
-                      {decision?.decision && (
-                        <Badge variant="outline" className={`text-xs ${
-                          decision.decision === 'approve_wing' ? 'bg-green-100 text-green-800 border-green-300' :
-                          decision.decision === 'forward_admin' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                          decision.decision === 'forward_supervisor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                          decision.decision === 'return_supervisor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                          decision.decision === 'reject' ? 'bg-red-100 text-red-800 border-red-300' :
-                          decision.decision === 'return' ? 'bg-orange-100 text-orange-800 border-orange-300' :
-                          'bg-gray-100 text-gray-800 border-gray-300'
-                        }`}>
-                          {decision.decision === 'approve_wing' ? (isAdminWorkflowContext && !isFinalStep(item) ? `✓ Approved (Forwarding to ${getNextForwardRoleLabel(item)})` : '✓ Approved') :
-                           decision.decision === 'forward_admin' ? (isAdminWorkflowContext ? `⏭ Forwarded to ${getNextForwardRoleLabel(item)}` : '⏭ Forwarded to Admin') :
-                           decision.decision === 'forward_supervisor' ? '↗ Forwarded to Supervisor' :
-                           decision.decision === 'return_supervisor' ? '↩ Returned to Supervisor' :
-                           decision.decision === 'reject' ? '✗ Rejected' :
-                           decision.decision === 'return' ? '↩ Returned' :
-                           'Unknown'}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600">Requested: {getItemQuantity(item)} units</p>
-                    <div className="flex gap-2 mt-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="text-xs"
-                        onClick={() => checkStockAvailability(item)}
-                      >
-                        🔍 Check Stock Availability
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="text-xs"
-                        onClick={() => forwardToStoreKeeper(item)}
-                      >
-                        👤 Forward to Store Keeper
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-5 gap-2 min-w-fit border border-gray-200 p-2 rounded">
-                    {/* Grid should have 5 columns - Return button is the 5th */}
-                    {/* Option 1 - Approve */}
-                    {isDecisionStage ? (
-                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                        decision?.decision === 'approve_wing'
-                          ? 'bg-green-100 border-green-500'
-                          : 'bg-white border-gray-200 hover:border-green-400'
-                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'approve_wing'}
-                          onChange={() => handleItemDecisionChange(itemId, 'approve_wing', getItemQuantity(item))}
-                          disabled={shouldDisableControls()}
-                          className="mb-2"
-                        />
-                        <div className="text-sm font-medium text-green-700">
-                          {isAdminWorkflowContext && !isFinalStep(item) ? '✓ Approve & Move' : '✓ Approve'}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">
-                          {isAdminWorkflowContext && !isFinalStep(item) 
-                            ? getNextForwardRoleLabel(item) 
-                            : (isAdmin ? 'From Admin' : 'From Wing')
-                          }
-                        </div>
-                      </label>
-                    ) : (
-                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
-                        decision?.decision === 'approve_wing'
-                          ? 'bg-green-100 border-green-500'
-                          : 'bg-gray-100 border-gray-300'
-                      }`}>
-                        <div className="text-sm font-medium text-green-700">
-                          {isAdminWorkflowContext && !isFinalStep(item) ? '✓ Approve & Move' : '✓ Approve'}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">
-                          {isAdminWorkflowContext && !isFinalStep(item) 
-                            ? getNextForwardRoleLabel(item) 
-                            : (isAdmin ? 'From Admin' : 'From Wing')
-                          }
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Option 2 - Forward to Admin (hidden for admin users) */}
-                    {(!isAdmin || isAdminWorkflowContext) && (
-                    isDecisionStage ? (
-                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                        decision?.decision === 'forward_admin'
-                          ? 'bg-amber-100 border-amber-500'
-                          : 'bg-white border-gray-200 hover:border-amber-400'
-                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'forward_admin'}
-                          onChange={() => handleItemDecisionChange(itemId, 'forward_admin', getItemQuantity(item))}
-                          disabled={shouldDisableControls()}
-                          className="mb-2"
-                        />
-                        <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
-                        <div className="text-xs text-gray-600 mt-1">{isAdminWorkflowContext ? getNextForwardRoleLabel(item) : 'To Admin'}</div>
-                      </label>
-                    ) : (
-                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
-                        decision?.decision === 'forward_admin'
-                          ? 'bg-amber-100 border-amber-500'
-                          : 'bg-gray-100 border-gray-300'
-                      }`}>
-                        <div className="text-sm font-medium text-amber-700">⏭ Forward</div>
-                        <div className="text-xs text-gray-600 mt-1">{isAdminWorkflowContext ? getNextForwardRoleLabel(item) : 'To Admin'}</div>
-                      </div>
-                    )
-                    )}
-
-                    {/* Option 3 - Forward to Supervisor */}
-                    {!isAdminWorkflowContext && (isDecisionStage ? (
-                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                        decision?.decision === 'forward_supervisor'
-                          ? 'bg-blue-100 border-blue-500'
-                          : 'bg-white border-gray-200 hover:border-blue-400'
-                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'forward_supervisor'}
-                          onChange={() => handleItemDecisionChange(itemId, 'forward_supervisor', getItemQuantity(item))}
-                          disabled={shouldDisableControls()}
-                          className="mb-2"
-                        />
-                        <div className="text-sm font-medium text-blue-700">↗ Forward</div>
-                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
-                      </label>
-                    ) : (
-                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
-                        decision?.decision === 'forward_supervisor'
-                          ? 'bg-blue-100 border-blue-500'
-                          : 'bg-gray-100 border-gray-300'
-                      }`}>
-                        <div className="text-sm font-medium text-blue-700">↗ Forward</div>
-                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
-                      </div>
-                    ))}
-
-                    {isAdminWorkflowContext && (isDecisionStage ? (
-                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                        decision?.decision === 'return_supervisor'
-                          ? 'bg-blue-100 border-blue-500'
-                          : 'bg-white border-gray-200 hover:border-blue-400'
-                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'return_supervisor'}
-                          onChange={() => handleItemDecisionChange(itemId, 'return_supervisor', 0)}
-                          disabled={shouldDisableControls()}
-                          className="mb-2"
-                        />
-                        <div className="text-sm font-medium text-blue-700">↩ Return</div>
-                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
-                      </label>
-                    ) : (
-                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
-                        decision?.decision === 'return_supervisor'
-                          ? 'bg-blue-100 border-blue-500'
-                          : 'bg-gray-100 border-gray-300'
-                      }`}>
-                        <div className="text-sm font-medium text-blue-700">↩ Return</div>
-                        <div className="text-xs text-gray-600 mt-1">To Supervisor</div>
-                      </div>
-                    ))}
-
-                    {/* Option 4 - Reject */}
-                    {isDecisionStage ? (
-                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                        decision?.decision === 'reject'
-                          ? 'bg-red-100 border-red-500'
-                          : 'bg-white border-gray-200 hover:border-red-400'
-                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'reject'}
-                          onChange={() => handleItemDecisionChange(itemId, 'reject', 0)}
-                          disabled={shouldDisableControls()}
-                          className="mb-2"
-                        />
-                        <div className="text-sm font-medium text-red-700">✗ Reject</div>
-                        <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
-                      </label>
-                    ) : (
-                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
-                        decision?.decision === 'reject'
-                          ? 'bg-red-100 border-red-500'
-                          : 'bg-gray-100 border-gray-300'
-                      }`}>
-                        <div className="text-sm font-medium text-red-700">✗ Reject</div>
-                        <div className="text-xs text-gray-600 mt-1">Don't Allocate</div>
-                      </div>
-                    )}
-
-                    {/* Option 5 - Return */}
-                    {isDecisionStage ? (
-                      <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
-                        decision?.decision === 'return'
-                          ? 'bg-orange-100 border-orange-500'
-                          : 'bg-white border-gray-200 hover:border-orange-400'
-                      } ${shouldDisableControls() ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input
-                          type="radio"
-                          name={`decision-${itemId}`}
-                          checked={decision?.decision === 'return'}
-                          onChange={() => handleItemDecisionChange(itemId, 'return', 0)}
-                          disabled={shouldDisableControls()}
-                          className="mb-2"
-                        />
-                        <div className="text-sm font-medium text-orange-700">↩ Return</div>
-                        <div className="text-xs text-gray-600 mt-1 leading-tight">To Requester</div>
-                      </label>
-                    ) : (
-                      <div className={`p-2 border rounded flex flex-col items-center text-center ${
-                        decision?.decision === 'return'
-                          ? 'bg-orange-100 border-orange-500'
-                          : 'bg-gray-100 border-gray-300'
-                      }`}>
-                        <div className="text-sm font-medium text-orange-700">↩ Return</div>
-                        <div className="text-xs text-gray-600 mt-1 leading-tight">To Requester</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Item-specific Description Box */}
-                  <div className="mt-3">
-                    <Label htmlFor={`item-description-${itemId}`} className="text-sm font-medium text-gray-700 mb-1 block">
-                      Comments for this item (Optional)
-                    </Label>
-                    <Textarea
-                      id={`item-description-${itemId}`}
-                      placeholder="Add comments or reasons for this item's decision..."
-                      value={decision?.reason || ''}
-                      onChange={(e) => {
-                        const newDecisions = new Map(itemDecisions);
-                        const currentDecision = newDecisions.get(itemId) || {
-                          itemId,
-                          decision: null,
-                          approvedQuantity: 0,
-                          reason: ''
-                        };
-                        newDecisions.set(itemId, {
-                          ...currentDecision,
-                          reason: e.target.value
-                        });
-                        setItemDecisions(newDecisions);
-                      }}
-                      disabled={shouldDisableControls()}
-                      className="min-h-16 resize-none text-sm"
-                      rows={2}
-                    />
-                  </div>
-                </div>
-              );
-              })
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>No items in this request</p>
-              </div>
-            )}
-          </div>
+          {renderGroupedTableView()}
 
         </CardContent>
       </Card>
