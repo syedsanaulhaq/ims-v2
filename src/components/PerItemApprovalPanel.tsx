@@ -183,6 +183,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     return activeFilter !== 'pending' || hasReturnedItems();
   };
 
+  const isDecisionStage =
+    request?.current_status === 'pending' ||
+    (isAdminWorkflowContext && request?.current_status === 'forwarded_to_admin');
+
   useEffect(() => {
     loadApprovalRequest();
   }, [approvalId]);
@@ -1083,7 +1087,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Package className="w-5 h-5" />
-            {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? 'Items for Decision' : `Items (${request?.current_status?.toUpperCase()})`}
+            {isDecisionStage ? 'Items for Decision' : `Items (${request?.current_status?.toUpperCase()})`}
             ({getFilteredItems().length || 0})
           </CardTitle>
         </CardHeader>
@@ -1159,7 +1163,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   <div className="grid grid-cols-5 gap-2 min-w-fit border border-gray-200 p-2 rounded">
                     {/* Grid should have 5 columns - Return button is the 5th */}
                     {/* Option 1 - Approve */}
-                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
+                    {isDecisionStage ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'approve_wing'
                           ? 'bg-green-100 border-green-500'
@@ -1203,7 +1207,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
                     {/* Option 2 - Forward to Admin (hidden for admin users) */}
                     {(!isAdmin || isAdminWorkflowContext) && (
-                    request?.current_status === 'pending' ? (
+                    isDecisionStage ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'forward_admin'
                           ? 'bg-amber-100 border-amber-500'
@@ -1233,7 +1237,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     )}
 
                     {/* Option 3 - Forward to Supervisor */}
-                    {!isAdminWorkflowContext && ((request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
+                    {!isAdminWorkflowContext && (isDecisionStage ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'forward_supervisor'
                           ? 'bg-blue-100 border-blue-500'
@@ -1261,7 +1265,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                       </div>
                     ))}
 
-                    {isAdminWorkflowContext && ((request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
+                    {isAdminWorkflowContext && (isDecisionStage ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'return_supervisor'
                           ? 'bg-blue-100 border-blue-500'
@@ -1290,7 +1294,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     ))}
 
                     {/* Option 4 - Reject */}
-                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
+                    {isDecisionStage ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'reject'
                           ? 'bg-red-100 border-red-500'
@@ -1319,7 +1323,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     )}
 
                     {/* Option 5 - Return */}
-                    {(request?.current_status === 'pending' || (isAdmin && request?.current_status === 'forwarded_to_admin')) ? (
+                    {isDecisionStage ? (
                       <label className={`p-2 border rounded transition flex flex-col items-center text-center ${
                         decision?.decision === 'return'
                           ? 'bg-orange-100 border-orange-500'
