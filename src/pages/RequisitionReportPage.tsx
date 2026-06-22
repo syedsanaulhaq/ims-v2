@@ -88,7 +88,46 @@ const RequisitionReportPage: React.FC = () => {
         }
 
         const requestsData = await requestsResp.json();
-        const allRequests = requestsData?.data || [];
+        let allRequests = requestsData?.data || [];
+
+        // Fallback: some sessions can return an empty payload from /requests while
+        // legacy /stock-issuance still has rows. Use it so report list is not blank.
+        if (Array.isArray(allRequests) && allRequests.length === 0) {
+          try {
+            const legacyResp = await fetch(`${getApiBaseUrl()}/stock-issuance`, {
+              method: 'GET',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (legacyResp.ok) {
+              const legacyData = await legacyResp.json();
+              if (Array.isArray(legacyData) && legacyData.length > 0) {
+                allRequests = legacyData.map((row: any) => ({
+                  id: String(row.id),
+                  request_number: row.request_number,
+                  request_type: row.request_type,
+                  requester_user_id: row.requester_user_id,
+                  requester_name: row.requester_name,
+                  purpose: row.purpose,
+                  approval_status: row.approval_status,
+                  request_status: row.request_status,
+                  submitted_at: row.submitted_at || row.created_at,
+                  created_at: row.created_at,
+                  requester: {
+                    full_name: row.requester_name,
+                    designation_name: row.requester_designation || row.requester_role || '-'
+                  },
+                  wing: { name: row.wing_name || '-' },
+                  office: { office_name: row.office_name || '-', name: row.office_name || '-' },
+                  items: []
+                }));
+              }
+            }
+          } catch (legacyError) {
+            console.warn('Requisition report: fallback list load from /stock-issuance failed', legacyError);
+          }
+        }
 
         if (!requestId) {
           const options = allRequests
