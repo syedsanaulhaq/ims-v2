@@ -115,6 +115,46 @@ const RequisitionReportPage: React.FC = () => {
           items: []
         }));
 
+        let currentUserId = '';
+        let currentUserDesignation = '-';
+
+        try {
+          const sessionResp = await fetch(`${getApiBaseUrl()}/auth/session`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          if (sessionResp.ok) {
+            const sessionData = await sessionResp.json();
+            currentUserId = String(
+              sessionData?.session?.user_id ||
+              sessionData?.session?.userId ||
+              sessionData?.user?.id ||
+              ''
+            ).trim();
+
+            if (currentUserId) {
+              const designationResp = await fetch(`${getApiBaseUrl()}/auth/designation/${currentUserId}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
+
+              if (designationResp.ok) {
+                const designationData = await designationResp.json();
+                currentUserDesignation = pickDesignation(designationData?.designation);
+              }
+            }
+          }
+        } catch (sessionOrDesignationError) {
+          console.warn('Requisition report: failed to resolve current user session/designation', sessionOrDesignationError);
+        }
+
+        if (!currentUserId) {
+          throw new Error('Unable to resolve logged-in user session');
+        }
+
         const byId: Record<string, any> = {};
 
         try {
@@ -163,31 +203,20 @@ const RequisitionReportPage: React.FC = () => {
 
         if (Object.keys(byId).length === 0) {
           try {
-            const sessionResp = await fetch(`${getApiBaseUrl()}/auth/session`, {
-              method: 'GET',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' }
-            });
+            if (currentUserId) {
+              const myReqResp = await fetch(`${getApiBaseUrl()}/approvals/my-requests/${currentUserId}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
 
-            if (sessionResp.ok) {
-              const sessionData = await sessionResp.json();
-              const currentUserId = String(sessionData?.session?.user_id || '').trim();
-
-              if (currentUserId) {
-                const myReqResp = await fetch(`${getApiBaseUrl()}/approvals/my-requests/${currentUserId}`, {
-                  method: 'GET',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' }
+              if (myReqResp.ok) {
+                const myReqData = await myReqResp.json();
+                const myRows = Array.isArray(myReqData?.requests) ? myReqData.requests : [];
+                normalizeLegacyRows(myRows).forEach((row: any) => {
+                  const key = String(row?.id || '').trim();
+                  if (key) byId[key] = row;
                 });
-
-                if (myReqResp.ok) {
-                  const myReqData = await myReqResp.json();
-                  const myRows = Array.isArray(myReqData?.requests) ? myReqData.requests : [];
-                  normalizeLegacyRows(myRows).forEach((row: any) => {
-                    const key = String(row?.id || '').trim();
-                    if (key) byId[key] = row;
-                  });
-                }
               }
             }
           } catch (myReqError) {
@@ -196,9 +225,14 @@ const RequisitionReportPage: React.FC = () => {
         }
 
         const allRequests = Object.values(byId);
+        const myRequests = allRequests.filter((r: any) => {
+          if (!currentUserId) return false;
+          const requesterId = String(r?.requester_user_id || r?.requester?.user_id || '').trim();
+          return requesterId === currentUserId;
+        });
 
         if (!requestId) {
-          const options = allRequests
+          const options = myRequests
             .map((r: any) => ({
               id: String(r.id),
               request_number: r.request_number,
@@ -206,6 +240,7 @@ const RequisitionReportPage: React.FC = () => {
               submitted_at: r.submitted_at || r.created_at || null,
               requester_name: r.requester?.full_name || r.requester_name || '-',
               requester_designation: pickDesignation(
+                currentUserDesignation,
                 r.requester?.designation_name,
                 r.requester?.designation,
                 r.requester_designation,
@@ -221,10 +256,10 @@ const RequisitionReportPage: React.FC = () => {
           return;
         }
 
-        const found = allRequests.find((r: any) => r.id === requestId);
+        const found = myRequests.find((r: any) => r.id === requestId);
 
         if (!found) {
-          throw new Error('Request not found');
+          throw new Error('Request not found for the logged-in user');
         }
 
         let items: ReportItem[] = (found.items || []).map((item: any) => ({
@@ -239,6 +274,7 @@ const RequisitionReportPage: React.FC = () => {
         let allottedByName = '-';
         let approvedByName = '-';
         let requesterDesignation = pickDesignation(
+          currentUserDesignation,
           found.requester?.designation_name,
           found.requester?.designation,
           found.requester_designation,
