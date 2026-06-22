@@ -22,7 +22,7 @@ interface RequisitionReport {
   request_number?: string;
   request_type: string;
   requester_name: string;
-  verified_by_name?: string;
+  allotted_by_name?: string;
   approved_by_name?: string;
   office_name?: string;
   wing_name?: string;
@@ -119,7 +119,7 @@ const RequisitionReportPage: React.FC = () => {
           unit: item.unit || 'Nos.'
         }));
 
-        let verifiedByName = '-';
+        let allottedByName = '-';
         let approvedByName = '-';
 
         try {
@@ -147,6 +147,8 @@ const RequisitionReportPage: React.FC = () => {
         }
 
         try {
+          const historyRows: any[] = [];
+
           const historyResp = await fetch(`${getApiBaseUrl()}/stock-issuance/${found.id}`, {
             method: 'GET',
             credentials: 'include',
@@ -155,27 +157,78 @@ const RequisitionReportPage: React.FC = () => {
 
           if (historyResp.ok) {
             const historyData = await historyResp.json();
-            const historyRows = Array.isArray(historyData?.approval_history) ? historyData.approval_history : [];
+            if (Array.isArray(historyData?.approval_history)) {
+              historyRows.push(...historyData.approval_history);
+            }
+          }
 
-            const normalized = historyRows.map((h: any) => ({
-              action: String(h.action || '').toLowerCase(),
-              actor: String(h.actor_name || h.approver_name || '').trim()
-            }));
+          const detailsResp = await fetch(`http://localhost:3001/api/request-details/${found.id}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
 
-            const verifiedRow = normalized.find((h: any) =>
+          if (detailsResp.ok) {
+            const detailsData = await detailsResp.json();
+            if (Array.isArray(detailsData?.request?.approval_history)) {
+              historyRows.push(...detailsData.request.approval_history);
+            }
+          }
+
+          const normalized = historyRows.map((h: any) => ({
+            action: String(h.action || h.action_type || h.ActionType || '').toLowerCase(),
+            role: String(h.approver_role || h.submitted_to_role || h.RoleName || '').toLowerCase(),
+            actor: String(
+              h.actor_name ||
+              h.approver_name ||
+              h.ActionByName ||
+              h.UserName ||
+              h.FullName ||
+              h.forwarded_to_name ||
+              h.submitted_to ||
+              ''
+            ).trim()
+          }));
+
+          const allottedRows = normalized.filter((h: any) =>
+            h.actor && (
+              h.action.includes('allotted') ||
+              h.action.includes('issued') ||
+              h.action.includes('sent to wing store') ||
+              h.action.includes('wing store') ||
+              h.action.includes('verified') ||
+              h.role.includes('store')
+            )
+          );
+          if (allottedRows.length > 0) {
+            allottedByName = allottedRows[allottedRows.length - 1].actor;
+          }
+
+          const approvedRows = normalized.filter((h: any) =>
+            h.actor && (
+              h.action.includes('approved') ||
+              h.action.includes('final approved')
+            ) && !h.action.includes('pending')
+          );
+          if (approvedRows.length > 0) {
+            approvedByName = approvedRows[approvedRows.length - 1].actor;
+          } else {
+            const issuedIndex = normalized.findIndex((h: any) =>
               h.actor && (
-                h.action.includes('verified') ||
-                h.action.includes('sent to wing store') ||
-                h.action.includes('wing store')
+                h.action.includes('issued') ||
+                h.action.includes('allotted') ||
+                h.action.includes('sent to wing store')
               )
             );
-            if (verifiedRow?.actor) verifiedByName = verifiedRow.actor;
 
-            const approvedRows = normalized.filter((h: any) =>
-              h.actor && h.action.includes('approved') && !h.action.includes('pending')
-            );
-            if (approvedRows.length > 0) {
-              approvedByName = approvedRows[approvedRows.length - 1].actor;
+            if (issuedIndex > 0) {
+              for (let i = issuedIndex - 1; i >= 0; i -= 1) {
+                const prior = normalized[i];
+                if (prior?.actor && prior.actor !== allottedByName) {
+                  approvedByName = prior.actor;
+                  break;
+                }
+              }
             }
           }
         } catch (historyError) {
@@ -228,7 +281,7 @@ const RequisitionReportPage: React.FC = () => {
           request_number: found.request_number,
           request_type: found.request_type || '-',
           requester_name: found.requester?.full_name || found.requester_name || 'Unknown',
-          verified_by_name: verifiedByName,
+          allotted_by_name: allottedByName,
           approved_by_name: approvedByName,
           office_name: found.office?.name || found.office?.office_name || '-',
           wing_name: found.wing?.name || '-',
@@ -418,8 +471,8 @@ const RequisitionReportPage: React.FC = () => {
                 <div className="mt-1 text-xs text-gray-600">{report.requester_name}</div>
               </div>
               <div className="text-center">
-                <div className="border-t border-black/70 pt-2">Verified By</div>
-                <div className="mt-1 text-xs text-gray-600">{report.verified_by_name || '-'}</div>
+                <div className="border-t border-black/70 pt-2">Allotted By</div>
+                <div className="mt-1 text-xs text-gray-600">{report.allotted_by_name || '-'}</div>
               </div>
               <div className="text-center">
                 <div className="border-t border-black/70 pt-2">Approved By</div>
