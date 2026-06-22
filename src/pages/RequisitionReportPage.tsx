@@ -236,6 +236,11 @@ const RequisitionReportPage: React.FC = () => {
           console.log(`Requisition report: showing ${requestsToShow.length} requests (filtered: ${myRequests.length}, all: ${allRequests.length})`);
 
           const options = requestsToShow
+            .sort((a: any, b: any) => {
+              const dateA = new Date(a.submitted_at || a.created_at || 0).getTime();
+              const dateB = new Date(b.submitted_at || b.created_at || 0).getTime();
+              return dateB - dateA;
+            })
             .map((r: any) => ({
               id: String(r.id),
               request_number: r.request_number,
