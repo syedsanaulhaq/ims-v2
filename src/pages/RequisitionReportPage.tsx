@@ -20,6 +20,8 @@ interface RequisitionReport {
   request_number?: string;
   request_type: string;
   requester_name: string;
+  verified_by_name?: string;
+  approved_by_name?: string;
   office_name?: string;
   wing_name?: string;
   submitted_date?: string;
@@ -79,6 +81,9 @@ const RequisitionReportPage: React.FC = () => {
           unit: item.unit || 'Nos.'
         }));
 
+        let verifiedByName = '-';
+        let approvedByName = '-';
+
         try {
           const detailResp = await fetch(`http://localhost:3001/api/approvals/request/${found.id}`, {
             method: 'GET',
@@ -100,6 +105,42 @@ const RequisitionReportPage: React.FC = () => {
           }
         } catch (detailError) {
           console.warn('Requisition report: failed to load detailed items, using base request data', detailError);
+        }
+
+        try {
+          const historyResp = await fetch(`${getApiBaseUrl()}/stock-issuance/${found.id}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          if (historyResp.ok) {
+            const historyData = await historyResp.json();
+            const historyRows = Array.isArray(historyData?.approval_history) ? historyData.approval_history : [];
+
+            const normalized = historyRows.map((h: any) => ({
+              action: String(h.action || '').toLowerCase(),
+              actor: String(h.actor_name || h.approver_name || '').trim()
+            }));
+
+            const verifiedRow = normalized.find((h: any) =>
+              h.actor && (
+                h.action.includes('verified') ||
+                h.action.includes('sent to wing store') ||
+                h.action.includes('wing store')
+              )
+            );
+            if (verifiedRow?.actor) verifiedByName = verifiedRow.actor;
+
+            const approvedRows = normalized.filter((h: any) =>
+              h.actor && h.action.includes('approved') && !h.action.includes('pending')
+            );
+            if (approvedRows.length > 0) {
+              approvedByName = approvedRows[approvedRows.length - 1].actor;
+            }
+          }
+        } catch (historyError) {
+          console.warn('Requisition report: failed to load signatory names from history', historyError);
         }
 
         try {
@@ -148,6 +189,8 @@ const RequisitionReportPage: React.FC = () => {
           request_number: found.request_number,
           request_type: found.request_type || '-',
           requester_name: found.requester?.full_name || found.requester_name || 'Unknown',
+          verified_by_name: verifiedByName,
+          approved_by_name: approvedByName,
           office_name: found.office?.name || found.office?.office_name || '-',
           wing_name: found.wing?.name || '-',
           submitted_date: found.submitted_at || found.created_at || null,
@@ -268,13 +311,16 @@ const RequisitionReportPage: React.FC = () => {
               </div>
               <div className="text-center">
                 <div className="border-t border-black/70 pt-2">Verified By</div>
-                <div className="mt-1 text-xs text-gray-600">Store Keeper</div>
+                <div className="mt-1 text-xs text-gray-600">{report.verified_by_name || '-'}</div>
               </div>
               <div className="text-center">
                 <div className="border-t border-black/70 pt-2">Approved By</div>
-                <div className="mt-1 text-xs text-gray-600">Competent Authority</div>
+                <div className="mt-1 text-xs text-gray-600">{report.approved_by_name || '-'}</div>
               </div>
             </div>
+            <p className="text-center text-xs text-gray-600 mt-8 border-t border-dashed border-gray-400 pt-3">
+              This report is Computer Generated.
+            </p>
           </div>
         </CardContent>
       </Card>
