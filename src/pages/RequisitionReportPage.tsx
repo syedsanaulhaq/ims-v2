@@ -232,7 +232,10 @@ const RequisitionReportPage: React.FC = () => {
         });
 
         if (!requestId) {
-          const options = myRequests
+          const requestsToShow = myRequests.length > 0 ? myRequests : allRequests;
+          console.log(`Requisition report: showing ${requestsToShow.length} requests (filtered: ${myRequests.length}, all: ${allRequests.length})`);
+
+          const options = requestsToShow
             .map((r: any) => ({
               id: String(r.id),
               request_number: r.request_number,
@@ -256,10 +259,11 @@ const RequisitionReportPage: React.FC = () => {
           return;
         }
 
-        const found = myRequests.find((r: any) => r.id === requestId);
+        const found = (myRequests.length > 0 ? myRequests : allRequests).find((r: any) => r.id === requestId);
 
         if (!found) {
-          throw new Error('Request not found for the logged-in user');
+          console.error(`Request not found: ${requestId} | currentUserId: ${currentUserId} | myRequests: ${myRequests.length} | allRequests: ${allRequests.length}`);
+          throw new Error(`Request not found (searched ${allRequests.length} available requests)`);
         }
 
         let items: ReportItem[] = (found.items || []).map((item: any) => ({
@@ -473,6 +477,7 @@ const RequisitionReportPage: React.FC = () => {
           items
         });
       } catch (err: any) {
+        console.error('Requisition report error:', err);
         setError(err?.message || 'Failed to load requisition report');
       } finally {
         setLoading(false);
