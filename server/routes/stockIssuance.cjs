@@ -145,12 +145,15 @@ router.get('/requests', requireAuth, async (req, res) => {
         u.Id as 'requester.user_id',
         u.FullName as 'requester.full_name',
         u.UserName as 'requester.user_name',
+        u.Role as 'requester.role_name',
+        COALESCE(NULLIF(u.DesignationName, ''), vud.strDesignation, '-') as 'requester.designation_name',
         w.Id as 'wing.wing_id',
         w.Name as 'wing.name',
         o.intOfficeID as 'office.office_id',
         o.strOfficeName as 'office.office_name'
       FROM stock_issuance_requests sir
       LEFT JOIN AspNetUsers u ON CONVERT(NVARCHAR(450), sir.requester_user_id) = CONVERT(NVARCHAR(450), u.Id)
+      LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
       LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
       LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
     `;
@@ -274,7 +277,9 @@ router.get('/requests', requireAuth, async (req, res) => {
         requester: {
           user_id: row['requester.user_id'],
           full_name: row['requester.full_name'],
-          user_name: row['requester.user_name']
+          user_name: row['requester.user_name'],
+          role_name: row['requester.role_name'],
+          designation_name: row['requester.designation_name']
         },
         wing: row['wing.wing_id'] ? {
           wing_id: row['wing.wing_id'],

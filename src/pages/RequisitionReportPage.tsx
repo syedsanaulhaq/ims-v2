@@ -22,6 +22,7 @@ interface RequisitionReport {
   request_number?: string;
   request_type: string;
   requester_name: string;
+  requester_designation?: string;
   allotted_by_name?: string;
   approved_by_name?: string;
   office_name?: string;
@@ -91,6 +92,7 @@ const RequisitionReportPage: React.FC = () => {
               requester_name: r.requester?.full_name || r.requester_name || '-',
               requester_designation:
                 r.requester?.designation_name ||
+                r.requester?.role_name ||
                 r.requester?.designation ||
                 r.requester_designation ||
                 r.requester?.role ||
@@ -121,6 +123,12 @@ const RequisitionReportPage: React.FC = () => {
 
         let allottedByName = '-';
         let approvedByName = '-';
+        let requesterDesignation =
+          found.requester?.designation_name ||
+          found.requester?.role_name ||
+          found.requester_designation ||
+          found.requester?.designation ||
+          '-';
 
         try {
           const detailResp = await fetch(`http://localhost:3001/api/approvals/request/${found.id}`, {
@@ -178,6 +186,7 @@ const RequisitionReportPage: React.FC = () => {
           const normalized = historyRows.map((h: any) => ({
             action: String(h.action || h.action_type || h.ActionType || '').toLowerCase(),
             role: String(h.approver_role || h.submitted_to_role || h.RoleName || '').toLowerCase(),
+            roleLabel: String(h.approver_role || h.submitted_to_role || h.RoleName || '').trim(),
             actor: String(
               h.actor_name ||
               h.approver_name ||
@@ -202,6 +211,16 @@ const RequisitionReportPage: React.FC = () => {
           );
           if (allottedRows.length > 0) {
             allottedByName = allottedRows[allottedRows.length - 1].actor;
+          }
+
+          if (!requesterDesignation || requesterDesignation === '-') {
+            const requesterName = String(found.requester?.full_name || found.requester_name || '').trim().toLowerCase();
+            const requesterRow = normalized.find((h: any) =>
+              h.actor && h.roleLabel && h.actor.toLowerCase() === requesterName
+            );
+            if (requesterRow?.roleLabel) {
+              requesterDesignation = requesterRow.roleLabel;
+            }
           }
 
           const approvedRows = normalized.filter((h: any) =>
@@ -281,6 +300,7 @@ const RequisitionReportPage: React.FC = () => {
           request_number: found.request_number,
           request_type: found.request_type || '-',
           requester_name: found.requester?.full_name || found.requester_name || 'Unknown',
+          requester_designation: requesterDesignation || '-',
           allotted_by_name: allottedByName,
           approved_by_name: approvedByName,
           office_name: found.office?.name || found.office?.office_name || '-',
@@ -419,6 +439,7 @@ const RequisitionReportPage: React.FC = () => {
               <div><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
               <div><span className="font-semibold">Request Type:</span> {report.request_type}</div>
               <div><span className="font-semibold">Requester:</span> {report.requester_name}</div>
+              <div><span className="font-semibold">Designation:</span> {report.requester_designation || '-'}</div>
               <div><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
               <div className="md:col-span-2"><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
               <div className="md:col-span-2"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
@@ -469,6 +490,7 @@ const RequisitionReportPage: React.FC = () => {
               <div className="text-center">
                 <div className="border-t border-black/70 pt-2">Requested By</div>
                 <div className="mt-1 text-xs text-gray-600">{report.requester_name}</div>
+                <div className="text-[11px] text-gray-500">{report.requester_designation || '-'}</div>
               </div>
               <div className="text-center">
                 <div className="border-t border-black/70 pt-2">Allotted By</div>
