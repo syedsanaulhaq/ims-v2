@@ -77,22 +77,51 @@ const RequisitionReportPage: React.FC = () => {
         setError(null);
         setReport(null);
 
-        const requestsResp = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
-        });
+        const normalizeLegacyRows = (rows: any[]) => rows.map((row: any) => ({
+          id: String(row.id),
+          request_number: row.request_number,
+          request_type: row.request_type,
+          requester_user_id: row.requester_user_id,
+          requester_name: row.requester_name,
+          purpose: row.purpose,
+          approval_status: row.approval_status,
+          request_status: row.request_status,
+          submitted_at: row.submitted_at || row.created_at,
+          created_at: row.created_at,
+          requester: {
+            user_id: row.requester_user_id,
+            full_name: row.requester_name,
+            designation_name: row.requester_designation || row.requester_role || '-'
+          },
+          wing: { name: row.wing_name || '-' },
+          office: { office_name: row.office_name || '-', name: row.office_name || '-' },
+          items: []
+        }));
 
-        if (!requestsResp.ok) {
-          throw new Error(`Failed to load request (${requestsResp.status})`);
+        const byId: Record<string, any> = {};
+
+        try {
+          const requestsResp = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          if (requestsResp.ok) {
+            const requestsData = await requestsResp.json();
+            const primaryRows = Array.isArray(requestsData)
+              ? requestsData
+              : (Array.isArray(requestsData?.data) ? requestsData.data : []);
+            primaryRows.forEach((row: any) => {
+              const key = String(row?.id || '').trim();
+              if (key) byId[key] = row;
+            });
+          }
+        } catch (requestsError) {
+          console.warn('Requisition report: primary list load failed', requestsError);
         }
 
-        const requestsData = await requestsResp.json();
-        let allRequests = requestsData?.data || [];
-
-        // Fallback: some sessions can return an empty payload from /requests while
-        // legacy /stock-issuance still has rows. Use it so report list is not blank.
-        if (Array.isArray(allRequests) && allRequests.length === 0) {
+        if (Object.keys(byId).length === 0) {
           try {
             const legacyResp = await fetch(`${getApiBaseUrl()}/stock-issuance`, {
               method: 'GET',
@@ -102,32 +131,54 @@ const RequisitionReportPage: React.FC = () => {
 
             if (legacyResp.ok) {
               const legacyData = await legacyResp.json();
-              if (Array.isArray(legacyData) && legacyData.length > 0) {
-                allRequests = legacyData.map((row: any) => ({
-                  id: String(row.id),
-                  request_number: row.request_number,
-                  request_type: row.request_type,
-                  requester_user_id: row.requester_user_id,
-                  requester_name: row.requester_name,
-                  purpose: row.purpose,
-                  approval_status: row.approval_status,
-                  request_status: row.request_status,
-                  submitted_at: row.submitted_at || row.created_at,
-                  created_at: row.created_at,
-                  requester: {
-                    full_name: row.requester_name,
-                    designation_name: row.requester_designation || row.requester_role || '-'
-                  },
-                  wing: { name: row.wing_name || '-' },
-                  office: { office_name: row.office_name || '-', name: row.office_name || '-' },
-                  items: []
-                }));
-              }
+              const legacyRows = Array.isArray(legacyData)
+                ? legacyData
+                : (Array.isArray(legacyData?.data) ? legacyData.data : []);
+              normalizeLegacyRows(legacyRows).forEach((row: any) => {
+                const key = String(row?.id || '').trim();
+                if (key) byId[key] = row;
+              });
             }
           } catch (legacyError) {
             console.warn('Requisition report: fallback list load from /stock-issuance failed', legacyError);
           }
         }
+
+        if (Object.keys(byId).length === 0) {
+          try {
+            const sessionResp = await fetch(`${getApiBaseUrl()}/auth/session`, {
+              method: 'GET',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (sessionResp.ok) {
+              const sessionData = await sessionResp.json();
+              const currentUserId = String(sessionData?.session?.user_id || '').trim();
+
+              if (currentUserId) {
+                const myReqResp = await fetch(`${getApiBaseUrl()}/approvals/my-requests/${currentUserId}`, {
+                  method: 'GET',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (myReqResp.ok) {
+                  const myReqData = await myReqResp.json();
+                  const myRows = Array.isArray(myReqData?.requests) ? myReqData.requests : [];
+                  normalizeLegacyRows(myRows).forEach((row: any) => {
+                    const key = String(row?.id || '').trim();
+                    if (key) byId[key] = row;
+                  });
+                }
+              }
+            }
+          } catch (myReqError) {
+            console.warn('Requisition report: fallback list load from /approvals/my-requests failed', myReqError);
+          }
+        }
+
+        const allRequests = Object.values(byId);
 
         if (!requestId) {
           const options = allRequests
