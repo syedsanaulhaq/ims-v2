@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, Printer, Search } from 'lucide-react';
 import { getApiBaseUrl } from '@/services/invmisApi';
 
 interface ReportItem {
@@ -34,6 +35,12 @@ interface RequisitionOption {
   request_number?: string;
   purpose?: string;
   submitted_at?: string;
+  requester_name?: string;
+  requester_designation?: string;
+  request_type?: string;
+  request_status?: string;
+  office_name?: string;
+  wing_name?: string;
 }
 
 const formatDate = (value?: string | null, fallback = '-') => {
@@ -50,6 +57,7 @@ const RequisitionReportPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<RequisitionReport | null>(null);
   const [requestOptions, setRequestOptions] = useState<RequisitionOption[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const todayText = formatDate(new Date().toISOString(), '-');
 
   useEffect(() => {
@@ -78,9 +86,19 @@ const RequisitionReportPage: React.FC = () => {
               id: String(r.id),
               request_number: r.request_number,
               purpose: r.purpose,
-              submitted_at: r.submitted_at || r.created_at || null
-            }))
-            .slice(0, 25);
+              submitted_at: r.submitted_at || r.created_at || null,
+              requester_name: r.requester?.full_name || r.requester_name || '-',
+              requester_designation:
+                r.requester?.designation_name ||
+                r.requester?.designation ||
+                r.requester_designation ||
+                r.requester?.role ||
+                '-',
+              request_type: r.request_type || '-',
+              request_status: r.request_status || r.approval_status || '-',
+              office_name: r.office?.name || r.office?.office_name || '-',
+              wing_name: r.wing?.name || '-'
+            }));
           setRequestOptions(options);
           return;
         }
@@ -233,33 +251,72 @@ const RequisitionReportPage: React.FC = () => {
     );
   }
 
-  if (error || !report) {
-    if (!requestId && requestOptions.length > 0) {
-      return (
-        <div className="container mx-auto p-6">
-          <Card className="max-w-4xl mx-auto">
-            <CardHeader>
-              <CardTitle>Select Requisition Report</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {requestOptions.map((req) => (
+  const filteredRequestOptions = requestOptions.filter((req) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+
+    const blob = [
+      req.request_number,
+      req.purpose,
+      req.requester_name,
+      req.requester_designation,
+      req.request_type,
+      req.request_status,
+      req.office_name,
+      req.wing_name,
+      req.submitted_at
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return blob.includes(q);
+  });
+
+  if (!requestId) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="max-w-6xl mx-auto">
+          <CardHeader className="space-y-4">
+            <CardTitle>Select Requisition Report</CardTitle>
+            <div className="relative max-w-md">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by request no, requester, designation, office, wing, purpose..."
+                className="pl-9"
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {filteredRequestOptions.length === 0 ? (
+              <div className="text-center text-sm text-gray-600 py-6">No matching requisition reports found.</div>
+            ) : (
+              filteredRequestOptions.map((req) => (
                 <div key={req.id} className="border rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{req.request_number || req.id.slice(0, 12)}</p>
-                    <p className="text-sm text-gray-600">{req.purpose || '-'}</p>
-                    <p className="text-xs text-gray-500">{formatDate(req.submitted_at, '-')}</p>
+                  <div className="space-y-1">
+                    <p className="font-semibold text-sm">{req.request_number || req.id.slice(0, 12)}</p>
+                    <p className="text-sm text-gray-700"><span className="font-medium">Requested By:</span> {req.requester_name || '-'}</p>
+                    <p className="text-sm text-gray-700"><span className="font-medium">Designation:</span> {req.requester_designation || '-'}</p>
+                    <p className="text-sm text-gray-700"><span className="font-medium">Office/Wing:</span> {req.office_name || '-'} / {req.wing_name || '-'}</p>
+                    <p className="text-sm text-gray-700"><span className="font-medium">Type/Status:</span> {req.request_type || '-'} / {req.request_status || '-'}</p>
+                    <p className="text-sm text-gray-600"><span className="font-medium">Purpose:</span> {req.purpose || '-'}</p>
+                    <p className="text-xs text-gray-500"><span className="font-medium">Submitted:</span> {formatDate(req.submitted_at, '-')}</p>
                   </div>
                   <Button size="sm" onClick={() => navigate(`/dashboard/requisition-report/${req.id}`)}>
                     Open Report
                   </Button>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
+  if (error || !report) {
     return (
       <div className="container mx-auto p-6">
         <Card>
