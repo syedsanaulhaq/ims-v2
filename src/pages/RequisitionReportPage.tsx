@@ -70,6 +70,23 @@ const RequisitionReportPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const todayText = formatDate(new Date().toISOString(), '-');
 
+  const handlePrint = () => {
+    document.body.classList.add('requisition-report-print');
+    window.print();
+  };
+
+  useEffect(() => {
+    const clearPrintMode = () => {
+      document.body.classList.remove('requisition-report-print');
+    };
+
+    window.addEventListener('afterprint', clearPrintMode);
+    return () => {
+      window.removeEventListener('afterprint', clearPrintMode);
+      clearPrintMode();
+    };
+  }, []);
+
   useEffect(() => {
     const loadReport = async () => {
       try {
@@ -522,19 +539,58 @@ const RequisitionReportPage: React.FC = () => {
   const totalAllottedQuantity = report.items.reduce((sum, item) => sum + Number(item.allotted_quantity || 0), 0);
 
   return (
-    <div className="container mx-auto p-6 bg-[#f5f6f7] print:bg-white print:p-0">
-      <div className="flex items-center justify-between mb-6 print:hidden">
+    <div className="requisition-print-shell container mx-auto p-6 bg-[#f5f6f7] print:bg-white print:p-0">
+      <style>{`
+        @media print {
+          body.requisition-report-print aside,
+          body.requisition-report-print header,
+          body.requisition-report-print nav,
+          body.requisition-report-print .requisition-print-actions,
+          body.requisition-report-print .requisition-print-hide {
+            display: none !important;
+          }
+
+          body.requisition-report-print .requisition-print-shell {
+            margin: 0 !important;
+            max-width: none !important;
+            padding: 0 !important;
+            background: #fff !important;
+          }
+
+          body.requisition-report-print .requisition-print-card {
+            border: 0 !important;
+            box-shadow: none !important;
+            max-width: none !important;
+            width: 100% !important;
+          }
+
+          body.requisition-report-print .requisition-signature-label {
+            border-top: 1px solid #000 !important;
+            color: #000 !important;
+          }
+
+          body.requisition-report-print .requisition-signature-value {
+            color: #000 !important;
+          }
+
+          body.requisition-report-print {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+      <div className="requisition-print-actions flex items-center justify-between mb-6 print:hidden">
         <Button variant="outline" onClick={() => navigate(`/dashboard/request-details/${report.id}`)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-        <Button variant="outline" onClick={() => window.print()}>
+        <Button variant="outline" onClick={handlePrint}>
           <Printer className="h-4 w-4 mr-2" />
           Print Requisition
         </Button>
       </div>
 
-      <Card className="max-w-5xl mx-auto border-2 border-black/70 rounded-sm bg-white print:shadow-none print:border-none">
+      <Card className="requisition-print-card max-w-5xl mx-auto border-2 border-black/70 rounded-sm bg-white print:shadow-none print:border-none">
         <CardContent className="p-0">
           <div className="border-b-2 border-black/70 px-6 py-5 text-center">
             <p className="text-xs tracking-[0.18em] uppercase text-gray-700">Election Commission of Pakistan</p>
@@ -598,17 +654,17 @@ const RequisitionReportPage: React.FC = () => {
           <div className="px-6 pb-8 pt-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
               <div className="text-center">
-                <div className="border-t border-black/70 pt-2">Requested By</div>
-                <div className="mt-1 text-xs text-gray-600">{report.requester_name}</div>
-                <div className="text-[11px] text-gray-500">{report.requester_designation || '-'}</div>
+                <div className="requisition-signature-label border-t border-black/70 pt-2">Requested By</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600">{report.requester_name}</div>
+                <div className="requisition-signature-value text-[11px] text-gray-500">{report.requester_designation || '-'}</div>
               </div>
               <div className="text-center">
-                <div className="border-t border-black/70 pt-2">Allotted By</div>
-                <div className="mt-1 text-xs text-gray-600">{report.allotted_by_name || '-'}</div>
+                <div className="requisition-signature-label border-t border-black/70 pt-2">Allotted By</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600">{report.allotted_by_name || '-'}</div>
               </div>
               <div className="text-center">
-                <div className="border-t border-black/70 pt-2">Approved By</div>
-                <div className="mt-1 text-xs text-gray-600">{report.approved_by_name || '-'}</div>
+                <div className="requisition-signature-label border-t border-black/70 pt-2">Approved By</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600">{report.approved_by_name || '-'}</div>
               </div>
             </div>
             <p className="text-center text-xs text-gray-600 mt-8 border-t border-dashed border-gray-400 pt-3">
