@@ -78,9 +78,9 @@ import WingApprovalDashboard from "./components/WingApprovalDashboard";
 import WorkflowAdmin from "./components/WorkflowAdmin";
 import ApprovalForwarding from "./components/ApprovalForwarding";
 import MyRequestsPage from "./pages/MyRequestsPage";
-import RequiredItemsPage from "./pages/RequiredItemsPage";
 import WingRequestsPage from "./pages/WingRequestsPage";
 import RequestDetailsPage from "./pages/RequestDetailsPage";
+import RequisitionReportPage from "./pages/RequisitionReportPage";
 import StockOperationRequestDetails from "./pages/StockOperationRequestDetails";
 import RequestHistoryPage from "./pages/RequestHistoryPage";
 import WingRequestHistoryPage from "./pages/WingRequestHistoryPage";
@@ -234,10 +234,10 @@ function App() {
                   <Route path="approval-dashboard-request-based" element={<ApprovalDashboardRequestBased />} />
                   <Route path="approval-dashboard-request-based-admin" element={<ApprovalDashboardRequestBased viewMode="admin" />} />
                   <Route path="wing-approval-dashboard" element={<WingApprovalDashboard />} />
-                   <Route path="my-requests" element={<MyRequestsPage />} />
-                  <Route path="required-items" element={<RequiredItemsPage />} />
+                  <Route path="my-requests" element={<MyRequestsPage />} />
                   <Route path="wing-requests" element={<WingRequestsPage />} />
                   <Route path="request-details/:requestId" element={<RequestDetailsPage />} />
+                  <Route path="requisition-report/:requestId" element={<RequisitionReportPage />} />
                   <Route path="stock-operation-request-details/:requestId" element={<StockOperationRequestDetails />} />
                   <Route path="approval-forwarding/:id" element={<ApprovalForwardingWrapper />} />
                   <Route path="request-history" element={<RequestHistoryPage />} />

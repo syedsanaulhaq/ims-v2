@@ -415,6 +415,55 @@ router.get('/issued-items', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/stock-issuance/last-issued-summary - Last issued qty/date by item
+// ============================================================================
+router.get('/last-issued-summary', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { user_id, wing_id } = req.query;
+
+    const request = pool.request();
+    request.input('userId', sql.NVarChar(450), user_id || null);
+    request.input('wingId', sql.Int, wing_id ? Number(wing_id) : null);
+
+    const result = await request.query(`
+      ;WITH issued_rows AS (
+        SELECT
+          CAST(sii.item_master_id AS NVARCHAR(100)) AS item_master_id,
+          COALESCE(NULLIF(sii.issued_quantity, 0), NULLIF(sii.approved_quantity, 0), sii.requested_quantity, 0) AS issued_qty,
+          CAST(COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) AS DATETIME2) AS issue_date,
+          ROW_NUMBER() OVER (
+            PARTITION BY sii.item_master_id
+            ORDER BY COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) DESC
+          ) AS rn
+        FROM stock_issuance_items sii
+        INNER JOIN stock_issuance_requests sir ON sir.id = sii.request_id
+        WHERE sii.item_master_id IS NOT NULL
+          AND COALESCE(NULLIF(sii.issued_quantity, 0), NULLIF(sii.approved_quantity, 0), 0) > 0
+          AND (
+            UPPER(COALESCE(sir.request_status, '')) IN ('ISSUED', 'COMPLETED')
+            OR UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
+          )
+          AND (@userId IS NULL OR sir.requester_user_id = @userId)
+          AND (@wingId IS NULL OR sir.requester_wing_id = @wingId)
+      )
+      SELECT item_master_id, issued_qty AS last_issued_quantity, issue_date AS last_issue_date
+      FROM issued_rows
+      WHERE rn = 1
+      ORDER BY item_master_id
+    `);
+
+    res.json({
+      success: true,
+      data: result.recordset || []
+    });
+  } catch (error) {
+    console.error('Error fetching last issued summary:', error);
+    res.status(500).json({ error: 'Failed to fetch last issued summary', details: error.message });
+  }
+});
+
+// ============================================================================
 // GET /api/stock-issuance/:id - Get request details
 // ============================================================================
 router.get('/:id', async (req, res) => {

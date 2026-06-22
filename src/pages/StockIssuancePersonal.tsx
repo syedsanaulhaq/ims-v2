@@ -49,6 +49,8 @@ interface IssuanceItem {
   item_master_id?: string;  // Add this field for the actual item master ID
   nomenclature: string;
   requested_quantity: number;
+  last_issued_quantity?: number;
+  last_issue_date?: string | null;
   available_stock: number;
   unit_price: number;
   item_type: 'inventory' | 'custom';
@@ -61,6 +63,7 @@ const StockIssuancePersonal: React.FC = () => {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [issuanceItems, setIssuanceItems] = useState<IssuanceItem[]>([]);
+  const [lastIssuedByItemId, setLastIssuedByItemId] = useState<Record<string, { qty: number; date: string | null }>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -85,6 +88,13 @@ const StockIssuancePersonal: React.FC = () => {
   const selectedBranchId = user?.branch_id?.toString() || '';
   const selectedUserId = user?.user_id || '';
 
+  const formatDate = (value?: string | null) => {
+    if (!value) return '-';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return '-';
+    return dt.toLocaleDateString('en-GB');
+  };
+
   useEffect(() => {
     // Check if we're in edit mode
     if (id) {
@@ -95,6 +105,42 @@ const StockIssuancePersonal: React.FC = () => {
       fetchInitialData();
     }
   }, [id]);
+
+  useEffect(() => {
+    const loadLastIssuedSummary = async () => {
+      if (!selectedUserId) return;
+      try {
+        const rows = await stockIssuanceService.getLastIssuedSummary({ user_id: selectedUserId });
+        const map: Record<string, { qty: number; date: string | null }> = {};
+        rows.forEach((row: any) => {
+          const key = String(row.item_master_id || '');
+          if (!key) return;
+          map[key] = {
+            qty: Number(row.last_issued_quantity || 0),
+            date: row.last_issue_date || null
+          };
+        });
+        setLastIssuedByItemId(map);
+      } catch (err) {
+        console.warn('Failed to load last issued summary:', err);
+      }
+    };
+
+    loadLastIssuedSummary();
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    setIssuanceItems((prev) => prev.map((item) => {
+      if (item.item_type !== 'inventory') return item;
+      const key = String(item.item_master_id || item.inventory_intOfficeID || '');
+      const history = lastIssuedByItemId[key];
+      return {
+        ...item,
+        last_issued_quantity: history?.qty,
+        last_issue_date: history?.date || null
+      };
+    }));
+  }, [lastIssuedByItemId]);
 
   const fetchInitialData = async () => {
     try {
@@ -208,12 +254,17 @@ const StockIssuancePersonal: React.FC = () => {
       return;
     }
 
+    const historyKey = String(item.item_master_id || item.intOfficeID || '');
+    const history = lastIssuedByItemId[historyKey];
+
     const newItem: IssuanceItem = {
       inventory_id: item.id,
       inventory_intOfficeID: item.intOfficeID,
       item_master_id: item.item_master_id,  // Add the actual item master ID
       nomenclature: item.nomenclature,
       requested_quantity: 1,
+      last_issued_quantity: history?.qty,
+      last_issue_date: history?.date || null,
       available_stock: item.current_stock,
       unit_price: item.weighted_avg_price,
       item_type: 'inventory'
@@ -231,6 +282,8 @@ const StockIssuancePersonal: React.FC = () => {
         inventory_intOfficeID: customId,
         nomenclature: customItemName.trim(),
         requested_quantity: customItemQuantity,
+        last_issued_quantity: 0,
+        last_issue_date: null,
         available_stock: 0,
         unit_price: 0,
         item_type: 'custom',
@@ -728,50 +781,60 @@ const StockIssuancePersonal: React.FC = () => {
               {/* Selected Items */}
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-3">Selected Items ({issuanceItems.length})</h4>
-                <div className="space-y-3">
-                  {issuanceItems.map(item => (
-                    <div key={item.inventory_id} className={`flex items-center gap-3 p-3 rounded-lg ${item.item_type === 'custom' ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="font-medium text-sm">{item.nomenclature}</div>
-                          <Badge variant={item.item_type === 'custom' ? 'secondary' : 'default'} className="text-xs">
-                            {item.item_type === 'custom' ? 'Custom' : 'Inventory'}
-                          </Badge>
-                        </div>
-                        {item.item_type === 'custom' && (
-                          <div className="text-xs text-green-700">
-                            Custom item (not tracked in inventory)
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateQuantity(item.inventory_id, item.requested_quantity - 1)}
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="w-8 text-center text-sm font-medium">
-                          {item.requested_quantity}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateQuantity(item.inventory_id, item.requested_quantity + 1)}
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => removeIssuanceItem(item.inventory_id)}
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="w-full min-w-[820px] text-sm">
+                    <thead className="bg-gray-100 text-gray-700">
+                      <tr>
+                        <th className="text-left px-3 py-2">Item</th>
+                        <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
+                        <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
+                        <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
+                        <th className="text-left px-3 py-2 w-24">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {issuanceItems.map(item => (
+                        <tr key={item.inventory_id} className="border-t align-middle">
+                          <td className="px-3 py-2">
+                            <div className="font-medium">{item.nomenclature}</div>
+                            <div className="text-xs text-gray-500">
+                              {item.item_type === 'custom' ? 'Custom item' : `Available: ${item.available_stock}`}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : (item.last_issued_quantity ?? 0)}</td>
+                          <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : formatDate(item.last_issue_date)}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateQuantity(item.inventory_id, item.requested_quantity - 1)}
+                              >
+                                <Minus className="w-3 h-3" />
+                              </Button>
+                              <span className="w-10 text-center text-sm font-medium">{item.requested_quantity}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateQuantity(item.inventory_id, item.requested_quantity + 1)}
+                              >
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => removeIssuanceItem(item.inventory_id)}
+                            >
+                              Remove
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 

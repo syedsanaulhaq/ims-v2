@@ -40,6 +40,12 @@ export interface StockIssuanceFilters {
   request_type?: string;
 }
 
+export interface LastIssuedSummary {
+  item_master_id: string;
+  last_issued_quantity: number;
+  last_issue_date: string | null;
+}
+
 class StockIssuanceService {
   private baseUrl = `${getApiBaseUrl()}/stock-issuance`;
 
@@ -162,6 +168,31 @@ class StockIssuanceService {
       return result.data || [];
     } catch (error) {
       console.error('❌ Error fetching issued items:', error);
+      throw error;
+    }
+  }
+
+  async getLastIssuedSummary(filters?: { user_id?: string; wing_id?: string | number }): Promise<LastIssuedSummary[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (filters?.user_id) queryParams.append('user_id', filters.user_id);
+      if (filters?.wing_id !== undefined && filters?.wing_id !== null && String(filters.wing_id) !== '') {
+        queryParams.append('wing_id', String(filters.wing_id));
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/last-issued-summary${queryParams.toString() ? `?${queryParams.toString()}` : ''}`,
+        { credentials: 'include' }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      console.error('❌ Error fetching last issued summary:', error);
       throw error;
     }
   }

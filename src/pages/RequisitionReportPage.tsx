@@ -1,0 +1,252 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Printer } from 'lucide-react';
+import { getApiBaseUrl } from '@/services/invmisApi';
+
+interface ReportItem {
+  id: string;
+  item_master_id?: string;
+  item_name: string;
+  unit: string;
+  requested_quantity: number;
+  last_issued_quantity?: number;
+  last_issue_date?: string | null;
+}
+
+interface RequisitionReport {
+  id: string;
+  request_number?: string;
+  request_type: string;
+  requester_name: string;
+  office_name?: string;
+  wing_name?: string;
+  submitted_date?: string;
+  purpose?: string;
+  items: ReportItem[];
+}
+
+const formatDate = (value?: string | null, fallback = '-') => {
+  if (!value) return fallback;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return fallback;
+  return dt.toLocaleDateString('en-GB');
+};
+
+const RequisitionReportPage: React.FC = () => {
+  const { requestId } = useParams<{ requestId: string }>();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [report, setReport] = useState<RequisitionReport | null>(null);
+
+  useEffect(() => {
+    const loadReport = async () => {
+      if (!requestId) {
+        setError('Missing request id');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const requestsResp = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!requestsResp.ok) {
+          throw new Error(`Failed to load request (${requestsResp.status})`);
+        }
+
+        const requestsData = await requestsResp.json();
+        const found = (requestsData?.data || []).find((r: any) => r.id === requestId);
+
+        if (!found) {
+          throw new Error('Request not found');
+        }
+
+        let items: ReportItem[] = (found.items || []).map((item: any) => ({
+          id: String(item.id),
+          item_master_id: item.item_master_id ? String(item.item_master_id) : undefined,
+          item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
+          requested_quantity: Number(item.requested_quantity || 0),
+          unit: item.unit || 'Nos.'
+        }));
+
+        try {
+          const detailResp = await fetch(`http://localhost:3001/api/approvals/request/${found.id}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          if (detailResp.ok) {
+            const detailData = await detailResp.json();
+            if (Array.isArray(detailData?.items) && detailData.items.length > 0) {
+              items = detailData.items.map((item: any) => ({
+                id: String(item.id),
+                item_master_id: item.item_master_id ? String(item.item_master_id) : undefined,
+                item_name: item.nomenclature || item.custom_item_name || item.item_name || 'Unknown Item',
+                requested_quantity: Number(item.requested_quantity || 0),
+                unit: item.unit || 'Nos.'
+              }));
+            }
+          }
+        } catch (detailError) {
+          console.warn('Requisition report: failed to load detailed items, using base request data', detailError);
+        }
+
+        try {
+          const params = new URLSearchParams();
+          if (String(found.request_type || '').toLowerCase() === 'individual' && found.requester_user_id) {
+            params.append('user_id', String(found.requester_user_id));
+          } else if (found.requester_wing_id) {
+            params.append('wing_id', String(found.requester_wing_id));
+          }
+
+          if (params.toString()) {
+            const summaryResp = await fetch(`${getApiBaseUrl()}/stock-issuance/last-issued-summary?${params.toString()}`, {
+              method: 'GET',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (summaryResp.ok) {
+              const summaryData = await summaryResp.json();
+              const summaryMap: Record<string, { qty: number; date: string | null }> = {};
+              (summaryData?.data || []).forEach((row: any) => {
+                const key = String(row.item_master_id || '');
+                if (!key) return;
+                summaryMap[key] = {
+                  qty: Number(row.last_issued_quantity || 0),
+                  date: row.last_issue_date || null
+                };
+              });
+
+              items = items.map((item) => {
+                const history = item.item_master_id ? summaryMap[String(item.item_master_id)] : undefined;
+                return {
+                  ...item,
+                  last_issued_quantity: history?.qty,
+                  last_issue_date: history?.date || null
+                };
+              });
+            }
+          }
+        } catch (summaryError) {
+          console.warn('Requisition report: failed to load last-issued summary, using default values', summaryError);
+        }
+
+        setReport({
+          id: found.id,
+          request_number: found.request_number,
+          request_type: found.request_type || '-',
+          requester_name: found.requester?.full_name || found.requester_name || 'Unknown',
+          office_name: found.office?.name || found.office?.office_name || '-',
+          wing_name: found.wing?.name || '-',
+          submitted_date: found.submitted_at || found.created_at || null,
+          purpose: found.purpose || '-',
+          items
+        });
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load requisition report');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReport();
+  }, [requestId]);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center py-12">Loading requisition report...</div>
+      </div>
+    );
+  }
+
+  if (error || !report) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="pt-6 text-center space-y-4">
+            <p className="text-red-600">{error || 'Unable to load report'}</p>
+            <Button variant="outline" onClick={() => navigate('/dashboard/my-requests')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to My Requests
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 bg-white print:p-0">
+      <div className="flex items-center justify-between mb-6 print:hidden">
+        <Button variant="outline" onClick={() => navigate(`/dashboard/request-details/${report.id}`)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        <Button variant="outline" onClick={() => window.print()}>
+          <Printer className="h-4 w-4 mr-2" />
+          Print Requisition
+        </Button>
+      </div>
+
+      <Card className="print:shadow-none print:border-none">
+        <CardHeader>
+          <CardTitle className="text-2xl text-center">Stock Requisition Report</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div><span className="font-semibold">Request No:</span> {report.request_number || report.id.slice(0, 12)}</div>
+            <div><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
+            <div><span className="font-semibold">Request Type:</span> {report.request_type}</div>
+            <div><span className="font-semibold">Requester:</span> {report.requester_name}</div>
+            <div><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
+            <div><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
+            <div className="md:col-span-2"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
+          </div>
+
+          <div className="overflow-x-auto border rounded-lg">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead className="bg-gray-100 text-gray-700">
+                <tr>
+                  <th className="text-left px-3 py-2">Item</th>
+                  <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
+                  <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
+                  <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.items.map((item) => (
+                  <tr key={item.id} className="border-t align-middle">
+                    <td className="px-3 py-2">{item.item_name}</td>
+                    <td className="px-3 py-2">{item.last_issued_quantity ?? 0}</td>
+                    <td className="px-3 py-2">{formatDate(item.last_issue_date, '-')}</td>
+                    <td className="px-3 py-2">{item.requested_quantity} {item.unit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-10 text-sm">
+            <div className="border-t pt-2 text-center">Requested By</div>
+            <div className="border-t pt-2 text-center">Verified By</div>
+            <div className="border-t pt-2 text-center">Approved By</div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default RequisitionReportPage;

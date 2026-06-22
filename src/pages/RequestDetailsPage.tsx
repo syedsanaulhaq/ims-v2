@@ -18,9 +18,12 @@ const formatDate = (dateString: string | null | undefined, formatStr = 'MMM dd, 
 
 interface RequestItem {
   id: string;
+  item_master_id?: string;
   item_name: string;
   requested_quantity: number;
   approved_quantity?: number;
+  last_issued_quantity?: number;
+  last_issue_date?: string | null;
   unit: string;
   specifications?: string;
   group_number?: number | null;
@@ -112,6 +115,40 @@ const RequestDetailsPage: React.FC = () => {
     }
   }, [requestId]);
 
+  const getLastIssuedMap = async (filters: { user_id?: string; wing_id?: string | number }) => {
+    const params = new URLSearchParams();
+    if (filters.user_id) params.append('user_id', filters.user_id);
+    if (filters.wing_id !== undefined && filters.wing_id !== null && String(filters.wing_id) !== '') {
+      params.append('wing_id', String(filters.wing_id));
+    }
+
+    const response = await fetch(
+      `${getApiBaseUrl()}/stock-issuance/last-issued-summary${params.toString() ? `?${params.toString()}` : ''}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch last issued summary: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const map: Record<string, { qty: number; date: string | null }> = {};
+    (data?.data || []).forEach((row: any) => {
+      const key = String(row.item_master_id || '');
+      if (!key) return;
+      map[key] = {
+        qty: Number(row.last_issued_quantity || 0),
+        date: row.last_issue_date || null
+      };
+    });
+
+    return map;
+  };
+
   const loadRequestDetails = async (id: string) => {
     try {
       setLoading(true);
@@ -150,6 +187,7 @@ const RequestDetailsPage: React.FC = () => {
                 : `${foundRequest.office?.name || 'Unknown Office'} (Organizational Request)`,
               items: foundRequest.items?.map((item: any) => ({
                 id: item.id,
+                item_master_id: item.item_master_id,
                 item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
                 requested_quantity: item.requested_quantity || 1,
                 approved_quantity: item.approved_quantity,
@@ -174,6 +212,7 @@ const RequestDetailsPage: React.FC = () => {
                 if (Array.isArray(requestDetailsData?.items) && requestDetailsData.items.length > 0) {
                   mappedRequest.items = requestDetailsData.items.map((item: any) => ({
                     id: item.id,
+                    item_master_id: item.item_master_id,
                     item_name: item.nomenclature || item.custom_item_name || item.item_name || 'Unknown Item',
                     requested_quantity: item.requested_quantity || 1,
                     approved_quantity: item.approved_quantity,
@@ -186,6 +225,30 @@ const RequestDetailsPage: React.FC = () => {
               }
             } catch (err) {
               console.warn('Failed to fetch request group details:', err);
+            }
+
+            try {
+              const filters: { user_id?: string; wing_id?: string | number } = {};
+              if (foundRequest.request_type === 'Individual' && foundRequest.requester_user_id) {
+                filters.user_id = String(foundRequest.requester_user_id);
+              } else if (foundRequest.requester_wing_id) {
+                filters.wing_id = foundRequest.requester_wing_id;
+              }
+
+              if (filters.user_id || filters.wing_id) {
+                const lastIssuedMap = await getLastIssuedMap(filters);
+                mappedRequest.items = mappedRequest.items.map((item) => {
+                  const key = String(item.item_master_id || '');
+                  const history = lastIssuedMap[key];
+                  return {
+                    ...item,
+                    last_issued_quantity: history?.qty,
+                    last_issue_date: history?.date || null
+                  };
+                });
+              }
+            } catch (err) {
+              console.warn('Failed to fetch last issued summary for request details:', err);
             }
 
             // Try to load detailed request info (including approval history and supervisor) from stock-issuance/:id
@@ -556,19 +619,30 @@ const RequestDetailsPage: React.FC = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button 
-          onClick={() => navigate('/dashboard/my-requests')} 
-          variant="outline" 
-          size="sm"
-        >
-          <ArrowLeft size={16} className="mr-2" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{request.title}</h1>
-          <p className="text-gray-600 mt-1">Request ID: {request.id.slice(0, 12)}...</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button 
+            onClick={() => navigate('/dashboard/my-requests')} 
+            variant="outline" 
+            size="sm"
+          >
+            <ArrowLeft size={16} className="mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">{request.title}</h1>
+            <p className="text-gray-600 mt-1">Request ID: {request.id.slice(0, 12)}...</p>
+          </div>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate(`/dashboard/requisition-report/${request.id}`)}
+        >
+          <FileText size={16} className="mr-2" />
+          Requisition Report
+        </Button>
       </div>
 
       {/* Status and Priority */}
@@ -646,41 +720,45 @@ const RequestDetailsPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {request.items.map((item, index) => {
-                  // Find corresponding approval item for this request item
-                  const approvalItem = request.approval_items.find(ai => ai.nomenclature === item.item_name);
-                  
-                  return (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-medium text-gray-900">{item.item_name}</h4>
-                        <div className="flex items-center gap-2">
-                          {approvalItem && (
-                            <div onClick={() => handleItemStatusClick(approvalItem)} className="cursor-pointer">
-                              {getItemStatusBadge(approvalItem.decision_type)}
-                            </div>
-                          )}
-                          <div className="text-sm text-gray-600">
-                            Requested: {item.requested_quantity} {item.unit}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {item.approved_quantity !== undefined && (
-                        <div className="text-sm text-green-600 mb-2">
-                          Approved: {item.approved_quantity} {item.unit}
-                        </div>
-                      )}
-                      
-                      {item.specifications && (
-                        <div className="text-sm text-gray-600">
-                          <span className="font-medium">Specifications:</span> {item.specifications}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full min-w-[820px] text-sm">
+                  <thead className="bg-gray-100 text-gray-700">
+                    <tr>
+                      <th className="text-left px-3 py-2">Item</th>
+                      <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
+                      <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
+                      <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
+                      <th className="text-left px-3 py-2 w-40">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {request.items.map((item, index) => {
+                      const approvalItem = request.approval_items.find(ai => ai.nomenclature === item.item_name);
+                      return (
+                        <tr key={index} className="border-t align-middle">
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-gray-900">{item.item_name}</div>
+                            {item.specifications && (
+                              <div className="text-xs text-gray-500 mt-1">{item.specifications}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">{item.last_issued_quantity ?? 0}</td>
+                          <td className="px-3 py-2">{formatDate(item.last_issue_date, 'MMM dd, yyyy', '-')}</td>
+                          <td className="px-3 py-2">{item.requested_quantity} {item.unit}</td>
+                          <td className="px-3 py-2">
+                            {approvalItem ? (
+                              <div onClick={() => handleItemStatusClick(approvalItem)} className="cursor-pointer inline-block">
+                                {getItemStatusBadge(approvalItem.decision_type)}
+                              </div>
+                            ) : (
+                              <Badge variant="outline">Pending</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
