@@ -40,6 +40,7 @@ const RequisitionReportPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<RequisitionReport | null>(null);
+  const todayText = formatDate(new Date().toISOString(), '-');
 
   useEffect(() => {
     const loadReport = async () => {
@@ -187,8 +188,10 @@ const RequisitionReportPage: React.FC = () => {
     );
   }
 
+  const totalFreshRequirement = report.items.reduce((sum, item) => sum + Number(item.requested_quantity || 0), 0);
+
   return (
-    <div className="container mx-auto p-6 bg-white print:p-0">
+    <div className="container mx-auto p-6 bg-[#f5f6f7] print:bg-white print:p-0">
       <div className="flex items-center justify-between mb-6 print:hidden">
         <Button variant="outline" onClick={() => navigate(`/dashboard/request-details/${report.id}`)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -200,48 +203,78 @@ const RequisitionReportPage: React.FC = () => {
         </Button>
       </div>
 
-      <Card className="print:shadow-none print:border-none">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Stock Requisition Report</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div><span className="font-semibold">Request No:</span> {report.request_number || report.id.slice(0, 12)}</div>
-            <div><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
-            <div><span className="font-semibold">Request Type:</span> {report.request_type}</div>
-            <div><span className="font-semibold">Requester:</span> {report.requester_name}</div>
-            <div><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
-            <div><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
-            <div className="md:col-span-2"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
+      <Card className="max-w-5xl mx-auto border-2 border-black/70 rounded-sm bg-white print:shadow-none print:border-none">
+        <CardContent className="p-0">
+          <div className="border-b-2 border-black/70 px-6 py-5 text-center">
+            <p className="text-xs tracking-[0.18em] uppercase text-gray-700">Election Commission of Pakistan</p>
+            <h1 className="text-2xl font-semibold tracking-wide mt-1">REQUISITION REPORT</h1>
+            <p className="text-xs mt-1 text-gray-700">Inventory Management System - Formal Slip</p>
           </div>
 
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead className="bg-gray-100 text-gray-700">
-                <tr>
-                  <th className="text-left px-3 py-2">Item</th>
-                  <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
-                  <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
-                  <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
+          <div className="px-6 py-4 border-b border-black/50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">
+              <div><span className="font-semibold">Requisition No:</span> {report.request_number || report.id.slice(0, 12)}</div>
+              <div><span className="font-semibold">Generated On:</span> {todayText}</div>
+              <div><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
+              <div><span className="font-semibold">Request Type:</span> {report.request_type}</div>
+              <div><span className="font-semibold">Requester:</span> {report.requester_name}</div>
+              <div><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
+              <div className="md:col-span-2"><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
+              <div className="md:col-span-2"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
+            </div>
+          </div>
+
+          <div className="px-6 py-4">
+            <table className="w-full text-sm border border-black/60 border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-black/60 px-2 py-2 w-12 text-center">Sr.</th>
+                  <th className="border border-black/60 px-2 py-2 text-left">Item Description</th>
+                  <th className="border border-black/60 px-2 py-2 w-36 text-left">Last Issued Qty</th>
+                  <th className="border border-black/60 px-2 py-2 w-36 text-left">Last Issue Date</th>
+                  <th className="border border-black/60 px-2 py-2 w-40 text-left">Fresh Requirement</th>
                 </tr>
               </thead>
               <tbody>
-                {report.items.map((item) => (
-                  <tr key={item.id} className="border-t align-middle">
-                    <td className="px-3 py-2">{item.item_name}</td>
-                    <td className="px-3 py-2">{item.last_issued_quantity ?? 0}</td>
-                    <td className="px-3 py-2">{formatDate(item.last_issue_date, '-')}</td>
-                    <td className="px-3 py-2">{item.requested_quantity} {item.unit}</td>
+                {report.items.map((item, index) => (
+                  <tr key={item.id}>
+                    <td className="border border-black/60 px-2 py-2 text-center">{index + 1}</td>
+                    <td className="border border-black/60 px-2 py-2">{item.item_name}</td>
+                    <td className="border border-black/60 px-2 py-2">{item.last_issued_quantity ?? 0}</td>
+                    <td className="border border-black/60 px-2 py-2">{formatDate(item.last_issue_date, '-')}</td>
+                    <td className="border border-black/60 px-2 py-2">{item.requested_quantity} {item.unit}</td>
                   </tr>
                 ))}
+                {report.items.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="border border-black/60 px-2 py-6 text-center text-gray-600">
+                      No items available in this requisition.
+                    </td>
+                  </tr>
+                )}
+                <tr className="bg-gray-50 font-semibold">
+                  <td className="border border-black/60 px-2 py-2 text-center" colSpan={4}>Total Fresh Requirement</td>
+                  <td className="border border-black/60 px-2 py-2">{totalFreshRequirement}</td>
+                </tr>
               </tbody>
             </table>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-10 text-sm">
-            <div className="border-t pt-2 text-center">Requested By</div>
-            <div className="border-t pt-2 text-center">Verified By</div>
-            <div className="border-t pt-2 text-center">Approved By</div>
+          <div className="px-6 pb-8 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
+              <div className="text-center">
+                <div className="border-t border-black/70 pt-2">Requested By</div>
+                <div className="mt-1 text-xs text-gray-600">{report.requester_name}</div>
+              </div>
+              <div className="text-center">
+                <div className="border-t border-black/70 pt-2">Verified By</div>
+                <div className="mt-1 text-xs text-gray-600">Store Keeper</div>
+              </div>
+              <div className="text-center">
+                <div className="border-t border-black/70 pt-2">Approved By</div>
+                <div className="mt-1 text-xs text-gray-600">Competent Authority</div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
