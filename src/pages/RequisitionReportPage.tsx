@@ -539,18 +539,14 @@ const RequisitionReportPage: React.FC = () => {
   const totalAllottedQuantity = report.items.reduce((sum, item) => sum + Number(item.allotted_quantity || 0), 0);
 
   return (
-    <div className="requisition-print-shell container mx-auto p-6 bg-[#f5f6f7] print:bg-white print:p-0">
+    <div className="requisition-print-shell container mx-auto p-6 bg-[#f5f6f7] print:bg-white print:p-0 print:m-0">
       <style>{`
         @page {
           size: A4;
-          margin: 0.5in;
+          margin: 0.3in;
         }
 
         @media print {
-          * {
-            page-break-inside: avoid;
-          }
-
           body.requisition-report-print aside,
           body.requisition-report-print header,
           body.requisition-report-print nav,
@@ -559,18 +555,51 @@ const RequisitionReportPage: React.FC = () => {
             display: none !important;
           }
 
+          body.requisition-report-print {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            line-height: 1.3;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
           body.requisition-report-print .requisition-print-shell {
             margin: 0 !important;
             max-width: none !important;
             padding: 0 !important;
             background: #fff !important;
+            display: block !important;
+            page-break-after: avoid;
           }
 
           body.requisition-report-print .requisition-print-card {
-            border: 0 !important;
+            border: none !important;
             box-shadow: none !important;
             max-width: none !important;
             width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            page-break-inside: avoid;
+            display: block !important;
+          }
+
+          body.requisition-report-print .requisition-print-card > div {
+            page-break-inside: avoid;
+          }
+
+          body.requisition-report-print table {
+            page-break-inside: avoid;
+            border-collapse: collapse;
+            width: 100%;
+          }
+
+          body.requisition-report-print thead {
+            display: table-header-group;
+            page-break-inside: avoid;
+          }
+
+          body.requisition-report-print tbody tr {
+            page-break-inside: avoid;
           }
 
           body.requisition-report-print .requisition-signature-label {
@@ -580,40 +609,6 @@ const RequisitionReportPage: React.FC = () => {
 
           body.requisition-report-print .requisition-signature-value {
             color: #000 !important;
-          }
-
-          body.requisition-report-print {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            line-height: 1.4;
-          }
-
-          body.requisition-report-print table {
-            page-break-inside: avoid;
-            border-collapse: collapse;
-          }
-
-          body.requisition-report-print tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
-
-          body.requisition-report-print thead {
-            page-break-inside: avoid;
-            display: table-header-group;
-          }
-
-          body.requisition-report-print tbody {
-            page-break-inside: avoid;
-          }
-
-          body.requisition-report-print h1, 
-          body.requisition-report-print h2, 
-          body.requisition-report-print h3,
-          body.requisition-report-print p {
-            orphans: 2;
-            widows: 2;
-            page-break-inside: avoid;
           }
         }
       `}</style>
@@ -630,28 +625,28 @@ const RequisitionReportPage: React.FC = () => {
 
       <Card className="requisition-print-card max-w-5xl mx-auto border-2 border-black/70 rounded-sm bg-white print:shadow-none print:border-none print:page-break-inside-avoid">
         <CardContent className="p-0 print:page-break-inside-avoid">
-          <div className="border-b-2 border-black/70 px-6 py-5 text-center print:py-4 print:px-5">
-            <p className="text-xs tracking-[0.18em] uppercase text-gray-700 print:m-0">Election Commission of Pakistan</p>
-            <h1 className="text-2xl font-semibold tracking-wide mt-1 print:mt-0 print:mb-0">REQUISITION REPORT</h1>
-            <p className="text-xs mt-1 text-gray-700 print:mt-0 print:mb-0">Inventory Management System - Formal Slip</p>
+          <div className="border-b-2 border-black/70 px-6 py-5 text-center print:py-3 print:px-4">
+            <p className="text-xs tracking-[0.18em] uppercase text-gray-700">Election Commission of Pakistan</p>
+            <h1 className="text-2xl font-semibold tracking-wide mt-1">REQUISITION REPORT</h1>
+            <p className="text-xs mt-1 text-gray-700">Inventory Management System - Formal Slip</p>
           </div>
 
-          <div className="px-6 py-4 border-b border-black/50 print:px-5 print:py-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm print:gap-x-8 print:gap-y-1 print:text-sm">
-              <div className="print:m-0"><span className="font-semibold">Requisition No:</span> {report.request_number || report.id.slice(0, 12)}</div>
-              <div className="print:m-0"><span className="font-semibold">Generated On:</span> {todayText}</div>
-              <div className="print:m-0"><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
-              <div className="print:m-0"><span className="font-semibold">Request Type:</span> {report.request_type}</div>
-              <div className="print:m-0"><span className="font-semibold">Requester:</span> {report.requester_name}</div>
-              <div className="print:m-0"><span className="font-semibold">Designation:</span> {report.requester_designation || '-'}</div>
-              <div className="print:m-0"><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
-              <div className="md:col-span-2 print:m-0"><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
-              <div className="md:col-span-2 print:m-0"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
+          <div className="px-6 py-4 border-b border-black/50 print:px-4 print:py-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm print:gap-x-6 print:gap-y-1 print:text-sm">
+              <div><span className="font-semibold">Requisition No:</span> {report.request_number || report.id.slice(0, 12)}</div>
+              <div><span className="font-semibold">Generated On:</span> {todayText}</div>
+              <div><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
+              <div><span className="font-semibold">Request Type:</span> {report.request_type}</div>
+              <div><span className="font-semibold">Requester:</span> {report.requester_name}</div>
+              <div><span className="font-semibold">Designation:</span> {report.requester_designation || '-'}</div>
+              <div><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
+              <div className="md:col-span-2"><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
+              <div className="md:col-span-2"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
             </div>
           </div>
 
-          <div className="px-6 py-4 print:px-5 print:py-3 print:page-break-inside-avoid">
-            <table className="w-full text-sm border border-black/60 border-collapse print:text-sm">
+          <div className="px-6 py-4 print:px-4 print:py-2 print:page-break-inside-avoid">
+            <table className="w-full text-sm border border-black/60 border-collapse print:text-xs">
               <thead className="print:page-break-inside-avoid">
                 <tr className="bg-gray-100">
                   <th className="border border-black/60 px-2 py-2 w-12 text-center print:px-1 print:py-1">Sr.</th>
@@ -689,23 +684,23 @@ const RequisitionReportPage: React.FC = () => {
             </table>
           </div>
 
-          <div className="px-6 pb-8 pt-6 print:px-5 print:pb-4 print:pt-4 print:page-break-inside-avoid">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm print:gap-4 print:page-break-inside-avoid">
+          <div className="px-6 pb-8 pt-6 print:px-4 print:pb-2 print:pt-3 print:page-break-inside-avoid">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm print:gap-3 print:page-break-inside-avoid">
               <div className="text-center print:page-break-inside-avoid">
                 <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Requested By</div>
-                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[11px]">{report.requester_name}</div>
-                <div className="requisition-signature-value text-[11px] text-gray-500 print:text-[10px]">{report.requester_designation || '-'}</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[10px]">{report.requester_name}</div>
+                <div className="requisition-signature-value text-[11px] text-gray-500 print:text-[9px]">{report.requester_designation || '-'}</div>
               </div>
               <div className="text-center print:page-break-inside-avoid">
                 <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Allotted By</div>
-                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[11px]">{report.allotted_by_name || '-'}</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[10px]">{report.allotted_by_name || '-'}</div>
               </div>
               <div className="text-center print:page-break-inside-avoid">
                 <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Approved By</div>
-                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[11px]">{report.approved_by_name || '-'}</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[10px]">{report.approved_by_name || '-'}</div>
               </div>
             </div>
-            <p className="text-center text-xs text-gray-600 mt-8 border-t border-dashed border-gray-400 pt-3 print:mt-4 print:pt-2 print:text-[10px]">
+            <p className="text-center text-xs text-gray-600 mt-8 border-t border-dashed border-gray-400 pt-3 print:mt-2 print:pt-1 print:text-[9px]">
               This report is Computer Generated.
             </p>
           </div>
