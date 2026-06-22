@@ -29,6 +29,13 @@ interface RequisitionReport {
   items: ReportItem[];
 }
 
+interface RequisitionOption {
+  id: string;
+  request_number?: string;
+  purpose?: string;
+  submitted_at?: string;
+}
+
 const formatDate = (value?: string | null, fallback = '-') => {
   if (!value) return fallback;
   const dt = new Date(value);
@@ -42,19 +49,15 @@ const RequisitionReportPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<RequisitionReport | null>(null);
+  const [requestOptions, setRequestOptions] = useState<RequisitionOption[]>([]);
   const todayText = formatDate(new Date().toISOString(), '-');
 
   useEffect(() => {
     const loadReport = async () => {
-      if (!requestId) {
-        setError('Missing request id');
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
         setError(null);
+        setReport(null);
 
         const requestsResp = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
           method: 'GET',
@@ -67,7 +70,22 @@ const RequisitionReportPage: React.FC = () => {
         }
 
         const requestsData = await requestsResp.json();
-        const found = (requestsData?.data || []).find((r: any) => r.id === requestId);
+        const allRequests = requestsData?.data || [];
+
+        if (!requestId) {
+          const options = allRequests
+            .map((r: any) => ({
+              id: String(r.id),
+              request_number: r.request_number,
+              purpose: r.purpose,
+              submitted_at: r.submitted_at || r.created_at || null
+            }))
+            .slice(0, 25);
+          setRequestOptions(options);
+          return;
+        }
+
+        const found = allRequests.find((r: any) => r.id === requestId);
 
         if (!found) {
           throw new Error('Request not found');
@@ -216,6 +234,32 @@ const RequisitionReportPage: React.FC = () => {
   }
 
   if (error || !report) {
+    if (!requestId && requestOptions.length > 0) {
+      return (
+        <div className="container mx-auto p-6">
+          <Card className="max-w-4xl mx-auto">
+            <CardHeader>
+              <CardTitle>Select Requisition Report</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {requestOptions.map((req) => (
+                <div key={req.id} className="border rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{req.request_number || req.id.slice(0, 12)}</p>
+                    <p className="text-sm text-gray-600">{req.purpose || '-'}</p>
+                    <p className="text-xs text-gray-500">{formatDate(req.submitted_at, '-')}</p>
+                  </div>
+                  <Button size="sm" onClick={() => navigate(`/dashboard/requisition-report/${req.id}`)}>
+                    Open Report
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="container mx-auto p-6">
         <Card>

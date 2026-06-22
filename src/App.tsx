@@ -237,6 +237,7 @@ function App() {
                   <Route path="my-requests" element={<MyRequestsPage />} />
                   <Route path="wing-requests" element={<WingRequestsPage />} />
                   <Route path="request-details/:requestId" element={<RequestDetailsPage />} />
+                  <Route path="requisition-report" element={<RequisitionReportPage />} />
                   <Route path="requisition-report/:requestId" element={<RequisitionReportPage />} />
                   <Route path="stock-operation-request-details/:requestId" element={<StockOperationRequestDetails />} />
                   <Route path="approval-forwarding/:id" element={<ApprovalForwardingWrapper />} />

@@ -139,9 +139,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const hasStoreKeeperRole = user?.ims_roles?.some(role => 
     role.role_name === 'WING_STORE_KEEPER' || 
     role.role_name === 'CUSTOM_WING_STORE_KEEPER' ||
-    role.role_name === 'STOREKEEPER' ||
-    role.role_name.includes('STORE_KEEPER') ||
-    role.role_name.includes('STOREKEEPER')
+    role.role_name.includes('STORE_KEEPER')
   ) || false;
   
   // Store keeper can view the menu if they have the permission OR the role
@@ -192,6 +190,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "My Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
       { title: "My Requests", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
+      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: 'issuance.request' },
       { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
@@ -257,7 +256,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Procurement Menu",
     icon: Building2,
     items: [
-      { title: "Required Items (OOS)", icon: ClipboardList, path: "/dashboard/required-items", permission: 'procurement.manage' },
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Petty Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
