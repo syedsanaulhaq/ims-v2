@@ -639,7 +639,7 @@ const RequisitionReportPage: React.FC = () => {
       </div>
 
       <Card className="requisition-print-card max-w-5xl mx-auto border-2 border-black/70 rounded-sm bg-white print:shadow-none print:border-none print:page-break-inside-avoid">
-        <CardContent className="p-0 print:page-break-inside-avoid">
+        <CardContent className="p-0 print:page-break-inside-avoid print:min-h-[9.6in] print:flex print:flex-col">
           <div className="border-b-2 border-black/70 px-6 py-5 text-center print:py-3 print:px-4">
             <p className="text-xs tracking-[0.18em] uppercase text-gray-700">Election Commission of Pakistan</p>
             <h1 className="text-2xl font-semibold tracking-wide mt-1">REQUISITION REPORT</h1>
@@ -699,7 +699,7 @@ const RequisitionReportPage: React.FC = () => {
             </table>
           </div>
 
-          <div className="px-6 pb-8 pt-6 print:px-4 print:pb-2 print:pt-3 print:page-break-inside-avoid">
+          <div className="px-6 pb-8 pt-6 print:px-4 print:pb-2 print:pt-3 print:page-break-inside-avoid print:mt-auto">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm print:grid-cols-3 print:gap-3 print:page-break-inside-avoid">
               <div className="text-center print:page-break-inside-avoid">
                 <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Requested By</div>
