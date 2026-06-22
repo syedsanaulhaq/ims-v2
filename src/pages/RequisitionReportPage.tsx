@@ -547,6 +547,21 @@ const RequisitionReportPage: React.FC = () => {
         }
 
         @media print {
+          body.requisition-report-print #root > * {
+            visibility: hidden !important;
+          }
+
+          body.requisition-report-print .requisition-print-shell,
+          body.requisition-report-print .requisition-print-shell * {
+            visibility: visible !important;
+          }
+
+          body.requisition-report-print .requisition-print-shell {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+          }
+
           body.requisition-report-print aside,
           body.requisition-report-print header,
           body.requisition-report-print nav,
@@ -685,7 +700,7 @@ const RequisitionReportPage: React.FC = () => {
           </div>
 
           <div className="px-6 pb-8 pt-6 print:px-4 print:pb-2 print:pt-3 print:page-break-inside-avoid">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm print:gap-3 print:page-break-inside-avoid">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm print:grid-cols-3 print:gap-3 print:page-break-inside-avoid">
               <div className="text-center print:page-break-inside-avoid">
                 <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Requested By</div>
                 <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[10px]">{report.requester_name}</div>
