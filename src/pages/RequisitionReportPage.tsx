@@ -12,6 +12,7 @@ interface ReportItem {
   item_name: string;
   unit: string;
   requested_quantity: number;
+  allotted_quantity?: number;
   last_issued_quantity?: number;
   last_issue_date?: string | null;
 }
@@ -114,6 +115,7 @@ const RequisitionReportPage: React.FC = () => {
           item_master_id: item.item_master_id ? String(item.item_master_id) : undefined,
           item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
           requested_quantity: Number(item.requested_quantity || 0),
+          allotted_quantity: Number(item.issued_quantity ?? item.approved_quantity ?? 0),
           unit: item.unit || 'Nos.'
         }));
 
@@ -135,6 +137,7 @@ const RequisitionReportPage: React.FC = () => {
                 item_master_id: item.item_master_id ? String(item.item_master_id) : undefined,
                 item_name: item.nomenclature || item.custom_item_name || item.item_name || 'Unknown Item',
                 requested_quantity: Number(item.requested_quantity || 0),
+                allotted_quantity: Number(item.issued_quantity ?? item.approved_quantity ?? 0),
                 unit: item.unit || 'Nos.'
               }));
             }
@@ -333,6 +336,7 @@ const RequisitionReportPage: React.FC = () => {
   }
 
   const totalFreshRequirement = report.items.reduce((sum, item) => sum + Number(item.requested_quantity || 0), 0);
+  const totalAllottedQuantity = report.items.reduce((sum, item) => sum + Number(item.allotted_quantity || 0), 0);
 
   return (
     <div className="container mx-auto p-6 bg-[#f5f6f7] print:bg-white print:p-0">
@@ -377,6 +381,7 @@ const RequisitionReportPage: React.FC = () => {
                   <th className="border border-black/60 px-2 py-2 w-36 text-left">Last Issued Qty</th>
                   <th className="border border-black/60 px-2 py-2 w-36 text-left">Last Issue Date</th>
                   <th className="border border-black/60 px-2 py-2 w-40 text-left">Fresh Requirement</th>
+                  <th className="border border-black/60 px-2 py-2 w-32 text-left">Allotted Qty</th>
                 </tr>
               </thead>
               <tbody>
@@ -387,18 +392,20 @@ const RequisitionReportPage: React.FC = () => {
                     <td className="border border-black/60 px-2 py-2">{item.last_issued_quantity ?? 0}</td>
                     <td className="border border-black/60 px-2 py-2">{formatDate(item.last_issue_date, '-')}</td>
                     <td className="border border-black/60 px-2 py-2">{item.requested_quantity} {item.unit}</td>
+                    <td className="border border-black/60 px-2 py-2">{item.allotted_quantity ?? 0} {item.unit}</td>
                   </tr>
                 ))}
                 {report.items.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="border border-black/60 px-2 py-6 text-center text-gray-600">
+                    <td colSpan={6} className="border border-black/60 px-2 py-6 text-center text-gray-600">
                       No items available in this requisition.
                     </td>
                   </tr>
                 )}
                 <tr className="bg-gray-50 font-semibold">
-                  <td className="border border-black/60 px-2 py-2 text-center" colSpan={4}>Total Fresh Requirement</td>
+                  <td className="border border-black/60 px-2 py-2 text-center" colSpan={4}>Total</td>
                   <td className="border border-black/60 px-2 py-2">{totalFreshRequirement}</td>
+                  <td className="border border-black/60 px-2 py-2">{totalAllottedQuantity}</td>
                 </tr>
               </tbody>
             </table>
