@@ -306,6 +306,37 @@ router.get('/session', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/auth/designation/:userId - Get designation for any user
+// ============================================================================
+router.get('/designation/:userId', async (req, res) => {
+  try {
+    const pool = getPool();
+
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { userId } = req.params;
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT TOP 1
+          COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') AS designation
+        FROM AspNetUsers u
+        LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
+        LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
+        WHERE CONVERT(NVARCHAR(450), u.Id) = @userId
+      `);
+
+    const designation = result.recordset?.[0]?.designation || '-';
+    return res.json({ success: true, designation });
+  } catch (error) {
+    console.error('Error fetching designation by user ID:', error);
+    return res.status(500).json({ success: false, error: 'Failed to fetch designation' });
+  }
+});
+
+// ============================================================================
 // POST /api/auth/ds-authenticate - Digital System SSO Authentication
 // ============================================================================
 // This endpoint is called by the .NET Digital System application for SSO

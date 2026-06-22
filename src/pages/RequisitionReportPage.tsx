@@ -139,32 +139,24 @@ const RequisitionReportPage: React.FC = () => {
           found.requester?.role
         );
 
-        // Keep designation source aligned with header/profile for self-created requests.
         if (requesterDesignation === '-') {
-          try {
-            const sessionResp = await fetch(`${getApiBaseUrl()}/auth/session`, {
-              method: 'GET',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' }
-            });
+          const requesterUserId = String(found.requester_user_id || found.requester?.user_id || '').trim();
 
-            if (sessionResp.ok) {
-              const sessionData = await sessionResp.json();
-              const sessionUserId = String(sessionData?.session?.user_id || '').trim();
-              const sessionDesignation = String(sessionData?.session?.designation || '').trim();
-              const requesterUserId = String(found.requester_user_id || found.requester?.user_id || '').trim();
+          if (requesterUserId) {
+            try {
+              const designationResp = await fetch(`${getApiBaseUrl()}/auth/designation/${requesterUserId}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
 
-              if (
-                sessionDesignation &&
-                sessionDesignation !== '-' &&
-                requesterUserId &&
-                requesterUserId.toLowerCase() === sessionUserId.toLowerCase()
-              ) {
-                requesterDesignation = sessionDesignation;
+              if (designationResp.ok) {
+                const designationData = await designationResp.json();
+                requesterDesignation = pickDesignation(designationData?.designation);
               }
+            } catch (designationError) {
+              console.warn('Requisition report: failed to load requester designation from auth endpoint', designationError);
             }
-          } catch (sessionError) {
-            console.warn('Requisition report: failed to load session designation fallback', sessionError);
           }
         }
 

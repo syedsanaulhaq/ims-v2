@@ -146,7 +146,9 @@ router.get('/requests', requireAuth, async (req, res) => {
         u.FullName as 'requester.full_name',
         u.UserName as 'requester.user_name',
         u.Role as 'requester.role_name',
-        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), '-') as 'requester.designation_name',
+        u.Role as requester_role_name,
+        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') as 'requester.designation_name',
+        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') as requester_designation_name,
         w.Id as 'wing.wing_id',
         w.Name as 'wing.name',
         o.intOfficeID as 'office.office_id',
@@ -154,6 +156,7 @@ router.get('/requests', requireAuth, async (req, res) => {
       FROM stock_issuance_requests sir
       LEFT JOIN AspNetUsers u ON CONVERT(NVARCHAR(450), sir.requester_user_id) = CONVERT(NVARCHAR(450), u.Id)
       LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), sir.requester_user_id)
+      LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
       LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
       LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
     `;
@@ -253,6 +256,26 @@ router.get('/requests', requireAuth, async (req, res) => {
             )
         `);
 
+      let requesterDesignation = row.requester_designation_name || row['requester.designation_name'];
+      let requesterRoleName = row.requester_role_name || row['requester.role_name'];
+
+      if (!requesterDesignation || requesterDesignation === '-') {
+        const fallbackDesignation = await pool.request()
+          .input('userId', sql.NVarChar(450), String(row.requester_user_id || ''))
+          .query(`
+            SELECT TOP 1
+              COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') AS designation_name,
+              u.Role AS role_name
+            FROM AspNetUsers u
+            LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
+            LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
+            WHERE CONVERT(NVARCHAR(450), u.Id) = @userId
+          `);
+
+        requesterDesignation = fallbackDesignation.recordset?.[0]?.designation_name || '-';
+        requesterRoleName = requesterRoleName || fallbackDesignation.recordset?.[0]?.role_name || '-';
+      }
+
       return {
         id: row.id,
         request_number: row.request_number,
@@ -278,8 +301,8 @@ router.get('/requests', requireAuth, async (req, res) => {
           user_id: row['requester.user_id'],
           full_name: row['requester.full_name'],
           user_name: row['requester.user_name'],
-          role_name: row['requester.role_name'],
-          designation_name: row['requester.designation_name']
+          role_name: requesterRoleName,
+          designation_name: requesterDesignation
         },
         wing: row['wing.wing_id'] ? {
           wing_id: row['wing.wing_id'],
