@@ -52,6 +52,14 @@ const formatDate = (value?: string | null, fallback = '-') => {
   return dt.toLocaleDateString('en-GB');
 };
 
+const pickDesignation = (...values: Array<string | undefined | null>) => {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text && text !== '-') return text;
+  }
+  return '-';
+};
+
 const RequisitionReportPage: React.FC = () => {
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
@@ -90,13 +98,13 @@ const RequisitionReportPage: React.FC = () => {
               purpose: r.purpose,
               submitted_at: r.submitted_at || r.created_at || null,
               requester_name: r.requester?.full_name || r.requester_name || '-',
-              requester_designation:
-                r.requester?.designation_name ||
-                r.requester?.role_name ||
-                r.requester?.designation ||
-                r.requester_designation ||
-                r.requester?.role ||
-                '-',
+              requester_designation: pickDesignation(
+                r.requester?.designation_name,
+                r.requester?.designation,
+                r.requester_designation,
+                r.requester?.role_name,
+                r.requester?.role
+              ),
               request_type: r.request_type || '-',
               request_status: r.request_status || r.approval_status || '-',
               office_name: r.office?.name || r.office?.office_name || '-',
@@ -123,12 +131,42 @@ const RequisitionReportPage: React.FC = () => {
 
         let allottedByName = '-';
         let approvedByName = '-';
-        let requesterDesignation =
-          found.requester?.designation_name ||
-          found.requester?.role_name ||
-          found.requester_designation ||
-          found.requester?.designation ||
-          '-';
+        let requesterDesignation = pickDesignation(
+          found.requester?.designation_name,
+          found.requester?.designation,
+          found.requester_designation,
+          found.requester?.role_name,
+          found.requester?.role
+        );
+
+        // Keep designation source aligned with header/profile for self-created requests.
+        if (requesterDesignation === '-') {
+          try {
+            const sessionResp = await fetch(`${getApiBaseUrl()}/auth/session`, {
+              method: 'GET',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (sessionResp.ok) {
+              const sessionData = await sessionResp.json();
+              const sessionUserId = String(sessionData?.session?.user_id || '').trim();
+              const sessionDesignation = String(sessionData?.session?.designation || '').trim();
+              const requesterUserId = String(found.requester_user_id || found.requester?.user_id || '').trim();
+
+              if (
+                sessionDesignation &&
+                sessionDesignation !== '-' &&
+                requesterUserId &&
+                requesterUserId.toLowerCase() === sessionUserId.toLowerCase()
+              ) {
+                requesterDesignation = sessionDesignation;
+              }
+            }
+          } catch (sessionError) {
+            console.warn('Requisition report: failed to load session designation fallback', sessionError);
+          }
+        }
 
         try {
           const detailResp = await fetch(`http://localhost:3001/api/approvals/request/${found.id}`, {
@@ -211,16 +249,6 @@ const RequisitionReportPage: React.FC = () => {
           );
           if (allottedRows.length > 0) {
             allottedByName = allottedRows[allottedRows.length - 1].actor;
-          }
-
-          if (!requesterDesignation || requesterDesignation === '-') {
-            const requesterName = String(found.requester?.full_name || found.requester_name || '').trim().toLowerCase();
-            const requesterRow = normalized.find((h: any) =>
-              h.actor && h.roleLabel && h.actor.toLowerCase() === requesterName
-            );
-            if (requesterRow?.roleLabel) {
-              requesterDesignation = requesterRow.roleLabel;
-            }
           }
 
           const approvedRows = normalized.filter((h: any) =>
