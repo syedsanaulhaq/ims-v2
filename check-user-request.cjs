@@ -1,116 +1,95 @@
-const sql = require('mssql');
-const config = {
-  server: 'SYED-FAZLI-LAPT',
-  database: 'InventoryManagementDB',
-  user: 'inventorymanagementuser',
-  password: '2016Wfp61@',
-  port: 1433,
-  options: {
-    encrypt: false,
-    trustServerCertificate: true,
-    enableArithAbort: true
-  },
-  requestTimeout: 30000,
-  connectionTimeout: 30000
-};
+const { initializePool, sql } = require('./server/db/connection.cjs');
+const dotenv = require('dotenv');
 
-async function checkUserRequest() {
+// Load environment variables
+dotenv.config();
+
+async function run() {
   try {
-    const pool = await sql.connect(config);
+    const pool = await initializePool();
+    console.log('Connected!');
 
-    const userId = '36B9DC41-9A38-44E6-B4FB-C026B6A0F7E6';
+    // Get the user details
+    const userResult = await pool.request()
+      .query(`SELECT Id, FullName, UserName, Email, intWingID FROM AspNetUsers WHERE UserName = '1730115698727'`);
+    console.log('User Details:', userResult.recordset);
 
-    console.log('=== CHECKING USER REQUESTS ===');
-    console.log('User ID:', userId);
+    if (userResult.recordset.length > 0) {
+      const userId = userResult.recordset[0].Id;
+      
+      // Get stock issuance requests for this user
+      const requests = await pool.request()
+        .input('userId', sql.NVarChar, userId)
+        .query(`
+          SELECT sir.id, sir.request_number, sir.request_type, sir.purpose, sir.urgency_level, sir.approval_status, sir.request_status, sir.created_at, sir.submitted_at
+          FROM stock_issuance_requests sir
+          WHERE sir.requester_user_id = @userId
+          ORDER BY sir.created_at DESC
+        `);
+      console.log('Requests for this user:');
+      console.table(requests.recordset);
 
-    // Get user info
-    const userResult = await pool.request().query(`SELECT Id, FullName, UserName, Email FROM AspNetUsers WHERE Id = '${userId}'`);
-    console.log('\nUser Info:');
-    console.log(userResult.recordset[0]);
+      if (requests.recordset.length > 0) {
+        const firstRequestId = requests.recordset[0].id;
+        
+        // Let's get items for the most recent request
+        const items = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, firstRequestId)
+          .query(`
+            SELECT sii.id, sii.item_master_id, sii.nomenclature, sii.requested_quantity, sii.approved_quantity, sii.item_status
+            FROM stock_issuance_items sii
+            WHERE sii.request_id = @requestId
+          `);
+        console.log('Items for request ' + requests.recordset[0].request_number + ' (ID: ' + firstRequestId + '):');
+        console.table(items.recordset);
 
-    // Check user's submitted requests
-    const requestsQuery = `
-      SELECT 
-        sir.id as request_id,
-        sir.request_number,
-        sir.request_status,
-        sir.submitted_at,
-        sir.created_at,
-        sir.requester_user_id,
-        sir.supervisor_id,
-        sir.admin_id,
-        u_supervisor.FullName as supervisor_name,
-        u_admin.FullName as admin_name
-      FROM stock_issuance_requests sir
-      LEFT JOIN AspNetUsers u_supervisor ON u_supervisor.Id = sir.supervisor_id
-      LEFT JOIN AspNetUsers u_admin ON u_admin.Id = sir.admin_id
-      WHERE sir.requester_user_id = '${userId}'
-      ORDER BY sir.created_at DESC
-    `;
+        // Let's also check the workflow/approval status for this request
+        const approval = await pool.request()
+          .input('requestId', sql.UniqueIdentifier, firstRequestId)
+          .query(`
+            SELECT ra.id, ra.current_approver_id, ra.current_status, ra.is_admin_workflow, u.FullName as current_approver_name
+            FROM request_approvals ra
+            LEFT JOIN AspNetUsers u ON ra.current_approver_id = u.Id
+            WHERE ra.request_id = @requestId
+          `);
+        console.log('Approval workflows:');
+        console.table(approval.recordset);
+
+        if (approval.recordset.length > 0) {
+          const approvalId = approval.recordset[0].id;
+          
+          // Let's get history
+          const history = await pool.request()
+            .input('approvalId', sql.UniqueIdentifier, approvalId)
+            .query(`
+              SELECT ah.step_number, ah.action_type, ah.action_date, ah.comments, u.FullName as action_by_name
+              FROM approval_history ah
+              LEFT JOIN AspNetUsers u ON ah.action_by = u.Id
+              WHERE ah.request_approval_id = @approvalId
+              ORDER BY ah.step_number ASC
+            `);
+          console.log('History:');
+          console.table(history.recordset);
+
+          // Let's check ims_request_workflow_state
+          const state = await pool.request()
+            .input('requestId', sql.UniqueIdentifier, firstRequestId)
+            .query(`
+              SELECT ws.id, ws.group_number, ws.current_step_id, ws.lane_status, ws.is_completed, ws.current_approver_id, u.FullName as current_approver_name
+              FROM ims_request_workflow_state ws
+              LEFT JOIN AspNetUsers u ON ws.current_approver_id = u.Id
+              WHERE ws.request_id = @requestId
+            `);
+          console.log('Workflow state states (per group):');
+          console.table(state.recordset);
+        }
+      }
+    }
     
-    const requestsResult = await pool.request()
-      .query(requestsQuery);
-
-    console.log('\nUser\'s Submitted Requests:');
-    requestsResult.recordset.forEach(r => {
-      console.log('- Request ID:', r.request_id);
-      console.log('  Status:', r.request_status);
-      console.log('  Submitted:', r.submitted_at);
-      console.log('  Supervisor:', r.supervisor_name || 'Not assigned');
-      console.log('  Admin:', r.admin_name || 'Not assigned');
-    });
-
-    // Check approval workflow for this user's requests
-    const approvalQuery = `
-      SELECT
-        ra.id as approval_id,
-        ra.request_id,
-        ra.current_status,
-        ra.current_approver_id,
-        ra.submitted_by,
-        ra.submitted_date,
-        u_approver.FullName as current_approver_name,
-        u_submitter.FullName as submitter_name
-      FROM request_approvals ra
-      LEFT JOIN AspNetUsers u_approver ON u_approver.Id = ra.current_approver_id
-      LEFT JOIN AspNetUsers u_submitter ON u_submitter.Id = ra.submitted_by
-      WHERE ra.submitted_by = '${userId}'
-      ORDER BY ra.submitted_date DESC
-    `;
-
-    const approvalResult = await pool.request()
-      .query(approvalQuery);
-
-    console.log('\nApproval Workflow Records:');
-    approvalResult.recordset.forEach(a => {
-      console.log('- Approval ID:', a.approval_id);
-      console.log('  Request ID:', a.request_id);
-      console.log('  Status:', a.current_status);
-      console.log('  Current Approver:', a.current_approver_name || 'Not assigned');
-      console.log('  Submitted by:', a.submitter_name);
-      console.log('  Submitted date:', a.submitted_date);
-    });
-
-    // Check if there are any supervisors in the system
-    const supervisorsQuery = `
-      SELECT DISTINCT u.Id, u.FullName, u.UserName
-      FROM AspNetUsers u
-      INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
-      INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
-      WHERE r.Name LIKE '%supervisor%' OR r.Name LIKE '%wing%'
-    `;
-
-    const supervisorsResult = await pool.request().query(supervisorsQuery);
-    console.log('\nAvailable Supervisors:');
-    supervisorsResult.recordset.forEach(s => {
-      console.log('- ID:', s.Id, 'Name:', s.FullName, 'Role:', s.UserName);
-    });
-
+    await pool.close();
   } catch (err) {
     console.error('Error:', err);
-  } finally {
-    await sql.close();
   }
 }
 
-checkUserRequest();
+run();

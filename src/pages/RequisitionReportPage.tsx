@@ -541,7 +541,16 @@ const RequisitionReportPage: React.FC = () => {
   return (
     <div className="requisition-print-shell container mx-auto p-6 bg-[#f5f6f7] print:bg-white print:p-0">
       <style>{`
+        @page {
+          size: A4;
+          margin: 0.5in;
+        }
+
         @media print {
+          * {
+            page-break-inside: avoid;
+          }
+
           body.requisition-report-print aside,
           body.requisition-report-print header,
           body.requisition-report-print nav,
@@ -576,6 +585,35 @@ const RequisitionReportPage: React.FC = () => {
           body.requisition-report-print {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            line-height: 1.4;
+          }
+
+          body.requisition-report-print table {
+            page-break-inside: avoid;
+            border-collapse: collapse;
+          }
+
+          body.requisition-report-print tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+
+          body.requisition-report-print thead {
+            page-break-inside: avoid;
+            display: table-header-group;
+          }
+
+          body.requisition-report-print tbody {
+            page-break-inside: avoid;
+          }
+
+          body.requisition-report-print h1, 
+          body.requisition-report-print h2, 
+          body.requisition-report-print h3,
+          body.requisition-report-print p {
+            orphans: 2;
+            widows: 2;
+            page-break-inside: avoid;
           }
         }
       `}</style>
@@ -590,84 +628,84 @@ const RequisitionReportPage: React.FC = () => {
         </Button>
       </div>
 
-      <Card className="requisition-print-card max-w-5xl mx-auto border-2 border-black/70 rounded-sm bg-white print:shadow-none print:border-none">
-        <CardContent className="p-0">
-          <div className="border-b-2 border-black/70 px-6 py-5 text-center">
-            <p className="text-xs tracking-[0.18em] uppercase text-gray-700">Election Commission of Pakistan</p>
-            <h1 className="text-2xl font-semibold tracking-wide mt-1">REQUISITION REPORT</h1>
-            <p className="text-xs mt-1 text-gray-700">Inventory Management System - Formal Slip</p>
+      <Card className="requisition-print-card max-w-5xl mx-auto border-2 border-black/70 rounded-sm bg-white print:shadow-none print:border-none print:page-break-inside-avoid">
+        <CardContent className="p-0 print:page-break-inside-avoid">
+          <div className="border-b-2 border-black/70 px-6 py-5 text-center print:py-4 print:px-5">
+            <p className="text-xs tracking-[0.18em] uppercase text-gray-700 print:m-0">Election Commission of Pakistan</p>
+            <h1 className="text-2xl font-semibold tracking-wide mt-1 print:mt-0 print:mb-0">REQUISITION REPORT</h1>
+            <p className="text-xs mt-1 text-gray-700 print:mt-0 print:mb-0">Inventory Management System - Formal Slip</p>
           </div>
 
-          <div className="px-6 py-4 border-b border-black/50">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm">
-              <div><span className="font-semibold">Requisition No:</span> {report.request_number || report.id.slice(0, 12)}</div>
-              <div><span className="font-semibold">Generated On:</span> {todayText}</div>
-              <div><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
-              <div><span className="font-semibold">Request Type:</span> {report.request_type}</div>
-              <div><span className="font-semibold">Requester:</span> {report.requester_name}</div>
-              <div><span className="font-semibold">Designation:</span> {report.requester_designation || '-'}</div>
-              <div><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
-              <div className="md:col-span-2"><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
-              <div className="md:col-span-2"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
+          <div className="px-6 py-4 border-b border-black/50 print:px-5 print:py-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-2 text-sm print:gap-x-8 print:gap-y-1 print:text-sm">
+              <div className="print:m-0"><span className="font-semibold">Requisition No:</span> {report.request_number || report.id.slice(0, 12)}</div>
+              <div className="print:m-0"><span className="font-semibold">Generated On:</span> {todayText}</div>
+              <div className="print:m-0"><span className="font-semibold">Submitted Date:</span> {formatDate(report.submitted_date, 'N/A')}</div>
+              <div className="print:m-0"><span className="font-semibold">Request Type:</span> {report.request_type}</div>
+              <div className="print:m-0"><span className="font-semibold">Requester:</span> {report.requester_name}</div>
+              <div className="print:m-0"><span className="font-semibold">Designation:</span> {report.requester_designation || '-'}</div>
+              <div className="print:m-0"><span className="font-semibold">Wing:</span> {report.wing_name || '-'}</div>
+              <div className="md:col-span-2 print:m-0"><span className="font-semibold">Office:</span> {report.office_name || '-'}</div>
+              <div className="md:col-span-2 print:m-0"><span className="font-semibold">Purpose:</span> {report.purpose || '-'}</div>
             </div>
           </div>
 
-          <div className="px-6 py-4">
-            <table className="w-full text-sm border border-black/60 border-collapse">
-              <thead>
+          <div className="px-6 py-4 print:px-5 print:py-3 print:page-break-inside-avoid">
+            <table className="w-full text-sm border border-black/60 border-collapse print:text-sm">
+              <thead className="print:page-break-inside-avoid">
                 <tr className="bg-gray-100">
-                  <th className="border border-black/60 px-2 py-2 w-12 text-center">Sr.</th>
-                  <th className="border border-black/60 px-2 py-2 text-left">Item Description</th>
-                  <th className="border border-black/60 px-2 py-2 w-36 text-left">Last Issued Qty</th>
-                  <th className="border border-black/60 px-2 py-2 w-36 text-left">Last Issue Date</th>
-                  <th className="border border-black/60 px-2 py-2 w-40 text-left">Fresh Requirement</th>
-                  <th className="border border-black/60 px-2 py-2 w-32 text-left">Allotted Qty</th>
+                  <th className="border border-black/60 px-2 py-2 w-12 text-center print:px-1 print:py-1">Sr.</th>
+                  <th className="border border-black/60 px-2 py-2 text-left print:px-1 print:py-1">Item Description</th>
+                  <th className="border border-black/60 px-2 py-2 w-36 text-left print:px-1 print:py-1">Last Issued Qty</th>
+                  <th className="border border-black/60 px-2 py-2 w-36 text-left print:px-1 print:py-1">Last Issue Date</th>
+                  <th className="border border-black/60 px-2 py-2 w-40 text-left print:px-1 print:py-1">Fresh Requirement</th>
+                  <th className="border border-black/60 px-2 py-2 w-32 text-left print:px-1 print:py-1">Allotted Qty</th>
                 </tr>
               </thead>
               <tbody>
                 {report.items.map((item, index) => (
                   <tr key={item.id}>
-                    <td className="border border-black/60 px-2 py-2 text-center">{index + 1}</td>
-                    <td className="border border-black/60 px-2 py-2">{item.item_name}</td>
-                    <td className="border border-black/60 px-2 py-2">{item.last_issued_quantity ?? 0}</td>
-                    <td className="border border-black/60 px-2 py-2">{formatDate(item.last_issue_date, '-')}</td>
-                    <td className="border border-black/60 px-2 py-2">{item.requested_quantity} {item.unit}</td>
-                    <td className="border border-black/60 px-2 py-2">{item.allotted_quantity ?? 0} {item.unit}</td>
+                    <td className="border border-black/60 px-2 py-2 text-center print:px-1 print:py-1">{index + 1}</td>
+                    <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.item_name}</td>
+                    <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.last_issued_quantity ?? 0}</td>
+                    <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{formatDate(item.last_issue_date, '-')}</td>
+                    <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.requested_quantity} {item.unit}</td>
+                    <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.allotted_quantity ?? 0} {item.unit}</td>
                   </tr>
                 ))}
                 {report.items.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="border border-black/60 px-2 py-6 text-center text-gray-600">
+                    <td colSpan={6} className="border border-black/60 px-2 py-6 text-center text-gray-600 print:py-4">
                       No items available in this requisition.
                     </td>
                   </tr>
                 )}
                 <tr className="bg-gray-50 font-semibold">
-                  <td className="border border-black/60 px-2 py-2 text-center" colSpan={4}>Total</td>
-                  <td className="border border-black/60 px-2 py-2">{totalFreshRequirement}</td>
-                  <td className="border border-black/60 px-2 py-2">{totalAllottedQuantity}</td>
+                  <td className="border border-black/60 px-2 py-2 text-center print:px-1 print:py-1" colSpan={4}>Total</td>
+                  <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{totalFreshRequirement}</td>
+                  <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{totalAllottedQuantity}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div className="px-6 pb-8 pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
-              <div className="text-center">
-                <div className="requisition-signature-label border-t border-black/70 pt-2">Requested By</div>
-                <div className="requisition-signature-value mt-1 text-xs text-gray-600">{report.requester_name}</div>
-                <div className="requisition-signature-value text-[11px] text-gray-500">{report.requester_designation || '-'}</div>
+          <div className="px-6 pb-8 pt-6 print:px-5 print:pb-4 print:pt-4 print:page-break-inside-avoid">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm print:gap-4 print:page-break-inside-avoid">
+              <div className="text-center print:page-break-inside-avoid">
+                <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Requested By</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[11px]">{report.requester_name}</div>
+                <div className="requisition-signature-value text-[11px] text-gray-500 print:text-[10px]">{report.requester_designation || '-'}</div>
               </div>
-              <div className="text-center">
-                <div className="requisition-signature-label border-t border-black/70 pt-2">Allotted By</div>
-                <div className="requisition-signature-value mt-1 text-xs text-gray-600">{report.allotted_by_name || '-'}</div>
+              <div className="text-center print:page-break-inside-avoid">
+                <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Allotted By</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[11px]">{report.allotted_by_name || '-'}</div>
               </div>
-              <div className="text-center">
-                <div className="requisition-signature-label border-t border-black/70 pt-2">Approved By</div>
-                <div className="requisition-signature-value mt-1 text-xs text-gray-600">{report.approved_by_name || '-'}</div>
+              <div className="text-center print:page-break-inside-avoid">
+                <div className="requisition-signature-label border-t border-black/70 pt-2 print:pt-1">Approved By</div>
+                <div className="requisition-signature-value mt-1 text-xs text-gray-600 print:mt-0 print:text-[11px]">{report.approved_by_name || '-'}</div>
               </div>
             </div>
-            <p className="text-center text-xs text-gray-600 mt-8 border-t border-dashed border-gray-400 pt-3">
+            <p className="text-center text-xs text-gray-600 mt-8 border-t border-dashed border-gray-400 pt-3 print:mt-4 print:pt-2 print:text-[10px]">
               This report is Computer Generated.
             </p>
           </div>
