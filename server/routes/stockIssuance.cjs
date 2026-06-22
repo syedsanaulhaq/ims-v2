@@ -448,11 +448,12 @@ router.get('/issued-items', async (req, res) => {
 router.get('/last-issued-summary', async (req, res) => {
   try {
     const pool = getPool();
-    const { user_id, wing_id } = req.query;
+    const { user_id, wing_id, exclude_request_id } = req.query;
 
     const request = pool.request();
     request.input('userId', sql.NVarChar(450), user_id || null);
     request.input('wingId', sql.Int, wing_id ? Number(wing_id) : null);
+    request.input('excludeRequestId', sql.UniqueIdentifier, exclude_request_id || null);
 
     const result = await request.query(`
       ;WITH issued_rows AS (
@@ -474,6 +475,7 @@ router.get('/last-issued-summary', async (req, res) => {
           )
           AND (@userId IS NULL OR sir.requester_user_id = @userId)
           AND (@wingId IS NULL OR sir.requester_wing_id = @wingId)
+            AND (@excludeRequestId IS NULL OR sir.id <> @excludeRequestId)
       )
       SELECT item_master_id, issued_qty AS last_issued_quantity, issue_date AS last_issue_date
       FROM issued_rows

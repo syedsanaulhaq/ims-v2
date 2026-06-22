@@ -13,7 +13,7 @@ interface ReportItem {
   unit: string;
   requested_quantity: number;
   allotted_quantity?: number;
-  last_issued_quantity?: number;
+  last_issued_quantity?: number | null;
   last_issue_date?: string | null;
 }
 
@@ -433,6 +433,7 @@ const RequisitionReportPage: React.FC = () => {
           } else if (found.requester_wing_id) {
             params.append('wing_id', String(found.requester_wing_id));
           }
+          params.append('exclude_request_id', String(found.id));
 
           if (params.toString()) {
             const summaryResp = await fetch(`${getApiBaseUrl()}/stock-issuance/last-issued-summary?${params.toString()}`, {
@@ -443,12 +444,12 @@ const RequisitionReportPage: React.FC = () => {
 
             if (summaryResp.ok) {
               const summaryData = await summaryResp.json();
-              const summaryMap: Record<string, { qty: number; date: string | null }> = {};
+              const summaryMap: Record<string, { qty: number | null; date: string | null }> = {};
               (summaryData?.data || []).forEach((row: any) => {
                 const key = String(row.item_master_id || '');
                 if (!key) return;
                 summaryMap[key] = {
-                  qty: Number(row.last_issued_quantity || 0),
+                  qty: row.last_issued_quantity == null ? null : Number(row.last_issued_quantity),
                   date: row.last_issue_date || null
                 };
               });
@@ -457,7 +458,7 @@ const RequisitionReportPage: React.FC = () => {
                 const history = item.item_master_id ? summaryMap[String(item.item_master_id)] : undefined;
                 return {
                   ...item,
-                  last_issued_quantity: history?.qty,
+                  last_issued_quantity: history?.qty ?? null,
                   last_issue_date: history?.date || null
                 };
               });
@@ -723,7 +724,7 @@ const RequisitionReportPage: React.FC = () => {
                   <tr key={item.id}>
                     <td className="border border-black/60 px-2 py-2 text-center print:px-1 print:py-1">{index + 1}</td>
                     <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.item_name}</td>
-                    <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.last_issued_quantity ?? 0}</td>
+                    <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.last_issued_quantity == null ? '-' : item.last_issued_quantity}</td>
                     <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{formatDate(item.last_issue_date, '-')}</td>
                     <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.requested_quantity} {item.unit}</td>
                     <td className="border border-black/60 px-2 py-2 print:px-1 print:py-1">{item.allotted_quantity ?? 0} {item.unit}</td>
