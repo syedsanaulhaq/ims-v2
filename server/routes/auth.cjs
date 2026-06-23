@@ -321,7 +321,7 @@ router.get('/designation/:userId', async (req, res) => {
       .input('userId', sql.NVarChar(450), userId)
       .query(`
         SELECT TOP 1
-          COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') AS designation
+          COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') AS designation
         FROM AspNetUsers u
         LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
         LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID

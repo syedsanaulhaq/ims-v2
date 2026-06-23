@@ -236,16 +236,20 @@ const ensureTables = async (pool) => {
       );
 
       DECLARE @pkCols NVARCHAR(MAX) = (
-        SELECT STRING_AGG(c.name, ',') WITHIN GROUP (ORDER BY ic.key_ordinal)
-        FROM sys.key_constraints kc
-        INNER JOIN sys.index_columns ic
-          ON ic.object_id = kc.parent_object_id
-         AND ic.index_id = kc.unique_index_id
-        INNER JOIN sys.columns c
-          ON c.object_id = kc.parent_object_id
-         AND c.column_id = ic.column_id
-        WHERE kc.parent_object_id = OBJECT_ID('ims_request_workflow_state')
-          AND kc.type = 'PK'
+        SELECT STUFF((
+          SELECT ',' + c2.name
+          FROM sys.key_constraints kc2
+          INNER JOIN sys.index_columns ic2
+            ON ic2.object_id = kc2.parent_object_id
+           AND ic2.index_id = kc2.unique_index_id
+          INNER JOIN sys.columns c2
+            ON c2.object_id = kc2.parent_object_id
+           AND c2.column_id = ic2.column_id
+          WHERE kc2.parent_object_id = OBJECT_ID('ims_request_workflow_state')
+            AND kc2.type = 'PK'
+          ORDER BY ic2.key_ordinal
+          FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 1, '')
       );
 
       IF @existingPkName IS NOT NULL AND ISNULL(@pkCols, '') = 'request_id'
