@@ -190,7 +190,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "My Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
       { title: "My Requests", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
-      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: 'issuance.request' },
+      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
       { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
