@@ -32,6 +32,8 @@ interface RequestSummary {
   pending_lane_count: number;
   lane_parent_status: string;
   lane_tooltip: string;
+  issuance_transfer_status: 'pending_issue' | 'issued_to_requester' | 'unknown';
+  issued_at?: string | null;
   approval: RequestApproval;
 }
 
@@ -193,8 +195,27 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             pending_lane_count: 0,
             lane_parent_status: 'pending',
             lane_tooltip: '',
+            issuance_transfer_status: 'unknown',
+            issued_at: null,
             approval: { ...fullApproval, items: fullApproval.items || [] } as any
           };
+
+          // Verify whether physical issuance happened (inventory deducted and assigned to requester inventory).
+          const issuanceResponse = await fetch(`${apiUrl}/api/stock-issuance/${requestId}`, {
+            credentials: 'include'
+          }).catch(() => null);
+
+          if (issuanceResponse?.ok) {
+            const issuancePayload = await issuanceResponse.json().catch(() => ({} as any));
+            const issuanceRequest = issuancePayload?.request || {};
+            const approvalStatusRaw = String(issuanceRequest?.approval_status || '').toLowerCase();
+            const requestStatusRaw = String(issuanceRequest?.request_status || '').toLowerCase();
+            const issued = approvalStatusRaw === 'issued' || approvalStatusRaw === 'completed' || requestStatusRaw === 'issued' || requestStatusRaw === 'completed';
+            summary.issuance_transfer_status = issued ? 'issued_to_requester' : 'pending_issue';
+            summary.issued_at = issuanceRequest?.issued_at || null;
+          } else {
+            summary.issuance_transfer_status = 'unknown';
+          }
 
           // Count items by status
           const items = fullApproval.items || [];
@@ -372,6 +393,42 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     if (parentStatus === 'partially_approved') return 'bg-blue-100 text-blue-800 border-blue-300';
     if (parentStatus === 'rejected') return 'bg-red-100 text-red-800 border-red-300';
     return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+  };
+
+  const renderTransferBadge = (request: RequestSummary) => {
+    if (request.issuance_transfer_status === 'issued_to_requester') {
+      return (
+        <Badge
+          variant="outline"
+          className="text-xs bg-emerald-100 text-emerald-800 border-emerald-300"
+          title={request.issued_at ? `Issued at ${new Date(request.issued_at).toLocaleString()}` : 'Physically issued to requester'}
+        >
+          Inventory Transfer: Completed
+        </Badge>
+      );
+    }
+
+    if (request.issuance_transfer_status === 'pending_issue') {
+      return (
+        <Badge
+          variant="outline"
+          className="text-xs bg-amber-100 text-amber-800 border-amber-300"
+          title="Approved but not yet physically issued by store"
+        >
+          Inventory Transfer: Pending Issue
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge
+        variant="outline"
+        className="text-xs bg-gray-100 text-gray-700 border-gray-300"
+        title="Transfer status unavailable"
+      >
+        Inventory Transfer: Unknown
+      </Badge>
+    );
   };
 
   const getFilteredRequests = () => {
@@ -736,6 +793,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                               hour12: true
                             })}
                           </div>
+                          <div>{renderTransferBadge(request)}</div>
                         </div>
 
                         {/* Item Summary */}
@@ -957,6 +1015,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                                 });
                               })()}
                             </div>
+                            <div>{renderTransferBadge(request)}</div>
                             {request.current_approver_name && (
                               <div>Current Approver: <span className="font-medium text-gray-900">{request.current_approver_name}</span></div>
                             )}

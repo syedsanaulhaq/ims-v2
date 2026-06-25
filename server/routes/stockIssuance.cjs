@@ -407,7 +407,7 @@ router.get('/issued-items', async (req, res) => {
       INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
       LEFT JOIN item_masters im ON sii.item_master_id = im.id
       LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      WHERE (sir.approval_status IN ('Approved', 'Approved by Admin', 'Approved by Supervisor', 'Issued'))
+      WHERE UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
     `;
 
     let request = pool.request();
