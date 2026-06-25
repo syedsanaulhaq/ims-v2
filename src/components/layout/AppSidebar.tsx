@@ -199,7 +199,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Users,
     items: [
       { title: "Dashboard (Request-wise)", icon: CheckCircle, path: "/dashboard/wing-approval-dashboard", permission: 'approval.approve' },
-      { title: "Requested Items (Item-wise)", icon: ClipboardList, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
       { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
     ]
   };
@@ -296,7 +295,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Approval Menu",
     icon: CheckCircle,
     items: [
-      { title: "My Pending Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
