@@ -1,59 +1,155 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDateDMY, formatDateTimeDMY } from '@/utils/dateUtils';
+import { formatDateTimeDMY } from '@/utils/dateUtils';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import { useSession } from '@/contexts/SessionContext';
 import { 
-  Package, 
+  Package,
   ClipboardList,
   CheckCircle,
   Clock,
-  Send,
-  Undo2,
-  Bell,
-  TrendingUp,
-  Box
+  Box,
+  XCircle,
+  Layers,
+  ArrowUpRight,
+  BarChart3,
+  AlertCircle
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+
+type RequestStatus = 'pending' | 'approved' | 'rejected' | 'returned' | 'forwarded' | 'other';
+
+const REQUEST_STATUS_COLORS: Record<RequestStatus, string> = {
+  pending: '#f59e0b',
+  approved: '#16a34a',
+  rejected: '#dc2626',
+  returned: '#ea580c',
+  forwarded: '#2563eb',
+  other: '#6b7280',
+};
 
 const PersonalDashboard = () => {
   const navigate = useNavigate();
   const { user } = useSession();
   const [dataLoading, setDataLoading] = useState(true);
-  
-  // Personal data state
+
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [myIssuedItems, setMyIssuedItems] = useState<any[]>([]);
   const [myPendingApprovals, setMyPendingApprovals] = useState<any[]>([]);
-  const [myNotifications, setMyNotifications] = useState<any[]>([]);
   const [searchRequestsFilter, setSearchRequestsFilter] = useState('');
+
+  const toArray = (payload: any, preferredKeys: string[] = ['data', 'requests', 'items']) => {
+    if (Array.isArray(payload)) return payload;
+    for (const key of preferredKeys) {
+      if (Array.isArray(payload?.[key])) return payload[key];
+    }
+    return [];
+  };
+
+  const getStatusRaw = (request: any) =>
+    String(
+      request?.request_status ||
+      request?.current_status ||
+      request?.status ||
+      request?.approval_status ||
+      'pending'
+    ).toLowerCase();
+
+  const getNormalizedStatus = (request: any): RequestStatus => {
+    const raw = getStatusRaw(request);
+    if (raw.includes('reject')) return 'rejected';
+    if (raw.includes('return')) return 'returned';
+    if (raw.includes('forward')) return 'forwarded';
+    if (raw.includes('approv') || raw.includes('complete') || raw.includes('final')) return 'approved';
+    if (raw.includes('pending') || raw.includes('review') || raw.includes('wait')) return 'pending';
+    return 'other';
+  };
+
+  const getRequestDate = (request: any) =>
+    request?.submitted_date || request?.requested_date || request?.created_date || request?.date;
+
+  const getRequestItems = (request: any): any[] => {
+    if (Array.isArray(request?.items)) return request.items;
+    if (Array.isArray(request?.request_items)) return request.request_items;
+    return [];
+  };
+
+  const getNumeric = (value: any, fallback = 0) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  };
+
+  const getRequestQuantity = (request: any) => {
+    const items = getRequestItems(request);
+    if (!items.length) {
+      return getNumeric(request?.requested_quantity || request?.quantity || request?.total_items, 0);
+    }
+    return items.reduce(
+      (sum, item) => sum + getNumeric(item?.requested_quantity || item?.quantity || item?.qty, 0),
+      0
+    );
+  };
+
+  const getIssuedQuantity = (item: any) =>
+    getNumeric(item?.issued_quantity || item?.quantity || item?.qty || item?.requested_quantity, 1);
+
+  const isReturnedInventoryItem = (item: any) => {
+    const status = String(item?.status || item?.return_status || '').toLowerCase();
+    return status === 'returned' || Boolean(item?.actual_return_date) || Boolean(item?.returned_date);
+  };
+
+  const getStatusBadgeClass = (status: RequestStatus) => {
+    if (status === 'approved') return 'bg-green-100 text-green-800 border-green-300';
+    if (status === 'rejected') return 'bg-red-100 text-red-800 border-red-300';
+    if (status === 'returned') return 'bg-orange-100 text-orange-800 border-orange-300';
+    if (status === 'forwarded') return 'bg-blue-100 text-blue-800 border-blue-300';
+    if (status === 'pending') return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+    return 'bg-gray-100 text-gray-800 border-gray-300';
+  };
+
+  const getStatusLabel = (status: RequestStatus) => {
+    if (status === 'approved') return 'Approved';
+    if (status === 'rejected') return 'Rejected';
+    if (status === 'returned') return 'Returned';
+    if (status === 'forwarded') return 'Forwarded';
+    if (status === 'pending') return 'Pending';
+    return 'Other';
+  };
 
   useEffect(() => {
     const fetchPersonalData = async () => {
       try {
         setDataLoading(true);
         const apiBase = getApiBaseUrl();
-        
-        // Fetch user's personal data
+
         const [
           requestsRes,
           issuedItemsRes,
           approvalsRes
         ] = await Promise.all([
-          // My stock issuance requests
           fetch(`${apiBase}/approvals/my-requests/${user?.user_id}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : { requests: [] })
             .catch(() => ({ requests: [] })),
-          
-          // My issued items (items currently in my possession)
+
           fetch(`${apiBase}/stock-issuance/issued-items?user_id=${user?.user_id}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : { data: [] })
             .catch(() => ({ data: [] })),
-          
-          // Requests assigned to me for approval
+
           fetch(`${apiBase}/approvals/my-lane-pending`, { credentials: 'include' })
             .then(async (res) => {
               if (res.ok) return res.json();
@@ -63,16 +159,9 @@ const PersonalDashboard = () => {
             .catch(() => ({ data: [] }))
         ]);
 
-        console.log('Personal Dashboard Data:', {
-          requests: requestsRes,
-          issuedItems: issuedItemsRes,
-          approvals: approvalsRes
-        });
-
-        setMyRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
-        setMyIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || issuedItemsRes?.items || []));
-        setMyPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || approvalsRes?.requests || []));
-        setMyNotifications([]);
+        setMyRequests(toArray(requestsRes, ['requests', 'data']));
+        setMyIssuedItems(toArray(issuedItemsRes, ['data', 'items']));
+        setMyPendingApprovals(toArray(approvalsRes, ['data', 'requests']));
 
       } catch (error) {
         console.error('Error fetching personal dashboard data:', error);
@@ -97,317 +186,345 @@ const PersonalDashboard = () => {
     );
   }
 
-  const stats = {
-    totalItems: myIssuedItems.length,
-    returnedItems: myIssuedItems.filter((item) => {
-      const status = String(item.status || item.return_status || '').toLowerCase();
-      return status === 'returned' || Boolean(item.actual_return_date);
-    }).length,
-    currentlyInStock: myIssuedItems.filter((item) => {
-      const status = String(item.status || item.return_status || '').toLowerCase();
-      return status !== 'returned' && !item.actual_return_date;
-    }).length,
-    totalRequests: myRequests.length,
-    pendingApprovals: myPendingApprovals.length
-  };
+  const inventorySummary = useMemo(() => {
+    const totalQuantity = myIssuedItems.reduce((sum, item) => sum + getIssuedQuantity(item), 0);
+    const returnedQuantity = myIssuedItems
+      .filter((item) => isReturnedInventoryItem(item))
+      .reduce((sum, item) => sum + getIssuedQuantity(item), 0);
+    const inPossessionQuantity = Math.max(totalQuantity - returnedQuantity, 0);
+
+    return {
+      totalQuantity,
+      returnedQuantity,
+      inPossessionQuantity,
+      uniqueItemRows: myIssuedItems.length,
+    };
+  }, [myIssuedItems]);
+
+  const requestSummary = useMemo(() => {
+    const base = {
+      requested: myRequests.length,
+      requestedQuantity: 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      returned: 0,
+      forwarded: 0,
+      other: 0,
+    };
+
+    return myRequests.reduce((acc, request) => {
+      const status = getNormalizedStatus(request);
+      acc.requestedQuantity += getRequestQuantity(request);
+      acc[status] += 1;
+      return acc;
+    }, base);
+  }, [myRequests]);
+
+  const requestStatusChartData = useMemo(
+    () => [
+      { name: 'Pending', value: requestSummary.pending, color: REQUEST_STATUS_COLORS.pending },
+      { name: 'Approved', value: requestSummary.approved, color: REQUEST_STATUS_COLORS.approved },
+      { name: 'Rejected', value: requestSummary.rejected, color: REQUEST_STATUS_COLORS.rejected },
+      { name: 'Returned', value: requestSummary.returned, color: REQUEST_STATUS_COLORS.returned },
+      { name: 'Forwarded', value: requestSummary.forwarded, color: REQUEST_STATUS_COLORS.forwarded },
+    ],
+    [requestSummary]
+  );
+
+  const inventoryChartData = useMemo(
+    () => [
+      { name: 'In Inventory', value: inventorySummary.inPossessionQuantity, color: '#0891b2' },
+      { name: 'Returned', value: inventorySummary.returnedQuantity, color: '#f97316' },
+    ],
+    [inventorySummary]
+  );
+
+  const filteredLatestRequests = useMemo(() => {
+    const search = searchRequestsFilter.trim().toLowerCase();
+
+    const filtered = myRequests.filter((request) => {
+      if (!search) return true;
+      const text = [
+        request?.title,
+        request?.description,
+        request?.purpose,
+        request?.request_id,
+        request?.request_number,
+        getStatusRaw(request),
+      ]
+        .map((v) => String(v || '').toLowerCase())
+        .join(' ');
+      return text.includes(search);
+    });
+
+    return filtered
+      .sort((a, b) => new Date(getRequestDate(b) || 0).getTime() - new Date(getRequestDate(a) || 0).getTime())
+      .slice(0, 8);
+  }, [myRequests, searchRequestsFilter]);
 
   return (
-    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900">Personal Dashboard</h1>
-        <p className="text-lg text-gray-600 mt-2">
-          Welcome back, {user?.user_name || 'User'}! Your personal stock and request overview.
-        </p>
-        <div className="flex items-center gap-2 mt-3 flex-wrap">
-          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Active
-          </Badge>
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-            <Clock className="h-3 w-3 mr-1" />
-            Last Updated: {new Date().toLocaleTimeString()}
-          </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/dashboard/wing-approval-dashboard')}
-          >
-            Go to Requests Dashboard
-          </Button>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/my-issued-items')}>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-blue-700">
-              <Package className="h-5 w-5" />
-              Total Items
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Count</span>
-                <span className="text-2xl font-bold text-blue-600">{stats.totalItems}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-l-green-500" onClick={() => navigate('/dashboard/my-issued-items')}>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-green-700">
-              <Package className="h-5 w-5" />
-              Currently In Stock
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Count</span>
-                <span className="text-2xl font-bold text-green-600">{stats.currentlyInStock}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/my-issued-items')}>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-orange-700">
-              <Undo2 className="h-5 w-5" />
-              Returned
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Count</span>
-                <span className="text-2xl font-bold text-orange-600">{stats.returnedItems}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card className="shadow-lg">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
-          <CardTitle className="text-xl">Quick Actions</CardTitle>
-          <CardDescription>Common tasks you can perform</CardDescription>
-        </CardHeader>
+    <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen">
+      <Card className="border border-slate-200 bg-gradient-to-r from-cyan-50 via-white to-emerald-50 shadow-sm">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col items-center justify-center space-y-2 hover:bg-blue-50 hover:border-blue-500 transition-all"
-              onClick={() => navigate('/dashboard/my-requests')}
-            >
-              <ClipboardList className="h-8 w-8 text-blue-600" />
-              <span className="text-sm font-semibold">My Request</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col items-center justify-center space-y-2 hover:bg-purple-50 hover:border-purple-500 transition-all"
-              onClick={() => navigate('/dashboard/my-issued-items')}
-            >
-              <Box className="h-8 w-8 text-purple-600" />
-              <span className="text-sm font-semibold">My Inventory</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col items-center justify-center space-y-2 hover:bg-teal-50 hover:border-teal-500 transition-all"
-              onClick={() => navigate('/dashboard/wing-approval-dashboard')}
-            >
-              <CheckCircle className="h-8 w-8 text-teal-600" />
-              <span className="text-sm font-semibold">Requests Dashboard</span>
-            </Button>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-900">Personal Dashboard</h1>
+              <p className="text-slate-600 mt-2">
+                Welcome back, {user?.user_name || 'User'}. Track your inventory health and request pipeline in one view.
+              </p>
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                  <CheckCircle className="h-3 w-3 mr-1" /> Active
+                </Badge>
+                <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                  <Clock className="h-3 w-3 mr-1" /> Last Updated: {new Date().toLocaleTimeString()}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" onClick={() => navigate('/dashboard/wing-approval-dashboard')}>
+                Open Requests Dashboard
+              </Button>
+              <Button onClick={() => navigate('/dashboard/my-requests')}>
+                My Requests
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Recent Requests */}
-      <Card className="shadow-lg">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-xl">Recent Requests</CardTitle>
-              <CardDescription>Your latest stock issuance requests</CardDescription>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <Card className="border-l-4 border-l-cyan-500">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2 text-slate-600">
+              <Package className="h-4 w-4" /> Inventory In Hand
+            </CardDescription>
+            <CardTitle className="text-3xl text-cyan-700">{inventorySummary.inPossessionQuantity}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-slate-500">Items currently in your possession</CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-indigo-500">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2 text-slate-600">
+              <ClipboardList className="h-4 w-4" /> Total Requested
+            </CardDescription>
+            <CardTitle className="text-3xl text-indigo-700">{requestSummary.requested}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-slate-500">Requests submitted by you</CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-amber-500">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2 text-slate-600">
+              <Clock className="h-4 w-4" /> Pending Requests
+            </CardDescription>
+            <CardTitle className="text-3xl text-amber-700">{requestSummary.pending}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-slate-500">Still awaiting approval decision</CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-rose-500">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2 text-slate-600">
+              <XCircle className="h-4 w-4" /> Rejected Requests
+            </CardDescription>
+            <CardTitle className="text-3xl text-rose-700">{requestSummary.rejected}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-slate-500">Requests marked as rejected</CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-teal-500">
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2 text-slate-600">
+              <Layers className="h-4 w-4" /> Requested Qty
+            </CardDescription>
+            <CardTitle className="text-3xl text-teal-700">{requestSummary.requestedQuantity}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-slate-500">Total quantity requested across requests</CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-indigo-600" /> Request Status Overview
+            </CardTitle>
+            <CardDescription>Distribution of your request statuses</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={requestStatusChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {requestStatusChartData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-          <div className="mt-4">
-            <input
-              type="text"
-              placeholder="Search requests by title, description, or item name..."
-              value={searchRequestsFilter}
-              onChange={(e) => setSearchRequestsFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {myRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No requests yet. Start by requesting an item!</p>
-          ) : (
-            <div className="space-y-4">
-                {myRequests
-                .filter((request) => {
-                  const searchLower = searchRequestsFilter.toLowerCase();
-                  const title = request.title || '';
-                  const description = request.description || request.purpose || '';
-                  const submittedBy = request.current_approver_name || '';
-                  const itemNames = (request.items || []).map(i => i.item_name || '').join(' ');
-                  
-                  return (
-                    title.toLowerCase().includes(searchLower) ||
-                    description.toLowerCase().includes(searchLower) ||
-                    submittedBy.toLowerCase().includes(searchLower) ||
-                    itemNames.toLowerCase().includes(searchLower)
-                  );
-                })
-                .slice(0, 5)
-                .map((request) => (
-                <div 
-                  key={request.id || request.request_id} 
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                >
-                  {/* Request Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-lg text-gray-900">{request.title || 'Stock Issuance Request'}</h4>
-                      <p className="text-sm text-gray-600 mt-1">{request.description || request.purpose || 'N/A'}</p>
-                      {request.current_approver_name && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          <span className="font-medium">Submitted by:</span> {request.current_approver_name}
-                        </p>
-                      )}
-                    </div>
-                    <Badge 
-                      variant={
-                        request.request_status === 'Approved' || request.current_status === 'APPROVED' 
-                          ? 'default' 
-                          : request.request_status === 'Rejected' || request.current_status === 'REJECTED'
-                          ? 'destructive'
-                          : 'secondary'
-                      }
-                    >
-                      {request.request_status || request.current_status || 'Pending'}
-                    </Badge>
-                  </div>
+          </CardContent>
+        </Card>
 
-                  {/* Request Items */}
-                  {request.items && request.items.length > 0 ? (
-                    <div className="mb-3 bg-gray-50 rounded p-3">
-                      <p className="text-xs font-semibold text-gray-600 mb-2">REQUESTED ITEMS:</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {request.items.slice(0, 3).map((item, idx) => (
-                          <div key={idx} className="bg-white border border-gray-200 rounded px-3 py-2">
-                            <div className="text-sm text-gray-700 font-medium truncate">{item.item_name || 'Unknown Item'}</div>
-                            <div className="text-sm font-semibold text-blue-600 mt-1">Qty: {item.requested_quantity}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {request.items.length > 3 && (
-                        <p className="text-xs text-gray-500 pt-2">+{request.items.length - 3} more items</p>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {/* Request Meta and Button */}
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <div className="text-xs text-gray-500">
-                      <span>Date: {formatDateTimeDMY(request.submitted_date || request.requested_date || request.created_date)}</span>
-                      {request.total_items > 0 && <span className="ml-4">Items: {request.total_items}</span>}
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => navigate(`/dashboard/request-details/${request.id || request.request_id}`)}
-                    >
-                      View Details
-                    </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Inventory Split</CardTitle>
+            <CardDescription>In inventory vs returned quantity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-60">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={inventoryChartData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                    {inventoryChartData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-2 text-sm mt-2">
+              {inventoryChartData.map((entry) => (
+                <div key={entry.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                    <span className="text-slate-600">{entry.name}</span>
                   </div>
+                  <span className="font-semibold text-slate-900">{entry.value}</span>
                 </div>
               ))}
-              {myRequests.length > 5 && (
-                <Button variant="outline" className="w-full" onClick={() => navigate('/dashboard/my-requests')}>
-                  View All Requests
-                </Button>
-              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="shadow-sm">
+        <CardHeader className="border-b">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <CardTitle className="text-xl">Latest Requests & Status</CardTitle>
+              <CardDescription>Most recent requests submitted by you</CardDescription>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="text"
+                placeholder="Search by request number, title, status..."
+                value={searchRequestsFilter}
+                onChange={(e) => setSearchRequestsFilter(e.target.value)}
+                className="w-full md:w-80 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+              />
+              <Button variant="outline" onClick={() => navigate('/dashboard/my-requests')}>View All</Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {filteredLatestRequests.length === 0 ? (
+            <div className="text-center py-10 text-slate-500">
+              <AlertCircle className="h-6 w-6 mx-auto mb-2" />
+              {searchRequestsFilter ? 'No matching requests found.' : 'No requests available yet.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b bg-slate-50">
+                    <th className="px-3 py-3 font-semibold text-slate-700">Request</th>
+                    <th className="px-3 py-3 font-semibold text-slate-700">Submitted</th>
+                    <th className="px-3 py-3 font-semibold text-slate-700">Items</th>
+                    <th className="px-3 py-3 font-semibold text-slate-700">Status</th>
+                    <th className="px-3 py-3 font-semibold text-slate-700">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLatestRequests.map((request) => {
+                    const normalizedStatus = getNormalizedStatus(request);
+                    const requestKey = request?.id || request?.request_id;
+                    const displayName = request?.request_number || request?.request_id || request?.title || 'Stock Issuance Request';
+                    const itemCount = getRequestItems(request).length || getNumeric(request?.total_items, 0);
+                    const quantity = getRequestQuantity(request);
+
+                    return (
+                      <tr key={String(requestKey)} className="border-b hover:bg-slate-50">
+                        <td className="px-3 py-3">
+                          <div className="font-medium text-slate-900">{displayName}</div>
+                          <div className="text-xs text-slate-500 truncate max-w-xs">{request?.description || request?.purpose || 'No description'}</div>
+                        </td>
+                        <td className="px-3 py-3 text-slate-600">{formatDateTimeDMY(getRequestDate(request))}</td>
+                        <td className="px-3 py-3 text-slate-600">
+                          <div>{itemCount} item(s)</div>
+                          <div className="text-xs text-slate-500">Qty: {quantity}</div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Badge variant="outline" className={getStatusBadgeClass(normalizedStatus)}>
+                            {getStatusLabel(normalizedStatus)}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/dashboard/request-details/${requestKey}`)}
+                            className="gap-1"
+                          >
+                            View <ArrowUpRight className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Items Currently in Possession */}
-      {myIssuedItems.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Items in Your Possession</CardTitle>
-            <CardDescription>Items currently issued to you</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {myIssuedItems.slice(0, 5).map((item) => (
-                <div key={item.issuance_id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                  <div className="flex-1">
-                    <h4 className="font-medium">{item.item_name}</h4>
-                    <p className="text-sm text-gray-500">
-                      Quantity: {item.issued_quantity} | 
-                      Issued: {formatDateDMY(item.issue_date)}
-                    </p>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate('/dashboard/stock-return')}
-                  >
-                    Return
-                  </Button>
-                </div>
-              ))}
-              {myIssuedItems.length > 5 && (
-                <Button variant="outline" className="w-full" onClick={() => navigate('/dashboard/my-issued-items')}>
-                  View All Items
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent Notifications */}
-      {myNotifications.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Notifications</CardTitle>
-            <CardDescription>Latest updates and alerts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {myNotifications.slice(0, 5).map((notification) => (
-                <div 
-                  key={notification.id} 
-                  className={`p-3 border rounded-lg ${!notification.is_read ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'}`}
-                >
-                  <p className="text-sm font-medium">{notification.title}</p>
-                  <p className="text-xs text-gray-500 mt-1">{notification.message}</p>
-                  <p className="text-xs text-gray-400 mt-1">{formatDateDMY(notification.created_at)}</p>
-                </div>
-              ))}
-              {myNotifications.length > 5 && (
-                <Button variant="outline" className="w-full" onClick={() => navigate('/notifications')}>
-                  View All Notifications
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle className="text-xl">Quick Actions</CardTitle>
+          <CardDescription>Jump directly to your common workflows</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              className="h-20 justify-start px-4 gap-3 hover:bg-indigo-50"
+              onClick={() => navigate('/dashboard/my-requests')}
+            >
+              <ClipboardList className="h-5 w-5 text-indigo-600" />
+              <span className="font-semibold">My Requests</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 justify-start px-4 gap-3 hover:bg-cyan-50"
+              onClick={() => navigate('/dashboard/my-issued-items')}
+            >
+              <Box className="h-5 w-5 text-cyan-600" />
+              <span className="font-semibold">My Inventory</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 justify-start px-4 gap-3 hover:bg-emerald-50"
+              onClick={() => navigate('/dashboard/wing-approval-dashboard')}
+            >
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
+              <span className="font-semibold">Subordinate Requests Dashboard</span>
+            </Button>
+          </div>
+          <div className="mt-3 text-xs text-slate-500 flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" />
+            Pending approvals assigned to you: <span className="font-semibold text-slate-700">{myPendingApprovals.length}</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
