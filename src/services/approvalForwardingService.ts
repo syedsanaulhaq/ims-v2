@@ -247,7 +247,9 @@ class ApprovalForwardingService {
         }
       }
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
       const data = await response.json();
       
       if (!response.ok) {
@@ -309,7 +311,9 @@ class ApprovalForwardingService {
         url += `?${queryString}`;
       }
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
       const data = await response.json();
       
       if (!response.ok) {
@@ -336,7 +340,9 @@ class ApprovalForwardingService {
       const queryString = params.toString();
       const url = `${API_BASE_URL}/approvals/wing-approvals${queryString ? `?${queryString}` : ''}`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
       const data = await response.json();
 
       if (!response.ok) {
