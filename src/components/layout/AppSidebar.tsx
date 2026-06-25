@@ -195,7 +195,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   };
 
   const subordinateMenuGroup: MenuGroup = {
-    label: "Requests",
+    label: "Supervisor",
     icon: Users,
     items: [
       { title: "Supervisor Dashboard", icon: CheckCircle, path: "/dashboard/supervisor-approval-dashboard", permission: 'approval.approve' },
