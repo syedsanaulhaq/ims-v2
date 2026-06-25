@@ -60,6 +60,21 @@ const pickDesignation = (...values: Array<string | undefined | null>) => {
   return '-';
 };
 
+const isCompletedRequest = (request: any) => {
+  const statusBlob = [request?.request_status, request?.approval_status]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    statusBlob.includes('completed') ||
+    statusBlob === 'issued' ||
+    statusBlob.includes('finalized') ||
+    statusBlob.includes('finalised') ||
+    statusBlob.includes('closed')
+  );
+};
+
 const RequisitionReportPage: React.FC = () => {
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
@@ -232,8 +247,9 @@ const RequisitionReportPage: React.FC = () => {
         });
 
         if (!requestId) {
-          const requestsToShow = myRequests.length > 0 ? myRequests : allRequests;
-          console.log(`Requisition report: showing ${requestsToShow.length} requests (filtered: ${myRequests.length}, all: ${allRequests.length})`);
+          const requestsToShow = (myRequests.length > 0 ? myRequests : allRequests)
+            .filter((request) => !isCompletedRequest(request));
+          console.log(`Requisition report: showing ${requestsToShow.length} incomplete requests (filtered: ${myRequests.length}, all: ${allRequests.length})`);
 
           const options = requestsToShow
             .sort((a: any, b: any) => {
