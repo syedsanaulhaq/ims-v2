@@ -284,7 +284,7 @@ const PersonalDashboard = () => {
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" onClick={() => navigate('/dashboard/wing-approval-dashboard')}>
+              <Button variant="outline" onClick={() => navigate('/dashboard/supervisor-approval-dashboard')}>
                 Open Requests Dashboard
               </Button>
               <Button onClick={() => navigate('/dashboard/my-requests')}>
@@ -514,7 +514,7 @@ const PersonalDashboard = () => {
             <Button
               variant="outline"
               className="h-20 justify-start px-4 gap-3 hover:bg-emerald-50"
-              onClick={() => navigate('/dashboard/wing-approval-dashboard')}
+              onClick={() => navigate('/dashboard/supervisor-approval-dashboard')}
             >
               <CheckCircle className="h-5 w-5 text-emerald-600" />
               <span className="font-semibold">Subordinate Requests Dashboard</span>
