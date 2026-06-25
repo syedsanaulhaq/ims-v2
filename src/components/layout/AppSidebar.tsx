@@ -189,14 +189,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: User,
     items: [
       { title: "My Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
-      { title: "My Requests", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
+      { title: "Requests I Made", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
       { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
       { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
       { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
       { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
       { title: "Stock Requests", icon: ClipboardList, path: "/procurement/my-requests", permission: 'procurement.view_own' },
-      { title: "My Approvals (Requests)", icon: CheckCircle, path: hasAdminApprovalRole ? "/dashboard/approval-dashboard-request-based-admin" : "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
-      { title: "My Approvals (Items)", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "Requests For My Approval", icon: CheckCircle, path: hasAdminApprovalRole ? "/dashboard/approval-dashboard-request-based-admin" : "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
+      { title: "Items For My Approval", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
     ]
   };
 

@@ -53,9 +53,13 @@ const PersonalDashboard = () => {
             .then(res => res.ok ? res.json() : { data: [] })
             .catch(() => ({ data: [] })),
           
-          // My pending approvals (if I'm an approver) - supervisor approvals
-          fetch(`${apiBase}/approvals/supervisor/pending`, { credentials: 'include' })
-            .then(res => res.ok ? res.json() : { data: [] })
+          // Requests assigned to me for approval
+          fetch(`${apiBase}/approvals/my-lane-pending`, { credentials: 'include' })
+            .then(async (res) => {
+              if (res.ok) return res.json();
+              const fallbackRes = await fetch(`${apiBase}/approvals/my-pending`, { credentials: 'include' });
+              return fallbackRes.ok ? fallbackRes.json() : { data: [] };
+            })
             .catch(() => ({ data: [] }))
         ]);
 
@@ -114,7 +118,7 @@ const PersonalDashboard = () => {
       <div>
         <h1 className="text-4xl font-bold text-gray-900">Personal Dashboard</h1>
         <p className="text-lg text-gray-600 mt-2">
-          Welcome back, {user?.user_name || 'User'}! Here's your inventory activity overview
+          Welcome back, {user?.user_name || 'User'}! See what you requested and what is waiting for your approval.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
@@ -134,7 +138,7 @@ const PersonalDashboard = () => {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-orange-700">
               <ClipboardList className="h-5 w-5" />
-              My Requests
+              Requests I Made
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -175,11 +179,11 @@ const PersonalDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/approval-dashboard')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/approval-dashboard-request-based')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <CheckCircle className="h-5 w-5" />
-              My Approvals
+              Requests For My Approval
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -189,7 +193,7 @@ const PersonalDashboard = () => {
                 <span className="text-2xl font-bold text-purple-600">{stats.pendingApprovals}</span>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                {stats.pendingApprovals > 0 ? 'Awaiting your action' : 'No pending approvals'}
+                {stats.pendingApprovals > 0 ? 'Assigned to you for action' : 'No requests assigned to you'}
               </p>
             </div>
           </CardContent>
