@@ -484,7 +484,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       <div className="p-6 flex items-center justify-center min-h-96">
         <div className="text-center">
           <LoadingSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-gray-600">Loading your approval dashboard...</p>
+          <p className="text-gray-600">Loading Supervisor Dashboard...</p>
         </div>
       </div>
     );
@@ -495,12 +495,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       {/* Page Header */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900">
-          {viewMode === 'admin' ? 'Admin Workflow Approvals (Request-wise)' : 'My Approvals (Request-wise)'}
+          {viewMode === 'admin' ? 'Admin Workflow Approvals' : 'Supervisor Dashboard'}
         </h1>
         <p className="text-lg text-gray-600 mt-2">
           {viewMode === 'admin'
             ? 'Review requests forwarded to admin workflow and return/forward decisions'
-            : 'Manage requests by approval status'}
+            : 'All requests received from your subordinates — review and take action'}
         </p>
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
