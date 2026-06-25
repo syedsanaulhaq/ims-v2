@@ -349,10 +349,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       groups.push({ ...personalMenuGroup, items: visiblePersonalItems });
     }
 
-    // Show subordinate requests menu for approvers
-    const visibleSubordinateItems = subordinateMenuGroup.items.filter(item => checkPermission(item.permission));
-    if (visibleSubordinateItems.length > 0) {
-      groups.push({ ...subordinateMenuGroup, items: visibleSubordinateItems });
+    // Show Supervisor menu only for users with approval.approve permission
+    if (canApprove) {
+      const visibleSubordinateItems = subordinateMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleSubordinateItems.length > 0) {
+        groups.push({ ...subordinateMenuGroup, items: visibleSubordinateItems });
+      }
     }
 
     // Show wing menu if user is wing supervisor
