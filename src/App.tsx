@@ -74,7 +74,6 @@ import StockQuantitiesPage from "./pages/StockQuantitiesPage";
 import CurrentInventoryStock from "./pages/CurrentInventoryStock";
 import ApprovalDashboard from "./components/ApprovalDashboard";
 import ApprovalDashboardRequestBased from "./components/ApprovalDashboardRequestBased";
-import WingApprovalDashboard from "./components/WingApprovalDashboard";
 import WorkflowAdmin from "./components/WorkflowAdmin";
 import ApprovalForwarding from "./components/ApprovalForwarding";
 import MyRequestsPage from "./pages/MyRequestsPage";
@@ -233,7 +232,7 @@ function App() {
                   <Route path="approval-dashboard" element={<ApprovalDashboard />} />
                   <Route path="approval-dashboard-request-based" element={<ApprovalDashboardRequestBased />} />
                   <Route path="approval-dashboard-request-based-admin" element={<ApprovalDashboardRequestBased viewMode="admin" />} />
-                  <Route path="wing-approval-dashboard" element={<WingApprovalDashboard />} />
+                  <Route path="wing-approval-dashboard" element={<ApprovalDashboardRequestBased />} />
                   <Route path="my-requests" element={<MyRequestsPage />} />
                   <Route path="wing-requests" element={<WingRequestsPage />} />
                   <Route path="request-details/:requestId" element={<RequestDetailsPage />} />
