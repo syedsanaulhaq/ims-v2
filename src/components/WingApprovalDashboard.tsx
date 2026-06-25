@@ -40,6 +40,58 @@ export const WingApprovalDashboard: React.FC = () => {
     try {
       setLoading(true);
 
+      const loadAssignedApprovalsFallback = async () => {
+        const userId = (user as any)?.user_id || (user as any)?.Id;
+        const statuses = ['pending', 'approved', 'rejected', 'forwarded'] as const;
+
+        const results = await Promise.all(
+          statuses.map(async (status) => {
+            try {
+              const data = await approvalForwardingService.getMyApprovalsByStatus(userId, status);
+              return { status, data: Array.isArray(data) ? data : [] };
+            } catch (error) {
+              console.warn(`Failed to load assigned approvals for status '${status}'`, error);
+              return { status, data: [] as RequestApproval[] };
+            }
+          })
+        );
+
+        const bucket = {
+          pending: [] as RequestApproval[],
+          approved: [] as RequestApproval[],
+          rejected: [] as RequestApproval[],
+          forwarded: [] as RequestApproval[]
+        };
+
+        results.forEach((entry) => {
+          bucket[entry.status] = entry.data;
+        });
+
+        const fallbackRows = bucket[activeFilter] || [];
+        setPendingApprovals(fallbackRows);
+        setDashboardStats({
+          pending_count: bucket.pending.length,
+          approved_count: bucket.approved.length,
+          rejected_count: bucket.rejected.length,
+          forwarded_count: bucket.forwarded.length
+        });
+
+        const uniqueRequestIds = Array.from(new Set(fallbackRows.map((a) => String(a.request_id)).filter(Boolean)));
+        const laneSummaries = await Promise.all(
+          uniqueRequestIds.map(async (requestId) => {
+            const summary = await approvalForwardingService.getRequestLanes(requestId).catch(() => null);
+            return [requestId, summary] as const;
+          })
+        );
+        const lanesMap: Record<string, RequestLaneSummary> = {};
+        for (const [requestId, summary] of laneSummaries) {
+          if (summary) {
+            lanesMap[requestId] = summary;
+          }
+        }
+        setRequestLanes(lanesMap);
+      };
+
       // Get wing information
       if (user?.wing_id) {
         try {
@@ -60,14 +112,8 @@ export const WingApprovalDashboard: React.FC = () => {
       console.log('🔍 Loading wing dashboard for wing:', wingId, 'with filter:', activeFilter);
 
       if (!wingId) {
-        console.warn('⚠️ No wing ID found for user, cannot load wing approvals');
-        setPendingApprovals([]);
-        setDashboardStats({
-          pending_count: 0,
-          approved_count: 0,
-          rejected_count: 0,
-          forwarded_count: 0
-        });
+        console.warn('⚠️ No wing ID found for user, falling back to assigned approvals');
+        await loadAssignedApprovalsFallback();
         return;
       }
 
@@ -92,9 +138,22 @@ export const WingApprovalDashboard: React.FC = () => {
       }
 
       console.log('📋 Wing approvals loaded:', approvalsData.length, 'for status:', activeFilter);
-      setPendingApprovals(approvalsData);
-      setDashboardStats(dashboardData);
-      setRequestLanes(lanesMap);
+
+      const hasWingData =
+        approvalsData.length > 0 ||
+        Number(dashboardData?.pending_count || 0) > 0 ||
+        Number(dashboardData?.approved_count || 0) > 0 ||
+        Number(dashboardData?.rejected_count || 0) > 0 ||
+        Number(dashboardData?.forwarded_count || 0) > 0;
+
+      if (!hasWingData) {
+        console.log('ℹ️ Wing dataset is empty, loading assigned approvals fallback');
+        await loadAssignedApprovalsFallback();
+      } else {
+        setPendingApprovals(approvalsData);
+        setDashboardStats(dashboardData);
+        setRequestLanes(lanesMap);
+      }
 
     } catch (error) {
       console.error('❌ Error loading wing approval dashboard:', error);
