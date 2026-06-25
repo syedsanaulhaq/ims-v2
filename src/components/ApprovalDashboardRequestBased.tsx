@@ -637,7 +637,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Personal Requests</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Subordinate Requests</Badge>
               <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
               <div className="flex items-center gap-2">
@@ -691,7 +691,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getPersonalRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No personal requests'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No subordinate requests'}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -855,7 +855,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-4xl font-bold flex items-center gap-3">
-                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Requests</Badge>
+                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Request</Badge>
                 <span className="text-gray-600 text-2xl">({getWingRequests().length})</span>
               </CardTitle>
               <div className="flex items-center gap-2">
@@ -909,7 +909,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getWingRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing requests'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing request'}</p>
               </div>
             ) : (
               <div className="space-y-4">
