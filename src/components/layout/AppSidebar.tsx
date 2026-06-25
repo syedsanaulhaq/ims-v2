@@ -198,8 +198,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Requests",
     icon: Users,
     items: [
-      { title: "Dashboard", icon: CheckCircle, path: "/dashboard/wing-approval-dashboard", permission: 'approval.approve' },
-      { title: "Requested Items", icon: ClipboardList, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "Dashboard (Request-wise)", icon: CheckCircle, path: "/dashboard/wing-approval-dashboard", permission: 'approval.approve' },
+      { title: "Requested Items (Item-wise)", icon: ClipboardList, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
       { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
     ]
   };
