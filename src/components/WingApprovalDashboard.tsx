@@ -209,6 +209,12 @@ export const WingApprovalDashboard: React.FC = () => {
     return <LoadingSpinner />;
   }
 
+  const totalRequests =
+    Number(dashboardStats.pending_count || 0) +
+    Number(dashboardStats.approved_count || 0) +
+    Number(dashboardStats.rejected_count || 0) +
+    Number(dashboardStats.forwarded_count || 0);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -217,34 +223,42 @@ export const WingApprovalDashboard: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <Building2 className="h-8 w-8 text-blue-600" />
-              Wing Approval Dashboard
+              Requests Dashboard
             </h1>
             <p className="text-gray-600 mt-1">
-              Manage approvals for all requests in {wingName}
+              Requests received from your subordinate side in {wingName}
             </p>
           </div>
-          <Button
-            onClick={() => setRefreshTrigger(prev => prev + 1)}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => navigate('/personal-dashboard')}
+              variant="outline"
+            >
+              Go to Personal Dashboard
+            </Button>
+            <Button
+              onClick={() => setRefreshTrigger(prev => prev + 1)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-yellow-50 border-yellow-200">
+          <Card className="bg-blue-50 border-blue-200">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-yellow-700">
-                <Clock className="h-5 w-5" />
-                Pending
+              <CardTitle className="flex items-center gap-2 text-blue-700">
+                <Users className="h-5 w-5" />
+                Total Request
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">
-                {dashboardStats.pending_count}
+              <div className="text-2xl font-bold text-blue-600">
+                {totalRequests}
               </div>
             </CardContent>
           </Card>
@@ -277,19 +291,20 @@ export const WingApprovalDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-blue-50 border-blue-200">
+          <Card className="bg-yellow-50 border-yellow-200">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-blue-700">
-                <Users className="h-5 w-5" />
-                Forwarded
+              <CardTitle className="flex items-center gap-2 text-yellow-700">
+                <Clock className="h-5 w-5" />
+                Pending
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {dashboardStats.forwarded_count}
+              <div className="text-2xl font-bold text-yellow-600">
+                {dashboardStats.pending_count}
               </div>
             </CardContent>
           </Card>
+
         </div>
 
         {/* Filter Tabs */}

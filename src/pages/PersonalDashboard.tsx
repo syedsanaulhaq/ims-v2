@@ -98,18 +98,17 @@ const PersonalDashboard = () => {
   }
 
   const stats = {
+    totalItems: myIssuedItems.length,
+    returnedItems: myIssuedItems.filter((item) => {
+      const status = String(item.status || item.return_status || '').toLowerCase();
+      return status === 'returned' || Boolean(item.actual_return_date);
+    }).length,
+    currentlyInStock: myIssuedItems.filter((item) => {
+      const status = String(item.status || item.return_status || '').toLowerCase();
+      return status !== 'returned' && !item.actual_return_date;
+    }).length,
     totalRequests: myRequests.length,
-    pendingRequests: myRequests.filter(r => {
-      const status = (r.request_status || r.current_status || '').toLowerCase();
-      return status === 'submitted' || status === 'pending' || status === 'under_review';
-    }).length,
-    approvedRequests: myRequests.filter(r => {
-      const status = (r.request_status || r.current_status || '').toLowerCase();
-      return status === 'approved' || status === 'completed';
-    }).length,
-    itemsInPossession: myIssuedItems.length,
-    pendingApprovals: myPendingApprovals.length,
-    unreadNotifications: myNotifications.filter(n => !n.is_read).length
+    pendingApprovals: myPendingApprovals.length
   };
 
   return (
@@ -118,7 +117,7 @@ const PersonalDashboard = () => {
       <div>
         <h1 className="text-4xl font-bold text-gray-900">Personal Dashboard</h1>
         <p className="text-lg text-gray-600 mt-2">
-          Welcome back, {user?.user_name || 'User'}! See what you requested and what is waiting for your approval.
+          Welcome back, {user?.user_name || 'User'}! Your personal stock and request overview.
         </p>
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
@@ -132,96 +131,61 @@ const PersonalDashboard = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/dashboard/approval-dashboard-request-based')}
+            onClick={() => navigate('/dashboard/wing-approval-dashboard')}
           >
-            Go to Subordinate Requests
+            Go to Requests Dashboard
           </Button>
         </div>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/my-requests')}>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-orange-700">
-              <ClipboardList className="h-5 w-5" />
-              Requests I Made
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Total</span>
-                <span className="text-2xl font-bold text-orange-600">{stats.totalRequests}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">Pending</span>
-                <span className="font-semibold text-orange-500">{stats.pendingRequests}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">Approved</span>
-                <span className="font-semibold text-green-600">{stats.approvedRequests}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/my-issued-items')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-blue-700">
               <Package className="h-5 w-5" />
-              Items in Possession
+              Total Items
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Total</span>
-                <span className="text-2xl font-bold text-blue-600">{stats.itemsInPossession}</span>
+                <span className="text-sm text-gray-600">Count</span>
+                <span className="text-2xl font-bold text-blue-600">{stats.totalItems}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Currently issued to you
-              </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/approval-dashboard-request-based')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-l-green-500" onClick={() => navigate('/dashboard/my-issued-items')}>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-purple-700">
-              <CheckCircle className="h-5 w-5" />
-              Requests For My Approval
+            <CardTitle className="flex items-center gap-2 text-green-700">
+              <Package className="h-5 w-5" />
+              Currently In Stock
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Pending</span>
-                <span className="text-2xl font-bold text-purple-600">{stats.pendingApprovals}</span>
+                <span className="text-sm text-gray-600">Count</span>
+                <span className="text-2xl font-bold text-green-600">{stats.currentlyInStock}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                {stats.pendingApprovals > 0 ? 'Assigned to you for action' : 'No requests assigned to you'}
-              </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-teal-50 to-teal-100 border-l-4 border-l-teal-500" onClick={() => navigate('/notifications')}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/my-issued-items')}>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-teal-700">
-              <Bell className="h-5 w-5" />
-              Notifications
+            <CardTitle className="flex items-center gap-2 text-orange-700">
+              <Undo2 className="h-5 w-5" />
+              Returned
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Total</span>
-                <span className="text-2xl font-bold text-teal-600">{myNotifications.length}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-500">Unread</span>
-                <span className="font-semibold text-teal-500">{stats.unreadNotifications}</span>
+                <span className="text-sm text-gray-600">Count</span>
+                <span className="text-2xl font-bold text-orange-600">{stats.returnedItems}</span>
               </div>
             </div>
           </CardContent>
@@ -235,41 +199,32 @@ const PersonalDashboard = () => {
           <CardDescription>Common tasks you can perform</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Button 
               variant="outline" 
-              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-teal-50 hover:border-teal-500 transition-all"
-              onClick={() => navigate('/dashboard/stock-issuance-personal')}
-            >
-              <Send className="h-10 w-10 text-teal-600" />
-              <span className="text-sm font-semibold">Request Item</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-orange-50 hover:border-orange-500 transition-all"
-              onClick={() => navigate('/dashboard/stock-return')}
-            >
-              <Undo2 className="h-10 w-10 text-orange-600" />
-              <span className="text-sm font-semibold">Return Item</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-blue-50 hover:border-blue-500 transition-all"
+              className="h-24 flex flex-col items-center justify-center space-y-2 hover:bg-blue-50 hover:border-blue-500 transition-all"
               onClick={() => navigate('/dashboard/my-requests')}
             >
-              <ClipboardList className="h-10 w-10 text-blue-600" />
-              <span className="text-sm font-semibold">View Requests</span>
+              <ClipboardList className="h-8 w-8 text-blue-600" />
+              <span className="text-sm font-semibold">My Request</span>
             </Button>
             
             <Button 
               variant="outline" 
-              className="h-28 flex flex-col items-center justify-center space-y-3 hover:bg-purple-50 hover:border-purple-500 transition-all"
+              className="h-24 flex flex-col items-center justify-center space-y-2 hover:bg-purple-50 hover:border-purple-500 transition-all"
               onClick={() => navigate('/dashboard/my-issued-items')}
             >
-              <Box className="h-10 w-10 text-purple-600" />
-              <span className="text-sm font-semibold">My Items</span>
+              <Box className="h-8 w-8 text-purple-600" />
+              <span className="text-sm font-semibold">My Inventory</span>
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col items-center justify-center space-y-2 hover:bg-teal-50 hover:border-teal-500 transition-all"
+              onClick={() => navigate('/dashboard/wing-approval-dashboard')}
+            >
+              <CheckCircle className="h-8 w-8 text-teal-600" />
+              <span className="text-sm font-semibold">Requests Dashboard</span>
             </Button>
           </div>
         </CardContent>

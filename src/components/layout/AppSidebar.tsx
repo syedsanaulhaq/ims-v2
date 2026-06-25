@@ -185,23 +185,22 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
   // PERSONAL MENU - For all individual users
   const personalMenuGroup: MenuGroup = {
-    label: "Personal Menu",
+    label: "Personal",
     icon: User,
     items: [
-      { title: "My Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
-      { title: "Requests I Made", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
-      { title: "Request Status", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
-      { title: "My Inventory", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
+      { title: "Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
+      { title: "My Request", icon: ClipboardList, path: "/dashboard/my-requests", permission: undefined },
+      { title: "My Inventory", icon: Package, path: "/dashboard/my-issued-items", permission: undefined },
     ]
   };
 
   const subordinateMenuGroup: MenuGroup = {
-    label: "Subordinate Requests",
+    label: "Requests",
     icon: Users,
     items: [
-      { title: "Subordinate Dashboard", icon: CheckCircle, path: hasAdminApprovalRole ? "/dashboard/approval-dashboard-request-based-admin" : "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
-      { title: "Items For My Approval", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
-      { title: "Pending Request History", icon: History, path: "/dashboard/requests-history/pending", permission: 'approval.approve' },
+      { title: "Dashboard", icon: CheckCircle, path: "/dashboard/wing-approval-dashboard", permission: 'approval.approve' },
+      { title: "Requested Items", icon: ClipboardList, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
     ]
   };
 
