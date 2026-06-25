@@ -175,17 +175,7 @@ const PersonalDashboard = () => {
     }
   }, [user?.user_id]);
 
-  if (dataLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <LoadingSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-gray-600">Loading your personal dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // ⚠️ All hooks MUST be called before any early return (Rules of Hooks)
   const inventorySummary = useMemo(() => {
     const totalQuantity = myIssuedItems.reduce((sum, item) => sum + getIssuedQuantity(item), 0);
     const returnedQuantity = myIssuedItems
@@ -262,6 +252,17 @@ const PersonalDashboard = () => {
       .sort((a, b) => new Date(getRequestDate(b) || 0).getTime() - new Date(getRequestDate(a) || 0).getTime())
       .slice(0, 8);
   }, [myRequests, searchRequestsFilter]);
+
+  if (dataLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <LoadingSpinner size="lg" className="mx-auto mb-4" />
+          <p className="text-gray-600">Loading your personal dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen">
