@@ -502,7 +502,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             ? 'Review requests forwarded to admin workflow and return/forward decisions'
             : 'Manage requests by approval status'}
         </p>
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             {dashboardStats.pending_count} Pending
@@ -511,6 +511,13 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             <Clock className="h-3 w-3 mr-1" />
             Last Updated: {new Date().toLocaleTimeString()}
           </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/personal-dashboard')}
+          >
+            Go to Personal Dashboard
+          </Button>
         </div>
       </div>
 

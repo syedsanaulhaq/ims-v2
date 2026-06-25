@@ -120,7 +120,7 @@ const PersonalDashboard = () => {
         <p className="text-lg text-gray-600 mt-2">
           Welcome back, {user?.user_name || 'User'}! See what you requested and what is waiting for your approval.
         </p>
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Active
@@ -129,6 +129,13 @@ const PersonalDashboard = () => {
             <Clock className="h-3 w-3 mr-1" />
             Last Updated: {new Date().toLocaleTimeString()}
           </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/dashboard/approval-dashboard-request-based')}
+          >
+            Go to Subordinate Requests
+          </Button>
         </div>
       </div>
 

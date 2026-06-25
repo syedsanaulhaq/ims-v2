@@ -190,13 +190,18 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "My Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
       { title: "Requests I Made", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
-      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
-      { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
-      { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
-      { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
-      { title: "Stock Requests", icon: ClipboardList, path: "/procurement/my-requests", permission: 'procurement.view_own' },
-      { title: "Requests For My Approval", icon: CheckCircle, path: hasAdminApprovalRole ? "/dashboard/approval-dashboard-request-based-admin" : "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
+      { title: "Request Status", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
+      { title: "My Inventory", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
+    ]
+  };
+
+  const subordinateMenuGroup: MenuGroup = {
+    label: "Subordinate Requests",
+    icon: Users,
+    items: [
+      { title: "Subordinate Dashboard", icon: CheckCircle, path: hasAdminApprovalRole ? "/dashboard/approval-dashboard-request-based-admin" : "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
       { title: "Items For My Approval", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "Pending Request History", icon: History, path: "/dashboard/requests-history/pending", permission: 'approval.approve' },
     ]
   };
 
@@ -341,83 +346,15 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const getVisibleMenuGroups = () => {
     const groups: MenuGroup[] = [];
 
-    // Always show personal menu
+    // Keep navigation intentionally simple: Personal + Subordinate Requests.
     const visiblePersonalItems = personalMenuGroup.items.filter(item => checkPermission(item.permission));
     if (visiblePersonalItems.length > 0) {
       groups.push({ ...personalMenuGroup, items: visiblePersonalItems });
     }
 
-    // Show wing menu if user is wing supervisor
-    if (isWingSupervisor) {
-      const visibleWingItems = wingMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleWingItems.length > 0) {
-        groups.push({ ...wingMenuGroup, items: visibleWingItems });
-      }
-    }
-
-    // Show store keeper menu if user is wing store keeper (by permission or role)
-    if (canAccessStoreKeeperMenu) {
-      const visibleStoreKeeperItems = storeKeeperMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleStoreKeeperItems.length > 0) {
-        groups.push({ ...storeKeeperMenuGroup, items: visibleStoreKeeperItems });
-      }
-    }
-
-    // Show inventory menu for super admins and inventory managers.
-    // Store-keeper exclusion should not hide inventory menu from super admins.
-    if ((isSuperAdmin || canViewInventory || canManageInventory) && (!canAccessStoreKeeperMenu || isSuperAdmin)) {
-      const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleInventoryItems.length > 0) {
-        groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });
-      }
-    }
-
-    // Show procurement menu if user has procurement permissions
-    if (canViewProcurement || canManageProcurement) {
-      const visibleProcurementItems = procurementMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleProcurementItems.length > 0) {
-        groups.push({ ...procurementMenuGroup, items: visibleProcurementItems });
-      }
-    }
-
-    // Show issuance menu if user has issuance PROCESSING permissions
-    if (canProcessIssuance) {
-      const visibleIssuanceItems = issuanceMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleIssuanceItems.length > 0) {
-        groups.push({ ...issuanceMenuGroup, items: visibleIssuanceItems });
-      }
-    }
-
-    // Show request history menu if user has APPROVAL permissions (approvers only)
-    if (canApprove || hasApproverRole) {
-      const visibleRequestHistoryItems = requestHistoryMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleRequestHistoryItems.length > 0) {
-        groups.push({ ...requestHistoryMenuGroup, items: visibleRequestHistoryItems });
-      }
-    }
-
-    // Show approval menu if user has APPROVAL permissions (approvers only)
-    if (canApprove || hasApproverRole) {
-      const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleApprovalItems.length > 0) {
-        groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
-      }
-    }
-
-    // Show metadata menu if user has inventory or procurement permissions (before Admin)
-    if (canManageInventory || canManageProcurement) {
-      const visibleMetadataItems = metadataMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleMetadataItems.length > 0) {
-        groups.push({ ...metadataMenuGroup, items: visibleMetadataItems });
-      }
-    }
-
-    // Show admin menu if user is super admin
-    if (isSuperAdmin || canManageRoles) {
-      const visibleAdminItems = adminMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleAdminItems.length > 0) {
-        groups.push({ ...adminMenuGroup, items: visibleAdminItems });
-      }
+    const visibleSubordinateItems = subordinateMenuGroup.items.filter(item => checkPermission(item.permission));
+    if (visibleSubordinateItems.length > 0) {
+      groups.push({ ...subordinateMenuGroup, items: visibleSubordinateItems });
     }
 
     return groups;
