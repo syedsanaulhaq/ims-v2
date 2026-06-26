@@ -189,6 +189,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: User,
     items: [
       { title: "Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
+      { title: "Request Form", icon: ShoppingCart, path: "/procurement/new-request", permission: undefined },
       { title: "My Request", icon: ClipboardList, path: "/dashboard/my-requests", permission: undefined },
       { title: "My Inventory", icon: Package, path: "/dashboard/my-issued-items", permission: undefined },
     ]
