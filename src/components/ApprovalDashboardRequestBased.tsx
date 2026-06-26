@@ -909,6 +909,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </Card>
 
       {/* Wing Requests Table */}
+      {viewMode === 'admin' && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
@@ -1114,6 +1115,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             </div>
           </CardFooter>
         </Card>
+      )}
 
     </div>
   );
