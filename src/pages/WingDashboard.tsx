@@ -97,8 +97,13 @@ const WingDashboard = () => {
             .then(res => res.ok ? res.json() : { data: [] })
             .catch(() => ({ data: [] })),
           
-          // Wing members
-          fetch(`${apiBase}/users/aspnet/filtered?wing_id=${user?.wing_id}`, { credentials: 'include' })
+          // Wing members — admin sees all, supervisor scoped to own wing
+          fetch(
+            user?.is_super_admin
+              ? `${apiBase}/users/aspnet/filtered`
+              : `${apiBase}/users/aspnet/filtered?wing_id=${user?.wing_id}`,
+            { credentials: 'include' }
+          )
             .then(res => res.ok ? res.json() : [])
             .catch(() => [])
         ]);

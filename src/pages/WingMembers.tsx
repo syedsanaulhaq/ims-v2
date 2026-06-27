@@ -60,11 +60,12 @@ const WingMembers: React.FC = () => {
         setWingName(currentWing?.Name || 'Unknown Wing');
       }
 
-      // Fetch wing members using the correct endpoint
-      const membersRes = await fetch(
-        `${apiBase}/users/aspnet/filtered?wing_id=${wingId}`,
-        { credentials: 'include' }
-      );
+      // Admin sees all users; supervisor scoped to own wing
+      const isSuperAdmin = (user as any)?.is_super_admin === true;
+      const membersUrl = isSuperAdmin
+        ? `${apiBase}/users/aspnet/filtered`
+        : `${apiBase}/users/aspnet/filtered?wing_id=${wingId}`;
+      const membersRes = await fetch(membersUrl, { credentials: 'include' });
 
       if (membersRes.ok) {
         const membersData = await membersRes.json();
