@@ -63,14 +63,8 @@ router.get('/approvers', async (req, res) => {
         u.intOfficeID,
         u.intWingID,
         u.intDesignationID,
-        d.DesignationName as designation,
-        o.strOfficeName as officeName,
-        w.WingName as wingName,
-        CONCAT(u.FullName, ' (', COALESCE(d.DesignationName, u.Role), ')') as displayName
+        CONCAT(u.FullName, ' (', u.Role, ')') as displayName
       FROM AspNetUsers u
-      LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
-      LEFT JOIN Office_MST o ON u.intOfficeID = o.intOfficeID
-      LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
       WHERE u.ISACT = 1
       ORDER BY u.FullName
     `);
@@ -108,14 +102,8 @@ router.get('/:id', async (req, res) => {
           u.intDesignationID,
           u.Gender,
           u.AddedOn,
-          u.LastLoggedIn,
-          d.DesignationName as designation,
-          o.strOfficeName as officeName,
-          w.WingName as wingName
+          u.LastLoggedIn
         FROM AspNetUsers u
-        LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
-        LEFT JOIN Office_MST o ON u.intOfficeID = o.intOfficeID
-        LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
         WHERE u.Id = @userId AND u.ISACT = 1
       `);
 
@@ -257,14 +245,8 @@ router.get('/aspnet/filtered', async (req, res) => {
         u.Role,
         u.intOfficeID,
         u.intWingID,
-        u.intDesignationID,
-        d.DesignationName as designation,
-        o.strOfficeName as officeName,
-        w.WingName as wingName
+        u.intDesignationID
       FROM AspNetUsers u
-      LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
-      LEFT JOIN Office_MST o ON u.intOfficeID = o.intOfficeID
-      LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
       WHERE u.ISACT = 1
     `;
 
