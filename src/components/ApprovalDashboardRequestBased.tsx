@@ -548,7 +548,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   }
 
   return (
-    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-6 space-y-8 bg-slate-50 min-h-screen">
       {/* Page Header */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900">
@@ -584,8 +584,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('pending')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'pending' 
-              ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 shadow-lg' 
-              : 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-yellow-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-yellow-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -602,8 +602,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('approve_wing')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'approve_wing' 
-              ? 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 shadow-lg' 
-              : 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-green-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-green-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -620,8 +620,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('reject')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'reject' 
-              ? 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 shadow-lg' 
-              : 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-red-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-red-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -638,8 +638,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('forward_admin')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forward_admin' 
-              ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 shadow-lg' 
-              : 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-blue-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-blue-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -656,8 +656,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('forward_supervisor')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forward_supervisor' 
-              ? 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 shadow-lg' 
-              : 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-purple-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-purple-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -674,8 +674,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('return')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'return' 
-              ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-l-orange-500 shadow-lg' 
-              : 'bg-gradient-to-br from-orange-50 to-orange-100 border-l-orange-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-orange-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-orange-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -690,7 +690,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </div>
 
       {/* Personal Requests Table */}
-      <Card className="border border-gray-200">
+      <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
@@ -753,7 +753,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             ) : (
               <div className="space-y-4">
                 {getPersonalPaginated().map((request) => (
-                <Card key={request.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                <Card key={request.id} className="border border-slate-200 hover:shadow-md transition-shadow bg-white">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
