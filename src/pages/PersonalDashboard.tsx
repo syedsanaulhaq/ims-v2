@@ -488,44 +488,6 @@ const PersonalDashboard = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle className="text-xl">Quick Actions</CardTitle>
-          <CardDescription>Jump directly to your common workflows</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Button
-              variant="outline"
-              className="h-20 justify-start px-4 gap-3 hover:bg-indigo-50"
-              onClick={() => navigate('/dashboard/my-requests')}
-            >
-              <ClipboardList className="h-5 w-5 text-indigo-600" />
-              <span className="font-semibold">My Requests</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 justify-start px-4 gap-3 hover:bg-cyan-50"
-              onClick={() => navigate('/dashboard/my-issued-items')}
-            >
-              <Box className="h-5 w-5 text-cyan-600" />
-              <span className="font-semibold">My Inventory</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 justify-start px-4 gap-3 hover:bg-emerald-50"
-              onClick={() => navigate('/dashboard/supervisor-approval-dashboard')}
-            >
-              <CheckCircle className="h-5 w-5 text-emerald-600" />
-              <span className="font-semibold">Subordinate Requests Dashboard</span>
-            </Button>
-          </div>
-          <div className="mt-3 text-xs text-slate-500 flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            Pending approvals assigned to you: <span className="font-semibold text-slate-700">{myPendingApprovals.length}</span>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
