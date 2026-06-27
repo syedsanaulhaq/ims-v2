@@ -284,6 +284,9 @@ const PersonalDashboard = () => {
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
+              <Button onClick={() => navigate('/dashboard/stock-issuance-personal')}>
+                New Request
+              </Button>
               <Button variant="outline" onClick={() => navigate('/dashboard/supervisor-approval-dashboard')}>
                 Open Requests Dashboard
               </Button>
