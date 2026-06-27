@@ -62,6 +62,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [itemsPerPage] = useState(5);
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
 
   const isAdminWorkflowRequest = (request: RequestSummary) => {
     const explicitFlag = (request.approval as any)?.is_admin_workflow;
@@ -97,7 +98,17 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
   useEffect(() => {
     loadDashboardData();
-  }, [refreshTrigger, user, activeFilter]);
+  }, [refreshTrigger, user]);
+
+  useEffect(() => {
+    let filteredRequests = allScopedRequests;
+
+    if (activeFilter !== 'pending') {
+      filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
+    }
+
+    setRequests(filteredRequests);
+  }, [allScopedRequests, activeFilter]);
 
   const loadDashboardData = async () => {
     try {
@@ -118,23 +129,30 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       const allApprovals: RequestApproval[] = [];
       // Track which backend status each approval came from
       const approvalSourceStatus = new Map<string, string>();
-      
-      for (const status of allStatuses) {
-        try {
-          const approvals = await withTimeout(
-            approvalForwardingService.getMyApprovalsByStatus(userId, status as any),
-            6000,
-            [] as RequestApproval[]
-          );
-          for (const a of approvals) {
-            if (!approvalSourceStatus.has(a.request_id)) {
-              approvalSourceStatus.set(a.request_id, status);
-            }
+
+      const statusResults = await Promise.all(
+        allStatuses.map(async (status) => {
+          try {
+            const approvals = await withTimeout(
+              approvalForwardingService.getMyApprovalsByStatus(userId, status as any),
+              6000,
+              [] as RequestApproval[]
+            );
+            return { status, approvals };
+          } catch (statusError) {
+            console.warn(`Skipping approvals status '${status}' due to fetch error:`, statusError);
+            return { status, approvals: [] as RequestApproval[] };
           }
-          allApprovals.push(...approvals);
-        } catch (statusError) {
-          console.warn(`Skipping approvals status '${status}' due to fetch error:`, statusError);
+        })
+      );
+
+      for (const { status, approvals } of statusResults) {
+        for (const a of approvals) {
+          if (!approvalSourceStatus.has(a.request_id)) {
+            approvalSourceStatus.set(a.request_id, status);
+          }
         }
+        allApprovals.push(...approvals);
       }
 
       // Fetch full details for each approval (which includes items)
@@ -148,33 +166,35 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return_count: 0
       };
 
-      for (const approval of allApprovals) {
+      const uniqueApprovals = allApprovals.filter((approval) => {
         const requestId = approval.request_id;
-        
-        // Skip if we already have this request
         if (requestMap.has(requestId)) {
-          continue;
+          return false;
         }
+        requestMap.set(requestId, null as any);
+        return true;
+      });
+
+      const apiUrl = 'http://localhost:3001';
+      const buildSummary = async (approval: RequestApproval): Promise<RequestSummary | null> => {
+        const requestId = approval.request_id;
 
         try {
-          // Fetch full approval details including items
-          const apiUrl = 'http://localhost:3001';
           const detailResponse = await fetch(`${apiUrl}/api/approvals/${approval.id}`, {
             credentials: 'include'
           });
 
           if (!detailResponse.ok) {
             console.warn(`Failed to fetch details for approval ${approval.id}`);
-            continue;
+            return null;
           }
 
           const detailData = await detailResponse.json();
           const fullApproval = detailData.data || detailData;
 
-          // Determine card category from the backend source status + current_status
           const sourceStatus = approvalSourceStatus.get(requestId) || 'pending';
           const requestStatus = getRequestStatusFromApproval(approval, sourceStatus);
-          
+
           const summary: RequestSummary = {
             id: approval.id,
             request_id: requestId,
@@ -200,10 +220,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             approval: { ...fullApproval, items: fullApproval.items || [] } as any
           };
 
-          // Verify whether physical issuance happened (inventory deducted and assigned to requester inventory).
-          const issuanceResponse = await fetch(`${apiUrl}/api/stock-issuance/${requestId}`, {
-            credentials: 'include'
-          }).catch(() => null);
+          const [issuanceResponse, laneSummary] = await Promise.all([
+            fetch(`${apiUrl}/api/stock-issuance/${requestId}`, {
+              credentials: 'include'
+            }).catch(() => null),
+            approvalForwardingService.getRequestLanes(requestId).catch(() => null)
+          ]);
 
           if (issuanceResponse?.ok) {
             const issuancePayload = await issuanceResponse.json().catch(() => ({} as any));
@@ -217,7 +239,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             summary.issuance_transfer_status = 'unknown';
           }
 
-          // Count items by status
           const items = fullApproval.items || [];
           summary.total_items = items.length;
 
@@ -236,8 +257,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             }
           });
 
-          // Mixed-group lane summary for quick card visibility.
-          const laneSummary = await approvalForwardingService.getRequestLanes(requestId).catch(() => null);
           if (laneSummary) {
             summary.lane_count = laneSummary.lane_count || 0;
             summary.lane_parent_status = laneSummary.parent_status || 'pending';
@@ -264,18 +283,40 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             ].join(' | ');
           }
 
-          requestMap.set(requestId, summary);
-          
-          // Count request statuses
-          if (requestStatus === 'pending') statusCounts.pending_count++;
-          else if (requestStatus === 'approve_wing') statusCounts.approve_wing_count++;
-          else if (requestStatus === 'reject') statusCounts.reject_count++;
-          else if (requestStatus === 'forward_admin') statusCounts.forward_admin_count++;
-          else if (requestStatus === 'forward_supervisor') statusCounts.forward_supervisor_count++;
-          else if (requestStatus === 'return') statusCounts.return_count++;
+          return summary;
         } catch (error) {
           console.error(`Error fetching details for approval ${approval.id}:`, error);
+          return null;
         }
+      };
+
+      const runWithConcurrency = async <T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>) => {
+        const results: R[] = [];
+        let index = 0;
+
+        const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+          while (index < items.length) {
+            const currentIndex = index++;
+            results[currentIndex] = await worker(items[currentIndex]);
+          }
+        });
+
+        await Promise.all(runners);
+        return results;
+      };
+
+      const summaries = await runWithConcurrency(uniqueApprovals, 6, buildSummary);
+
+      for (const summary of summaries) {
+        if (!summary) continue;
+        requestMap.set(summary.request_id, summary);
+
+        if (summary.request_status === 'pending') statusCounts.pending_count++;
+        else if (summary.request_status === 'approve_wing') statusCounts.approve_wing_count++;
+        else if (summary.request_status === 'reject') statusCounts.reject_count++;
+        else if (summary.request_status === 'forward_admin') statusCounts.forward_admin_count++;
+        else if (summary.request_status === 'forward_supervisor') statusCounts.forward_supervisor_count++;
+        else if (summary.request_status === 'return') statusCounts.return_count++;
       }
 
       // Split flows by page mode to keep supervisor and admin experiences isolated.
@@ -292,27 +333,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return_count: scopedRequests.filter(r => r.request_status === 'return').length,
       };
 
-      // Filter by active tab
-      let filteredRequests = scopedRequests;
-      
-      if (activeFilter !== 'pending') {
-        filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
-      } else {
-        filteredRequests = filteredRequests.filter((r) => {
-          if (r.request_status !== 'pending') return false;
+      const pendingFilteredScopedRequests = scopedRequests.filter((r) => {
+        if (r.request_status !== 'pending') return true;
 
-          // If lane endpoint is unavailable/failed, fall back to legacy pending behavior.
-          if (!lanePendingAvailable) return true;
+        if (!lanePendingAvailable) return true;
+        if (pendingRequestIdSet.size === 0) return true;
 
-          // If no lane rows are available for this user, keep pending requests visible.
-          if (pendingRequestIdSet.size === 0) return true;
+        return pendingRequestIdSet.has(String(r.request_id)) || (r.lane_count || 0) === 0;
+      });
 
-          // For mixed-group workflow, honor lane assignment; for legacy requests with no lanes, keep visible.
-          return pendingRequestIdSet.has(String(r.request_id)) || (r.lane_count || 0) === 0;
-        });
-      }
-
-      setRequests(filteredRequests);
+      setAllScopedRequests(pendingFilteredScopedRequests);
       setDashboardStats(scopedStatusCounts);
     } catch (error) {
       console.error('Error loading request-based dashboard data:', error);
