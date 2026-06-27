@@ -96,7 +96,7 @@ const NewProcurementRequest: React.FC = () => {
   const fetchItemsLibrary = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${getApiBaseUrl()}/items-master`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/items-master`, {
         credentials: 'include'
       });
 
