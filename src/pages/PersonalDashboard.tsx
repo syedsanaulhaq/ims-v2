@@ -288,7 +288,7 @@ const PersonalDashboard = () => {
                 New Request
               </Button>
               <Button variant="outline" onClick={() => navigate('/dashboard/supervisor-approval-dashboard')}>
-                Open Requests Dashboard
+                Open Supervisor Dashboard
               </Button>
               <Button onClick={() => navigate('/dashboard/my-requests')}>
                 My Requests
