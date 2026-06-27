@@ -333,7 +333,7 @@ const MyRequestsPage: React.FC = () => {
       )}
       {/* Page Header */}
       <div>
-        <h1 className="text-4xl font-bold text-gray-900">My Requests</h1>
+        <h1 className="text-3xl font-bold text-gray-900">My Requests</h1>
         <p className="text-lg text-gray-600 mt-2">
           Track all your submitted requests and their approval status
         </p>
@@ -521,7 +521,7 @@ const MyRequestsPage: React.FC = () => {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{request.title}</h3>
+                      <h3 className="text-base font-semibold text-gray-900">{request.title}</h3>
                       <p className="text-sm text-gray-600 mt-1">{request.description}</p>
                     </div>
                     <div className="flex gap-2">
