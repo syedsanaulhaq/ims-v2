@@ -38,7 +38,7 @@ async function resolveWingScope(session, pool) {
 }
 
 // ============================================================================
-// GET /api/wing-inventory/requests - Requests for caller's wing (all wings for admin)
+// GET /api/wing-inventory/requests - Wing requests for caller's wing (all wings for admin)
 // ============================================================================
 router.get('/requests', requireAuth, async (req, res) => {
   try {
@@ -53,9 +53,9 @@ router.get('/requests', requireAuth, async (req, res) => {
     let wingFilter = '';
     if (!isAdmin) {
       reqRequest.input('wingId', sql.Int, wingId);
-      wingFilter = 'WHERE sir.requester_wing_id = @wingId AND sir.request_type = \'Organizational\'';
+      wingFilter = 'WHERE sir.requester_wing_id = @wingId AND sir.request_type = \'wing\'';
     } else {
-      wingFilter = 'WHERE sir.request_type = \'Organizational\'';
+      wingFilter = 'WHERE sir.request_type = \'wing\'';
     }
 
     const reqResult = await reqRequest.query(`
@@ -135,9 +135,9 @@ router.get('/:wingId', requireAuth, async (req, res) => {
     let wingFilter = '';
     if (!isAdmin) {
       invRequest.input('wingId', sql.Int, effectiveWingId);
-      wingFilter = 'AND sir.requester_wing_id = @wingId AND sir.request_type = \'Organizational\'';
+      wingFilter = 'AND sir.requester_wing_id = @wingId AND sir.request_type = \'wing\'';
     } else {
-      wingFilter = 'AND sir.request_type = \'Organizational\'';
+      wingFilter = 'AND sir.request_type = \'wing\'';
     }
 
     const result = await invRequest.query(`

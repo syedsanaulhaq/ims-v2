@@ -22,7 +22,7 @@ const requireAuth = (req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { status, wing_id, requester_id } = req.query;
+    const { status, wing_id, requester_id, request_type } = req.query;
 
     let query = `
       SELECT 
@@ -52,6 +52,11 @@ router.get('/', async (req, res) => {
       request = request.input('requesterId', sql.NVarChar(450), requester_id);
     }
 
+    if (request_type) {
+      query += ` AND sir.request_type = @requestType`;
+      request = request.input('requestType', sql.NVarChar(50), request_type);
+    }
+
     query += ` ORDER BY sir.submitted_at DESC`;
 
     const result = await request.query(query);
@@ -70,7 +75,7 @@ router.get('/', async (req, res) => {
 router.get('/requests', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
-    const { status, wing_id, requester_id, includeDeleted } = req.query;
+    const { status, wing_id, requester_id, includeDeleted, request_type } = req.query;
     const userId = req.session?.userId;
 
     // Production can lag behind schema updates. Detect optional columns dynamically
@@ -217,6 +222,11 @@ router.get('/requests', requireAuth, async (req, res) => {
     if (requester_id) {
       conditions.push('CONVERT(NVARCHAR(450), sir.requester_user_id) = @requesterId');
       request = request.input('requesterId', sql.NVarChar(450), requester_id);
+    }
+
+    if (request_type) {
+      conditions.push('sir.request_type = @requestType');
+      request = request.input('requestType', sql.NVarChar(50), request_type);
     }
 
     if (conditions.length > 0) {
