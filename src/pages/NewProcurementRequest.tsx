@@ -196,7 +196,7 @@ const NewProcurementRequest: React.FC = () => {
       // Create the stock issuance request first
       const requestPayload = {
         request_number: requestNumber,
-        request_type: 'Organizational',
+        request_type: 'wing',
         requester_office_id: null,
         requester_wing_id: wingId || null,
         requester_branch_id: null,
