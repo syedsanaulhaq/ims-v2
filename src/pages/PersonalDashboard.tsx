@@ -287,9 +287,6 @@ const PersonalDashboard = () => {
               <Button onClick={() => navigate('/dashboard/stock-issuance-personal')}>
                 New Request
               </Button>
-              <Button variant="outline" onClick={() => navigate('/dashboard/supervisor-approval-dashboard')}>
-                Supervisor Dashboard
-              </Button>
               <Button onClick={() => navigate('/dashboard/my-requests')}>
                 My Requests
               </Button>
