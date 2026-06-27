@@ -98,7 +98,7 @@ const WingDashboard = () => {
             .catch(() => ({ data: [] })),
           
           // Wing members
-          fetch(`${apiBase}/ims/users?wing_id=${user?.wing_id}`, { credentials: 'include' })
+          fetch(`${apiBase}/users/aspnet/filtered?wing_id=${user?.wing_id}`, { credentials: 'include' })
             .then(res => res.ok ? res.json() : [])
             .catch(() => [])
         ]);

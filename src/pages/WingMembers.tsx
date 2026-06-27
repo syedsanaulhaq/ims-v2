@@ -62,7 +62,7 @@ const WingMembers: React.FC = () => {
 
       // Fetch wing members using the correct endpoint
       const membersRes = await fetch(
-        `${apiBase}/ims/users?wing_id=${wingId}`,
+        `${apiBase}/users/aspnet/filtered?wing_id=${wingId}`,
         { credentials: 'include' }
       );
 

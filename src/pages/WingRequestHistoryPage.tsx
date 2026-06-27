@@ -63,8 +63,8 @@ const WingRequestHistoryPage: React.FC = () => {
   const loadWingRequestHistory = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Making API call to /api/wing-request-history');
-      const response = await fetch('http://localhost:3001/api/wing-request-history', {
+      console.log('🔍 Making API call to /api/wing-inventory/requests');
+      const response = await fetch('http://localhost:3001/api/wing-inventory/requests', {
         method: 'GET',
         credentials: 'include',
         headers: {
