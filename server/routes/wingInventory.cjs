@@ -53,7 +53,7 @@ router.get('/requests', requireAuth, async (req, res) => {
     let wingFilter = '';
     if (!isAdmin) {
       reqRequest.input('wingId', sql.Int, wingId);
-      wingFilter = 'WHERE u.intWingID = @wingId AND sir.request_type = \'Organizational\'';
+      wingFilter = 'WHERE sir.requester_wing_id = @wingId AND sir.request_type = \'Organizational\'';
     } else {
       wingFilter = 'WHERE sir.request_type = \'Organizational\'';
     }
@@ -135,7 +135,7 @@ router.get('/:wingId', requireAuth, async (req, res) => {
     let wingFilter = '';
     if (!isAdmin) {
       invRequest.input('wingId', sql.Int, effectiveWingId);
-      wingFilter = 'AND u.intWingID = @wingId AND sir.request_type = \'Organizational\'';
+      wingFilter = 'AND sir.requester_wing_id = @wingId AND sir.request_type = \'Organizational\'';
     } else {
       wingFilter = 'AND sir.request_type = \'Organizational\'';
     }
