@@ -13,8 +13,7 @@ import {
   RotateCcw,
   Search,
   Download,
-  Clock,
-  Layers
+  Clock
 } from 'lucide-react';
 import { formatDateDMY } from '@/utils/dateUtils';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -201,7 +200,7 @@ export default function MyIssuedItems() {
 
         {/* Summary Cards */}
         {summary && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
             <Card className="border-l-4 border-l-cyan-500">
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-2 text-slate-600">
@@ -210,16 +209,6 @@ export default function MyIssuedItems() {
                 <CardTitle className="text-3xl text-cyan-700">{summary.total_items}</CardTitle>
               </CardHeader>
               <CardContent className="text-xs text-slate-500">Items issued to your account</CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-indigo-500">
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-2 text-slate-600">
-                  <Layers className="h-4 w-4" /> Total Value
-                </CardDescription>
-                <CardTitle className="text-3xl text-indigo-700">₨ {summary.total_value.toLocaleString()}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-slate-500">Combined issued inventory value</CardContent>
             </Card>
 
             <Card className="border-l-4 border-l-purple-500">
