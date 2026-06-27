@@ -321,7 +321,7 @@ const MyRequestsPage: React.FC = () => {
 
   return (
     <>
-    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-6 space-y-8 bg-slate-50 min-h-screen">
       {receiptMsg && (
         <div className={`flex items-center gap-3 p-4 rounded-xl border text-sm font-medium ${
           receiptMsg.startsWith('✅') ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
@@ -355,8 +355,8 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('all')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'all' 
-              ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 shadow-lg' 
-              : 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-blue-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-blue-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -374,8 +374,8 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('pending')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'pending' 
-              ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 shadow-lg' 
-              : 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-yellow-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-yellow-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -393,8 +393,8 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('forwarded_to_supervisor')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forwarded_to_supervisor' 
-              ? 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 shadow-lg' 
-              : 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-purple-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-purple-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -412,8 +412,8 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('forwarded_to_admin')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forwarded_to_admin' 
-              ? 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-l-indigo-500 shadow-lg' 
-              : 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-l-indigo-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-indigo-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-indigo-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -431,8 +431,8 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('approved')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'approved' 
-              ? 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 shadow-lg' 
-              : 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-green-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-green-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -450,8 +450,8 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('rejected')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'rejected' 
-              ? 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 shadow-lg' 
-              : 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-red-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-red-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -467,7 +467,7 @@ const MyRequestsPage: React.FC = () => {
       </div>
 
       {/* Search Bar */}
-      <Card className="border border-gray-200">
+      <Card className="border border-slate-200 shadow-sm bg-white">
         <CardHeader>
           <CardTitle>Search Requests</CardTitle>
         </CardHeader>
@@ -485,7 +485,7 @@ const MyRequestsPage: React.FC = () => {
       </Card>
 
       {/* Requests List */}
-      <Card className="border border-gray-200">
+      <Card className="border border-slate-200 shadow-sm bg-white">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>
@@ -517,7 +517,7 @@ const MyRequestsPage: React.FC = () => {
               {filteredRequests.map(request => (
                 <div
                   key={request.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="border border-slate-200 bg-white rounded-lg p-4 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
