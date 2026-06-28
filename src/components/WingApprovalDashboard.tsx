@@ -209,9 +209,9 @@ export const WingApprovalDashboard: React.FC = () => {
   const getDisplayRequestType = (approval: RequestApproval) => {
     const raw = String((approval as any).scope_type || approval.request_type || '').toLowerCase();
     if (!raw || raw.includes('individual') || raw.includes('organizational') || raw.includes('wing')) {
-      return 'Wing';
+      return 'wing';
     }
-    return approval.request_type || 'Wing';
+    return String(approval.request_type || 'wing').toLowerCase();
   };
 
   if (loading) {
