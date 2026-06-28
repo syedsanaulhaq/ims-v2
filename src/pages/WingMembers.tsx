@@ -60,24 +60,26 @@ const WingMembers: React.FC = () => {
         setWingName(currentWing?.Name || 'Unknown Wing');
       }
 
-      // Fetch wing members using the correct endpoint
+      // Fetch wing members scoped to the current wing
       const membersRes = await fetch(
-        `${apiBase}/ims/users?wing_id=${wingId}`,
+        `${apiBase}/ims/users/aspnet/filtered?wing_id=${wingId}`,
         { credentials: 'include' }
       );
 
       if (membersRes.ok) {
         const membersData = await membersRes.json();
         // Transform the API response to match our interface
-        const transformedMembers: WingMember[] = (Array.isArray(membersData) ? membersData : []).map((user: any) => ({
+        const transformedMembers: WingMember[] = (Array.isArray(membersData) ? membersData : [])
+          .filter((u: any) => Number(u.intWingID ?? u.wing_id ?? wingId) === Number(wingId))
+          .map((user: any) => ({
           Id: user.user_id || user.Id,
           FullName: user.full_name || user.FullName,
-          UserName: user.username || user.UserName || user.Email?.split('@')[0] || '',
-          Email: user.Email,
+          UserName: user.username || user.UserName || user.Email?.split('@')[0] || user.email?.split('@')[0] || '',
+          Email: user.Email || user.email,
           Role: user.roles && user.roles.length > 0 
             ? user.roles.map((r: any) => r.display_name || r.role_name).join(', ')
-            : 'Member',
-          intWingID: user.wing_id || wingId,
+            : (user.Role || user.role || 'Member'),
+          intWingID: user.intWingID || user.wing_id || wingId,
           wing_name: user.wing_name,
           is_active: true,
           ContactNo: user.phone || user.ContactNo,
