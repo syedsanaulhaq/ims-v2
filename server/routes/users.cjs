@@ -13,8 +13,9 @@ const { getPool, sql } = require('../db/connection.cjs');
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
+    const { wing_id } = req.query;
 
-    const result = await pool.request().query(`
+    let query = `
       SELECT 
         Id,
         FullName,
@@ -36,8 +37,18 @@ router.get('/', async (req, res) => {
         UID
       FROM AspNetUsers 
       WHERE ISACT = 1
-      ORDER BY FullName
-    `);
+    `;
+
+    const request = pool.request();
+
+    if (wing_id) {
+      query += ` AND intWingID = @wingId`;
+      request.input('wingId', sql.Int, Number(wing_id));
+    }
+
+    query += ` ORDER BY FullName`;
+
+    const result = await request.query(query);
 
     res.json(result.recordset);
   } catch (error) {
@@ -63,8 +74,14 @@ router.get('/approvers', async (req, res) => {
         u.intOfficeID,
         u.intWingID,
         u.intDesignationID,
-        CONCAT(u.FullName, ' (', u.Role, ')') as displayName
+        d.DesignationName as designation,
+        o.strOfficeName as officeName,
+        w.WingName as wingName,
+        CONCAT(u.FullName, ' (', COALESCE(d.DesignationName, u.Role), ')') as displayName
       FROM AspNetUsers u
+      LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
+      LEFT JOIN Office_MST o ON u.intOfficeID = o.intOfficeID
+      LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
       WHERE u.ISACT = 1
       ORDER BY u.FullName
     `);
@@ -102,8 +119,14 @@ router.get('/:id', async (req, res) => {
           u.intDesignationID,
           u.Gender,
           u.AddedOn,
-          u.LastLoggedIn
+          u.LastLoggedIn,
+          d.DesignationName as designation,
+          o.strOfficeName as officeName,
+          w.WingName as wingName
         FROM AspNetUsers u
+        LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
+        LEFT JOIN Office_MST o ON u.intOfficeID = o.intOfficeID
+        LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
         WHERE u.Id = @userId AND u.ISACT = 1
       `);
 
@@ -245,8 +268,13 @@ router.get('/aspnet/filtered', async (req, res) => {
         u.Role,
         u.intOfficeID,
         u.intWingID,
-        u.intDesignationID
+        u.intDesignationID,
+        COALESCE(NULLIF(u.DesignationName, ''), '-') as designation,
+        CAST(NULL AS NVARCHAR(200)) as officeName,
+        w.Name as wingName,
+        w.Name as wing_name
       FROM AspNetUsers u
+      LEFT JOIN WingsInformation w ON u.intWingID = w.Id
       WHERE u.ISACT = 1
     `;
 

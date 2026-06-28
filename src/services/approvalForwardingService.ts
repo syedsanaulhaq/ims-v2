@@ -247,9 +247,7 @@ class ApprovalForwardingService {
         }
       }
       
-      const response = await fetch(url, {
-        credentials: 'include'
-      });
+      const response = await fetch(url);
       const data = await response.json();
       
       if (!response.ok) {
@@ -311,9 +309,7 @@ class ApprovalForwardingService {
         url += `?${queryString}`;
       }
       
-      const response = await fetch(url, {
-        credentials: 'include'
-      });
+      const response = await fetch(url);
       const data = await response.json();
       
       if (!response.ok) {
@@ -329,27 +325,30 @@ class ApprovalForwardingService {
 
   async getWingApprovalsByStatus(wingId: number, status?: string): Promise<RequestApproval[]> {
     try {
-      const params = new URLSearchParams();
-      params.append('wingId', wingId.toString());
-
-      if (status) {
-        params.append('status', status);
-        console.log('🔍 Filtering wing approvals by status:', status);
-      }
-
-      const queryString = params.toString();
-      const url = `${API_BASE_URL}/approvals/wing-approvals${queryString ? `?${queryString}` : ''}`;
-
-      const response = await fetch(url, {
+      // Backend currently exposes wing-scoped approvals on /approvals/my-pending.
+      // It derives wing from session user and already filters to wing request types.
+      const response = await fetch(`${API_BASE_URL}/approvals/my-pending`, {
         credentials: 'include'
       });
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch wing approvals');
+        throw new Error(data.message || data.error || 'Failed to fetch wing approvals');
       }
 
-      return data.data || [];
+      const rows: RequestApproval[] = Array.isArray(data?.data)
+        ? data.data
+        : (Array.isArray(data?.requests) ? data.requests : []);
+
+      if (!status || status === 'pending') {
+        return rows;
+      }
+
+      const wanted = status.toLowerCase();
+      return rows.filter((row: any) => {
+        const rowStatus = String(row.current_status || row.status || '').toLowerCase();
+        return rowStatus === wanted;
+      });
     } catch (error) {
       console.error('Error fetching wing approvals by status:', error);
       throw error;
@@ -600,16 +599,29 @@ class ApprovalForwardingService {
     recent_actions: ApprovalHistory[];
   }> {
     try {
-      const url = `${API_BASE_URL}/approvals/wing-dashboard?wingId=${encodeURIComponent(wingId.toString())}`;
-
-      const response = await fetch(url);
+      // No dedicated /approvals/wing-dashboard endpoint exists in backend yet.
+      // Build dashboard stats from the live wing-scoped pending endpoint.
+      const response = await fetch(`${API_BASE_URL}/approvals/my-pending`, {
+        credentials: 'include'
+      });
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch wing approval dashboard');
+        throw new Error(data.message || data.error || 'Failed to fetch wing approval dashboard');
       }
 
-      return data.data;
+      const rows: any[] = Array.isArray(data?.data)
+        ? data.data
+        : (Array.isArray(data?.requests) ? data.requests : []);
+
+      return {
+        pending_count: rows.length,
+        approved_count: rows.filter((row) => String(row.current_status || row.status || '').toLowerCase() === 'approved').length,
+        rejected_count: rows.filter((row) => String(row.current_status || row.status || '').toLowerCase() === 'rejected').length,
+        forwarded_count: rows.filter((row) => String(row.current_status || row.status || '').toLowerCase() === 'forwarded').length,
+        my_pending: rows,
+        recent_actions: []
+      };
     } catch (error) {
       console.error('Error fetching wing approval dashboard:', error);
       throw error;

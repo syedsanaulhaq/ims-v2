@@ -77,6 +77,7 @@ const wingInventoryRoutes = require('./routes/wingInventory.cjs');
 app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes); // Legacy mount for /api/session and /api/sso-login
 app.use('/api/users', usersRoutes);
+app.use('/api/ims/users', usersRoutes); // Alias for wing pages compatibility
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
