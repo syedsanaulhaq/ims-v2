@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,15 +38,6 @@ const WingDashboard = () => {
   const [selectedVerification, setSelectedVerification] = useState<any>(null);
   const [userWingName, setUserWingName] = useState<string>('');
   const [wingMembers, setWingMembers] = useState<any[]>([]);
-  const needApprovalSectionRef = useRef<HTMLDivElement | null>(null);
-
-  const handleNeedApprovalClick = () => {
-    if (window.location.pathname === '/dashboard/wing-dashboard') {
-      needApprovalSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
-    }
-    navigate('/dashboard/wing-dashboard');
-  };
 
   useEffect(() => {
     const fetchWingData = async () => {
@@ -255,7 +246,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={handleNeedApprovalClick}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => { window.location.href = 'http://localhost:8080/dashboard/wing-dashboard'; }}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <CheckCircle className="h-5 w-5" />
@@ -292,37 +283,6 @@ const WingDashboard = () => {
                 Members in wing
               </p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Need Approval Section */}
-      <div ref={needApprovalSectionRef}>
-        <Card className="shadow-lg border-2 border-purple-200">
-          <CardHeader className="border-b bg-gradient-to-r from-purple-50 to-purple-100">
-            <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
-              <CheckCircle className="h-5 w-5" />
-              Need Approval
-            </CardTitle>
-            <CardDescription>Requests awaiting your action on this dashboard</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {wingPendingApprovals.length === 0 ? (
-              <p className="text-sm text-gray-500">No pending approvals right now.</p>
-            ) : (
-              <div className="space-y-2">
-                {wingPendingApprovals.slice(0, 5).map((approval: any) => (
-                  <div key={approval.id || approval.request_id} className="rounded-md border border-purple-100 bg-purple-50/40 p-3">
-                    <p className="text-sm font-medium text-gray-800">
-                      {approval.request_number || approval.request_id || 'Request'}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {approval.requester_name || approval.requested_by_name || 'Unknown requester'}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
