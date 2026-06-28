@@ -13,8 +13,9 @@ const { getPool, sql } = require('../db/connection.cjs');
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
+    const { wing_id } = req.query;
 
-    const result = await pool.request().query(`
+    let query = `
       SELECT 
         Id,
         FullName,
@@ -36,8 +37,18 @@ router.get('/', async (req, res) => {
         UID
       FROM AspNetUsers 
       WHERE ISACT = 1
-      ORDER BY FullName
-    `);
+    `;
+
+    const request = pool.request();
+
+    if (wing_id) {
+      query += ` AND intWingID = @wingId`;
+      request.input('wingId', sql.Int, Number(wing_id));
+    }
+
+    query += ` ORDER BY FullName`;
+
+    const result = await request.query(query);
 
     res.json(result.recordset);
   } catch (error) {

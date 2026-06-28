@@ -62,7 +62,7 @@ const WingMembers: React.FC = () => {
 
       // Fetch wing members scoped to the current wing
       const membersRes = await fetch(
-        `${apiBase}/ims/users/aspnet/filtered?wing_id=${wingId}`,
+        `${apiBase}/ims/users?wing_id=${wingId}`,
         { credentials: 'include' }
       );
 
@@ -75,9 +75,9 @@ const WingMembers: React.FC = () => {
             return memberWingId !== undefined && memberWingId !== null && Number(memberWingId) === Number(wingId);
           })
           .map((user: any) => ({
-          Id: user.user_id || user.Id,
-          FullName: user.full_name || user.FullName,
-          UserName: user.username || user.UserName || user.Email?.split('@')[0] || user.email?.split('@')[0] || '',
+          Id: user.Id || user.user_id,
+          FullName: user.FullName || user.full_name,
+          UserName: user.UserName || user.username || user.Email?.split('@')[0] || user.email?.split('@')[0] || '',
           Email: user.Email || user.email,
           Role: user.roles && user.roles.length > 0 
             ? user.roles.map((r: any) => r.display_name || r.role_name).join(', ')
