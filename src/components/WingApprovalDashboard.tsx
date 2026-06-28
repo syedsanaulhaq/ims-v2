@@ -131,7 +131,8 @@ export const WingApprovalDashboard: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: string) => {
+    const normalizedStatus = String(status || 'pending').toLowerCase();
     const statusConfig = {
       'pending': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: Clock },
       'approved': { color: 'bg-green-100 text-green-800 border-green-300', icon: CheckCircle },
@@ -139,13 +140,13 @@ export const WingApprovalDashboard: React.FC = () => {
       'forwarded': { color: 'bg-blue-100 text-blue-800 border-blue-300', icon: Users }
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+    const config = statusConfig[normalizedStatus as keyof typeof statusConfig] || statusConfig.pending;
     const Icon = config.icon;
 
     return (
       <Badge className={`${config.color} flex items-center gap-1`}>
         <Icon size={12} />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1)}
       </Badge>
     );
   };
