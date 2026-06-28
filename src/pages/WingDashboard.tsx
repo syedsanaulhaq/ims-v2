@@ -246,7 +246,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => { window.location.href = 'http://localhost:8080/dashboard/wing-dashboard'; }}>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => { window.location.href = 'http://localhost:8080/dashboard/wing-request-history'; }}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <CheckCircle className="h-5 w-5" />
@@ -257,10 +257,10 @@ const WingDashboard = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Pending</span>
-                <span className="text-2xl font-bold text-purple-600">{stats.pendingApprovals}</span>
+                <span className="text-2xl font-bold text-purple-600">{stats.pendingRequests}</span>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                {stats.pendingApprovals > 0 ? 'Awaiting your action' : 'No pending approvals'}
+                {stats.pendingRequests > 0 ? 'Pending requests to be approved' : 'No pending requests'}
               </p>
             </div>
           </CardContent>
