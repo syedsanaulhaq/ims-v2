@@ -124,6 +124,11 @@ router.get('/:wingId', requireAuth, async (req, res) => {
     const pool = getPool();
     const { wingId: scopedWingId, isAdmin } = await resolveWingScope(req.session, pool);
 
+    const wingIdParam = req.params.wingId;
+    if (wingIdParam && Number.isNaN(Number(wingIdParam))) {
+      return res.status(400).json({ error: 'Invalid wingId parameter' });
+    }
+
     // Non-admin: use session-resolved wing (ignores URL param for security)
     const effectiveWingId = isAdmin ? null : scopedWingId;
 
