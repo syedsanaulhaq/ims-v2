@@ -582,7 +582,7 @@ router.get('/:id', async (req, res) => {
               ELSE 5 
             END
         `);
-      
+
       if (supervisorResult.recordset.length > 0) {
         supervisor = {
           user_id: supervisorResult.recordset[0].user_id,
@@ -590,6 +590,108 @@ router.get('/:id', async (req, res) => {
           role: supervisorResult.recordset[0].role_name,
           email: supervisorResult.recordset[0].Email
         };
+      }
+    }
+
+    const workflowStateResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT TOP 1
+          rws.current_approver_id,
+          rws.current_step_order,
+          rws.total_steps,
+          rws.status,
+          au.FullName AS current_approver_name,
+          COALESCE(role_pick.role_name, au.Role, 'Approver') AS current_approver_role
+        FROM ims_request_workflow_state rws
+        LEFT JOIN AspNetUsers au ON rws.current_approver_id = au.Id
+        OUTER APPLY (
+          SELECT TOP 1 ir.role_name
+          FROM ims_user_roles ur
+          INNER JOIN ims_roles ir ON ir.id = ur.role_id
+          WHERE ur.user_id = rws.current_approver_id
+            AND ur.is_active = 1
+            AND ir.is_active = 1
+          ORDER BY ir.role_name ASC
+        ) role_pick
+        WHERE rws.request_id = @requestId
+        ORDER BY rws.group_number ASC
+      `);
+
+    // Query approval header so we can fall back if workflow state is unavailable.
+    const raResult = await pool.request()
+      .input('requestId2', sql.UniqueIdentifier, id)
+      .query(`
+        SELECT ra.id,
+               ra.current_approver_id,
+               au.FullName AS current_approver_name,
+               COALESCE(role_pick.role_name, au.Role, 'Approver') AS current_approver_role
+        FROM request_approvals ra
+        LEFT JOIN AspNetUsers au ON ra.current_approver_id = au.Id
+        OUTER APPLY (
+          SELECT TOP 1 ir.role_name
+          FROM ims_user_roles ur
+          INNER JOIN ims_roles ir ON ir.id = ur.role_id
+          WHERE ur.user_id = ra.current_approver_id
+            AND ur.is_active = 1
+            AND ir.is_active = 1
+          ORDER BY ir.role_name ASC
+        ) role_pick
+        WHERE ra.request_id = @requestId2
+        ORDER BY ra.created_date DESC, ra.updated_date DESC
+      `);
+
+    const approvalHead = raResult.recordset[0] || null;
+    const workflowStateHead = workflowStateResult.recordset[0] || null;
+    const normalizedRequestType = String(request.request_type || '').trim().toLowerCase();
+    const isPersonalRequest = normalizedRequestType === 'individual' || normalizedRequestType === 'personal';
+    const isWingRequest = normalizedRequestType === 'wing' || normalizedRequestType === 'organizational';
+
+    let submissionTargetName = isPersonalRequest
+      ? (supervisor?.name || approvalHead?.current_approver_name || 'Approver')
+      : (workflowStateHead?.current_approver_name || approvalHead?.current_approver_name || supervisor?.name || 'Approver');
+
+    let submissionTargetRole = isPersonalRequest
+      ? (supervisor?.role || approvalHead?.current_approver_role || null)
+      : (workflowStateHead?.current_approver_role || approvalHead?.current_approver_role || supervisor?.role || null);
+
+    // Guard against self-assignment display for wing/organizational requests.
+    // If target resolves to requester, show first DD Admin (excluding requester) instead.
+    if (!isPersonalRequest) {
+      const requesterId = String(request.requester_user_id || '').toLowerCase();
+      const resolvedApproverId = String(
+        workflowStateHead?.current_approver_id
+        || approvalHead?.current_approver_id
+        || supervisor?.user_id
+        || ''
+      ).toLowerCase();
+
+      if (requesterId && resolvedApproverId && requesterId === resolvedApproverId) {
+        const ddAdminResult = await pool.request()
+          .input('requesterId', sql.NVarChar(450), String(request.requester_user_id || ''))
+          .query(`
+            SELECT TOP 1
+              u.Id,
+              u.FullName,
+              r.role_name
+            FROM AspNetUsers u
+            INNER JOIN ims_user_roles ur ON ur.user_id = u.Id
+            INNER JOIN ims_roles r ON r.id = ur.role_id
+            WHERE ur.is_active = 1
+              AND r.is_active = 1
+              AND u.Id <> @requesterId
+              AND (
+                r.role_name = 'DD Admin'
+                OR r.role_name LIKE 'DD Admin%'
+                OR r.role_name LIKE '%DD Admin%'
+              )
+            ORDER BY u.FullName ASC
+          `);
+
+        if (ddAdminResult.recordset.length > 0) {
+          submissionTargetName = ddAdminResult.recordset[0].FullName;
+          submissionTargetRole = ddAdminResult.recordset[0].role_name;
+        }
       }
     }
 
@@ -603,18 +705,13 @@ router.get('/:id', async (req, res) => {
       actor_id: request.requester_user_id,
       timestamp: request.submitted_at || request.created_at,
       comments: request.purpose || 'Request submitted for approval',
-      submitted_to: supervisor ? supervisor.name : 'Wing Supervisor',
-      submitted_to_role: supervisor ? supervisor.role : null,
-      approver_role: 'Administrator'
+      submitted_to: submissionTargetName,
+      submitted_to_role: submissionTargetRole,
+      approver_role: submissionTargetRole
     });
 
-    // Query real approval history from the approval_history table
-    const raResult = await pool.request()
-      .input('requestId2', sql.UniqueIdentifier, id)
-      .query(`SELECT ra.id FROM request_approvals ra WHERE ra.request_id = @requestId2`);
-
     if (raResult.recordset.length > 0) {
-      const approvalId = raResult.recordset[0].id;
+      const approvalId = approvalHead.id;
       const histResult = await pool.request()
         .input('approvalId', sql.UniqueIdentifier, approvalId)
         .query(`
@@ -795,57 +892,20 @@ const createStockIssuanceRequest = async (req, res) => {
       // After successful commit, create approval workflow records
       try {
         const userId = requester_user_id || req.session.userId;
-        const normalizedRequestType = String(request_type || '').trim().toLowerCase();
-        const isWingRequest = normalizedRequestType === 'wing' || normalizedRequestType === 'organizational';
         let dynamicWorkflowResult = null;
         let approverId = null;
 
-        // Wing requests should go directly to admin workflow (skip supervisor/dynamic lane initialization)
-        if (isWingRequest) {
-          const adminResult = await pool.request()
-            .input('requesterId', sql.NVarChar(450), userId)
-            .query(`
-              SELECT TOP 1 u.Id AS user_id
-              FROM AspNetUsers u
-              INNER JOIN ims_user_roles ur ON ur.user_id = u.Id
-              INNER JOIN ims_roles ir ON ir.id = ur.role_id
-              WHERE ur.is_active = 1
-                AND ir.is_active = 1
-                AND u.Id <> @requesterId
-                AND (
-                  ir.role_name LIKE '%ADMIN%'
-                  OR ir.role_name LIKE '%DG%'
-                  OR ir.role_name LIKE '%DIRECTOR%'
-                  OR ir.role_name LIKE '%HOD%'
-                )
-              ORDER BY
-                CASE
-                  WHEN ir.role_name LIKE '%DG%' THEN 1
-                  WHEN ir.role_name LIKE '%ADMIN%' THEN 2
-                  WHEN ir.role_name LIKE '%DIRECTOR%' THEN 3
-                  WHEN ir.role_name LIKE '%HOD%' THEN 4
-                  ELSE 5
-                END,
-                u.FullName ASC
-            `);
-
-          if (adminResult.recordset.length > 0) {
-            approverId = adminResult.recordset[0].user_id;
+        // Always use the same workflow initialization path for all request types
+        // (personal, wing, organizational) so routing starts at the configured first step.
+        try {
+          dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null);
+          if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
+            approverId = dynamicWorkflowResult.approverId;
           }
+        } catch (dynamicError) {
+          console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
         }
 
-        // Dynamic workflow: resolve first approver from group->designation steps.
-        if (!isWingRequest) {
-          try {
-            dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null);
-            if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
-              approverId = dynamicWorkflowResult.approverId;
-            }
-          } catch (dynamicError) {
-            console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
-          }
-        }
-        
         // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
         if (!approverId) {
           const supervisorResult = await pool.request()
@@ -899,12 +959,12 @@ const createStockIssuanceRequest = async (req, res) => {
                 (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by, submitted_date, created_date, updated_date, is_admin_workflow)
               OUTPUT INSERTED.id
               VALUES 
-                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE(), ${isWingRequest ? 1 : 0})
+                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE(), 0)
             `);
 
           const approvalId = approvalResult.recordset[0].id;
 
-            if (dynamicWorkflowResult?.ok && !isWingRequest) {
+            if (dynamicWorkflowResult?.ok) {
               await bindRequestApprovalId(pool, requestId, approvalId);
 
               const laneStatusText = dynamicWorkflowResult.laneCount && dynamicWorkflowResult.laneCount > 1
@@ -917,15 +977,6 @@ const createStockIssuanceRequest = async (req, res) => {
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,
-                      updated_at = GETDATE()
-                  WHERE id = @requestId
-                `);
-            } else if (isWingRequest) {
-              await pool.request()
-                .input('requestId', sql.UniqueIdentifier, requestId)
-                .query(`
-                  UPDATE stock_issuance_requests
-                  SET approval_status = 'Pending Admin Approval',
                       updated_at = GETDATE()
                   WHERE id = @requestId
                 `);

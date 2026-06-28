@@ -153,9 +153,11 @@ const RequestDetailsPage: React.FC = () => {
     try {
       setLoading(true);
       setLaneSummary(null);
-      
-      // Use the working stock issuance API and find the specific request
-      const response = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
+      let foundRequest: any = null;
+      let directDetails: any = null;
+
+      // First, try direct request lookup by ID (most reliable and not dependent on list filtering).
+      const directResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/${id}`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -163,14 +165,48 @@ const RequestDetailsPage: React.FC = () => {
         }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // Find the specific request by ID
+      if (directResponse.ok) {
+        directDetails = await directResponse.json();
+        if (directDetails?.request) {
+          foundRequest = {
+            ...directDetails.request,
+            items: Array.isArray(directDetails.items) ? directDetails.items : []
+          };
+        }
+      }
+
+      // Fallback for compatibility: fetch request list and find by ID (case-insensitive).
+      if (!foundRequest) {
+        const response = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const requests = Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.requests)
+              ? data.requests
+              : [];
+
           const normalizedId = String(id || '').toLowerCase();
-          const foundRequest = data.data.find((req: any) => String(req.id || '').toLowerCase() === normalizedId);
-          
-          if (foundRequest) {
+          foundRequest = requests.find((req: any) => String(req.id || '').toLowerCase() === normalizedId) || null;
+        }
+      }
+
+      if (foundRequest) {
+            const normalizedRequestType = String(foundRequest.request_type || '').trim().toLowerCase();
+            const isIndividualRequest = normalizedRequestType === 'individual' || normalizedRequestType === 'personal';
+            const submitterName = foundRequest.requester?.full_name || foundRequest.requester_name || 'Unknown Requester';
+            const wingDisplayName = foundRequest.wing?.name || foundRequest.wing_name || foundRequest.office?.name || foundRequest.office_name || 'Unknown Wing';
+            const requesterDisplayName = isIndividualRequest
+              ? submitterName
+              : `${wingDisplayName} (${submitterName})`;
+
             // Map to the expected format
             const mappedRequest: RequestDetails = {
               id: foundRequest.id,
@@ -183,26 +219,38 @@ const RequestDetailsPage: React.FC = () => {
               priority: (foundRequest.urgency_level === 'Normal' ? 'Medium' : foundRequest.urgency_level) as 'Low' | 'Medium' | 'High' | 'Urgent' || 'Medium',
               office_name: foundRequest.office?.name,
               wing_name: foundRequest.wing?.name,
-              requester_name: foundRequest.request_type === 'Individual' 
-                ? (foundRequest.requester?.full_name || 'Unknown Individual User')
-                : `${foundRequest.office?.name || 'Unknown Office'} (Organizational Request)`,
+              requester_name: requesterDisplayName,
               items: foundRequest.items?.map((item: any) => ({
                 id: item.id,
                 item_master_id: item.item_master_id,
                 item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
                 requested_quantity: item.requested_quantity || 1,
                 approved_quantity: item.approved_quantity,
-                unit: 'units',
+                unit: item.unit || 'units',
                 specifications: '',
                 group_number: null,
                 category_name: ''
               })) || [],
               approval_items: [],
-              approval_history: [] // Will be populated from API
+              approval_history: Array.isArray(directDetails?.approval_history)
+                ? directDetails.approval_history.map((h: any, i: number) => ({
+                    id: (h.id || i + 1).toString(),
+                    action: (h.action || '').toLowerCase() || 'submitted',
+                    action_date: h.timestamp || h.action_date || null,
+                    approver_name: h.actor_name || h.approver_name || 'Unknown',
+                    comments: h.comments || 'No comments',
+                    level: h.level || i,
+                    submitted_to: h.submitted_to || null,
+                    submitted_to_role: h.submitted_to_role || null,
+                    is_current_step: h.is_current_step || false,
+                    approver_role: h.approver_role || h.submitted_to_role || null,
+                    forwarded_to_name: h.forwarded_to_name || null
+                  }))
+                : [] // Will be populated from API
             };
             
             try {
-              const requestDetailsResp = await fetch(`http://localhost:3001/api/approvals/request/${foundRequest.id}`, {
+              const requestDetailsResp = await fetch(`${getApiBaseUrl()}/approvals/request/${foundRequest.id}`, {
                 method: 'GET',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' }
@@ -286,7 +334,7 @@ const RequestDetailsPage: React.FC = () => {
             // If no approval history yet, try the request-details endpoint
             if (!mappedRequest.approval_history || mappedRequest.approval_history.length === 0) {
               try {
-                const detailsResp = await fetch(`http://localhost:3001/api/request-details/${foundRequest.id}`, {
+                const detailsResp = await fetch(`${getApiBaseUrl()}/request-details/${foundRequest.id}`, {
                   method: 'GET',
                   credentials: 'include',
                   headers: { 'Content-Type': 'application/json' }
@@ -327,7 +375,7 @@ const RequestDetailsPage: React.FC = () => {
             // Fetch approval items for item-level status tracking
             try {
               const approvalItemsResp = await fetch(
-                `http://localhost:3001/api/approvals/request/${foundRequest.id}/items`,
+                `${getApiBaseUrl()}/approvals/request/${foundRequest.id}/items`,
                 { credentials: 'include' }
               );
               if (approvalItemsResp.ok) {
@@ -341,7 +389,7 @@ const RequestDetailsPage: React.FC = () => {
             }
 
             try {
-              const lanesResp = await fetch(`http://localhost:3001/api/approvals/request/${foundRequest.id}/lanes`, {
+              const lanesResp = await fetch(`${getApiBaseUrl()}/approvals/request/${foundRequest.id}/lanes`, {
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' }
               });
@@ -363,7 +411,7 @@ const RequestDetailsPage: React.FC = () => {
               return {
                 ...ah,
                 action: action || 'submitted',
-                approver_name: approver || 'Unknown',
+                approver_name: action === 'submitted' ? mappedRequest.requester_name : (approver || 'Unknown'),
                 forwarded_to_name: forwardedName || null,
                 // Keep null for pending steps that have no action date yet
                 action_date: ah.action_date || ah.ActionDate || ah.ActionDateTime || null
@@ -383,11 +431,9 @@ const RequestDetailsPage: React.FC = () => {
             }
 
             setRequest(mappedRequest);
-          } else {
-            console.error('Request not found with ID:', id);
-            setRequest(null);
-          }
-        }
+      } else {
+        console.error('Request not found with ID:', id);
+        setRequest(null);
       }
     } catch (error) {
       console.error('Error loading request details:', error);
@@ -404,7 +450,7 @@ const RequestDetailsPage: React.FC = () => {
 
       if (looksLikeGuid) {
         try {
-          const resp = await fetch(`http://localhost:3001/api/request-details/${requestId}`, {
+          const resp = await fetch(`${getApiBaseUrl()}/request-details/${requestId}`, {
             method: 'GET',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' }
@@ -432,7 +478,7 @@ const RequestDetailsPage: React.FC = () => {
 
       // Try to load real approval history from legacy database endpoint (expects numeric issuance id)
       try {
-        const response = await fetch(`http://localhost:3001/api/approvals/history/${requestId}`, {
+        const response = await fetch(`${getApiBaseUrl()}/approvals/history/${requestId}`, {
           method: 'GET',
           credentials: 'include',
           headers: {
@@ -574,7 +620,7 @@ const RequestDetailsPage: React.FC = () => {
     setItemTrackingLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:3001/api/approvals/item/${item.id}/tracking`,
+        `${getApiBaseUrl()}/approvals/item/${item.id}/tracking`,
         { credentials: 'include' }
       );
       if (response.ok) {
@@ -617,18 +663,29 @@ const RequestDetailsPage: React.FC = () => {
     );
   }
 
+  const normalizedRequestType = String(request.request_type || '').trim().toLowerCase();
+  const isWingOrOrganizationalRequest =
+    normalizedRequestType === 'wing' ||
+    normalizedRequestType === 'organizational';
+  const backPath = isWingOrOrganizationalRequest
+    ? '/dashboard/wing-request-history'
+    : '/dashboard/my-requests';
+  const backLabel = isWingOrOrganizationalRequest
+    ? 'Back to Wing Requests'
+    : 'Back to My Requests';
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button 
-            onClick={() => navigate('/dashboard/my-requests')} 
+            onClick={() => navigate(backPath)} 
             variant="outline" 
             size="sm"
           >
             <ArrowLeft size={16} className="mr-2" />
-            Back
+            {backLabel}
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{request.title}</h1>
