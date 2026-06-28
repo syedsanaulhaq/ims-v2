@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,8 @@ import {
   XCircle,
   RotateCcw,
   Search,
-  Download
+  Download,
+  Clock
 } from 'lucide-react';
 import { formatDateDMY } from '@/utils/dateUtils';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -162,19 +163,33 @@ export default function MyIssuedItems() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Button variant="outline" onClick={() => window.history.back()}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">My Issued Items</h1>
-          <p className="text-gray-600 mt-1">Track items you've received from inventory</p>
-        </div>
+        <Card className="mb-6 border border-slate-200 bg-gradient-to-r from-cyan-50 via-white to-emerald-50 shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold text-slate-900">My Issued Items</h1>
+                <p className="text-slate-600 mt-2">Track all items currently issued to you from inventory.</p>
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                    <Package className="h-3 w-3 mr-1" /> Active Inventory
+                  </Badge>
+                  <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                    <Clock className="h-3 w-3 mr-1" /> Last Updated: {new Date().toLocaleTimeString()}
+                  </Badge>
+                </div>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" onClick={() => window.history.back()}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {error && (
           <Alert className="mb-6 border-red-200 bg-red-50" variant="destructive">
@@ -185,64 +200,51 @@ export default function MyIssuedItems() {
 
         {/* Summary Cards */}
         {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <Package className="w-8 h-8 mx-auto mb-2 text-blue-500" />
-                  <div className="text-2xl font-bold">{summary.total_items}</div>
-                  <div className="text-sm text-gray-600">Total Items</div>
-                </div>
-              </CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <Card className="border-l-4 border-l-cyan-500">
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-2 text-slate-600">
+                  <Package className="h-4 w-4" /> Total Items
+                </CardDescription>
+                <CardTitle className="text-3xl text-cyan-700">{summary.total_items}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-slate-500">Items issued to your account</CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    ₨ {summary.total_value.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Value</div>
-                </div>
-              </CardContent>
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-2 text-slate-600">
+                  <RotateCcw className="h-4 w-4" /> Returnable
+                </CardDescription>
+                <CardTitle className="text-3xl text-purple-700">{summary.returnable_items}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-slate-500">Items expected to be returned</CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <RotateCcw className="w-8 h-8 mx-auto mb-2 text-purple-500" />
-                  <div className="text-2xl font-bold">{summary.returnable_items}</div>
-                  <div className="text-sm text-gray-600">Returnable</div>
-                </div>
-              </CardContent>
+            <Card className="border-l-4 border-l-slate-500">
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-2 text-slate-600">
+                  <XCircle className="h-4 w-4" /> Not Returned
+                </CardDescription>
+                <CardTitle className="text-3xl text-slate-700">{summary.not_returned}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-slate-500">Returnable items still in use</CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <XCircle className="w-8 h-8 mx-auto mb-2 text-gray-500" />
-                  <div className="text-2xl font-bold">{summary.not_returned}</div>
-                  <div className="text-sm text-gray-600">Not Returned</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={summary.overdue > 0 ? 'border-red-200 bg-red-50' : ''}>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <AlertTriangle className={`w-8 h-8 mx-auto mb-2 ${summary.overdue > 0 ? 'text-red-500' : 'text-gray-300'}`} />
-                  <div className={`text-2xl font-bold ${summary.overdue > 0 ? 'text-red-600' : ''}`}>
-                    {summary.overdue}
-                  </div>
-                  <div className="text-sm text-gray-600">Overdue</div>
-                </div>
-              </CardContent>
+            <Card className={`border-l-4 ${summary.overdue > 0 ? 'border-l-red-500 bg-red-50/60' : 'border-l-rose-500'}`}>
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-2 text-slate-600">
+                  <AlertTriangle className={`h-4 w-4 ${summary.overdue > 0 ? 'text-red-500' : 'text-rose-500'}`} /> Overdue
+                </CardDescription>
+                <CardTitle className={`text-3xl ${summary.overdue > 0 ? 'text-red-700' : 'text-rose-700'}`}>{summary.overdue}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-slate-500">Items past expected return date</CardContent>
             </Card>
           </div>
         )}
 
         {/* Filters */}
-        <Card className="mb-6">
+        <Card className="mb-6 border border-slate-200 shadow-sm bg-white">
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4">
               {/* Search */}
@@ -302,7 +304,7 @@ export default function MyIssuedItems() {
         </Card>
 
         {/* Items List */}
-        <Card>
+        <Card className="border border-slate-200 shadow-sm bg-white">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Items ({filteredItems.length})</span>

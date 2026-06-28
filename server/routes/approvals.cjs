@@ -232,16 +232,22 @@ router.get('/workflow/role-assignments', requireAuth, requirePermission('stock_r
         u.Id AS user_id,
         u.FullName,
         u.Email,
-        STRING_AGG(wr.role_name, '|') WITHIN GROUP (ORDER BY wr.role_name) AS roles_csv
+        roles.roles_csv
       FROM AspNetUsers u
-      LEFT JOIN ims_user_roles ur
-        ON ur.user_id = u.Id
-       AND ur.is_active = 1
-      LEFT JOIN ims_roles wr
-        ON wr.id = ur.role_id
-       AND wr.is_active = 1
-       AND wr.role_name IN (${WORKFLOW_ROLE_FILTER_SQL})
-      GROUP BY u.Id, u.FullName, u.Email
+      OUTER APPLY (
+        SELECT STUFF((
+          SELECT '|' + wr2.role_name
+          FROM ims_user_roles ur2
+          INNER JOIN ims_roles wr2
+            ON wr2.id = ur2.role_id
+           AND wr2.is_active = 1
+           AND wr2.role_name IN (${WORKFLOW_ROLE_FILTER_SQL})
+          WHERE ur2.user_id = u.Id
+            AND ur2.is_active = 1
+          ORDER BY wr2.role_name
+          FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS roles_csv
+      ) roles
       ORDER BY u.FullName ASC
     `);
 

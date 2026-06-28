@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, AlertCircle, Truck, UserCheck, Car, ArrowRight, Image as ImageIcon, Activity, X, ChevronRight } from 'lucide-react';
+import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, AlertCircle, Truck, UserCheck, Car, ArrowRight, Image as ImageIcon, Activity, X, ChevronRight, ClipboardList, ArrowUpRight } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { useSession } from '@/contexts/SessionContext';
 import { useNavigate } from 'react-router-dom';
@@ -321,7 +321,7 @@ const MyRequestsPage: React.FC = () => {
 
   return (
     <>
-    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen">
       {receiptMsg && (
         <div className={`flex items-center gap-3 p-4 rounded-xl border text-sm font-medium ${
           receiptMsg.startsWith('✅') ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
@@ -331,42 +331,52 @@ const MyRequestsPage: React.FC = () => {
           <button onClick={() => setReceiptMsg('')} className="ml-auto text-gray-500 hover:text-gray-700">×</button>
         </div>
       )}
-      {/* Page Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900">My Requests</h1>
-        <p className="text-lg text-gray-600 mt-2">
-          Track all your submitted requests and their approval status
-        </p>
-        <div className="flex items-center gap-2 mt-3">
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            {dashboardStats.total} Total Requests
-          </Badge>
-          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-            <Clock className="h-3 w-3 mr-1" />
-            Last Updated: {new Date().toLocaleTimeString()}
-          </Badge>
-        </div>
-      </div>
+      <Card className="border border-slate-200 bg-gradient-to-r from-cyan-50 via-white to-emerald-50 shadow-sm">
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-900">My Requests</h1>
+              <p className="text-slate-600 mt-2">
+                Track all your submitted requests and their approval progress in one place.
+              </p>
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  {dashboardStats.total} Total Requests
+                </Badge>
+                <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Last Updated: {new Date().toLocaleTimeString()}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button onClick={() => navigate('/dashboard/stock-issuance-personal')}>
+                New Request
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         <button
           onClick={() => setActiveFilter('all')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'all' 
-              ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 shadow-lg' 
-              : 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-blue-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-blue-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-blue-700 font-semibold">All Requests</CardTitle>
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <ClipboardList className="h-4 w-4" /> All Requests
+              </CardDescription>
+              <CardTitle className="text-3xl text-blue-700">{dashboardStats.total}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{dashboardStats.total}</div>
-              <p className="text-xs text-gray-600 mt-2">Total submitted</p>
-            </CardContent>
+            <CardContent className="text-xs text-slate-500">Total submitted</CardContent>
           </Card>
         </button>
 
@@ -374,18 +384,18 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('pending')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'pending' 
-              ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 shadow-lg' 
-              : 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-yellow-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-yellow-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-yellow-700 font-semibold">Pending</CardTitle>
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <Clock className="h-4 w-4" /> Pending
+              </CardDescription>
+              <CardTitle className="text-3xl text-yellow-700">{dashboardStats.pending}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-yellow-600">{dashboardStats.pending}</div>
-              <p className="text-xs text-gray-600 mt-2">Awaiting action</p>
-            </CardContent>
+            <CardContent className="text-xs text-slate-500">Awaiting action</CardContent>
           </Card>
         </button>
 
@@ -393,18 +403,18 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('forwarded_to_supervisor')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forwarded_to_supervisor' 
-              ? 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 shadow-lg' 
-              : 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-purple-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-purple-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-purple-700 font-semibold">To Supervisor</CardTitle>
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <ArrowUpRight className="h-4 w-4" /> To Supervisor
+              </CardDescription>
+              <CardTitle className="text-3xl text-purple-700">{dashboardStats.forwarded_to_supervisor}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-purple-600">{dashboardStats.forwarded_to_supervisor}</div>
-              <p className="text-xs text-gray-600 mt-2">With supervisor</p>
-            </CardContent>
+            <CardContent className="text-xs text-slate-500">With supervisor</CardContent>
           </Card>
         </button>
 
@@ -412,18 +422,18 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('forwarded_to_admin')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forwarded_to_admin' 
-              ? 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-l-indigo-500 shadow-lg' 
-              : 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-l-indigo-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-indigo-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-indigo-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-indigo-700 font-semibold">To Admin</CardTitle>
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <ArrowUpRight className="h-4 w-4" /> To Admin
+              </CardDescription>
+              <CardTitle className="text-3xl text-indigo-700">{dashboardStats.forwarded_to_admin}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-indigo-600">{dashboardStats.forwarded_to_admin}</div>
-              <p className="text-xs text-gray-600 mt-2">With admin</p>
-            </CardContent>
+            <CardContent className="text-xs text-slate-500">With admin</CardContent>
           </Card>
         </button>
 
@@ -431,18 +441,18 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('approved')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'approved' 
-              ? 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 shadow-lg' 
-              : 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-green-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-green-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-green-700 font-semibold">Approved</CardTitle>
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <CheckCircle className="h-4 w-4" /> Approved
+              </CardDescription>
+              <CardTitle className="text-3xl text-green-700">{dashboardStats.approved}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{dashboardStats.approved}</div>
-              <p className="text-xs text-gray-600 mt-2">Approved requests</p>
-            </CardContent>
+            <CardContent className="text-xs text-slate-500">Approved requests</CardContent>
           </Card>
         </button>
 
@@ -450,24 +460,24 @@ const MyRequestsPage: React.FC = () => {
           onClick={() => setActiveFilter('rejected')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'rejected' 
-              ? 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 shadow-lg' 
-              : 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-red-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-red-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-red-700 font-semibold">Rejected</CardTitle>
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <XCircle className="h-4 w-4" /> Rejected
+              </CardDescription>
+              <CardTitle className="text-3xl text-red-700">{dashboardStats.rejected}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">{dashboardStats.rejected}</div>
-              <p className="text-xs text-gray-600 mt-2">Rejected requests</p>
-            </CardContent>
+            <CardContent className="text-xs text-slate-500">Rejected requests</CardContent>
           </Card>
         </button>
       </div>
 
       {/* Search Bar */}
-      <Card className="border border-gray-200">
+      <Card className="border border-slate-200 shadow-sm bg-white">
         <CardHeader>
           <CardTitle>Search Requests</CardTitle>
         </CardHeader>
@@ -485,7 +495,7 @@ const MyRequestsPage: React.FC = () => {
       </Card>
 
       {/* Requests List */}
-      <Card className="border border-gray-200">
+      <Card className="border border-slate-200 shadow-sm bg-white">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>
@@ -517,11 +527,11 @@ const MyRequestsPage: React.FC = () => {
               {filteredRequests.map(request => (
                 <div
                   key={request.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="border border-slate-200 bg-white rounded-lg p-4 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{request.title}</h3>
+                      <h3 className="text-base font-semibold text-gray-900">{request.title}</h3>
                       <p className="text-sm text-gray-600 mt-1">{request.description}</p>
                     </div>
                     <div className="flex gap-2">

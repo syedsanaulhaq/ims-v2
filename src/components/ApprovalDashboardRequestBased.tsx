@@ -32,6 +32,8 @@ interface RequestSummary {
   pending_lane_count: number;
   lane_parent_status: string;
   lane_tooltip: string;
+  issuance_transfer_status: 'pending_issue' | 'issued_to_requester' | 'unknown';
+  issued_at?: string | null;
   approval: RequestApproval;
 }
 
@@ -60,6 +62,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [itemsPerPage] = useState(5);
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
 
   const isAdminWorkflowRequest = (request: RequestSummary) => {
     const explicitFlag = (request.approval as any)?.is_admin_workflow;
@@ -95,7 +98,17 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
   useEffect(() => {
     loadDashboardData();
-  }, [refreshTrigger, user, activeFilter]);
+  }, [refreshTrigger, user]);
+
+  useEffect(() => {
+    let filteredRequests = allScopedRequests;
+
+    if (activeFilter !== 'pending') {
+      filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
+    }
+
+    setRequests(filteredRequests);
+  }, [allScopedRequests, activeFilter]);
 
   const loadDashboardData = async () => {
     try {
@@ -116,23 +129,30 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       const allApprovals: RequestApproval[] = [];
       // Track which backend status each approval came from
       const approvalSourceStatus = new Map<string, string>();
-      
-      for (const status of allStatuses) {
-        try {
-          const approvals = await withTimeout(
-            approvalForwardingService.getMyApprovalsByStatus(userId, status as any),
-            6000,
-            [] as RequestApproval[]
-          );
-          for (const a of approvals) {
-            if (!approvalSourceStatus.has(a.request_id)) {
-              approvalSourceStatus.set(a.request_id, status);
-            }
+
+      const statusResults = await Promise.all(
+        allStatuses.map(async (status) => {
+          try {
+            const approvals = await withTimeout(
+              approvalForwardingService.getMyApprovalsByStatus(userId, status as any),
+              6000,
+              [] as RequestApproval[]
+            );
+            return { status, approvals };
+          } catch (statusError) {
+            console.warn(`Skipping approvals status '${status}' due to fetch error:`, statusError);
+            return { status, approvals: [] as RequestApproval[] };
           }
-          allApprovals.push(...approvals);
-        } catch (statusError) {
-          console.warn(`Skipping approvals status '${status}' due to fetch error:`, statusError);
+        })
+      );
+
+      for (const { status, approvals } of statusResults) {
+        for (const a of approvals) {
+          if (!approvalSourceStatus.has(a.request_id)) {
+            approvalSourceStatus.set(a.request_id, status);
+          }
         }
+        allApprovals.push(...approvals);
       }
 
       // Fetch full details for each approval (which includes items)
@@ -146,33 +166,35 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return_count: 0
       };
 
-      for (const approval of allApprovals) {
+      const uniqueApprovals = allApprovals.filter((approval) => {
         const requestId = approval.request_id;
-        
-        // Skip if we already have this request
         if (requestMap.has(requestId)) {
-          continue;
+          return false;
         }
+        requestMap.set(requestId, null as any);
+        return true;
+      });
+
+      const apiUrl = 'http://localhost:3001';
+      const buildSummary = async (approval: RequestApproval): Promise<RequestSummary | null> => {
+        const requestId = approval.request_id;
 
         try {
-          // Fetch full approval details including items
-          const apiUrl = 'http://localhost:3001';
           const detailResponse = await fetch(`${apiUrl}/api/approvals/${approval.id}`, {
             credentials: 'include'
           });
 
           if (!detailResponse.ok) {
             console.warn(`Failed to fetch details for approval ${approval.id}`);
-            continue;
+            return null;
           }
 
           const detailData = await detailResponse.json();
           const fullApproval = detailData.data || detailData;
 
-          // Determine card category from the backend source status + current_status
           const sourceStatus = approvalSourceStatus.get(requestId) || 'pending';
           const requestStatus = getRequestStatusFromApproval(approval, sourceStatus);
-          
+
           const summary: RequestSummary = {
             id: approval.id,
             request_id: requestId,
@@ -193,10 +215,30 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             pending_lane_count: 0,
             lane_parent_status: 'pending',
             lane_tooltip: '',
+            issuance_transfer_status: 'unknown',
+            issued_at: null,
             approval: { ...fullApproval, items: fullApproval.items || [] } as any
           };
 
-          // Count items by status
+          const [issuanceResponse, laneSummary] = await Promise.all([
+            fetch(`${apiUrl}/api/stock-issuance/${requestId}`, {
+              credentials: 'include'
+            }).catch(() => null),
+            approvalForwardingService.getRequestLanes(requestId).catch(() => null)
+          ]);
+
+          if (issuanceResponse?.ok) {
+            const issuancePayload = await issuanceResponse.json().catch(() => ({} as any));
+            const issuanceRequest = issuancePayload?.request || {};
+            const approvalStatusRaw = String(issuanceRequest?.approval_status || '').toLowerCase();
+            const requestStatusRaw = String(issuanceRequest?.request_status || '').toLowerCase();
+            const issued = approvalStatusRaw === 'issued' || approvalStatusRaw === 'completed' || requestStatusRaw === 'issued' || requestStatusRaw === 'completed';
+            summary.issuance_transfer_status = issued ? 'issued_to_requester' : 'pending_issue';
+            summary.issued_at = issuanceRequest?.issued_at || null;
+          } else {
+            summary.issuance_transfer_status = 'unknown';
+          }
+
           const items = fullApproval.items || [];
           summary.total_items = items.length;
 
@@ -215,8 +257,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             }
           });
 
-          // Mixed-group lane summary for quick card visibility.
-          const laneSummary = await approvalForwardingService.getRequestLanes(requestId).catch(() => null);
           if (laneSummary) {
             summary.lane_count = laneSummary.lane_count || 0;
             summary.lane_parent_status = laneSummary.parent_status || 'pending';
@@ -243,18 +283,40 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             ].join(' | ');
           }
 
-          requestMap.set(requestId, summary);
-          
-          // Count request statuses
-          if (requestStatus === 'pending') statusCounts.pending_count++;
-          else if (requestStatus === 'approve_wing') statusCounts.approve_wing_count++;
-          else if (requestStatus === 'reject') statusCounts.reject_count++;
-          else if (requestStatus === 'forward_admin') statusCounts.forward_admin_count++;
-          else if (requestStatus === 'forward_supervisor') statusCounts.forward_supervisor_count++;
-          else if (requestStatus === 'return') statusCounts.return_count++;
+          return summary;
         } catch (error) {
           console.error(`Error fetching details for approval ${approval.id}:`, error);
+          return null;
         }
+      };
+
+      const runWithConcurrency = async <T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>) => {
+        const results: R[] = [];
+        let index = 0;
+
+        const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+          while (index < items.length) {
+            const currentIndex = index++;
+            results[currentIndex] = await worker(items[currentIndex]);
+          }
+        });
+
+        await Promise.all(runners);
+        return results;
+      };
+
+      const summaries = await runWithConcurrency(uniqueApprovals, 6, buildSummary);
+
+      for (const summary of summaries) {
+        if (!summary) continue;
+        requestMap.set(summary.request_id, summary);
+
+        if (summary.request_status === 'pending') statusCounts.pending_count++;
+        else if (summary.request_status === 'approve_wing') statusCounts.approve_wing_count++;
+        else if (summary.request_status === 'reject') statusCounts.reject_count++;
+        else if (summary.request_status === 'forward_admin') statusCounts.forward_admin_count++;
+        else if (summary.request_status === 'forward_supervisor') statusCounts.forward_supervisor_count++;
+        else if (summary.request_status === 'return') statusCounts.return_count++;
       }
 
       // Split flows by page mode to keep supervisor and admin experiences isolated.
@@ -271,27 +333,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return_count: scopedRequests.filter(r => r.request_status === 'return').length,
       };
 
-      // Filter by active tab
-      let filteredRequests = scopedRequests;
-      
-      if (activeFilter !== 'pending') {
-        filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
-      } else {
-        filteredRequests = filteredRequests.filter((r) => {
-          if (r.request_status !== 'pending') return false;
+      const pendingFilteredScopedRequests = scopedRequests.filter((r) => {
+        if (r.request_status !== 'pending') return true;
 
-          // If lane endpoint is unavailable/failed, fall back to legacy pending behavior.
-          if (!lanePendingAvailable) return true;
+        if (!lanePendingAvailable) return true;
+        if (pendingRequestIdSet.size === 0) return true;
 
-          // If no lane rows are available for this user, keep pending requests visible.
-          if (pendingRequestIdSet.size === 0) return true;
+        return pendingRequestIdSet.has(String(r.request_id)) || (r.lane_count || 0) === 0;
+      });
 
-          // For mixed-group workflow, honor lane assignment; for legacy requests with no lanes, keep visible.
-          return pendingRequestIdSet.has(String(r.request_id)) || (r.lane_count || 0) === 0;
-        });
-      }
-
-      setRequests(filteredRequests);
+      setAllScopedRequests(pendingFilteredScopedRequests);
       setDashboardStats(scopedStatusCounts);
     } catch (error) {
       console.error('Error loading request-based dashboard data:', error);
@@ -372,6 +423,42 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     if (parentStatus === 'partially_approved') return 'bg-blue-100 text-blue-800 border-blue-300';
     if (parentStatus === 'rejected') return 'bg-red-100 text-red-800 border-red-300';
     return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+  };
+
+  const renderTransferBadge = (request: RequestSummary) => {
+    if (request.issuance_transfer_status === 'issued_to_requester') {
+      return (
+        <Badge
+          variant="outline"
+          className="text-xs bg-emerald-100 text-emerald-800 border-emerald-300"
+          title={request.issued_at ? `Issued at ${new Date(request.issued_at).toLocaleString()}` : 'Physically issued to requester'}
+        >
+          Inventory Transfer: Completed
+        </Badge>
+      );
+    }
+
+    if (request.issuance_transfer_status === 'pending_issue') {
+      return (
+        <Badge
+          variant="outline"
+          className="text-xs bg-amber-100 text-amber-800 border-amber-300"
+          title="Approved but not yet physically issued by store"
+        >
+          Inventory Transfer: Pending Issue
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge
+        variant="outline"
+        className="text-xs bg-gray-100 text-gray-700 border-gray-300"
+        title="Transfer status unavailable"
+      >
+        Inventory Transfer: Unknown
+      </Badge>
+    );
   };
 
   const getFilteredRequests = () => {
@@ -484,25 +571,25 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       <div className="p-6 flex items-center justify-center min-h-96">
         <div className="text-center">
           <LoadingSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-gray-600">Loading your approval dashboard...</p>
+          <p className="text-gray-600">Loading Supervisor Dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-6 space-y-8 bg-slate-50 min-h-screen">
       {/* Page Header */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900">
-          {viewMode === 'admin' ? 'Admin Workflow Approvals (Request-wise)' : 'My Approvals (Request-wise)'}
+          {viewMode === 'admin' ? 'Admin Workflow Approvals' : 'Supervisor Dashboard'}
         </h1>
         <p className="text-lg text-gray-600 mt-2">
           {viewMode === 'admin'
             ? 'Review requests forwarded to admin workflow and return/forward decisions'
-            : 'Manage requests by approval status'}
+            : 'All requests received from your subordinates — review and take action'}
         </p>
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             {dashboardStats.pending_count} Pending
@@ -511,6 +598,13 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             <Clock className="h-3 w-3 mr-1" />
             Last Updated: {new Date().toLocaleTimeString()}
           </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/personal-dashboard')}
+          >
+            Go to Personal Dashboard
+          </Button>
         </div>
       </div>
 
@@ -520,8 +614,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('pending')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'pending' 
-              ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 shadow-lg' 
-              : 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-yellow-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-yellow-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-yellow-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -538,8 +632,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('approve_wing')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'approve_wing' 
-              ? 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 shadow-lg' 
-              : 'bg-gradient-to-br from-green-50 to-green-100 border-l-green-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-green-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-green-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -556,8 +650,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('reject')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'reject' 
-              ? 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 shadow-lg' 
-              : 'bg-gradient-to-br from-red-50 to-red-100 border-l-red-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-red-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-red-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -574,8 +668,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('forward_admin')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forward_admin' 
-              ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 shadow-lg' 
-              : 'bg-gradient-to-br from-blue-50 to-blue-100 border-l-blue-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-blue-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-blue-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -592,8 +686,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('forward_supervisor')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'forward_supervisor' 
-              ? 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 shadow-lg' 
-              : 'bg-gradient-to-br from-purple-50 to-purple-100 border-l-purple-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-purple-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-purple-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -610,8 +704,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           onClick={() => setActiveFilter('return')}
           className={`transition-all duration-300 rounded-lg border-l-4 ${
             activeFilter === 'return' 
-              ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-l-orange-500 shadow-lg' 
-              : 'bg-gradient-to-br from-orange-50 to-orange-100 border-l-orange-500 hover:shadow-xl'
+              ? 'bg-white border border-slate-200 border-l-orange-500 shadow-md' 
+              : 'bg-white border border-slate-200 border-l-orange-500 hover:shadow-md'
           }`}
         >
           <Card className="h-full bg-transparent border-none shadow-none">
@@ -626,11 +720,11 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </div>
 
       {/* Personal Requests Table */}
-      <Card className="border border-gray-200">
+      <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Personal Requests</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Subordinate Requests</Badge>
               <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
               <div className="flex items-center gap-2">
@@ -684,12 +778,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getPersonalRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No personal requests'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No subordinate requests'}</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {getPersonalPaginated().map((request) => (
-                <Card key={request.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                <Card key={request.id} className="border border-slate-200 hover:shadow-md transition-shadow bg-white">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -729,6 +823,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                               hour12: true
                             })}
                           </div>
+                          <div>{renderTransferBadge(request)}</div>
                         </div>
 
                         {/* Item Summary */}
@@ -844,11 +939,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </Card>
 
       {/* Wing Requests Table */}
+      {viewMode === 'admin' && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-4xl font-bold flex items-center gap-3">
-                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Requests</Badge>
+                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Request</Badge>
                 <span className="text-gray-600 text-2xl">({getWingRequests().length})</span>
               </CardTitle>
               <div className="flex items-center gap-2">
@@ -902,7 +998,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getWingRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing requests'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing request'}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -950,6 +1046,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                                 });
                               })()}
                             </div>
+                            <div>{renderTransferBadge(request)}</div>
                             {request.current_approver_name && (
                               <div>Current Approver: <span className="font-medium text-gray-900">{request.current_approver_name}</span></div>
                             )}
@@ -1048,6 +1145,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             </div>
           </CardFooter>
         </Card>
+      )}
 
     </div>
   );

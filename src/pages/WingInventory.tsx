@@ -74,7 +74,8 @@ export default function WingInventory() {
   const [selectedUser, setSelectedUser] = useState<string>('all');
 
   useEffect(() => {
-    if (user?.wing_id) {
+    // Admin can view all-wing inventory even without a personal wing_id
+    if (user?.is_super_admin || user?.wing_id) {
       fetchWingInventory();
     }
   }, [user]);
@@ -88,7 +89,9 @@ export default function WingInventory() {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`http://localhost:3001/api/wing-inventory/${user?.wing_id}`, {
+      // Admin: pass '0' — server ignores param and returns all wings
+      const wingParam = user?.wing_id || '0';
+      const response = await fetch(`http://localhost:3001/api/wing-inventory/${wingParam}`, {
         credentials: 'include'
       });
       
@@ -422,14 +425,10 @@ export default function WingInventory() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-500">Quantity</p>
                       <p className="font-semibold">{item.issued_quantity}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Unit Price</p>
-                      <p className="font-semibold">Rs. {item.unit_price.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-gray-500">Issued Date</p>

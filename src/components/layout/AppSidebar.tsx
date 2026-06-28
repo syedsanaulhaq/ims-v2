@@ -185,18 +185,23 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
   // PERSONAL MENU - For all individual users
   const personalMenuGroup: MenuGroup = {
-    label: "Personal Menu",
+    label: "Personal",
     icon: User,
     items: [
-      { title: "My Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
-      { title: "My Requests", icon: ClipboardList, path: "/dashboard/my-requests", permission: 'issuance.request' },
-      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: 'issuance.request' },
-      { title: "My Issued Items", icon: Package, path: "/dashboard/my-issued-items", permission: 'issuance.request' },
-      { title: "Request Item", icon: Send, path: "/dashboard/stock-issuance-personal", permission: 'issuance.request' },
-      { title: "Return Item", icon: Undo2, path: "/dashboard/stock-return", permission: 'issuance.request' },
-      { title: "Stock Requests", icon: ClipboardList, path: "/procurement/my-requests", permission: 'procurement.view_own' },
-      { title: "My Approvals (Requests)", icon: CheckCircle, path: hasAdminApprovalRole ? "/dashboard/approval-dashboard-request-based-admin" : "/dashboard/approval-dashboard-request-based", permission: 'approval.approve' },
-      { title: "My Approvals (Items)", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
+      { title: "Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
+      { title: "Request Form", icon: ShoppingCart, path: "/dashboard/stock-issuance-personal", permission: undefined },
+      { title: "My Request", icon: ClipboardList, path: "/dashboard/my-requests", permission: undefined },
+      { title: "Stock Return", icon: Undo2, path: "/dashboard/stock-return", permission: undefined },
+      { title: "My Inventory", icon: Package, path: "/dashboard/my-issued-items", permission: undefined },
+    ]
+  };
+
+  const subordinateMenuGroup: MenuGroup = {
+    label: "Supervisor",
+    icon: Users,
+    items: [
+      { title: "Supervisor Dashboard", icon: CheckCircle, path: "/dashboard/supervisor-approval-dashboard", permission: 'approval.approve' },
+      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
     ]
   };
 
@@ -292,7 +297,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Approval Menu",
     icon: CheckCircle,
     items: [
-      { title: "My Pending Approvals", icon: CheckCircle, path: "/dashboard/approval-dashboard", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
@@ -345,6 +349,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     const visiblePersonalItems = personalMenuGroup.items.filter(item => checkPermission(item.permission));
     if (visiblePersonalItems.length > 0) {
       groups.push({ ...personalMenuGroup, items: visiblePersonalItems });
+    }
+
+    // Show Supervisor menu only for users with approval.approve permission
+    if (canApprove) {
+      const visibleSubordinateItems = subordinateMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleSubordinateItems.length > 0) {
+        groups.push({ ...subordinateMenuGroup, items: visibleSubordinateItems });
+      }
     }
 
     // Show wing menu if user is wing supervisor

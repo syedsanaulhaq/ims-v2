@@ -35,7 +35,7 @@ const config = {
   NODE_ENV: runtimeEnv,
   
   // Database
-  DB_HOST: process.env.SQL_SERVER_HOST || process.env.DB_HOST || 'SYED-FAZLI-LAPT',
+  DB_HOST: process.env.SQL_SERVER_HOST || process.env.DB_HOST || 'localhost',
   DB_PORT: parseInt(process.env.SQL_SERVER_PORT || process.env.DB_PORT || '1433', 10),
   DB_USER: process.env.SQL_SERVER_USER || process.env.DB_USER || 'sa',
   DB_PASSWORD: process.env.SQL_SERVER_PASSWORD || process.env.DB_PASSWORD || 'Syed@2020',
