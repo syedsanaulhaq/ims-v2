@@ -102,8 +102,13 @@ const WingDashboard = () => {
             .then(res => res.ok ? res.json() : { data: [] })
             .catch(() => ({ data: [] })),
           
-          // Wing members
-          fetch(`${apiBase}/ims/users?wing_id=${user?.wing_id}`, { credentials: 'include' })
+          // Wing members - admin sees all, supervisors scoped to own wing
+          fetch(
+            user?.is_super_admin
+              ? `${apiBase}/ims/users/aspnet/filtered`
+              : `${apiBase}/ims/users/aspnet/filtered?wing_id=${user?.wing_id}`,
+            { credentials: 'include' }
+          )
             .then(res => res.ok ? res.json() : [])
             .catch(() => [])
         ]);
@@ -122,7 +127,11 @@ const WingDashboard = () => {
         setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
         setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
         setMyVerificationRequests(verificationsRes?.data || []);
-        setWingMembers(Array.isArray(membersRes) ? membersRes : (membersRes?.data || []));
+        const normalizedMembers = Array.isArray(membersRes) ? membersRes : (membersRes?.data || []);
+        const scopedMembers = user?.is_super_admin
+          ? normalizedMembers
+          : normalizedMembers.filter((m: any) => Number(m.intWingID ?? m.wing_id) === Number(user?.wing_id));
+        setWingMembers(scopedMembers);
 
       } catch (error) {
         console.error('Error fetching wing dashboard data:', error);
