@@ -72,8 +72,13 @@ const WingDashboard = () => {
           verificationsRes,
           membersRes
         ] = await Promise.all([
-          // All stock issuance requests (not filtered, for wing overview)
-          fetch(`${apiBase}/stock-issuance/requests`, { credentials: 'include' })
+          // Wing-related requests only (exclude personal requests)
+          fetch(
+            user?.is_super_admin
+              ? `${apiBase}/stock-issuance/requests?request_type=organizational,wing`
+              : `${apiBase}/stock-issuance/requests?wing_id=${user?.wing_id}&request_type=organizational,wing`,
+            { credentials: 'include' }
+          )
             .then(res => res.ok ? res.json() : [])
             .catch(() => []),
           

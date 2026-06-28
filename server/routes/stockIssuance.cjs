@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
 router.get('/requests', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
-    const { status, wing_id, requester_id, includeDeleted } = req.query;
+    const { status, wing_id, requester_id, includeDeleted, request_type } = req.query;
     const userId = req.session?.userId;
 
     // Production can lag behind schema updates. Detect optional columns dynamically
@@ -217,6 +217,24 @@ router.get('/requests', requireAuth, async (req, res) => {
     if (requester_id) {
       conditions.push('CONVERT(NVARCHAR(450), sir.requester_user_id) = @requesterId');
       request = request.input('requesterId', sql.NVarChar(450), requester_id);
+    }
+
+    if (request_type) {
+      const rawTypes = String(request_type)
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean);
+
+      if (rawTypes.length === 1) {
+        conditions.push('LOWER(CONVERT(NVARCHAR(100), sir.request_type)) = @requestType1');
+        request = request.input('requestType1', sql.NVarChar(100), rawTypes[0].toLowerCase());
+      } else if (rawTypes.length > 1) {
+        const placeholders = rawTypes.map((_, idx) => `@requestType${idx + 1}`).join(', ');
+        conditions.push(`LOWER(CONVERT(NVARCHAR(100), sir.request_type)) IN (${placeholders})`);
+        rawTypes.forEach((type, idx) => {
+          request = request.input(`requestType${idx + 1}`, sql.NVarChar(100), type.toLowerCase());
+        });
+      }
     }
 
     if (conditions.length > 0) {
