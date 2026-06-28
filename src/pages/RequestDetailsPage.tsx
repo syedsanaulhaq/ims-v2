@@ -167,7 +167,8 @@ const RequestDetailsPage: React.FC = () => {
         const data = await response.json();
         if (data.success) {
           // Find the specific request by ID
-          const foundRequest = data.data.find((req: any) => req.id === id);
+          const normalizedId = String(id || '').toLowerCase();
+          const foundRequest = data.data.find((req: any) => String(req.id || '').toLowerCase() === normalizedId);
           
           if (foundRequest) {
             // Map to the expected format
