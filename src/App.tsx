@@ -271,6 +271,8 @@ function App() {
                   <Route path="categories" element={<Categories />} />
                   <Route path="sub-categories" element={<SubCategories />} />
                   <Route path="vendors" element={<VendorManagementEnhanced />} />
+                  <Route path="supervisor-approval-dashboard" element={<ApprovalDashboardRequestBased />} />
+                  <Route path="wing-approval-dashboard" element={<ApprovalDashboardRequestBased />} />
                   <Route path="reports" element={<Reports />} />
                   <Route path="stock-transactions" element={<StockTransactions />} />
                   <Route path="stock-acquisition-dashboard" element={<EnhancedStockAcquisitionWithDelivery />} />
