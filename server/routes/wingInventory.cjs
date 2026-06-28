@@ -137,12 +137,10 @@ router.get('/:wingId', requireAuth, async (req, res) => {
     }
 
     const invRequest = pool.request();
-    let wingFilter = '';
+    let wingFilter = 'AND sir.request_type = \'wing\'';
     if (!isAdmin) {
       invRequest.input('wingId', sql.Int, effectiveWingId);
-      wingFilter = 'AND sir.requester_wing_id = @wingId AND sir.request_type = \'wing\'';
-    } else {
-      wingFilter = 'AND sir.request_type = \'wing\'';
+      wingFilter += ' AND sir.requester_wing_id = @wingId';
     }
 
     const result = await invRequest.query(`
@@ -154,47 +152,55 @@ router.get('/:wingId', requireAuth, async (req, res) => {
         COALESCE(
           NULLIF(sii.issued_quantity, 0),
           NULLIF(sii.approved_quantity, 0),
-          sii.requested_quantity, 0
+          sii.requested_quantity,
+          0
         ) AS issued_quantity,
         0 AS unit_price,
-        sir.submitted_at AS issued_at,
-        approver.FullName AS issued_by_name,
+        0 AS total_value,
+        COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) AS issued_at,
+        '' AS issued_by_name,
         u.FullName AS issued_to_name,
         u.Id AS issued_to_id,
-        w.Name AS issued_to_wing,
         sir.request_type AS purpose,
+        sir.request_type,
         COALESCE(sir.is_returnable, 0) AS is_returnable,
         sir.expected_return_date,
         NULL AS actual_return_date,
-        'Not Returned' AS return_status,
         CASE
-          WHEN sir.is_returnable = 1
+          WHEN COALESCE(sir.is_returnable, 0) = 0 THEN 'Not Returnable'
+          WHEN sir.expected_return_date IS NOT NULL AND sir.expected_return_date < GETDATE() THEN 'Overdue'
+          ELSE 'Not Returned'
+        END AS return_status,
+        CASE
+          WHEN COALESCE(sir.is_returnable, 0) = 1
             AND sir.expected_return_date IS NOT NULL
             AND sir.expected_return_date < GETDATE()
           THEN 'Overdue'
+          WHEN UPPER(COALESCE(sir.approval_status, '')) = 'RETURNED'
+          THEN 'Returned'
           ELSE 'Not Returned'
         END AS current_return_status,
-        COALESCE(sir.approval_status, 'Issued') AS status,
+        COALESCE(sir.approval_status, sir.request_status, 'Issued') AS status,
         '' AS issuance_notes
       FROM stock_issuance_items sii
       INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
-      INNER JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      LEFT JOIN WingsInformation w ON u.intWingID = w.Id
       LEFT JOIN item_masters im ON sii.item_master_id = im.id
       LEFT JOIN categories c ON im.category_id = c.id
-      LEFT JOIN AspNetUsers approver ON sir.approved_by_user_id = approver.Id
-      WHERE UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      WHERE (
+        UPPER(COALESCE(sir.request_status, '')) IN ('ISSUED', 'COMPLETED')
+        OR UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
+      )
         ${wingFilter}
-      ORDER BY sir.submitted_at DESC
+      ORDER BY COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) DESC
     `);
 
     const items = result.recordset;
-
     const summary = {
       total_items: items.length,
       unique_users: new Set(items.map(i => i.issued_to_id)).size,
       returnable_items: items.filter(i => i.is_returnable).length,
-      not_returned: items.filter(i => i.is_returnable && i.return_status === 'Not Returned').length,
+      not_returned: items.filter(i => i.is_returnable && i.current_return_status !== 'Returned').length,
       overdue: items.filter(i => i.current_return_status === 'Overdue').length
     };
 
@@ -202,7 +208,12 @@ router.get('/:wingId', requireAuth, async (req, res) => {
     items.forEach(item => {
       const uid = item.issued_to_id;
       if (!userMap.has(uid)) {
-        userMap.set(uid, { user_id: uid, user_name: item.issued_to_name, wing_name: item.issued_to_wing || '', items_count: 0, overdue_count: 0 });
+        userMap.set(uid, {
+          user_id: uid,
+          user_name: item.issued_to_name,
+          items_count: 0,
+          overdue_count: 0
+        });
       }
       const s = userMap.get(uid);
       s.items_count++;
