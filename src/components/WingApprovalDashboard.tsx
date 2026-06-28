@@ -9,8 +9,6 @@ import {
   RequestApproval,
   RequestLaneSummary
 } from '../services/approvalForwardingService';
-import ApprovalForwarding from './ApprovalForwarding';
-import PerItemApprovalPanel from './PerItemApprovalPanel';
 import { CheckCircle, Clock, RefreshCw, Settings, Users, Building2 } from "lucide-react";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
@@ -25,7 +23,6 @@ export const WingApprovalDashboard: React.FC = () => {
     forwarded_count: 0
   });
   const [loading, setLoading] = useState(true);
-  const [selectedApproval, setSelectedApproval] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'pending' | 'approved' | 'rejected' | 'forwarded'>('pending');
   const [wingName, setWingName] = useState<string>('');
@@ -100,34 +97,6 @@ export const WingApprovalDashboard: React.FC = () => {
       console.error('❌ Error loading wing approval dashboard:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleApprovalAction = async (approvalId: string, action: 'approve' | 'reject', comments?: string) => {
-    try {
-      console.log(`🔄 Processing ${action} for approval:`, approvalId);
-
-      // Use the appropriate service method
-      const actionPayload: any = {
-        action_type: action,
-        comments: comments || ''
-      };
-      
-      const result = (action === 'approve') 
-        ? await approvalForwardingService.approveRequest(approvalId, actionPayload)
-        : await approvalForwardingService.rejectRequest(approvalId, actionPayload);
-
-      if (result && result.id) {
-        console.log(`✅ Approval ${action}d successfully`);
-        setRefreshTrigger(prev => prev + 1); // Trigger reload
-        setSelectedApproval(null);
-      } else {
-        console.error(`❌ Failed to ${action} approval`);
-        alert(`Failed to ${action} approval`);
-      }
-    } catch (error) {
-      console.error(`❌ Error ${action}ing approval:`, error);
-      alert(`Error ${action}ing approval: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -369,31 +338,6 @@ export const WingApprovalDashboard: React.FC = () => {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {activeFilter === 'pending' && (
-                        <>
-                          <Button
-                            onClick={() => setSelectedApproval(approval.id)}
-                            variant="outline"
-                            size="sm"
-                          >
-                            Review
-                          </Button>
-                          <Button
-                            onClick={() => handleApprovalAction(approval.id, 'approve')}
-                            className="bg-green-600 hover:bg-green-700"
-                            size="sm"
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            onClick={() => handleApprovalAction(approval.id, 'reject')}
-                            variant="destructive"
-                            size="sm"
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      )}
                       <Button
                         onClick={() => navigate(`/dashboard/request-details/${approval.request_id}`)}
                         variant="outline"
@@ -409,12 +353,6 @@ export const WingApprovalDashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Approval Forwarding Modal */}
-        {selectedApproval && (
-          <ApprovalForwarding
-            approvalId={selectedApproval}
-          />
-        )}
       </div>
     </div>
   );
