@@ -9,6 +9,8 @@ import {
   RequestApproval,
   RequestLaneSummary
 } from '../services/approvalForwardingService';
+import ApprovalForwarding from './ApprovalForwarding';
+import PerItemApprovalPanel from './PerItemApprovalPanel';
 import { CheckCircle, Clock, RefreshCw, Settings, Users, Building2 } from "lucide-react";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
@@ -23,6 +25,7 @@ export const WingApprovalDashboard: React.FC = () => {
     forwarded_count: 0
   });
   const [loading, setLoading] = useState(true);
+  const [selectedApproval, setSelectedApproval] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'pending' | 'approved' | 'rejected' | 'forwarded'>('pending');
   const [wingName, setWingName] = useState<string>('');
@@ -159,8 +162,35 @@ export const WingApprovalDashboard: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status?: string) => {
-    const normalizedStatus = String(status || 'pending').toLowerCase();
+  const handleApprovalAction = async (approvalId: string, action: 'approve' | 'reject', comments?: string) => {
+    try {
+      console.log(`🔄 Processing ${action} for approval:`, approvalId);
+
+      // Use the appropriate service method
+      const actionPayload: any = {
+        action_type: action,
+        comments: comments || ''
+      };
+      
+      const result = (action === 'approve') 
+        ? await approvalForwardingService.approveRequest(approvalId, actionPayload)
+        : await approvalForwardingService.rejectRequest(approvalId, actionPayload);
+
+      if (result && result.id) {
+        console.log(`✅ Approval ${action}d successfully`);
+        setRefreshTrigger(prev => prev + 1); // Trigger reload
+        setSelectedApproval(null);
+      } else {
+        console.error(`❌ Failed to ${action} approval`);
+        alert(`Failed to ${action} approval`);
+      }
+    } catch (error) {
+      console.error(`❌ Error ${action}ing approval:`, error);
+      alert(`Error ${action}ing approval: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
     const statusConfig = {
       'pending': { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: Clock },
       'approved': { color: 'bg-green-100 text-green-800 border-green-300', icon: CheckCircle },
@@ -168,13 +198,13 @@ export const WingApprovalDashboard: React.FC = () => {
       'forwarded': { color: 'bg-blue-100 text-blue-800 border-blue-300', icon: Users }
     };
 
-    const config = statusConfig[normalizedStatus as keyof typeof statusConfig] || statusConfig.pending;
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
     const Icon = config.icon;
 
     return (
       <Badge className={`${config.color} flex items-center gap-1`}>
         <Icon size={12} />
-        {normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1)}
+        {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     );
   };
@@ -232,14 +262,6 @@ export const WingApprovalDashboard: React.FC = () => {
         Lanes {completedCount}/{laneSummary.lane_count}
       </Badge>
     );
-  };
-
-  const getDisplayRequestType = (approval: RequestApproval) => {
-    const raw = String((approval as any).scope_type || approval.request_type || '').toLowerCase();
-    if (!raw || raw.includes('individual') || raw.includes('organizational') || raw.includes('wing')) {
-      return 'wing';
-    }
-    return String(approval.request_type || 'wing').toLowerCase();
   };
 
   if (loading) {
@@ -400,7 +422,7 @@ export const WingApprovalDashboard: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-2">
                       <p className="text-sm text-gray-600">
-                        <strong>Type:</strong> {getDisplayRequestType(approval)}
+                        <strong>Type:</strong> {approval.request_type}
                       </p>
                       <p className="text-sm text-gray-600">
                         <strong>Submitted:</strong> {new Date(approval.submitted_date).toLocaleDateString()}
@@ -412,6 +434,31 @@ export const WingApprovalDashboard: React.FC = () => {
                       )}
                     </div>
                     <div className="flex gap-2">
+                      {activeFilter === 'pending' && (
+                        <>
+                          <Button
+                            onClick={() => setSelectedApproval(approval.id)}
+                            variant="outline"
+                            size="sm"
+                          >
+                            Review
+                          </Button>
+                          <Button
+                            onClick={() => handleApprovalAction(approval.id, 'approve')}
+                            className="bg-green-600 hover:bg-green-700"
+                            size="sm"
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            onClick={() => handleApprovalAction(approval.id, 'reject')}
+                            variant="destructive"
+                            size="sm"
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
                       <Button
                         onClick={() => navigate(`/dashboard/request-details/${approval.request_id}`)}
                         variant="outline"
@@ -427,6 +474,12 @@ export const WingApprovalDashboard: React.FC = () => {
           )}
         </div>
 
+        {/* Approval Forwarding Modal */}
+        {selectedApproval && (
+          <ApprovalForwarding
+            approvalId={selectedApproval}
+          />
+        )}
       </div>
     </div>
   );

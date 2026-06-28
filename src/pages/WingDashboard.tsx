@@ -72,11 +72,11 @@ const WingDashboard = () => {
           verificationsRes,
           membersRes
         ] = await Promise.all([
-          // Wing-related requests only (exclude personal requests)
+          // Wing requests only - exclude personal requests from the dashboard
           fetch(
             user?.is_super_admin
-              ? `${apiBase}/stock-issuance/requests?request_type=organizational,wing`
-              : `${apiBase}/stock-issuance/requests?wing_id=${user?.wing_id}&request_type=organizational,wing`,
+              ? `${apiBase}/stock-issuance/requests?request_type=wing`
+              : `${apiBase}/stock-issuance/requests?wing_id=${user?.wing_id}&request_type=wing`,
             { credentials: 'include' }
           )
             .then(res => res.ok ? res.json() : [])
@@ -102,11 +102,11 @@ const WingDashboard = () => {
             .then(res => res.ok ? res.json() : { data: [] })
             .catch(() => ({ data: [] })),
           
-          // Wing members - admin sees all, supervisors scoped to own wing
+          // Wing members — admin sees all, supervisor scoped to own wing
           fetch(
             user?.is_super_admin
-              ? `${apiBase}/ims/users/aspnet/filtered`
-              : `${apiBase}/ims/users/aspnet/filtered?wing_id=${user?.wing_id}`,
+              ? `${apiBase}/users/aspnet/filtered`
+              : `${apiBase}/users/aspnet/filtered?wing_id=${user?.wing_id}`,
             { credentials: 'include' }
           )
             .then(res => res.ok ? res.json() : [])
@@ -127,11 +127,7 @@ const WingDashboard = () => {
         setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));
         setWingNotifications(Array.isArray(notificationsRes) ? notificationsRes : []);
         setMyVerificationRequests(verificationsRes?.data || []);
-        const normalizedMembers = Array.isArray(membersRes) ? membersRes : (membersRes?.data || []);
-        const scopedMembers = user?.is_super_admin
-          ? normalizedMembers
-          : normalizedMembers.filter((m: any) => Number(m.intWingID ?? m.wing_id) === Number(user?.wing_id));
-        setWingMembers(scopedMembers);
+        setWingMembers(Array.isArray(membersRes) ? membersRes : (membersRes?.data || []));
 
       } catch (error) {
         console.error('Error fetching wing dashboard data:', error);
@@ -173,7 +169,7 @@ const WingDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       <div className="p-6 space-y-8">
         {/* Page Header */}
       <div className="flex items-center justify-between">
@@ -201,7 +197,7 @@ const WingDashboard = () => {
 
       {/* Quick Stats - 4 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/wing-request-history')}>
+        <Card className="cursor-pointer hover:shadow-md transition-all duration-300 bg-white border border-slate-200 border-l-4 border-l-orange-500" onClick={() => navigate('/dashboard/wing-request-history')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-orange-700">
               <ClipboardList className="h-5 w-5" />
@@ -226,7 +222,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/wing-inventory')}>
+        <Card className="cursor-pointer hover:shadow-md transition-all duration-300 bg-white border border-slate-200 border-l-4 border-l-blue-500" onClick={() => navigate('/dashboard/wing-inventory')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-blue-700">
               <Package className="h-5 w-5" />
@@ -246,7 +242,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/wing-approval-dashboard')}>
+        <Card className="cursor-pointer hover:shadow-md transition-all duration-300 bg-white border border-slate-200 border-l-4 border-l-purple-500" onClick={() => navigate('/dashboard/supervisor-approval-dashboard')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-purple-700">
               <CheckCircle className="h-5 w-5" />
@@ -266,7 +262,7 @@ const WingDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-l-green-500" onClick={() => navigate('/dashboard/wing-members')}>
+        <Card className="cursor-pointer hover:shadow-md transition-all duration-300 bg-white border border-slate-200 border-l-4 border-l-green-500" onClick={() => navigate('/dashboard/wing-members')}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-green-700">
               <Users className="h-5 w-5" />
@@ -290,8 +286,8 @@ const WingDashboard = () => {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Request Status Distribution */}
-        <Card className="shadow-lg border-2 border-teal-200">
-          <CardHeader className="border-b bg-gradient-to-r from-teal-50 to-teal-100">
+        <Card className="shadow-sm border border-slate-200 bg-white">
+          <CardHeader className="border-b bg-slate-50">
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-teal-600" />
               Request Status Distribution
@@ -333,8 +329,8 @@ const WingDashboard = () => {
         </Card>
 
         {/* Monthly Requests Trend */}
-        <Card className="shadow-lg border-2 border-indigo-200">
-          <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-indigo-100">
+        <Card className="shadow-sm border border-slate-200 bg-white">
+          <CardHeader className="border-b bg-slate-50">
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-indigo-600" />
               Requests Trend
@@ -402,8 +398,8 @@ const WingDashboard = () => {
       </div>
 
       {/* My Verification Requests */}
-      <Card className="shadow-lg border-2 border-indigo-200">
-        <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-indigo-100">
+      <Card className="shadow-sm border border-slate-200 bg-white">
+        <CardHeader className="border-b bg-slate-50">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-xl flex items-center gap-2">
@@ -484,7 +480,7 @@ const WingDashboard = () => {
           <style>{`body { overflow: hidden; }`}</style>
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-            <CardHeader className="border-b bg-gradient-to-r from-indigo-100 to-indigo-50 sticky top-0">
+            <CardHeader className="border-b bg-slate-100 sticky top-0">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-xl">Verification Request Details</CardTitle>
@@ -588,8 +584,8 @@ const WingDashboard = () => {
       )}
 
       {/* Recent Wing Requests */}
-      <Card className="shadow-lg">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
+      <Card className="shadow-sm border border-slate-200 bg-white">
+        <CardHeader className="border-b bg-slate-50">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-xl">Recent Wing Requests</CardTitle>
@@ -648,8 +644,8 @@ const WingDashboard = () => {
 
       {/* Items in Wing */}
       {wingIssuedItems.length > 0 && (
-        <Card className="shadow-lg">
-          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100">
+        <Card className="shadow-sm border border-slate-200 bg-white">
+          <CardHeader className="border-b bg-slate-50">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-xl">Items in Wing Possession</CardTitle>

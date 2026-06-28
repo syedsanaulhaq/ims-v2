@@ -636,7 +636,6 @@ router.get('/my-pending', requireAuth, async (req, res) => {
       .query(`
         SELECT * FROM vw_pending_supervisor_approvals
         WHERE requester_wing_id = @wingId
-          AND LOWER(CONVERT(NVARCHAR(100), request_type)) IN ('organizational', 'wing')
         ORDER BY is_urgent DESC, pending_hours DESC
       `);
 

@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Plus, Minus, Send, User, Package, AlertCircle, CheckCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Search, Plus, Trash2, Minus } from 'lucide-react';
 
 interface SelectedItem {
   item_master_id: number | string;
@@ -275,34 +276,6 @@ const NewProcurementRequest: React.FC = () => {
     }
   };
 
-  const addCustomItem = () => {
-    if (customItemName.trim() && customItemQuantity > 0) {
-      const customItem: SelectedItem = {
-        item_master_id: `custom_${Date.now()}`,
-        item_nomenclature: customItemName.trim(),
-        item_code: '',
-        category_name: '',
-        subcategory_name: '',
-        requested_quantity: customItemQuantity,
-        unit_of_measurement: '',
-        notes: ''
-      };
-
-      setSelectedItems([...selectedItems, customItem]);
-      setShowCustomItemForm(false);
-      setCustomItemName('');
-      setCustomItemQuantity(1);
-      setError('');
-      return;
-    }
-
-    setError('Please enter a valid custom item name and quantity');
-  };
-
-  const filteredItems = itemsLibrary.filter(item =>
-    item.vItemNomenclature.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
@@ -313,14 +286,12 @@ const NewProcurementRequest: React.FC = () => {
 
         {success && (
           <Alert className="mb-6 border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-800">{success}</AlertDescription>
           </Alert>
         )}
 
         {error && (
           <Alert className="mb-6 border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertDescription className="text-red-800">{error}</AlertDescription>
           </Alert>
         )}
@@ -331,44 +302,14 @@ const NewProcurementRequest: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5" />
-                  Wing Stock Request Details
+                  Wing Request Details
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-4 border-2 border-blue-200 p-4 rounded-lg bg-blue-50">
-                  <h3 className="font-semibold text-blue-800 flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    Request For (Current Wing)
-                  </h3>
-
-                  <div className="space-y-2 bg-white p-3 rounded border">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-700">Wing:</span>
-                      <span className="text-gray-900">{wingName || 'Not available'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-700">Requested By:</span>
-                      <span className="text-gray-900">{user?.user_name || 'Not available'}</span>
-                    </div>
-                    <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
-                      <p className="text-sm text-green-700">
-                        ✅ <strong>Wing Request:</strong> This request is being created for your current wing.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
                 <div>
-                  <Label>Purpose *</Label>
-                  <Textarea
-                    value={justification}
-                    onChange={e => setJustification(e.target.value)}
-                    placeholder="Explain why these items are needed for your wing"
-                    rows={3}
-                  />
+                  <Label>Wing</Label>
+                  <div className="font-medium text-blue-800">{wingName}</div>
                 </div>
-
                 <div>
                   <Label>Priority</Label>
                   <Select value={priority} onValueChange={setPriority}>
@@ -382,87 +323,64 @@ const NewProcurementRequest: React.FC = () => {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div>
-                  <Label>Additional Justification</Label>
+                  <Label>Justification</Label>
                   <Textarea
                     value={justification}
                     onChange={e => setJustification(e.target.value)}
-                    placeholder="Any additional context or procurement details"
-                    rows={2}
+                    placeholder="Describe the need for this procurement..."
                   />
                 </div>
               </CardContent>
             </Card>
           </div>
-
           {/* Right Column: Items Library and Selection */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5" />
-                  Select Items
+                  Items Library
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="mb-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      type="text"
-                      placeholder="Search inventory items..."
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  {!showCustomItemForm && (
-                    <button
-                      type="button"
-                      onClick={() => setShowCustomItemForm(true)}
-                      className="mt-2 text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Can't find your item? Add a custom item
-                    </button>
-                  )}
+              <CardContent className="space-y-4">
+                <div>
+                  <Input
+                    type="text"
+                    placeholder="Search items..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                  />
                 </div>
-
                 {loading ? (
-                  <div className="p-4 text-center text-gray-500">Loading items...</div>
+                  <div>Loading items...</div>
                 ) : itemsError ? (
-                  <div className="p-4 text-center text-red-600">{itemsError}</div>
+                  <div className="text-red-600">{itemsError}</div>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
-                    {filteredItems.length > 0 ? (
-                      filteredItems.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm">{item.vItemNomenclature}</div>
-                            <div className="text-xs text-gray-600 line-clamp-2">
-                              Unit: {item.vUnitOfMeasure || 'N/A'}
-                            </div>
+                  <>
+                    <div className="max-h-64 overflow-y-auto">
+                      {itemsLibrary.filter(item =>
+                        item.vItemNomenclature.toLowerCase().includes(searchTerm.toLowerCase())
+                      ).map(item => (
+                        <div key={item.id} className="flex items-center justify-between border-b py-2">
+                          <div>
+                            <span className="font-medium">{item.vItemNomenclature}</span>
+                            <span className="ml-2 text-xs text-gray-500">({item.vUnitOfMeasure})</span>
                           </div>
-                          <Button
-                            size="sm"
-                            onClick={() => addItem(item)}
-                            disabled={selectedItems.some(si => si.item_master_id === item.id)}
-                          >
-                            <Plus className="w-4 h-4" />
+                          <Button size="sm" onClick={() => addItem(item)}>
+                            Add
                           </Button>
                         </div>
-                      ))
-                    ) : searchTerm.trim() ? (
-                      <div className="p-4 border border-dashed border-amber-300 rounded-lg bg-amber-50">
-                        <p className="text-sm text-amber-800 mb-3">
-                          ❌ No items found for "<span className="font-semibold">{searchTerm}</span>"
-                        </p>
+                      ))}
+                    </div>
+                    {/* Add custom item if no match and searchTerm is not empty */}
+                    {searchTerm && itemsLibrary.filter(item =>
+                      item.vItemNomenclature.toLowerCase().includes(searchTerm.toLowerCase())
+                    ).length === 0 && !showCustomItemForm && (
+                      <div className="p-4 text-center">
                         <Button
                           onClick={() => {
-                            setCustomItemName(searchTerm);
-                            setCustomItemQuantity(1);
                             setShowCustomItemForm(true);
+                            setCustomItemName(searchTerm);
                           }}
                           className="w-full bg-amber-600 hover:bg-amber-700"
                           size="sm"
@@ -471,162 +389,158 @@ const NewProcurementRequest: React.FC = () => {
                           Add "{searchTerm}" as Custom Item
                         </Button>
                       </div>
-                    ) : (
-                      <div className="p-4 text-center text-gray-500">
-                        <p className="text-sm">Search for items to get started...</p>
-                      </div>
                     )}
-                  </div>
-                )}
-
-                {showCustomItemForm && (
-                  <div className="border-t pt-4 mb-4">
-                    <h4 className="font-medium mb-3 text-blue-700">Add Custom Item</h4>
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                      <p className="text-sm text-blue-600 mb-3">
-                        💡 Configure your custom item details
-                      </p>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="md:col-span-2">
-                          <Label htmlFor="customItemName">Item Name</Label>
-                          <Input
-                            id="customItemName"
-                            value={customItemName}
-                            onChange={e => setCustomItemName(e.target.value)}
-                            placeholder="Enter custom item name..."
-                            className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="customItemQuantity">Quantity</Label>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setCustomItemQuantity(Math.max(1, customItemQuantity - 1))}
-                              type="button"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </Button>
-                            <Input
-                              id="customItemQuantity"
-                              type="number"
-                              value={customItemQuantity}
-                              onChange={e => setCustomItemQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                              className="w-16 text-center"
-                              min="1"
-                            />
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setCustomItemQuantity(customItemQuantity + 1)}
-                              type="button"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 mt-3">
-                        <Button
-                          onClick={addCustomItem}
-                          disabled={!customItemName.trim()}
-                          className="flex-1"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Custom Item
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setShowCustomItemForm(false);
-                            setCustomItemName('');
-                            setCustomItemQuantity(1);
-                          }}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Selected Items ({selectedItems.length})</h4>
-                  <div className="overflow-x-auto border rounded-lg">
-                    <table className="w-full min-w-[720px] text-sm">
-                      <thead className="bg-gray-100 text-gray-700">
-                        <tr>
-                          <th className="text-left px-3 py-2">Item</th>
-                          <th className="text-left px-3 py-2 w-48">Unit</th>
-                          <th className="text-left px-3 py-2 w-44">Required Quantity</th>
-                          <th className="text-left px-3 py-2 w-24">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedItems.map((item, idx) => (
-                          <tr key={`${item.item_master_id}-${idx}`} className="border-t align-middle">
-                            <td className="px-3 py-2">
-                              <div className="font-medium">{item.item_nomenclature}</div>
-                              <div className="text-xs text-gray-500">
-                                {item.item_master_id.toString().startsWith('custom_') ? 'Custom item' : 'Standard item'}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2">{item.unit_of_measurement || '-'}</td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
+                    {/* Custom Item Form */}
+                    {showCustomItemForm && (
+                      <div className="border-t pt-4 mb-4">
+                        <h4 className="font-medium mb-3 text-blue-700">Add Custom Item</h4>
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                          <p className="text-sm text-blue-600 mb-3">
+                            💡 Configure your custom item details
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="md:col-span-2">
+                              <Label htmlFor="customItemName">Item Name</Label>
+                              <Input
+                                id="customItemName"
+                                value={customItemName}
+                                onChange={e => setCustomItemName(e.target.value)}
+                                placeholder="Enter custom item name..."
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="customItemQuantity">Quantity</Label>
+                              <div className="flex items-center gap-2 mt-1">
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => updateItemQuantity(idx, Math.max(1, item.requested_quantity - 1))}
+                                  onClick={() => setCustomItemQuantity(Math.max(1, customItemQuantity - 1))}
+                                  type="button"
                                 >
                                   <Minus className="w-3 h-3" />
                                 </Button>
-                                <span className="w-10 text-center text-sm font-medium">{item.requested_quantity}</span>
+                                <Input
+                                  id="customItemQuantity"
+                                  type="number"
+                                  value={customItemQuantity}
+                                  onChange={e => setCustomItemQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                  className="w-16 text-center"
+                                  min="1"
+                                />
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => updateItemQuantity(idx, item.requested_quantity + 1)}
+                                  onClick={() => setCustomItemQuantity(customItemQuantity + 1)}
+                                  type="button"
                                 >
                                   <Plus className="w-3 h-3" />
                                 </Button>
                               </div>
-                            </td>
-                            <td className="px-3 py-2">
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => removeItem(idx)}
-                              >
-                                Remove
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <Button
-                    disabled={selectedItems.length === 0 || submitting}
-                    className="w-full"
-                    onClick={handleSubmit}
-                  >
-                    {submitting ? (
-                      'Submitting...'
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Submit Wing Request
-                      </>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <Button
+                              onClick={() => {
+                                // Add custom item to selectedItems
+                                const customItem: SelectedItem = {
+                                  item_master_id: `custom_${Date.now()}`,
+                                  item_nomenclature: customItemName,
+                                  item_code: '',
+                                  category_name: '',
+                                  subcategory_name: '',
+                                  requested_quantity: customItemQuantity,
+                                  unit_of_measurement: '',
+                                  notes: '',
+                                };
+                                setSelectedItems([...selectedItems, customItem]);
+                                setShowCustomItemForm(false);
+                                setCustomItemName('');
+                                setCustomItemQuantity(1);
+                              }}
+                              disabled={!customItemName.trim()}
+                              className="flex-1"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Custom Item
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setShowCustomItemForm(false);
+                                setCustomItemName('');
+                                setCustomItemQuantity(1);
+                              }}
+                              variant="outline"
+                              className="flex-1"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     )}
-                  </Button>
-                </div>
+                  </>
+                )}
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Selected Items ({selectedItems.length})</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedItems.length === 0 ? (
+                  <div className="text-gray-500">No items selected.</div>
+                ) : (
+                  selectedItems.map((item, idx) => (
+                    <div
+                      key={item.item_master_id}
+                      className={`flex items-center gap-3 p-3 rounded-lg ${item.item_master_id.toString().startsWith('custom_') ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{item.item_nomenclature}</div>
+                        <div className="text-xs text-gray-600">Unit: {item.unit_of_measurement || 'Custom'}</div>
+                        {item.item_master_id.toString().startsWith('custom_') && (
+                          <Badge variant="secondary" className="text-xs">Custom</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateItemQuantity(idx, Math.max(1, item.requested_quantity - 1))}
+                        >
+                          -
+                        </Button>
+                        <span className="w-8 text-center text-sm font-medium">
+                          {item.requested_quantity}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateItemQuantity(idx, item.requested_quantity + 1)}
+                        >
+                          +
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => removeItem(idx)}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+            <Button 
+              disabled={selectedItems.length === 0 || submitting} 
+              className="w-full"
+              onClick={handleSubmit}
+            >
+              {submitting ? 'Submitting...' : 'Submit Wing Request'}
+            </Button>
           </div>
         </div>
       </div>

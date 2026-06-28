@@ -56,34 +56,30 @@ const WingMembers: React.FC = () => {
       if (wingsRes.ok) {
         const wingsData = await wingsRes.json();
         const wingsList = Array.isArray(wingsData) ? wingsData : (wingsData?.data || []);
-        const currentWing = wingsList.find((w: any) => Number(w.Id ?? w.id) === Number(wingId));
+        const currentWing = wingsList.find(w => w.Id === wingId);
         setWingName(currentWing?.Name || 'Unknown Wing');
       }
 
-      // Fetch wing members scoped to the current wing
-      const membersRes = await fetch(
-        `${apiBase}/ims/users?wing_id=${wingId}`,
-        { credentials: 'include' }
-      );
+      // Admin sees all users; supervisor scoped to own wing
+      const isSuperAdmin = (user as any)?.is_super_admin === true;
+      const membersUrl = isSuperAdmin
+        ? `${apiBase}/users/aspnet/filtered`
+        : `${apiBase}/users/aspnet/filtered?wing_id=${wingId}`;
+      const membersRes = await fetch(membersUrl, { credentials: 'include' });
 
       if (membersRes.ok) {
         const membersData = await membersRes.json();
         // Transform the API response to match our interface
-        const transformedMembers: WingMember[] = (Array.isArray(membersData) ? membersData : [])
-          .filter((u: any) => {
-            const memberWingId = u.intWingID ?? u.wing_id;
-            return memberWingId !== undefined && memberWingId !== null && Number(memberWingId) === Number(wingId);
-          })
-          .map((user: any) => ({
-          Id: user.Id || user.user_id,
-          FullName: user.FullName || user.full_name,
-          UserName: user.UserName || user.username || user.Email?.split('@')[0] || user.email?.split('@')[0] || '',
-          Email: user.Email || user.email,
+        const transformedMembers: WingMember[] = (Array.isArray(membersData) ? membersData : []).map((user: any) => ({
+          Id: user.user_id || user.Id,
+          FullName: user.full_name || user.FullName,
+          UserName: user.username || user.UserName || user.Email?.split('@')[0] || '',
+          Email: user.Email,
           Role: user.roles && user.roles.length > 0 
             ? user.roles.map((r: any) => r.display_name || r.role_name).join(', ')
-            : (user.Role || user.role || 'Member'),
-          intWingID: Number(user.intWingID ?? user.wing_id),
-          wing_name: user.wing_name || wingName,
+            : 'Member',
+          intWingID: user.wing_id || wingId,
+          wing_name: user.wing_name,
           is_active: true,
           ContactNo: user.phone || user.ContactNo,
           roles: user.roles
@@ -186,7 +182,6 @@ const WingMembers: React.FC = () => {
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Name</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Username</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Email</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Wing</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Roles</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
                   </tr>
@@ -200,9 +195,6 @@ const WingMembers: React.FC = () => {
                         <a href={`mailto:${member.Email}`} className="text-blue-600 hover:text-blue-800 underline">
                           {member.Email}
                         </a>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
-                        {member.wing_name || wingName || 'Current Wing'}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex flex-wrap gap-1">
