@@ -795,17 +795,55 @@ const createStockIssuanceRequest = async (req, res) => {
       // After successful commit, create approval workflow records
       try {
         const userId = requester_user_id || req.session.userId;
+        const normalizedRequestType = String(request_type || '').trim().toLowerCase();
+        const isWingRequest = normalizedRequestType === 'wing' || normalizedRequestType === 'organizational';
         let dynamicWorkflowResult = null;
         let approverId = null;
 
-        // Dynamic workflow: resolve first approver from group->designation steps.
-        try {
-          dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null);
-          if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
-            approverId = dynamicWorkflowResult.approverId;
+        // Wing requests should go directly to admin workflow (skip supervisor/dynamic lane initialization)
+        if (isWingRequest) {
+          const adminResult = await pool.request()
+            .input('requesterId', sql.NVarChar(450), userId)
+            .query(`
+              SELECT TOP 1 u.Id AS user_id
+              FROM AspNetUsers u
+              INNER JOIN ims_user_roles ur ON ur.user_id = u.Id
+              INNER JOIN ims_roles ir ON ir.id = ur.role_id
+              WHERE ur.is_active = 1
+                AND ir.is_active = 1
+                AND u.Id <> @requesterId
+                AND (
+                  ir.role_name LIKE '%ADMIN%'
+                  OR ir.role_name LIKE '%DG%'
+                  OR ir.role_name LIKE '%DIRECTOR%'
+                  OR ir.role_name LIKE '%HOD%'
+                )
+              ORDER BY
+                CASE
+                  WHEN ir.role_name LIKE '%DG%' THEN 1
+                  WHEN ir.role_name LIKE '%ADMIN%' THEN 2
+                  WHEN ir.role_name LIKE '%DIRECTOR%' THEN 3
+                  WHEN ir.role_name LIKE '%HOD%' THEN 4
+                  ELSE 5
+                END,
+                u.FullName ASC
+            `);
+
+          if (adminResult.recordset.length > 0) {
+            approverId = adminResult.recordset[0].user_id;
           }
-        } catch (dynamicError) {
-          console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
+        }
+
+        // Dynamic workflow: resolve first approver from group->designation steps.
+        if (!isWingRequest) {
+          try {
+            dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null);
+            if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
+              approverId = dynamicWorkflowResult.approverId;
+            }
+          } catch (dynamicError) {
+            console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
+          }
         }
         
         // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
@@ -861,12 +899,12 @@ const createStockIssuanceRequest = async (req, res) => {
                 (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by, submitted_date, created_date, updated_date, is_admin_workflow)
               OUTPUT INSERTED.id
               VALUES 
-                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE(), 0)
+                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE(), ${isWingRequest ? 1 : 0})
             `);
 
           const approvalId = approvalResult.recordset[0].id;
 
-            if (dynamicWorkflowResult?.ok) {
+            if (dynamicWorkflowResult?.ok && !isWingRequest) {
               await bindRequestApprovalId(pool, requestId, approvalId);
 
               const laneStatusText = dynamicWorkflowResult.laneCount && dynamicWorkflowResult.laneCount > 1
@@ -879,6 +917,15 @@ const createStockIssuanceRequest = async (req, res) => {
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,
+                      updated_at = GETDATE()
+                  WHERE id = @requestId
+                `);
+            } else if (isWingRequest) {
+              await pool.request()
+                .input('requestId', sql.UniqueIdentifier, requestId)
+                .query(`
+                  UPDATE stock_issuance_requests
+                  SET approval_status = 'Pending Admin Approval',
                       updated_at = GETDATE()
                   WHERE id = @requestId
                 `);
