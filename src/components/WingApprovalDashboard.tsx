@@ -206,6 +206,14 @@ export const WingApprovalDashboard: React.FC = () => {
     );
   };
 
+  const getDisplayRequestType = (approval: RequestApproval) => {
+    const raw = String((approval as any).scope_type || approval.request_type || '').toLowerCase();
+    if (!raw || raw.includes('individual') || raw.includes('organizational') || raw.includes('wing')) {
+      return 'Wing';
+    }
+    return approval.request_type || 'Wing';
+  };
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -349,7 +357,7 @@ export const WingApprovalDashboard: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-2">
                       <p className="text-sm text-gray-600">
-                        <strong>Type:</strong> {approval.request_type}
+                        <strong>Type:</strong> {getDisplayRequestType(approval)}
                       </p>
                       <p className="text-sm text-gray-600">
                         <strong>Submitted:</strong> {new Date(approval.submitted_date).toLocaleDateString()}
