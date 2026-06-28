@@ -85,7 +85,7 @@ router.get('/approvers', async (req, res) => {
 // ============================================================================
 // GET /api/users/:id - Get single user details
 // ============================================================================
-router.get('/:id', async (req, res) => {
+router.get('/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
