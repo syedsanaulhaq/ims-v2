@@ -226,7 +226,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "Branch Dashboard", icon: BarChart3, path: "/dashboard/branch-dashboard", permission: undefined },
       { title: "Branch Request History", icon: History, path: "/dashboard/branch-request-history", permission: undefined },
-      { title: "Request Items", icon: ShoppingCart, path: "/dashboard/stock-issuance", permission: undefined },
+      { title: "Request Items", icon: ShoppingCart, path: "/dashboard/stock-issuance-branch", permission: undefined },
       { title: "Branch Inventory", icon: Warehouse, path: "/dashboard/branch-inventory", permission: undefined },
       { title: "Branch Members", icon: Users, path: "/dashboard/branch-members", permission: undefined },
     ]

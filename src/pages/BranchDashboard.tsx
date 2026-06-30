@@ -87,7 +87,7 @@ const BranchDashboard = () => {
               Active
             </Badge>
           </div>
-          <Button onClick={() => navigate('/dashboard/stock-issuance')} className="bg-teal-600 hover:bg-teal-700 text-white">
+          <Button onClick={() => navigate('/dashboard/stock-issuance-branch')} className="bg-teal-600 hover:bg-teal-700 text-white">
             <Send className="h-4 w-4 mr-2" />
             Create Request
           </Button>

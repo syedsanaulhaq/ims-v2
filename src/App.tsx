@@ -44,6 +44,7 @@ import StockIssuance from "./pages/StockIssuance";
 import StockIssuancePersonal from "./pages/StockIssuancePersonal";
 import ReturnedRequestEditPage from "./pages/ReturnedRequestEditPage";
 import StockIssuanceWing from "./pages/StockIssuanceWing";
+import StockIssuanceBranch from "./pages/StockIssuanceBranch";
 import StockReturn from "./pages/StockReturn";
 import HistoricalIssuance from "./pages/HistoricalIssuance";
 import OpeningBalanceEntry from "./pages/OpeningBalanceEntry";
@@ -219,6 +220,7 @@ function App() {
                   <Route path="stock-issuance" element={<StockIssuance />} />
                   <Route path="stock-issuance-personal" element={<StockIssuancePersonal />} />
                   <Route path="stock-issuance-wing" element={<StockIssuanceWing />} />
+                  <Route path="stock-issuance-branch" element={<StockIssuanceBranch />} />
                   <Route path="stock-issuance-dashboard" element={<StockIssuanceDashboard />} />
                   <Route path="stock-return" element={<StockReturn />} />
                   <Route path="historical-issuance" element={<HistoricalIssuance />} />
