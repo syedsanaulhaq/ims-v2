@@ -39,18 +39,38 @@ function pickExistingColumn(columnsSet, candidates) {
   return null;
 }
 
-async function resolveBranchFromEmployeeView(pool, { userId, userName, cnic, fallbackBranchId = null }) {
+async function resolveBranchDetailsFromEmployeeView(pool, { userId, userName, cnic, fallbackBranchId = null, fallbackBranchName = null }) {
   try {
     const columns = await getEmployeeBranchViewColumns(pool);
 
     const branchIdColumn = pickExistingColumn(columns, ['DEC_ID', 'branch_id', 'BranchID', 'intBranchID']);
     if (!branchIdColumn) {
-      return fallbackBranchId;
+      return { branchId: fallbackBranchId, branchName: fallbackBranchName };
     }
 
+    const branchNameColumn = pickExistingColumn(columns, ['BranchName', 'branch_name', 'DECName', 'Name']);
     const idColumn = pickExistingColumn(columns, ['Id', 'ID', 'user_id', 'UserId', 'aspnet_user_id', 'AspNetUserId']);
     const userNameColumn = pickExistingColumn(columns, ['UserName', 'user_name']);
     const cnicColumn = pickExistingColumn(columns, ['CNIC', 'cnic']);
+
+    if (cnic && cnicColumn) {
+      const cnicResult = await pool.request()
+        .input('cnic', sql.NVarChar(30), String(cnic).trim())
+        .query(`
+          SELECT TOP 1
+            [${branchIdColumn}] AS branch_id,
+            ${branchNameColumn ? `[${branchNameColumn}]` : 'CAST(NULL AS NVARCHAR(200))'} AS branch_name
+          FROM vw_employee_branch
+          WHERE [${cnicColumn}] = @cnic
+        `);
+
+      if (cnicResult.recordset?.[0]?.branch_id) {
+        return {
+          branchId: cnicResult.recordset[0].branch_id,
+          branchName: cnicResult.recordset[0].branch_name ?? fallbackBranchName
+        };
+      }
+    }
 
     const request = pool.request();
     const whereParts = [];
@@ -65,27 +85,33 @@ async function resolveBranchFromEmployeeView(pool, { userId, userName, cnic, fal
       whereParts.push(`[${userNameColumn}] = @userName`);
     }
 
-    if (cnic && cnicColumn) {
-      request.input('cnic', sql.NVarChar(30), String(cnic));
-      whereParts.push(`[${cnicColumn}] = @cnic`);
-    }
-
     if (whereParts.length === 0) {
-      return fallbackBranchId;
+      return { branchId: fallbackBranchId, branchName: fallbackBranchName };
     }
 
     const result = await request.query(`
-      SELECT TOP 1 [${branchIdColumn}] AS branch_id
+      SELECT TOP 1
+        [${branchIdColumn}] AS branch_id,
+        ${branchNameColumn ? `[${branchNameColumn}]` : 'CAST(NULL AS NVARCHAR(200))'} AS branch_name
       FROM vw_employee_branch
       WHERE ${whereParts.join(' OR ')}
     `);
 
     const resolvedBranchId = result.recordset?.[0]?.branch_id;
-    return resolvedBranchId ?? fallbackBranchId;
+    const resolvedBranchName = result.recordset?.[0]?.branch_name;
+    return {
+      branchId: resolvedBranchId ?? fallbackBranchId,
+      branchName: resolvedBranchName ?? fallbackBranchName
+    };
   } catch (error) {
     console.warn('⚠️ Could not resolve branch from vw_employee_branch:', error.message);
-    return fallbackBranchId;
+    return { branchId: fallbackBranchId, branchName: fallbackBranchName };
   }
+}
+
+async function resolveBranchFromEmployeeView(pool, options) {
+  const branchDetails = await resolveBranchDetailsFromEmployeeView(pool, options);
+  return branchDetails.branchId;
 }
 
 // Required helpers
@@ -258,7 +284,7 @@ router.post('/login', async (req, res) => {
 
     console.log(`✅ PASSWORD VALIDATION SUCCESSFUL`);
 
-    const resolvedBranchId = await resolveBranchFromEmployeeView(pool, {
+    const resolvedBranch = await resolveBranchDetailsFromEmployeeView(pool, {
       userId: user.Id,
       userName: user.UserName,
       cnic: user.CNIC,
@@ -276,7 +302,8 @@ router.post('/login', async (req, res) => {
       Role: user.Role,
       intOfficeID: user.intOfficeID,
       intWingID: user.intWingID,
-      intBranchID: resolvedBranchId,
+      intBranchID: resolvedBranch.branchId,
+      BranchName: resolvedBranch.branchName,
       intDesignationID: user.intDesignationID
     };
 
@@ -367,6 +394,26 @@ router.get('/session', async (req, res) => {
       }
     }
 
+    let sessionCnic = req.session.user?.CNIC || null;
+    if (!sessionCnic) {
+      const userResult = await pool.request()
+        .input('userId', sql.NVarChar(450), req.session.userId)
+        .query('SELECT TOP 1 CNIC FROM AspNetUsers WHERE Id = @userId');
+      sessionCnic = userResult.recordset?.[0]?.CNIC || null;
+    }
+
+    const branchDetails = await resolveBranchDetailsFromEmployeeView(pool, {
+      userId: req.session.userId,
+      userName: req.session.user?.UserName,
+      cnic: sessionCnic,
+      fallbackBranchId: req.session.user?.intBranchID || null,
+      fallbackBranchName: req.session.user?.BranchName || null
+    });
+
+    req.session.user.CNIC = sessionCnic;
+    req.session.user.intBranchID = branchDetails.branchId;
+    req.session.user.BranchName = branchDetails.branchName;
+
     const sessionUser = {
       user_id: req.session.userId,
       user_name: req.session.user?.FullName || req.session.user?.UserName || 'Unknown',
@@ -375,7 +422,8 @@ router.get('/session', async (req, res) => {
       designation: designation,
       office_id: req.session.user?.intOfficeID || 583,
       wing_id: req.session.user?.intWingID || 19,
-      branch_id: req.session.user?.intBranchID || null,
+      branch_id: branchDetails.branchId || null,
+      branch_name: branchDetails.branchName || null,
       ims_roles: imsData?.roles || [],
       ims_permissions: imsData?.permissions || [],
       is_super_admin: imsData?.is_super_admin || false
@@ -473,7 +521,7 @@ router.post('/ds-authenticate', async (req, res) => {
     }
 
     const user = userResult.recordset[0];
-    const resolvedBranchId = await resolveBranchFromEmployeeView(pool, {
+    const resolvedBranch = await resolveBranchDetailsFromEmployeeView(pool, {
       userId: user.Id,
       userName: user.UserName,
       cnic: user.CNIC,
@@ -571,7 +619,8 @@ router.post('/ds-authenticate', async (req, res) => {
         province_id: user.intProvinceID,
         division_id: user.intDivisionID,
         district_id: user.intDistrictID,
-        branch_id: resolvedBranchId,
+        branch_id: resolvedBranch.branchId,
+        branch_name: resolvedBranch.branchName,
         designation_id: user.intDesignationID,
         role: user.Role,
         uid: user.UID,
@@ -696,13 +745,14 @@ router.get('/sso-login', async (req, res) => {
       intDesignationID: decoded.designation_id || null
     };
 
-    const resolvedBranchId = await resolveBranchFromEmployeeView(pool, {
+    const resolvedBranch = await resolveBranchDetailsFromEmployeeView(pool, {
       userId: req.session.user.Id,
       userName: req.session.user.UserName,
       cnic: decoded.cnic || dbUser?.CNIC || null,
       fallbackBranchId: decoded.branch_id || dbUser?.intBranchID || null
     });
-    req.session.user.intBranchID = resolvedBranchId;
+    req.session.user.intBranchID = resolvedBranch.branchId;
+    req.session.user.BranchName = resolvedBranch.branchName;
 
     // Assign default GENERAL_USER role if user has no IMS roles yet
     // (IMS Super Admin pre-assigns specific roles in ims_user_roles table)

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/contexts/SessionContext';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { getApiBaseUrl } from '@/services/invmisApi';
 import { ClipboardList, Package, CheckCircle, Users, Send } from 'lucide-react';
 
 const BranchDashboard = () => {
@@ -19,24 +20,24 @@ const BranchDashboard = () => {
     totalMembers: 0,
   });
 
-  const getBranchId = () => Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) || 0;
+  const branchId = Number((user as any)?.branch_id ?? 0) || 0;
+  const branchName = (user as any)?.branch_name || 'Your Branch';
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const branchId = getBranchId();
+        const apiBase = getApiBaseUrl();
         const branchParam = branchId || 0;
-        const memberQuery = user?.is_super_admin ? '' : `?branch_id=${branchId}`;
 
         const [requestsRes, inventoryRes, membersRes] = await Promise.all([
-          fetch('http://localhost:3001/api/branch-inventory/requests', { credentials: 'include' }).then((r) =>
+          fetch(`${apiBase}/branch-inventory/requests`, { credentials: 'include' }).then((r) =>
             r.ok ? r.json() : { requests: [] }
           ),
-          fetch(`http://localhost:3001/api/branch-inventory/${branchParam}`, { credentials: 'include' }).then((r) =>
+          fetch(`${apiBase}/branch-inventory/${branchParam}`, { credentials: 'include' }).then((r) =>
             r.ok ? r.json() : { items: [] }
           ),
-          fetch(`http://localhost:3001/api/ims/users/aspnet/filtered${memberQuery}`, { credentials: 'include' }).then((r) =>
+          fetch(`${apiBase}/ims/users/aspnet/filtered?branch_id=me`, { credentials: 'include' }).then((r) =>
             r.ok ? r.json() : []
           ),
         ]);
@@ -66,7 +67,7 @@ const BranchDashboard = () => {
     if (user?.user_id) {
       loadData();
     }
-  }, [user?.user_id]);
+  }, [user?.user_id, branchId]);
 
   if (loading) {
     return (
@@ -82,7 +83,7 @@ const BranchDashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">Branch Dashboard</h1>
-            <p className="text-lg text-gray-600 mt-2">Manage branch-level stock operations and inventory</p>
+            <p className="text-lg text-gray-600 mt-2">{branchName}</p>
             <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 mt-3">
               Active
             </Badge>

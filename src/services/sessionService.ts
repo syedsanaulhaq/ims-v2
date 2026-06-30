@@ -9,6 +9,8 @@ interface User {
   designation?: string;
   office_id: number;
   wing_id: number;
+  branch_id?: number | null;
+  branch_name?: string | null;
   created_at: string;
   // IMS Role System fields
   ims_roles?: Array<{
