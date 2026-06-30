@@ -22,16 +22,27 @@ async function resolveBranchIdFromLoggedInUserCnic(pool, req) {
   }
 
   const normalizedCnic = String(cnic).replace(/-/g, '').trim();
-  const branchResult = await pool.request()
+  const exactBranchResult = await pool.request()
     .input('cnic', sql.NVarChar(30), String(cnic).trim())
+    .query(`
+      SELECT TOP 1 BranchID
+      FROM vw_employee_branch
+      WHERE CNIC = @cnic
+    `);
+
+  if (exactBranchResult.recordset[0]?.BranchID) {
+    return exactBranchResult.recordset[0].BranchID;
+  }
+
+  const normalizedBranchResult = await pool.request()
     .input('normalizedCnic', sql.NVarChar(30), normalizedCnic)
     .query(`
       SELECT TOP 1 BranchID
       FROM vw_employee_branch
-      WHERE CNIC = @cnic OR REPLACE(CNIC, '-', '') = @normalizedCnic
+      WHERE REPLACE(CNIC, '-', '') = @normalizedCnic
     `);
 
-  return branchResult.recordset[0]?.BranchID || null;
+  return normalizedBranchResult.recordset[0]?.BranchID || null;
 }
 
 // ============================================================================
@@ -302,53 +313,30 @@ router.get('/aspnet/filtered', async (req, res) => {
       const request = pool.request().input('branchId', sql.Int, Number(effectiveBranchId));
       let query = `
         SELECT DISTINCT
-          COALESCE(CONVERT(NVARCHAR(450), u.Id), CONVERT(NVARCHAR(450), eb.ID), eb.CNIC, eb.EMAIL, eb.NAME) as Id,
-          COALESCE(NULLIF(eb.NAME, ''), u.FullName, '-') as FullName,
-          COALESCE(NULLIF(u.UserName, ''), NULLIF(eb.CNIC, ''), NULLIF(eb.EMAIL, ''), eb.NAME) as UserName,
-          COALESCE(NULLIF(eb.EMAIL, ''), u.Email, '') as Email,
-          COALESCE(NULLIF(u.Role, ''), 'Member') as Role,
-          u.intOfficeID,
-          u.intWingID,
+          COALESCE(CONVERT(NVARCHAR(450), eb.ID), eb.CNIC, eb.EMAIL, eb.NAME) as Id,
+          COALESCE(NULLIF(eb.NAME, ''), '-') as FullName,
+          COALESCE(NULLIF(eb.CNIC, ''), NULLIF(eb.EMAIL, ''), eb.NAME) as UserName,
+          COALESCE(NULLIF(eb.EMAIL, ''), '') as Email,
+          'Member' as Role,
+          CAST(NULL AS INT) as intOfficeID,
+          CAST(NULL AS INT) as intWingID,
           eb.BranchID as intBranchID,
-          u.intDesignationID,
-          COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as designation,
+          CAST(NULL AS INT) as intDesignationID,
+          '-' as designation,
           CAST(NULL AS NVARCHAR(200)) as officeName,
-          w.Name as wingName,
-          w.Name as wing_name,
+          CAST(NULL AS NVARCHAR(200)) as wingName,
+          CAST(NULL AS NVARCHAR(200)) as wing_name,
           eb.BranchName as branchName,
           eb.BranchName as branch_name,
           eb.CNIC,
           eb.FATHER_NAME as FatherOrHusbandName,
           eb.CONTACT as PhoneNumber
         FROM vw_employee_branch eb
-        LEFT JOIN AspNetUsers u ON (
-          NULLIF(eb.CNIC, '') IS NOT NULL AND u.CNIC = eb.CNIC
-        ) OR (
-          NULLIF(eb.EMAIL, '') IS NOT NULL AND u.Email = eb.EMAIL
-        )
-        LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
-        LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
-        LEFT JOIN WingsInformation w ON u.intWingID = w.Id
         WHERE eb.BranchID = @branchId
       `;
 
-      if (role) {
-        query += ` AND u.Role = @role`;
-        request.input('role', sql.NVarChar, role);
-      }
-
-      if (office_id) {
-        query += ` AND u.intOfficeID = @officeId`;
-        request.input('officeId', sql.Int, office_id);
-      }
-
-      if (wing_id) {
-        query += ` AND u.intWingID = @wingId`;
-        request.input('wingId', sql.Int, wing_id);
-      }
-
       if (search) {
-        query += ` AND (eb.NAME LIKE @search OR eb.CNIC LIKE @search OR eb.EMAIL LIKE @search OR u.UserName LIKE @search)`;
+        query += ` AND (eb.NAME LIKE @search OR eb.CNIC LIKE @search OR eb.EMAIL LIKE @search OR eb.BranchName LIKE @search)`;
         request.input('search', sql.NVarChar, `%${search}%`);
       }
 
