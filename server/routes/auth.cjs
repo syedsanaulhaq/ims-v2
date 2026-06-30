@@ -10,6 +10,84 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const aspnetHasher = require('../utils/aspnetPasswordHasher.cjs');
 
+let employeeBranchViewColumnsCache = null;
+
+async function getEmployeeBranchViewColumns(pool) {
+  if (employeeBranchViewColumnsCache) {
+    return employeeBranchViewColumnsCache;
+  }
+
+  const colsResult = await pool.request().query(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'vw_employee_branch'
+  `);
+
+  employeeBranchViewColumnsCache = new Set(
+    (colsResult.recordset || []).map(r => String(r.COLUMN_NAME || '').toLowerCase())
+  );
+
+  return employeeBranchViewColumnsCache;
+}
+
+function pickExistingColumn(columnsSet, candidates) {
+  for (const name of candidates) {
+    if (columnsSet.has(name.toLowerCase())) {
+      return name;
+    }
+  }
+  return null;
+}
+
+async function resolveBranchFromEmployeeView(pool, { userId, userName, cnic, fallbackBranchId = null }) {
+  try {
+    const columns = await getEmployeeBranchViewColumns(pool);
+
+    const branchIdColumn = pickExistingColumn(columns, ['DEC_ID', 'branch_id', 'BranchID', 'intBranchID']);
+    if (!branchIdColumn) {
+      return fallbackBranchId;
+    }
+
+    const idColumn = pickExistingColumn(columns, ['Id', 'ID', 'user_id', 'UserId', 'aspnet_user_id', 'AspNetUserId']);
+    const userNameColumn = pickExistingColumn(columns, ['UserName', 'user_name']);
+    const cnicColumn = pickExistingColumn(columns, ['CNIC', 'cnic']);
+
+    const request = pool.request();
+    const whereParts = [];
+
+    if (userId && idColumn) {
+      request.input('userId', sql.NVarChar(450), String(userId));
+      whereParts.push(`CONVERT(NVARCHAR(450), [${idColumn}]) = @userId`);
+    }
+
+    if (userName && userNameColumn) {
+      request.input('userName', sql.NVarChar(256), String(userName));
+      whereParts.push(`[${userNameColumn}] = @userName`);
+    }
+
+    if (cnic && cnicColumn) {
+      request.input('cnic', sql.NVarChar(30), String(cnic));
+      whereParts.push(`[${cnicColumn}] = @cnic`);
+    }
+
+    if (whereParts.length === 0) {
+      return fallbackBranchId;
+    }
+
+    const result = await request.query(`
+      SELECT TOP 1 [${branchIdColumn}] AS branch_id
+      FROM vw_employee_branch
+      WHERE ${whereParts.join(' OR ')}
+    `);
+
+    const resolvedBranchId = result.recordset?.[0]?.branch_id;
+    return resolvedBranchId ?? fallbackBranchId;
+  } catch (error) {
+    console.warn('⚠️ Could not resolve branch from vw_employee_branch:', error.message);
+    return fallbackBranchId;
+  }
+}
+
 // Required helpers
 async function getUserImsData(userId) {
   try {
@@ -130,7 +208,7 @@ router.post('/login', async (req, res) => {
       .input('username', sql.NVarChar, username)
       .query(`
         SELECT 
-          Id, FullName, UserName, Email, Role, intOfficeID, intWingID, 
+          Id, FullName, UserName, CNIC, Email, Role, intOfficeID, intWingID, 
           intBranchID, intDesignationID, Password, PasswordHash, ISACT
         FROM AspNetUsers 
         WHERE UserName = @username AND ISACT = 1
@@ -180,6 +258,13 @@ router.post('/login', async (req, res) => {
 
     console.log(`✅ PASSWORD VALIDATION SUCCESSFUL`);
 
+    const resolvedBranchId = await resolveBranchFromEmployeeView(pool, {
+      userId: user.Id,
+      userName: user.UserName,
+      cnic: user.CNIC,
+      fallbackBranchId: user.intBranchID
+    });
+
     // Store user in session
     req.session.userId = user.Id;
     req.session.user = {
@@ -190,7 +275,7 @@ router.post('/login', async (req, res) => {
       Role: user.Role,
       intOfficeID: user.intOfficeID,
       intWingID: user.intWingID,
-      intBranchID: user.intBranchID,
+      intBranchID: resolvedBranchId,
       intDesignationID: user.intDesignationID
     };
 
@@ -387,6 +472,12 @@ router.post('/ds-authenticate', async (req, res) => {
     }
 
     const user = userResult.recordset[0];
+    const resolvedBranchId = await resolveBranchFromEmployeeView(pool, {
+      userId: user.Id,
+      userName: user.UserName,
+      cnic: user.CNIC,
+      fallbackBranchId: user.intBranchID
+    });
     console.log(`✅ User found: ${user.FullName} (${user.UserName})`);
 
     // Password verification with multiple strategies
@@ -479,7 +570,7 @@ router.post('/ds-authenticate', async (req, res) => {
         province_id: user.intProvinceID,
         division_id: user.intDivisionID,
         district_id: user.intDistrictID,
-        branch_id: user.intBranchID,
+        branch_id: resolvedBranchId,
         designation_id: user.intDesignationID,
         role: user.Role,
         uid: user.UID,
@@ -564,7 +655,7 @@ router.get('/sso-login', async (req, res) => {
     try {
       const result = await pool.request()
         .input('userId', sql.NVarChar, userId)
-        .query('SELECT Id, FullName, Email, Role, ISACT FROM AspNetUsers WHERE Id = @userId');
+        .query('SELECT Id, FullName, UserName, CNIC, Email, Role, intBranchID, ISACT FROM AspNetUsers WHERE Id = @userId');
 
       if (result.recordset.length > 0) {
         dbUser = result.recordset[0];
@@ -575,7 +666,7 @@ router.get('/sso-login', async (req, res) => {
       } else if (userName) {
         const byNameResult = await pool.request()
           .input('username', sql.NVarChar, userName)
-          .query('SELECT Id, FullName, Email, Role, ISACT FROM AspNetUsers WHERE UserName = @username');
+          .query('SELECT Id, FullName, UserName, CNIC, Email, Role, intBranchID, ISACT FROM AspNetUsers WHERE UserName = @username');
         if (byNameResult.recordset.length > 0) {
           dbUser = byNameResult.recordset[0];
           if (!dbUser.ISACT) {
@@ -599,9 +690,17 @@ router.get('/sso-login', async (req, res) => {
       Role: dbUser?.Role || role,
       intOfficeID: decoded.office_id || null,
       intWingID: decoded.wing_id || null,
-      intBranchID: decoded.branch_id || null,
+      intBranchID: null,
       intDesignationID: decoded.designation_id || null
     };
+
+    const resolvedBranchId = await resolveBranchFromEmployeeView(pool, {
+      userId: req.session.user.Id,
+      userName: req.session.user.UserName,
+      cnic: decoded.cnic || dbUser?.CNIC || null,
+      fallbackBranchId: decoded.branch_id || dbUser?.intBranchID || null
+    });
+    req.session.user.intBranchID = resolvedBranchId;
 
     // Assign default GENERAL_USER role if user has no IMS roles yet
     // (IMS Super Admin pre-assigns specific roles in ims_user_roles table)
