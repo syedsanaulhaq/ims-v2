@@ -278,7 +278,7 @@ const BranchRequestHistoryPage: React.FC = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate('/procurement/new-request')} className="bg-teal-600 hover:bg-teal-700 text-white">
+          <Button onClick={() => navigate('/dashboard/stock-issuance')} className="bg-teal-600 hover:bg-teal-700 text-white">
             <Package className="h-4 w-4 mr-2" />
             Create Request
           </Button>
