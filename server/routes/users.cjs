@@ -270,11 +270,12 @@ router.get('/aspnet/filtered', async (req, res) => {
         u.intWingID,
         u.intBranchID,
         u.intDesignationID,
-        COALESCE(NULLIF(u.DesignationName, ''), '-') as designation,
+        COALESCE(NULLIF(d.DesignationName, ''), '-') as designation,
         CAST(NULL AS NVARCHAR(200)) as officeName,
         w.Name as wingName,
         w.Name as wing_name
       FROM AspNetUsers u
+      LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
       LEFT JOIN WingsInformation w ON u.intWingID = w.Id
       WHERE u.ISACT = 1
     `;

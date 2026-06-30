@@ -147,8 +147,8 @@ router.get('/requests', requireAuth, async (req, res) => {
         u.UserName as 'requester.user_name',
         u.Role as 'requester.role_name',
         u.Role as requester_role_name,
-        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') as 'requester.designation_name',
-        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') as requester_designation_name,
+        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as 'requester.designation_name',
+        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as requester_designation_name,
         w.Id as 'wing.wing_id',
         w.Name as 'wing.name',
         o.intOfficeID as 'office.office_id',
@@ -282,7 +282,7 @@ router.get('/requests', requireAuth, async (req, res) => {
           .input('userId', sql.NVarChar(450), String(row.requester_user_id || ''))
           .query(`
             SELECT TOP 1
-              COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(u.DesignationName, ''), NULLIF(d.strDesignation, ''), '-') AS designation_name,
+              COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') AS designation_name,
               u.Role AS role_name
             FROM AspNetUsers u
             LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
