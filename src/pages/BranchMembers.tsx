@@ -25,37 +25,19 @@ const BranchMembers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const getBranchId = () => {
-    const rawBranch =
-      (user as any)?.branch_id ??
-      (user as any)?.intBranchID ??
-      (user as any)?.branchId ??
-      null;
-    const parsed = Number(rawBranch);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  };
-
   const loadBranchMembers = async () => {
     try {
       setLoading(true);
       const apiBase = getApiBaseUrl();
-      const branchId = getBranchId();
 
-      if (!branchId) {
-        setMembers([]);
-        return;
-      }
-
-      const query = `?branch_id=${branchId}`;
+      const query = '?branch_id=me';
       const membersRes = await fetch(`${apiBase}/ims/users/aspnet/filtered${query}`, { credentials: 'include' });
       if (!membersRes.ok) {
         throw new Error('Failed to fetch branch members');
       }
 
       const data = await membersRes.json();
-      const incomingMembers = Array.isArray(data) ? data : [];
-      const branchScopedMembers = incomingMembers.filter((member: any) => Number(member?.intBranchID ?? 0) === branchId);
-      setMembers(branchScopedMembers);
+      setMembers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading branch members:', error);
       setMembers([]);

@@ -7,6 +7,33 @@ const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
 
+async function resolveBranchIdFromLoggedInUserCnic(pool, req) {
+  let cnic = req.session?.user?.CNIC || req.session?.user?.cnic || null;
+
+  if (!cnic && req.session?.userId) {
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar(450), req.session.userId)
+      .query('SELECT TOP 1 CNIC FROM AspNetUsers WHERE Id = @userId');
+    cnic = userResult.recordset[0]?.CNIC || null;
+  }
+
+  if (!cnic) {
+    return null;
+  }
+
+  const normalizedCnic = String(cnic).replace(/-/g, '').trim();
+  const branchResult = await pool.request()
+    .input('cnic', sql.NVarChar(30), String(cnic).trim())
+    .input('normalizedCnic', sql.NVarChar(30), normalizedCnic)
+    .query(`
+      SELECT TOP 1 BranchID
+      FROM vw_employee_branch
+      WHERE CNIC = @cnic OR REPLACE(CNIC, '-', '') = @normalizedCnic
+    `);
+
+  return branchResult.recordset[0]?.BranchID || null;
+}
+
 // ============================================================================
 // GET /api/users - Get all active users
 // ============================================================================
@@ -260,6 +287,74 @@ router.get('/aspnet/filtered', async (req, res) => {
   try {
     const pool = getPool();
     const { role, office_id, wing_id, branch_id, search } = req.query;
+
+    if (branch_id) {
+      const effectiveBranchId = String(branch_id).toLowerCase() === 'me'
+        ? await resolveBranchIdFromLoggedInUserCnic(pool, req)
+        : Number(branch_id);
+
+      if (!effectiveBranchId || Number.isNaN(Number(effectiveBranchId))) {
+        return res.json([]);
+      }
+
+      const request = pool.request().input('branchId', sql.Int, Number(effectiveBranchId));
+      let query = `
+        SELECT DISTINCT
+          COALESCE(CONVERT(NVARCHAR(450), u.Id), CONVERT(NVARCHAR(450), eb.ID), eb.CNIC, eb.EMAIL, eb.NAME) as Id,
+          COALESCE(NULLIF(eb.NAME, ''), u.FullName, '-') as FullName,
+          COALESCE(NULLIF(u.UserName, ''), NULLIF(eb.CNIC, ''), NULLIF(eb.EMAIL, ''), eb.NAME) as UserName,
+          COALESCE(NULLIF(eb.EMAIL, ''), u.Email, '') as Email,
+          COALESCE(NULLIF(u.Role, ''), 'Member') as Role,
+          u.intOfficeID,
+          u.intWingID,
+          eb.BranchID as intBranchID,
+          u.intDesignationID,
+          COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as designation,
+          CAST(NULL AS NVARCHAR(200)) as officeName,
+          w.Name as wingName,
+          w.Name as wing_name,
+          eb.BranchName as branchName,
+          eb.BranchName as branch_name,
+          eb.CNIC,
+          eb.FATHER_NAME as FatherOrHusbandName,
+          eb.CONTACT as PhoneNumber
+        FROM vw_employee_branch eb
+        LEFT JOIN AspNetUsers u ON (
+          NULLIF(eb.CNIC, '') IS NOT NULL AND u.CNIC = eb.CNIC
+        ) OR (
+          NULLIF(eb.EMAIL, '') IS NOT NULL AND u.Email = eb.EMAIL
+        )
+        LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
+        LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
+        LEFT JOIN WingsInformation w ON u.intWingID = w.Id
+        WHERE eb.BranchID = @branchId
+      `;
+
+      if (role) {
+        query += ` AND u.Role = @role`;
+        request.input('role', sql.NVarChar, role);
+      }
+
+      if (office_id) {
+        query += ` AND u.intOfficeID = @officeId`;
+        request.input('officeId', sql.Int, office_id);
+      }
+
+      if (wing_id) {
+        query += ` AND u.intWingID = @wingId`;
+        request.input('wingId', sql.Int, wing_id);
+      }
+
+      if (search) {
+        query += ` AND (eb.NAME LIKE @search OR eb.CNIC LIKE @search OR eb.EMAIL LIKE @search OR u.UserName LIKE @search)`;
+        request.input('search', sql.NVarChar, `%${search}%`);
+      }
+
+      query += ` ORDER BY FullName`;
+
+      const result = await request.query(query);
+      return res.json(result.recordset);
+    }
 
     let query = `
       SELECT 

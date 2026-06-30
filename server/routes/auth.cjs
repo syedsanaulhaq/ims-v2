@@ -270,6 +270,7 @@ router.post('/login', async (req, res) => {
     req.session.user = {
       Id: user.Id,
       FullName: user.FullName,
+      CNIC: user.CNIC,
       UserName: user.UserName,
       Email: user.Email,
       Role: user.Role,
@@ -685,6 +686,7 @@ router.get('/sso-login', async (req, res) => {
     req.session.user = {
       Id: dbUser?.Id || userId,
       FullName: dbUser?.FullName || userName || 'Unknown',
+      CNIC: decoded.cnic || dbUser?.CNIC || null,
       UserName: userName || decoded.unique_name || decoded.user_name || 'Unknown',
       Email: dbUser?.Email || email || '',
       Role: dbUser?.Role || role,
