@@ -1,473 +1,260 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getApiBaseUrl } from '../utils/api-config';
+import { useSession } from '../contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Plus, 
-  Minus, 
-  Search, 
-  Send, 
-  User, 
-  Building2,
-  Calendar,
-  Package,
-  AlertCircle,
-  CheckCircle
-} from 'lucide-react';
-import { inventoryLocalService } from '@/services/inventoryLocalService';
-import erpDatabaseService from '@/services/erpDatabaseService';
-import stockIssuanceService from '@/services/stockIssuanceService';
-import { approvalForwardingService } from '@/services/approvalForwardingService';
-import type { User as UserType } from '@/services/erpDatabaseService';
-import { Office as ERPOffice, Wing as ERPWing, DEC as ERPDEC } from '@/types/office';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import StockAvailabilityChecker from '@/components/stock/StockAvailabilityChecker';
-import { PermissionGate } from '@/components/PermissionGate';
+import { AlertCircle, Building2, CheckCircle, Minus, Package, Plus, Search, Send } from 'lucide-react';
 
-interface InventoryItem {
-  id: string;
-  intOfficeID: string;
-  nomenclature: string;
-  current_stock: number;
-  minimum_stock_level: number;
-  weighted_avg_price: number;
-  primary_Location: string;
+interface SelectedItem {
+  item_master_id: number | string;
+  item_nomenclature: string;
+  item_code: string;
+  category_name: string;
+  subcategory_name: string;
+  requested_quantity: number;
+  unit_of_measurement: string;
+  estimated_unit_price?: number;
+  notes?: string;
 }
 
-interface IssuanceItem {
-  inventory_id: string;
-  inventory_intOfficeID: string;
-  nomenclature: string;
-  requested_quantity: number;
-  last_issued_quantity?: number;
-  last_issue_date?: string | null;
-  available_stock: number;
-  unit_price: number;
-  item_type: 'inventory' | 'custom';
-  custom_item_name?: string;
+interface ItemMaster {
+  id: number;
+  vItemNomenclature: string;
+  vItemCode: string;
+  vCategoryName: string;
+  vSubCategoryName: string;
+  vUnitOfMeasure: string;
 }
 
 const StockIssuanceBranch: React.FC = () => {
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [offices, setOffices] = useState<ERPOffice[]>([]);
-  const [wings, setWings] = useState<ERPWing[]>([]);
-  const [decs, setDecs] = useState<ERPDEC[]>([]);
-  const [users, setUsers] = useState<UserType[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [issuanceItems, setIssuanceItems] = useState<IssuanceItem[]>([]);
-  const [lastIssuedByItemId, setLastIssuedByItemId] = useState<Record<string, { qty: number; date: string | null }>>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
-
-  // Custom items state
+  const navigate = useNavigate();
+  const { user } = useSession();
   const [customItemName, setCustomItemName] = useState('');
   const [customItemQuantity, setCustomItemQuantity] = useState(1);
-
-  // Hierarchical selection
-  const [selectedOfficeId, setSelectedOfficeId] = useState('');
-  const [selectedWingId, setSelectedWingId] = useState('');
-  const [selectedBranchId, setSelectedBranchId] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('');
-
-  // Form fields - BRANCH REQUEST (Organizational only)
-  const [requestType] = useState<'Individual' | 'Organizational'>('Organizational');
-  const [purpose, setPurpose] = useState('');
-  const [urgencyLevel, setUrgencyLevel] = useState<'Low' | 'Normal' | 'High' | 'Critical'>('Normal');
+  const [showCustomItemForm, setShowCustomItemForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [priority, setPriority] = useState('normal');
   const [justification, setJustification] = useState('');
-  const [expectedReturnDate, setExpectedReturnDate] = useState('');
-  const [isReturnable, setIsReturnable] = useState(true);
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [itemsLibrary, setItemsLibrary] = useState<ItemMaster[]>([]);
+  const [itemsError, setItemsError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Navigation hook
-  const navigate = useNavigate();
-
-  // Filtered data based on hierarchy
-  const filteredWings = wings.filter(wing => wing.OfficeID === parseInt(selectedOfficeId));
-  const filteredDecs = decs.filter(dec => dec.WingID === parseInt(selectedWingId));
-
-  const formatDate = (value?: string | null) => {
-    if (!value) return '-';
-    const dt = new Date(value);
-    if (Number.isNaN(dt.getTime())) return '-';
-    return dt.toLocaleDateString('en-GB');
-  };
-  
-  // Load users dynamically when office, wing, or branch changes
-  useEffect(() => {
-    const loadFilteredUsers = async () => {
-      if (!selectedOfficeId || !selectedWingId) {
-        setUsers([]);
-        return;
-      }
-
-      try {
-        // Use DECID directly from the combo (no mapping needed with new view)
-        const branchFilterValue = selectedBranchId
-          ? parseInt(selectedBranchId) 
-          : undefined;
-        
-        console.log('🔄 Loading users for:', { 
-          selectedOfficeId, 
-          selectedWingId, 
-          selectedBranchId_DECID: selectedBranchId,
-          branchFilterValue
-        });
-        
-        const filteredUsersData = await erpDatabaseService.getFilteredUsers(
-          parseInt(selectedOfficeId),
-          parseInt(selectedWingId),
-          branchFilterValue
-        );
-        setUsers(filteredUsersData);
-      } catch (error) {
-        console.error('❌ Error loading filtered users:', error);
-        setUsers([]);
-      }
-    };
-
-    loadFilteredUsers();
-  }, [selectedOfficeId, selectedWingId, selectedBranchId]);
-
-  // filteredUsers is now just the users state (already filtered by backend)
-  const filteredUsers = users || [];
+  const branchId = Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) || 0;
+  const branchName = (user as any)?.branch_name || (user as any)?.BranchName || 'Unknown Branch';
 
   useEffect(() => {
-    fetchInitialData();
+    fetchItemsLibrary();
   }, []);
 
-  useEffect(() => {
-    const loadLastIssuedSummary = async () => {
-      if (!selectedWingId) {
-        setLastIssuedByItemId({});
-        return;
-      }
-
-      try {
-        const rows = await stockIssuanceService.getLastIssuedSummary({ wing_id: selectedWingId });
-        const map: Record<string, { qty: number; date: string | null }> = {};
-        rows.forEach((row: any) => {
-          const key = String(row.item_master_id || '');
-          if (!key) return;
-          map[key] = {
-            qty: Number(row.last_issued_quantity || 0),
-            date: row.last_issue_date || null
-          };
-        });
-        setLastIssuedByItemId(map);
-      } catch (err) {
-        console.warn('Failed to load last issued summary:', err);
-      }
-    };
-
-    loadLastIssuedSummary();
-  }, [selectedWingId]);
-
-  useEffect(() => {
-    setIssuanceItems((prev) => prev.map((item) => {
-      if (item.item_type !== 'inventory') return item;
-      const key = String(item.inventory_intOfficeID || item.inventory_id || '');
-      const history = lastIssuedByItemId[key];
-      return {
-        ...item,
-        last_issued_quantity: history?.qty,
-        last_issue_date: history?.date || null
-      };
-    }));
-  }, [lastIssuedByItemId]);
-
-  // Clear selected user when switching to Organizational request type
-  useEffect(() => {
-    if (requestType === 'Organizational') {
-      setSelectedUserId('');
-    }
-  }, [requestType]);
-
-  const fetchInitialData = async () => {
+  const fetchItemsLibrary = async () => {
     try {
-      console.log('🔄 Loading stock issuance form data...');
-      
-      // Fetch inventory items using the local service
-      console.log('📦 Fetching inventory items...');
-      const inventory = await inventoryLocalService.getAll();
-      console.log('📦 Inventory response:', inventory);
+      setLoading(true);
+      const response = await fetch(`${getApiBaseUrl()}/api/items-master`, {
+        credentials: 'include'
+      });
 
-      if (inventory && inventory.length > 0) {
-        // Transform data to match the expected structure for StockIssuance
-        const transformedItems = inventory
-          .filter(item => (item.current_quantity || item.intCurrentStock || 0) > 0) // Only items with stock
-          .map((item) => ({
-            id: `inventory-${item.id}`,
-            intOfficeID: item.id,
-            nomenclature: item.nomenclature || item.item_masters?.nomenclature || 'Unknown Item',
-            current_stock: item.current_quantity || item.intCurrentStock || 0,
-            minimum_stock_level: item.intMinimumLevel || 0,
-            weighted_avg_price: item.fltUnitPrice || 0,
-            primary_Location: item.strStockLocation || 'Main Warehouse'
-          }));
+      if (response.ok) {
+        const data = await response.json();
+        const mappedItems = (data.items || []).map((item: any) => ({
+          id: item.id,
+          vItemNomenclature: item.nomenclature,
+          vItemCode: item.item_code,
+          vCategoryName: '',
+          vSubCategoryName: '',
+          vUnitOfMeasure: item.unit
+        }));
 
-        setInventoryItems(transformedItems);
-        console.log('✅ Inventory items loaded:', transformedItems.length);
+        setItemsLibrary(mappedItems);
+        if (!mappedItems || mappedItems.length === 0) {
+          setItemsError('No items found in the items library.');
+        }
       } else {
-        setInventoryItems([]);
-        console.log('⚠️ No inventory items found');
+        setItemsError('Failed to fetch items library.');
       }
-
-      // Fetch ERP data using ERP service
-      try {
-        console.log('🏢 Fetching ERP data (offices, wings, decs)...');
-        const [officesData, wingsData, decsData] = await Promise.all([
-          erpDatabaseService.getActiveOffices(),
-          erpDatabaseService.getActiveWings(),
-          erpDatabaseService.getActiveDecs()
-        ]);
-
-        console.log('🏢 ERP Data loaded:', { 
-          offices: officesData.length, 
-          wings: wingsData.length, 
-          decs: decsData.length
-        });
-
-        setOffices(officesData);
-        setWings(wingsData);
-        setDecs(decsData);
-        // Users will be loaded dynamically when office/wing/branch is selected
-      } catch (erpError) {
-        console.error('❌ Error loading ERP data:', erpError);
-        setError('Failed to load office, wing, DEC, and user data');
-      }
-
-      console.log('✅ Stock issuance form data loaded successfully');
-    } catch (error: any) {
-      console.error('❌ Error loading stock issuance form data:', error);
-      setError('Failed to load data: ' + error.message);
+    } catch (err) {
+      console.error('Error fetching items:', err);
+      setError('Failed to load items library');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handler functions
-  const handleOfficeChange = (officeId: string) => {
-    setSelectedOfficeId(officeId);
-    setSelectedWingId('');
-    setSelectedBranchId('');
-    setSelectedUserId('');
-  };
+  const addItem = (item: ItemMaster) => {
+    const existingItem = selectedItems.find(selectedItem => selectedItem.item_master_id === item.id);
 
-  const handleWingChange = (wingId: string) => {
-    setSelectedWingId(wingId);
-    setSelectedBranchId('');
-    setSelectedUserId('');
-  };
-
-  const handleBranchChange = (branchId: string) => {
-    setSelectedBranchId(branchId);
-    setSelectedUserId('');
-  };
-
-  const filteredInventory = inventoryItems.filter(item =>
-    item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const addIssuanceItem = (item: InventoryItem) => {
-    const existing = issuanceItems.find(i => i.inventory_id === item.id);
-    if (existing) {
-      setError('Item already added to issuance list');
+    if (existingItem) {
+      setError(`${item.vItemNomenclature} is already added to the request`);
+      setTimeout(() => setError(''), 3000);
       return;
     }
 
-    const history = lastIssuedByItemId[String(item.intOfficeID || '')];
-    const newItem: IssuanceItem = {
-      inventory_id: item.id,
-      inventory_intOfficeID: item.intOfficeID,
-      nomenclature: item.nomenclature,
+    const newItem: SelectedItem = {
+      item_master_id: item.id,
+      item_nomenclature: item.vItemNomenclature,
+      item_code: item.vItemCode,
+      category_name: item.vCategoryName,
+      subcategory_name: item.vSubCategoryName,
       requested_quantity: 1,
-      last_issued_quantity: history?.qty,
-      last_issue_date: history?.date || null,
-      available_stock: item.current_stock,
-      unit_price: item.weighted_avg_price,
-      item_type: 'inventory'
+      unit_of_measurement: item.vUnitOfMeasure,
+      notes: ''
     };
 
-    setIssuanceItems([...issuanceItems, newItem]);
-    setError('');
+    setSelectedItems([...selectedItems, newItem]);
+    setSearchTerm('');
+  };
+
+  const removeItem = (index: number) => {
+    setSelectedItems(selectedItems.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const updateItemQuantity = (index: number, quantity: number) => {
+    const updated = [...selectedItems];
+    updated[index].requested_quantity = Math.max(1, quantity);
+    setSelectedItems(updated);
   };
 
   const addCustomItem = () => {
     if (customItemName.trim() && customItemQuantity > 0) {
-      const customId = `custom_${Date.now()}`;
-      const newCustomItem: IssuanceItem = {
-        inventory_id: customId,
-        inventory_intOfficeID: customId,
-        nomenclature: customItemName.trim(),
+      const customItem: SelectedItem = {
+        item_master_id: `custom_${Date.now()}`,
+        item_nomenclature: customItemName.trim(),
+        item_code: '',
+        category_name: '',
+        subcategory_name: '',
         requested_quantity: customItemQuantity,
-        available_stock: 0,
-        unit_price: 0,
-        item_type: 'custom',
-        custom_item_name: customItemName.trim()
+        unit_of_measurement: '',
+        notes: ''
       };
-      setIssuanceItems([...issuanceItems, newCustomItem]);
+
+      setSelectedItems([...selectedItems, customItem]);
+      setShowCustomItemForm(false);
       setCustomItemName('');
       setCustomItemQuantity(1);
       setError('');
-    } else {
-      setError('Please enter a valid custom item name and quantity');
+      return;
     }
+
+    setError('Please enter a valid custom item name and quantity');
   };
 
-  const updateQuantity = (inventory_id: string, quantity: number) => {
-    setIssuanceItems(items =>
-      items.map(item => {
-        if (item.inventory_id === inventory_id) {
-          // For custom items, allow any positive quantity
-          if (item.item_type === 'custom') {
-            return { ...item, requested_quantity: Math.max(1, quantity) };
-          }
-          // For inventory items, respect available stock
-          return { ...item, requested_quantity: Math.max(0, Math.min(quantity, item.available_stock)) };
-        }
-        return item;
-      })
-    );
-  };
-
-  const removeIssuanceItem = (inventory_id: string) => {
-    setIssuanceItems(items => items.filter(item => item.inventory_id !== inventory_id));
-  };
-
-  const validateForm = () => {
-    // Only require user selection for Individual requests
-    if (requestType === 'Individual' && !selectedUserId) {
-      setError('Please select a user for this individual request');
-      return false;
-    }
-    if (!selectedOfficeId || !selectedWingId) {
-      setError('Please select Office and Wing from the hierarchy');
-      return false;
-    }
-    if (!selectedBranchId) {
-      setError('Please select Branch/DEC from the hierarchy');
-      return false;
-    }
-    if (issuanceItems.length === 0) {
-      setError('Please add at least one item to the issuance request');
-      return false;
-    }
-    if (!purpose.trim()) {
-      setError('Please provide a purpose for this request');
-      return false;
-    }
-    return true;
-  };
-
-  const submitIssuanceRequest = async () => {
-    if (!validateForm()) return;
-
-    setIsLoading(true);
-    setError('');
-    setSuccess('');
-
+  const handleSubmit = async () => {
     try {
-      const selectedUser = selectedUserId ? (users || []).find(user => user.Id === selectedUserId) : null;
-      const requestNumber = stockIssuanceService.generateRequestNumber();
-      
-      // Create issuance request using SQL Server API
-      const requestData = {
+      setSubmitting(true);
+      setError('');
+      setSuccess('');
+
+      if (!branchId) {
+        setError('Branch information not found in session. Please log in again.');
+        return;
+      }
+
+      if (!selectedItems || selectedItems.length === 0) {
+        setError('Please select at least one item');
+        return;
+      }
+
+      if (!justification.trim()) {
+        setError('Please provide a purpose for this request');
+        return;
+      }
+
+      const userId = (user as any)?.user_id || (user as any)?.Id;
+      const wingId = (user as any)?.wing_id || (user as any)?.intWingID || (user as any)?.WingID || null;
+      const requestNumber = `BRANCH-${Date.now()}`;
+
+      const requestPayload = {
         request_number: requestNumber,
         request_type: 'branch',
-        requester_office_id: parseInt(selectedOfficeId),
-        requester_wing_id: parseInt(selectedWingId),
-        requester_branch_id: selectedBranchId,
-        requester_user_id: requestType === 'Individual' ? selectedUserId : undefined,
-        purpose,
-        urgency_level: urgencyLevel,
-        justification: justification || undefined,
-        expected_return_date: expectedReturnDate || undefined,
-        is_returnable: isReturnable,
+        requester_office_id: null,
+        requester_wing_id: wingId,
+        requester_branch_id: branchId,
+        requester_user_id: userId || null,
+        purpose: 'Branch Stock Request',
+        urgency_level: priority === 'critical' ? 'High' : priority === 'urgent' ? 'Medium' : 'Normal',
+        justification,
+        expected_return_date: null,
+        is_returnable: 0,
         request_status: 'Submitted'
       };
 
-      const requestResult = await stockIssuanceService.submitRequest(requestData);
+      const requestResponse = await fetch(`${getApiBaseUrl()}/api/stock-issuance/requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestPayload)
+      });
 
-      // Add issuance items
-      const requestItems = issuanceItems.map(item => ({
-        item_master_id: item.item_type === 'inventory' ? item.inventory_intOfficeID : undefined,
-        nomenclature: item.nomenclature,
-        requested_quantity: item.requested_quantity,
-        unit_price: 0, // Value field removed from UI
-        item_type: item.item_type,
-        custom_item_name: item.item_type === 'custom' ? item.custom_item_name : undefined
-      }));
-
-      await stockIssuanceService.submitItems(requestResult.id, requestItems);
-
-      // Submit for approval workflow
-      try {
-        console.log('🔄 Submitting for approval workflow...');
-        
-        // Get stock issuance workflow
-        const workflows = await approvalForwardingService.getWorkflows();
-        const stockWorkflow = workflows.find(w => w.request_type === 'stock_issuance');
-        
-        if (stockWorkflow) {
-          await approvalForwardingService.submitForApproval(
-            requestResult.id, 
-            'stock_issuance', 
-            stockWorkflow.id
-          );
-          console.log('✅ Successfully submitted for approval');
-        } else {
-          console.warn('⚠️ No stock issuance workflow found - request submitted without approval process');
-        }
-      } catch (approvalError: any) {
-        console.error('❌ Error submitting for approval:', approvalError);
-        // Don't fail the entire submission if approval fails
+      const requestData = await requestResponse.json();
+      if (!requestResponse.ok) {
+        throw new Error(requestData.error || requestData.message || 'Failed to create request');
       }
 
-      const successMessage = requestType === 'Individual' && selectedUser
-        ? `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${selectedUser.FullName}!`
-        : `Stock issuance request ${requestNumber} submitted successfully and sent for approval!`;
-      
-      setSuccess(successMessage);
-      
-      // Reset form
-      resetForm();
+      const requestId = requestData.data?.id;
+      if (!requestId) {
+        throw new Error('No request ID returned from server');
+      }
 
-      // Navigate to approval dashboard to see the submitted request
+      const itemsPayload = {
+        request_id: requestId,
+        items: selectedItems.map(item => ({
+          item_master_id: item.item_master_id,
+          nomenclature: item.item_nomenclature,
+          requested_quantity: item.requested_quantity,
+          unit_price: 0,
+          item_type: item.item_master_id.toString().startsWith('custom_') ? 'custom' : 'standard',
+          custom_item_name: item.item_master_id.toString().startsWith('custom_') ? item.item_nomenclature : null
+        }))
+      };
+
+      const itemResponse = await fetch(`${getApiBaseUrl()}/api/stock-issuance/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(itemsPayload)
+      });
+
+      if (!itemResponse.ok) {
+        const itemError = await itemResponse.json();
+        throw new Error(itemError.error || itemError.message || 'Request was created, but items could not be added');
+      }
+
+      setSuccess('Branch request submitted successfully!');
+      setSelectedItems([]);
+      setJustification('');
+      setPriority('normal');
+
       setTimeout(() => {
-        navigate('/dashboard/approval-dashboard');
-      }, 3000);
-
-    } catch (error: any) {
-      setError('Failed to submit request to SQL Server: ' + error.message);
+        navigate('/dashboard/branch-dashboard');
+      }, 2000);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit request';
+      console.error('Branch request submit error:', errorMessage);
+      setError(errorMessage);
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setIssuanceItems([]);
-    setSelectedOfficeId('');
-    setSelectedWingId('');
-    setSelectedBranchId('');
-    setSelectedUserId('');
-    setPurpose('');
-    setJustification('');
-    setExpectedReturnDate('');
-    setUrgencyLevel('Normal');
-    setCustomItemName('');
-    setCustomItemQuantity(1);
-  };
+  const filteredItems = itemsLibrary.filter(item =>
+    item.vItemNomenclature.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Stock Issuance</h1>
-          <p className="text-gray-600 mt-1">Issue inventory items to employees and departments</p>
+          <h1 className="text-3xl font-bold text-gray-900">Branch Stock Request</h1>
+          <p className="text-gray-600 mt-1">Request procurement of items for your branch</p>
         </div>
 
         {success && (
@@ -485,472 +272,296 @@ const StockIssuanceBranch: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Request Form */}
           <div className="space-y-6">
             <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                Branch Stock Request Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Request Type - Hidden (always Organizational for Branch requests) */}
-              
-              {/* Hierarchical User Selection */}
-              <div className="space-y-4 border-2 border-blue-200 p-4 rounded-lg bg-blue-50">
-                <h3 className="font-semibold text-blue-800 flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  Organizational Hierarchy Selection
-                </h3>
-                
-                {/* Office Selection */}
-                <div>
-                  <Label htmlFor="office">Office *</Label>
-                  <Select value={selectedOfficeId} onValueChange={handleOfficeChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select office" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {offices.map(office => (
-                        <SelectItem key={office.intOfficeID} value={office.intOfficeID.toString()}>
-                          {office.strOfficeName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5" />
+                  Branch Stock Request Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4 border-2 border-blue-200 p-4 rounded-lg bg-blue-50">
+                  <h3 className="font-semibold text-blue-800 flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Request For (Current Branch)
+                  </h3>
 
-                {/* Wing Selection */}
-                <div>
-                  <Label htmlFor="wing">Wing *</Label>
-                  <Select 
-                    value={selectedWingId} 
-                    onValueChange={handleWingChange}
-                    disabled={!selectedOfficeId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={!selectedOfficeId ? "Select office first" : "Select wing"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredWings.map(wing => (
-                        <SelectItem key={wing.Id} value={wing.Id.toString()}>
-                          {wing.Name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Branch/Dec Selection */}
-                <div>
-                  <Label htmlFor="branch">Branch/Dec *</Label>
-                  <Select 
-                    value={selectedBranchId} 
-                    onValueChange={handleBranchChange}
-                    disabled={!selectedWingId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={!selectedWingId ? "Select wing first" : "Select branch/dec"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredDecs.map(dec => (
-                        <SelectItem key={dec.intAutoID} value={dec.intAutoID.toString()}>
-                          {dec.DECName} {dec.DECCode && `(${dec.DECCode})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* User Selection - Only show for Individual requests */}
-                {requestType === 'Individual' && (
-                  <div>
-                    <Label htmlFor="user">User *</Label>
-                    <Select 
-                      value={selectedUserId} 
-                      onValueChange={setSelectedUserId}
-                      disabled={!selectedWingId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={!selectedWingId ? "Select wing first" : `Select user (${filteredUsers.length} available)`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredUsers.length === 0 && selectedWingId ? (
-                          <SelectItem value="no-users" disabled>
-                            No users found for this hierarchy
-                          </SelectItem>
-                        ) : (
-                          filteredUsers.map(user => (
-                            <SelectItem key={user.Id} value={user.Id}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{user.FullName}</span>
-                                <span className="text-xs text-gray-500">
-                                  {user.DesignationName || user.Role || 'No designation'} {user.CNIC && `• ${user.CNIC}`}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {selectedWingId && filteredUsers.length === 0 && (
-                      <p className="text-sm text-amber-600 mt-1">
-                        ⚠️ No users found for Office: {selectedOfficeId}, Wing: {selectedWingId}
-                        {selectedBranchId && `, Branch: ${selectedBranchId}`}
+                  <div className="space-y-2 bg-white p-3 rounded border">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Branch:</span>
+                      <span className="text-gray-900">{branchName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Branch ID:</span>
+                      <span className="text-gray-900">{branchId || 'Not available'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Requested By:</span>
+                      <span className="text-gray-900">{(user as any)?.user_name || 'Not available'}</span>
+                    </div>
+                    <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
+                      <p className="text-sm text-green-700">
+                        <strong>Branch Request:</strong> This request is being created for your current branch from session.
                       </p>
-                    )}
-                    {selectedWingId && filteredUsers.length > 0 && (
-                      <p className="text-sm text-green-600 mt-1">
-                        ✅ Found {filteredUsers.length} user{filteredUsers.length > 1 ? 's' : ''} 
-                        {' in this specific branch'}
-                      </p>
-                    )}
+                    </div>
                   </div>
-                )}
-
-                {/* Request Type Info */}
-                {requestType === 'Organizational' && (
-                  <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                    <p className="text-sm text-blue-700">
-                      📋 <strong>Organizational Request:</strong> This request is for the selected branch. No individual user selection required.
-                    </p>
-                  </div>
-                )}
-
-                {/* Selected User Display */}
-                {selectedUserId && (
-                  <div className="bg-white p-3 rounded border">
-                    <h4 className="font-medium text-sm text-gray-700 mb-1">Selected Requester:</h4>
-                    {(() => {
-                      const user = (users || []).find(u => u.Id === selectedUserId);
-                      const office = offices.find(o => o.intOfficeID === parseInt(selectedOfficeId));
-                      const wing = filteredWings.find(w => w.Id === parseInt(selectedWingId));
-                      const branch = filteredDecs.find(d => d.intAutoID === parseInt(selectedBranchId));
-                      
-                      return (
-                        <div className="text-sm">
-                          <p><strong>Name:</strong> {user?.FullName}</p>
-                          <p><strong>Email:</strong> {user?.Email || 'N/A'}</p>
-                          <p><strong>CNIC:</strong> {user?.CNIC || 'N/A'}</p>
-                          <p><strong>Designation:</strong> {user?.DesignationName || 'N/A'}</p>
-                          <p><strong>Office:</strong> {office?.strOfficeName}</p>
-                          <p><strong>Wing:</strong> {wing?.Name}</p>
-                          <p><strong>Branch:</strong> {branch?.DECName}</p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-
-              {/* Purpose and Urgency */}
-              <div>
-                <Label htmlFor="purpose">Purpose *</Label>
-                <Textarea
-                  id="purpose"
-                  value={purpose}
-                  onChange={(e) => setPurpose(e.target.value)}
-                  placeholder="Explain why these items are needed"
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="urgency">Urgency Level</Label>
-                  <Select value={urgencyLevel} onValueChange={(value: 'Low' | 'Normal' | 'High' | 'Critical') => setUrgencyLevel(value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Normal">Normal</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Critical">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
-                {requestType === 'Individual' && (
-                  <div>
-                    <Label htmlFor="returnDate">Expected Return Date</Label>
-                    <Input
-                      id="returnDate"
-                      type="date"
-                      value={expectedReturnDate}
-                      onChange={(e) => setExpectedReturnDate(e.target.value)}
-                    />
-                  </div>
-                )}
-              </div>
 
-              {/* Justification */}
-              <div>
-                <Label htmlFor="justification">Additional Justification</Label>
-                <Textarea
-                  id="justification"
-                  value={justification}
-                  onChange={(e) => setJustification(e.target.value)}
-                  placeholder="Any additional context or justification"
-                  rows={2}
-                />
-              </div>
-            </CardContent>
-          </Card>
-          </div>
-          {/* End Left Column */}
-
-          {/* Right Column: Stock Availability & Item Selection */}
-          <div className="space-y-6">
-            {/* Stock Availability Checker - NEW FEATURE */}
-            <Card className="border-blue-200 bg-blue-50/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-700">
-                <Search className="w-5 h-5" />
-                Check Stock Availability
-              </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Search for items and check their real-time availability before adding to your request
-              </p>
-            </CardHeader>
-            <CardContent>
-              <StockAvailabilityChecker
-                selectedItems={issuanceItems.map(item => ({
-                  item_master_id: item.inventory_id,
-                  requested_quantity: item.requested_quantity
-                }))}
-                onItemSelect={(item) => {
-                  // Add selected item to issuance list
-                  const history = lastIssuedByItemId[String(item.item_master_id || '')];
-                  const newItem: IssuanceItem = {
-                    inventory_id: item.item_master_id,
-                    inventory_intOfficeID: item.item_master_id,
-                    nomenclature: item.nomenclature,
-                    requested_quantity: 1,
-                    last_issued_quantity: history?.qty,
-                    last_issue_date: history?.date || null,
-                    available_stock: item.available_quantity,
-                    unit_price: item.unit_price || 0,
-                    item_type: 'inventory'
-                  };
-                  
-                  // Check if already added
-                  const existing = issuanceItems.find(i => i.inventory_id === item.item_master_id);
-                  if (!existing) {
-                    setIssuanceItems([...issuanceItems, newItem]);
-                    setSuccess(`✅ ${item.nomenclature} added to request`);
-                    setTimeout(() => setSuccess(''), 3000);
-                  } else {
-                    setError('Item already added to issuance list');
-                    setTimeout(() => setError(''), 3000);
-                  }
-                }}
-                onAvailabilityCheck={(result) => {
-                  // Show availability feedback
-                  if (!result.can_fulfill) {
-                    setError(`⚠️ Only ${result.available_quantity} units available for ${result.nomenclature}`);
-                    setTimeout(() => setError(''), 5000);
-                  }
-                }}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Items Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Select Items
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Search */}
-              <div className="mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search inventory items..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                <div>
+                  <Label>Purpose *</Label>
+                  <Textarea
+                    value={justification}
+                    onChange={event => setJustification(event.target.value)}
+                    placeholder="Explain why these items are needed for your branch"
+                    rows={3}
                   />
                 </div>
-              </div>
 
-              {/* Available Items */}
-              <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
-                {filteredInventory.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{item.nomenclature}</div>
-                      <div className="text-xs text-gray-500">
-                        Location: {item.primary_Location}
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => addIssuanceItem(item)}
-                      disabled={issuanceItems.some(i => i.inventory_id === item.id)}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Custom Items Section */}
-              <div className="border-t pt-4 mb-4">
-                <h4 className="font-medium mb-3 text-blue-700">Add Custom Items</h4>
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-600 mb-3">
-                    💡 Add items that are not in the inventory system
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="customItemName">Item Name</Label>
-                      <Input
-                        id="customItemName"
-                        value={customItemName}
-                        onChange={(e) => setCustomItemName(e.target.value)}
-                        placeholder="Enter custom item strOfficeName..."
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="customItemQuantity">Quantity</Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setCustomItemQuantity(Math.max(1, customItemQuantity - 1))}
-                          type="button"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <Input
-                          id="customItemQuantity"
-                          type="number"
-                          value={customItemQuantity}
-                          onChange={(e) => setCustomItemQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-16 text-center"
-                          min="1"
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setCustomItemQuantity(customItemQuantity + 1)}
-                          type="button"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={addCustomItem}
-                    disabled={!customItemName.trim()}
-                    className="mt-3 w-full"
-                    variant="outline"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Custom Item
-                  </Button>
+                <div>
+                  <Label>Priority</Label>
+                  <Select value={priority} onValueChange={setPriority}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
 
-              {/* Selected Items */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium mb-3">Selected Items ({issuanceItems.length})</h4>
-                <div className="overflow-x-auto border rounded-lg">
-                  <table className="w-full min-w-[820px] text-sm">
-                    <thead className="bg-gray-100 text-gray-700">
-                      <tr>
-                        <th className="text-left px-3 py-2">Item</th>
-                        <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
-                        <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
-                        <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
-                        <th className="text-left px-3 py-2 w-24">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {issuanceItems.map(item => (
-                        <tr key={item.inventory_id} className="border-t align-middle">
-                          <td className="px-3 py-2">
-                            <div className="font-medium">{item.nomenclature}</div>
-                            <div className="text-xs text-gray-500">
-                              {item.item_type === 'custom' ? 'Custom item' : `Available: ${item.available_stock}`}
+                <div>
+                  <Label>Additional Justification</Label>
+                  <Textarea
+                    value={justification}
+                    onChange={event => setJustification(event.target.value)}
+                    placeholder="Any additional context or procurement details"
+                    rows={2}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5" />
+                  Select Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      type="text"
+                      placeholder="Search inventory items..."
+                      value={searchTerm}
+                      onChange={event => setSearchTerm(event.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {!showCustomItemForm && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomItemForm(true)}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Can't find your item? Add a custom item
+                    </button>
+                  )}
+                </div>
+
+                {loading ? (
+                  <div className="p-4 text-center text-gray-500">Loading items...</div>
+                ) : itemsError ? (
+                  <div className="p-4 text-center text-red-600">{itemsError}</div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+                    {filteredItems.length > 0 ? (
+                      filteredItems.map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{item.vItemNomenclature}</div>
+                            <div className="text-xs text-gray-600 line-clamp-2">
+                              Unit: {item.vUnitOfMeasure || 'N/A'}
                             </div>
-                          </td>
-                          <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : (item.last_issued_quantity ?? 0)}</td>
-                          <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : formatDate(item.last_issue_date)}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateQuantity(item.inventory_id, item.requested_quantity - 1)}
-                              >
-                                <Minus className="w-3 h-3" />
-                              </Button>
-                              <span className="w-10 text-center text-sm font-medium">{item.requested_quantity}</span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateQuantity(item.inventory_id, item.requested_quantity + 1)}
-                              >
-                                <Plus className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => addItem(item)}
+                            disabled={selectedItems.some(selectedItem => selectedItem.item_master_id === item.id)}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))
+                    ) : searchTerm.trim() ? (
+                      <div className="p-4 border border-dashed border-amber-300 rounded-lg bg-amber-50">
+                        <p className="text-sm text-amber-800 mb-3">
+                          No items found for "<span className="font-semibold">{searchTerm}</span>"
+                        </p>
+                        <Button
+                          onClick={() => {
+                            setCustomItemName(searchTerm);
+                            setCustomItemQuantity(1);
+                            setShowCustomItemForm(true);
+                          }}
+                          className="w-full bg-amber-600 hover:bg-amber-700"
+                          size="sm"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add "{searchTerm}" as Custom Item
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-gray-500">
+                        <p className="text-sm">Search for items to get started...</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {showCustomItemForm && (
+                  <div className="border-t pt-4 mb-4">
+                    <h4 className="font-medium mb-3 text-blue-700">Add Custom Item</h4>
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <p className="text-sm text-blue-600 mb-3">Configure your custom item details</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="md:col-span-2">
+                          <Label htmlFor="customItemName">Item Name</Label>
+                          <Input
+                            id="customItemName"
+                            value={customItemName}
+                            onChange={event => setCustomItemName(event.target.value)}
+                            placeholder="Enter custom item name..."
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="customItemQuantity">Quantity</Label>
+                          <div className="flex items-center gap-2 mt-1">
                             <Button
                               size="sm"
-                              variant="destructive"
-                              onClick={() => removeIssuanceItem(item.inventory_id)}
+                              variant="outline"
+                              onClick={() => setCustomItemQuantity(Math.max(1, customItemQuantity - 1))}
+                              type="button"
                             >
-                              Remove
+                              <Minus className="w-3 h-3" />
                             </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <div className="mt-6">
-                <PermissionGate 
-                  permission="stock_request.create_wing"
-                  fallback={
-                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                      <p className="text-sm text-yellow-800">
-                        <strong>Access Restricted:</strong> You don't have permission to create branch-level stock requests.
-                      </p>
+                            <Input
+                              id="customItemQuantity"
+                              type="number"
+                              value={customItemQuantity}
+                              onChange={event => setCustomItemQuantity(Math.max(1, parseInt(event.target.value, 10) || 1))}
+                              className="w-16 text-center"
+                              min="1"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setCustomItemQuantity(customItemQuantity + 1)}
+                              type="button"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button onClick={addCustomItem} disabled={!customItemName.trim()} className="flex-1">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Custom Item
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setShowCustomItemForm(false);
+                            setCustomItemName('');
+                            setCustomItemQuantity(1);
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
                     </div>
-                  }
-                >
-                  <Button
-                    onClick={submitIssuanceRequest}
-                    disabled={isLoading || issuanceItems.length === 0}
-                    className="w-full"
-                  >
-                    {isLoading ? (
-                      <LoadingSpinner />
+                  </div>
+                )}
+
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Selected Items ({selectedItems.length})</h4>
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full min-w-[720px] text-sm">
+                      <thead className="bg-gray-100 text-gray-700">
+                        <tr>
+                          <th className="text-left px-3 py-2">Item</th>
+                          <th className="text-left px-3 py-2 w-48">Unit</th>
+                          <th className="text-left px-3 py-2 w-44">Required Quantity</th>
+                          <th className="text-left px-3 py-2 w-24">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedItems.map((item, index) => (
+                          <tr key={`${item.item_master_id}-${index}`} className="border-t align-middle">
+                            <td className="px-3 py-2">
+                              <div className="font-medium">{item.item_nomenclature}</div>
+                              <div className="text-xs text-gray-500">
+                                {item.item_master_id.toString().startsWith('custom_') ? 'Custom item' : 'Standard item'}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">{item.unit_of_measurement || '-'}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateItemQuantity(index, item.requested_quantity - 1)}
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </Button>
+                                <span className="w-10 text-center text-sm font-medium">{item.requested_quantity}</span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateItemQuantity(index, item.requested_quantity + 1)}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <Button size="sm" variant="destructive" onClick={() => removeItem(index)}>
+                                Remove
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <Button disabled={selectedItems.length === 0 || submitting} className="w-full" onClick={handleSubmit}>
+                    {submitting ? (
+                      'Submitting...'
                     ) : (
                       <>
                         <Send className="w-4 h-4 mr-2" />
-                        Submit Issuance Request
+                        Submit Branch Request
                       </>
                     )}
                   </Button>
-                </PermissionGate>
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          {/* End Right Column */}
         </div>
       </div>
     </div>
