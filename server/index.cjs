@@ -73,6 +73,7 @@ const stockReturnsRoutes = require('./routes/stockReturns.cjs');
 const annualTendersRoutes = require('./routes/annualTenders.cjs');
 const tenderItemsRoutes = require('./routes/tender-items.cjs');
 const wingInventoryRoutes = require('./routes/wingInventory.cjs');
+const branchInventoryRoutes = require('./routes/branchInventory.cjs');
 
 app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes); // Legacy mount for /api/session and /api/sso-login
@@ -100,6 +101,8 @@ app.use('/api/annual-tenders', annualTendersRoutes);
 app.use('/api/tender-items', tenderItemsRoutes);
 app.use('/api/wing-inventory', wingInventoryRoutes);
 app.use('/api/wing-request-history', wingInventoryRoutes); // Alias: requests sub-route serves history
+app.use('/api/branch-inventory', branchInventoryRoutes);
+app.use('/api/branch-request-history', branchInventoryRoutes); // Alias: requests sub-route serves history
 app.use('/api/ims/users', require('./routes/users.cjs')); // Alias used by wing pages
 
 // ============================================================================

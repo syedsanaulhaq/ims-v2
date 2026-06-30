@@ -110,6 +110,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
   const { hasPermission: isWingStoreKeeper } = usePermission('inventory.manage_store_keeper');
   const { hasPermission: isSuperAdmin } = usePermission('admin.super');
+  const hasBranchScope = Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) > 0;
 
   const roleNames = (user?.ims_roles || []).map(r => String(r.role_name || '').toUpperCase());
   const hasApproverRole = roleNames.some(role =>
@@ -215,6 +216,19 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Request Items", icon: ShoppingCart, path: "/procurement/new-request", permission: undefined },
       { title: "Wing Inventory", icon: Warehouse, path: "/dashboard/wing-inventory", permission: 'wing.supervisor' },
       { title: "Wing Members", icon: Users, path: "/dashboard/wing-members", permission: 'wing.supervisor' },
+    ]
+  };
+
+  // BRANCH MENU - For branch-scoped users
+  const branchMenuGroup: MenuGroup = {
+    label: "Branch Menu",
+    icon: Building2,
+    items: [
+      { title: "Branch Dashboard", icon: BarChart3, path: "/dashboard/branch-dashboard", permission: undefined },
+      { title: "Branch Request History", icon: History, path: "/dashboard/branch-request-history", permission: undefined },
+      { title: "Request Items", icon: ShoppingCart, path: "/procurement/new-request", permission: undefined },
+      { title: "Branch Inventory", icon: Warehouse, path: "/dashboard/branch-inventory", permission: undefined },
+      { title: "Branch Members", icon: Users, path: "/dashboard/branch-members", permission: undefined },
     ]
   };
 
@@ -364,6 +378,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       const visibleWingItems = wingMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleWingItems.length > 0) {
         groups.push({ ...wingMenuGroup, items: visibleWingItems });
+      }
+    }
+
+    // Show branch menu for branch-scoped users and super admins.
+    if (hasBranchScope || isSuperAdmin) {
+      const visibleBranchItems = branchMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleBranchItems.length > 0) {
+        groups.push({ ...branchMenuGroup, items: visibleBranchItems });
       }
     }
 

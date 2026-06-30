@@ -257,7 +257,7 @@ router.get('/aspnet/active', async (req, res) => {
 router.get('/aspnet/filtered', async (req, res) => {
   try {
     const pool = getPool();
-    const { role, office_id, wing_id, search } = req.query;
+    const { role, office_id, wing_id, branch_id, search } = req.query;
 
     let query = `
       SELECT 
@@ -268,6 +268,7 @@ router.get('/aspnet/filtered', async (req, res) => {
         u.Role,
         u.intOfficeID,
         u.intWingID,
+        u.intBranchID,
         u.intDesignationID,
         COALESCE(NULLIF(u.DesignationName, ''), '-') as designation,
         CAST(NULL AS NVARCHAR(200)) as officeName,
@@ -296,6 +297,12 @@ router.get('/aspnet/filtered', async (req, res) => {
     if (wing_id) {
       query += ` AND u.intWingID = @wingId${paramIndex}`;
       request = request.input(`wingId${paramIndex}`, sql.Int, wing_id);
+      paramIndex++;
+    }
+
+    if (branch_id) {
+      query += ` AND u.intBranchID = @branchId${paramIndex}`;
+      request = request.input(`branchId${paramIndex}`, sql.Int, branch_id);
       paramIndex++;
     }
 

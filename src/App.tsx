@@ -56,6 +56,9 @@ import PersonalInventory from "./pages/PersonalInventory";
 import WingInventory from "./pages/WingInventory";
 import WingDashboard from "./pages/WingDashboard";
 import WingMembers from "./pages/WingMembers";
+import BranchInventory from "./pages/BranchInventory";
+import BranchDashboard from "./pages/BranchDashboard";
+import BranchMembers from "./pages/BranchMembers";
 import SupervisorApprovals from "./pages/SupervisorApprovals";
 import AdminApprovals from "./pages/AdminApprovals";
 import RoleManagement from "./pages/RoleManagement";
@@ -83,6 +86,7 @@ import RequisitionReportPage from "./pages/RequisitionReportPage";
 import StockOperationRequestDetails from "./pages/StockOperationRequestDetails";
 import RequestHistoryPage from "./pages/RequestHistoryPage";
 import WingRequestHistoryPage from "./pages/WingRequestHistoryPage";
+import BranchRequestHistoryPage from "./pages/BranchRequestHistoryPage";
 import RequestsHistoryLayout from "./pages/RequestsHistory/RequestsHistoryLayout";
 import FutureRequestsPage from "./pages/RequestsHistory/FutureRequestsPage";
 import RejectedRequestsPage from "./pages/RequestsHistory/RejectedRequestsPage";
@@ -225,6 +229,9 @@ function App() {
                   <Route path="wing-inventory" element={<WingInventory />} />
                   <Route path="wing-dashboard" element={<WingDashboard />} />
                   <Route path="wing-members" element={<WingMembers />} />
+                  <Route path="branch-inventory" element={<BranchInventory />} />
+                  <Route path="branch-dashboard" element={<BranchDashboard />} />
+                  <Route path="branch-members" element={<BranchMembers />} />
                   <Route path="pending-verifications" element={<PendingVerificationsPage />} />
                   <Route path="store-keeper-verifications" element={<StoreKeeperVerificationsPage />} />
                   <Route path="verification-history" element={<VerificationHistoryPage />} />
@@ -248,6 +255,7 @@ function App() {
                     <Route path="pending" element={<PendingRequestsPage />} />
                   </Route>
                   <Route path="wing-request-history" element={<WingRequestHistoryPage />} />
+                  <Route path="branch-request-history" element={<BranchRequestHistoryPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
                 </Route>
