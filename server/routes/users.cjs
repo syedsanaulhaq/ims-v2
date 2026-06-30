@@ -287,12 +287,14 @@ router.get('/aspnet/filtered', async (req, res) => {
   try {
     const pool = getPool();
     const { role, office_id, wing_id, branch_id, search } = req.query;
-
-    if (branch_id) {
-      const effectiveBranchId = String(branch_id).toLowerCase() === 'me'
+    const hasBranchFilter = branch_id !== undefined && branch_id !== null && String(branch_id).trim() !== '';
+    const effectiveBranchId = hasBranchFilter
+      ? String(branch_id).toLowerCase() === 'me'
         ? await resolveBranchIdFromLoggedInUserCnic(pool, req)
-        : Number(branch_id);
+        : Number(branch_id)
+      : null;
 
+    if (hasBranchFilter) {
       if (!effectiveBranchId || Number.isNaN(Number(effectiveBranchId))) {
         return res.json([]);
       }
@@ -399,9 +401,9 @@ router.get('/aspnet/filtered', async (req, res) => {
       paramIndex++;
     }
 
-    if (branch_id) {
+    if (hasBranchFilter && effectiveBranchId && !Number.isNaN(Number(effectiveBranchId))) {
       query += ` AND u.intBranchID = @branchId${paramIndex}`;
-      request = request.input(`branchId${paramIndex}`, sql.Int, branch_id);
+      request = request.input(`branchId${paramIndex}`, sql.Int, Number(effectiveBranchId));
       paramIndex++;
     }
 
