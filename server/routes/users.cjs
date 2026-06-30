@@ -74,12 +74,13 @@ router.get('/approvers', async (req, res) => {
         u.intOfficeID,
         u.intWingID,
         u.intDesignationID,
-        d.DesignationName as designation,
+        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as designation,
         o.strOfficeName as officeName,
         w.WingName as wingName,
-        CONCAT(u.FullName, ' (', COALESCE(d.DesignationName, u.Role), ')') as displayName
+        CONCAT(u.FullName, ' (', COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), u.Role), ')') as displayName
       FROM AspNetUsers u
-      LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
+      LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
+      LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
       LEFT JOIN Office_MST o ON u.intOfficeID = o.intOfficeID
       LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
       WHERE u.ISACT = 1
@@ -120,11 +121,12 @@ router.get('/:id', async (req, res) => {
           u.Gender,
           u.AddedOn,
           u.LastLoggedIn,
-          d.DesignationName as designation,
+          COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as designation,
           o.strOfficeName as officeName,
           w.WingName as wingName
         FROM AspNetUsers u
-        LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
+        LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
+        LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
         LEFT JOIN Office_MST o ON u.intOfficeID = o.intOfficeID
         LEFT JOIN Wing_MST w ON u.intWingID = w.intAutoID
         WHERE u.Id = @userId AND u.ISACT = 1
@@ -270,12 +272,13 @@ router.get('/aspnet/filtered', async (req, res) => {
         u.intWingID,
         u.intBranchID,
         u.intDesignationID,
-        COALESCE(NULLIF(d.DesignationName, ''), '-') as designation,
+        COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as designation,
         CAST(NULL AS NVARCHAR(200)) as officeName,
         w.Name as wingName,
         w.Name as wing_name
       FROM AspNetUsers u
-      LEFT JOIN Designation_MST d ON u.intDesignationID = d.intAutoID
+      LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), u.Id)
+      LEFT JOIN tblUserDesignations d ON u.intDesignationID = d.intDesignationID
       LEFT JOIN WingsInformation w ON u.intWingID = w.Id
       WHERE u.ISACT = 1
     `;
