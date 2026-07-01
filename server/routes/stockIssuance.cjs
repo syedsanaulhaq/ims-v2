@@ -21,6 +21,45 @@ const isBranchSupervisorRole = (roleName) => {
   return normalized === 'BRANCH_SUPERVISOR' || normalized === 'CUSTOM_BRANCH_SUPERVISOR';
 };
 
+const isBranchStorekeeperRole = (roleName) => {
+  const normalized = String(roleName || '').trim().toUpperCase().replace(/\s+/g, '_');
+  return normalized === 'BRANCH_STORE_KEEPER'
+    || normalized === 'CUSTOM_BRANCH_STORE_KEEPER'
+    || normalized === 'BRANCH_STOREKEEPER';
+};
+
+const findBranchRoleUser = async (pool, branchId, roleNames, excludedUserId = null) => {
+  const request = pool.request()
+    .input('branchId', sql.Int, branchId)
+    .input('excludedUserId', sql.NVarChar(450), String(excludedUserId || ''));
+
+  roleNames.forEach((role, index) => {
+    request.input(`role${index}`, sql.NVarChar(100), role);
+  });
+
+  const rolePlaceholders = roleNames.map((_, index) => `@role${index}`).join(', ');
+  const result = await request.query(`
+    SELECT TOP 1 u.Id as user_id, u.FullName, r.role_name
+    FROM ims_user_roles ur
+    INNER JOIN ims_roles r ON ur.role_id = r.id
+    INNER JOIN AspNetUsers u ON u.Id = ur.user_id
+    WHERE ur.is_active = 1
+      AND r.is_active = 1
+      AND u.ISACT = 1
+      AND (@excludedUserId = '' OR u.Id <> @excludedUserId)
+      AND r.role_name IN (${rolePlaceholders})
+      AND (
+        ur.scope_branch_id = @branchId
+        OR u.intBranchID = @branchId
+      )
+    ORDER BY
+      CASE WHEN ur.scope_branch_id = @branchId THEN 1 ELSE 2 END,
+      u.FullName ASC
+  `);
+
+  return result.recordset[0] || null;
+};
+
 const findFirstAdminChainApprover = async (pool, excludedUserId) => {
   const result = await pool.request()
     .input('excludedUserId', sql.NVarChar(450), String(excludedUserId || ''))
@@ -545,6 +584,8 @@ router.get('/last-issued-summary', async (req, res) => {
 // ============================================================================
 // GET /api/stock-issuance/:id - Get request details
 // ============================================================================
+router.get('/branch-storekeeper/requests', requireAuth, handleBranchStorekeeperRequests);
+
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -935,19 +976,36 @@ const createStockIssuanceRequest = async (req, res) => {
         const submitterWorkflowRoles = await getUserWorkflowRoles(pool, userId);
         const isBranchSupervisorSubmission = normalizedRequestType === 'branch'
           && submitterWorkflowRoles.some(isBranchSupervisorRole);
+        const isBranchStorekeeperSubmission = normalizedRequestType === 'branch'
+          && submitterWorkflowRoles.some(isBranchStorekeeperRole);
+        const startsAtBranchStorekeeper = normalizedRequestType === 'branch'
+          && !isBranchSupervisorSubmission
+          && !isBranchStorekeeperSubmission;
 
         // Always use the same workflow initialization path for all request types
         // (personal, wing, organizational) so routing starts at the configured first step.
         // Branch supervisors submit directly to the admin chain for the item group.
-        try {
-          dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null, {
-            startAtAdminChain: isBranchSupervisorSubmission
-          });
-          if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
-            approverId = dynamicWorkflowResult.approverId;
+        if (startsAtBranchStorekeeper) {
+          const branchStorekeeper = await findBranchRoleUser(pool, requester_branch_id, [
+            'BRANCH_STORE_KEEPER',
+            'Branch Storekeeper',
+            'CUSTOM_BRANCH_STORE_KEEPER'
+          ], userId);
+
+          if (branchStorekeeper?.user_id) {
+            approverId = branchStorekeeper.user_id;
           }
-        } catch (dynamicError) {
-          console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
+        } else {
+          try {
+            dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null, {
+              startAtAdminChain: isBranchSupervisorSubmission
+            });
+            if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
+              approverId = dynamicWorkflowResult.approverId;
+            }
+          } catch (dynamicError) {
+            console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
+          }
         }
 
         // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
@@ -956,30 +1014,14 @@ const createStockIssuanceRequest = async (req, res) => {
         }
 
         if (!approverId && normalizedRequestType === 'branch') {
-          const branchSupervisorResult = await pool.request()
-            .input('branchId', sql.Int, requester_branch_id)
-            .input('requesterId', sql.NVarChar(450), userId)
-            .query(`
-              SELECT TOP 1 u.Id as user_id, u.FullName
-              FROM ims_user_roles ur
-              INNER JOIN ims_roles r ON ur.role_id = r.id
-              INNER JOIN AspNetUsers u ON u.Id = ur.user_id
-              WHERE ur.is_active = 1
-                AND r.is_active = 1
-                AND u.ISACT = 1
-                AND u.Id != @requesterId
-                AND r.role_name IN ('BRANCH_SUPERVISOR', 'Branch Supervisor', 'CUSTOM_BRANCH_SUPERVISOR')
-                AND (
-                  ur.scope_branch_id = @branchId
-                  OR u.intBranchID = @branchId
-                )
-              ORDER BY
-                CASE WHEN ur.scope_branch_id = @branchId THEN 1 ELSE 2 END,
-                u.FullName ASC
-            `);
+          const branchSupervisor = await findBranchRoleUser(pool, requester_branch_id, [
+            'BRANCH_SUPERVISOR',
+            'Branch Supervisor',
+            'CUSTOM_BRANCH_SUPERVISOR'
+          ], userId);
 
-          if (branchSupervisorResult.recordset.length > 0) {
-            approverId = branchSupervisorResult.recordset[0].user_id;
+          if (branchSupervisor?.user_id) {
+            approverId = branchSupervisor.user_id;
           }
         }
 
@@ -1040,7 +1082,17 @@ const createStockIssuanceRequest = async (req, res) => {
 
           const approvalId = approvalResult.recordset[0].id;
 
-            if (dynamicWorkflowResult?.ok) {
+            if (startsAtBranchStorekeeper) {
+              await pool.request()
+                .input('requestId', sql.UniqueIdentifier, requestId)
+                .input('approvalStatus', sql.NVarChar(100), 'Pending Branch Storekeeper Review')
+                .query(`
+                  UPDATE stock_issuance_requests
+                  SET approval_status = @approvalStatus,
+                      updated_at = GETDATE()
+                  WHERE id = @requestId
+                `);
+            } else if (dynamicWorkflowResult?.ok) {
               await bindRequestApprovalId(pool, requestId, approvalId);
 
               const laneStatusText = dynamicWorkflowResult.laneCount && dynamicWorkflowResult.laneCount > 1
@@ -1257,6 +1309,271 @@ router.post('/items', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error adding items to request:', error);
     res.status(500).json({ error: 'Failed to add items to request' });
+  }
+});
+
+// ============================================================================
+// GET /api/stock-issuance/branch-storekeeper/requests
+// Branch storekeeper queue for branch employee requests awaiting stock check
+// ============================================================================
+async function handleBranchStorekeeperRequests(req, res) {
+  try {
+    const pool = getPool();
+    const userId = req.session.userId;
+
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`SELECT intBranchID as branch_id, FullName FROM AspNetUsers WHERE Id = @userId`);
+
+    const branchId = userResult.recordset[0]?.branch_id || null;
+    if (!branchId) {
+      return res.status(400).json({ error: 'No branch is assigned to this storekeeper' });
+    }
+
+    const roleResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT r.role_name
+        FROM ims_user_roles ur
+        INNER JOIN ims_roles r ON r.id = ur.role_id
+        WHERE ur.user_id = @userId
+          AND ur.is_active = 1
+          AND r.is_active = 1
+      `);
+
+    const isBranchStorekeeper = (roleResult.recordset || []).some((row) => isBranchStorekeeperRole(row.role_name));
+    if (!isBranchStorekeeper) {
+      return res.status(403).json({ error: 'Only branch storekeepers can access this queue' });
+    }
+
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .input('branchId', sql.Int, branchId)
+      .query(`
+        SELECT
+          ra.id AS approval_id,
+          sir.id AS request_id,
+          sir.request_number,
+          sir.request_type,
+          sir.purpose,
+          sir.justification,
+          sir.urgency_level,
+          sir.approval_status,
+          sir.request_status,
+          sir.submitted_at,
+          u.FullName AS requester_name,
+          sii.id AS stock_item_id,
+          ai.id AS approval_item_id,
+          sii.item_master_id,
+          COALESCE(sii.nomenclature, im.nomenclature, sii.custom_item_name) AS nomenclature,
+          sii.requested_quantity,
+          sii.approved_quantity,
+          COALESCE(im.unit, 'units') AS unit,
+          COALESCE(cis.current_quantity, 0) AS available_quantity
+        FROM request_approvals ra
+        INNER JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+        INNER JOIN stock_issuance_items sii ON sii.request_id = sir.id
+        LEFT JOIN approval_items ai ON ai.request_approval_id = ra.id
+          AND (
+            ai.item_master_id = sii.item_master_id
+            OR (ai.item_master_id IS NULL AND sii.item_master_id IS NULL AND COALESCE(ai.nomenclature, ai.custom_item_name) = COALESCE(sii.nomenclature, sii.custom_item_name))
+          )
+        LEFT JOIN item_masters im ON im.id = sii.item_master_id
+        LEFT JOIN current_inventory_stock cis ON cis.item_master_id = sii.item_master_id
+        LEFT JOIN AspNetUsers u ON u.Id = sir.requester_user_id
+        WHERE ra.current_approver_id = @userId
+          AND ra.current_status = 'pending'
+          AND sir.request_type = 'branch'
+          AND sir.requester_branch_id = @branchId
+          AND sir.approval_status = 'Pending Branch Storekeeper Review'
+          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
+          AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
+        ORDER BY sir.submitted_at DESC, sir.request_number DESC, nomenclature ASC
+      `);
+
+    const requestsById = new Map();
+    for (const row of result.recordset || []) {
+      if (!requestsById.has(row.request_id)) {
+        requestsById.set(row.request_id, {
+          approval_id: row.approval_id,
+          request_id: row.request_id,
+          request_number: row.request_number,
+          request_type: row.request_type,
+          purpose: row.purpose,
+          justification: row.justification,
+          urgency_level: row.urgency_level,
+          approval_status: row.approval_status,
+          request_status: row.request_status,
+          submitted_at: row.submitted_at,
+          requester_name: row.requester_name,
+          items: []
+        });
+      }
+
+      requestsById.get(row.request_id).items.push({
+        stock_item_id: row.stock_item_id,
+        approval_item_id: row.approval_item_id,
+        item_master_id: row.item_master_id,
+        nomenclature: row.nomenclature,
+        requested_quantity: Number(row.requested_quantity || 0),
+        approved_quantity: Number(row.approved_quantity || 0),
+        unit: row.unit,
+        available_quantity: Number(row.available_quantity || 0)
+      });
+    }
+
+    res.json({ success: true, data: Array.from(requestsById.values()) });
+  } catch (error) {
+    console.error('❌ Error loading branch storekeeper queue:', error);
+    res.status(500).json({ error: 'Failed to load branch storekeeper queue', details: error.message });
+  }
+}
+
+// ============================================================================
+// POST /api/stock-issuance/branch-storekeeper/review/:requestId
+// Storekeeper records available/short quantities and forwards to supervisor
+// ============================================================================
+router.post('/branch-storekeeper/review/:requestId', requireAuth, async (req, res) => {
+  const pool = getPool();
+  const transaction = new sql.Transaction(pool);
+
+  try {
+    const { requestId } = req.params;
+    const { item_reviews = [], comments = '' } = req.body;
+    const userId = req.session.userId;
+
+    if (!Array.isArray(item_reviews) || item_reviews.length === 0) {
+      return res.status(400).json({ error: 'item_reviews are required' });
+    }
+
+    const requestResult = await pool.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT TOP 1
+          sir.id,
+          sir.request_number,
+          sir.requester_branch_id,
+          ra.id AS approval_id,
+          ra.current_approver_id
+        FROM stock_issuance_requests sir
+        INNER JOIN request_approvals ra ON ra.request_id = sir.id
+        WHERE sir.id = @requestId
+          AND sir.request_type = 'branch'
+          AND ra.current_approver_id = @userId
+          AND ra.current_status = 'pending'
+          AND sir.approval_status = 'Pending Branch Storekeeper Review'
+      `);
+
+    const requestRow = requestResult.recordset[0];
+    if (!requestRow) {
+      return res.status(404).json({ error: 'Branch request is not pending this storekeeper review' });
+    }
+
+    const branchSupervisor = await findBranchRoleUser(pool, requestRow.requester_branch_id, [
+      'BRANCH_SUPERVISOR',
+      'Branch Supervisor',
+      'CUSTOM_BRANCH_SUPERVISOR'
+    ], userId);
+
+    if (!branchSupervisor?.user_id) {
+      return res.status(400).json({ error: 'No branch supervisor found for this request branch' });
+    }
+
+    await transaction.begin();
+
+    for (const review of item_reviews) {
+      const availableQuantity = Math.max(0, Number(review.available_quantity || 0));
+      const itemComment = review.comments || comments || '';
+
+      await transaction.request()
+        .input('stockItemId', sql.UniqueIdentifier, review.stock_item_id || review.item_id)
+        .input('requestId', sql.UniqueIdentifier, requestId)
+        .input('availableQty', sql.Int, availableQuantity)
+        .input('itemComment', sql.NVarChar(sql.MAX), itemComment)
+        .query(`
+          UPDATE stock_issuance_items
+          SET approved_quantity = @availableQty,
+              item_status = CASE
+                WHEN @availableQty >= ISNULL(requested_quantity, 0) THEN 'Approved'
+                WHEN @availableQty > 0 THEN 'Partially Approved'
+                ELSE 'Pending'
+              END,
+              source_store_type = 'branch',
+              updated_at = GETDATE()
+          WHERE id = @stockItemId
+            AND request_id = @requestId
+        `);
+
+      await transaction.request()
+        .input('approvalId', sql.UniqueIdentifier, requestRow.approval_id)
+        .input('approvalItemId', sql.UniqueIdentifier, review.approval_item_id || review.item_id)
+        .input('availableQty', sql.Int, availableQuantity)
+        .input('itemComment', sql.NVarChar(sql.MAX), itemComment)
+        .query(`
+          UPDATE approval_items
+          SET allocated_quantity = @availableQty,
+              decision_type = 'FORWARD_TO_SUPERVISOR',
+              forwarding_reason = @itemComment,
+              updated_at = GETDATE()
+          WHERE request_approval_id = @approvalId
+            AND id = @approvalItemId
+        `);
+    }
+
+    const nextStepResult = await transaction.request()
+      .input('approvalId', sql.UniqueIdentifier, requestRow.approval_id)
+      .query(`
+        SELECT ISNULL(MAX(step_number), 0) + 1 as next_step
+        FROM approval_history
+        WHERE request_approval_id = @approvalId
+      `);
+    const nextStep = nextStepResult.recordset[0]?.next_step || 1;
+
+    await transaction.request()
+      .input('approvalId', sql.UniqueIdentifier, requestRow.approval_id)
+      .query(`UPDATE approval_history SET is_current_step = 0 WHERE request_approval_id = @approvalId`);
+
+    await transaction.request()
+      .input('approvalId', sql.UniqueIdentifier, requestRow.approval_id)
+      .input('actionBy', sql.NVarChar(450), userId)
+      .input('comments', sql.NVarChar(sql.MAX), comments || 'Branch stock checked and forwarded to branch supervisor')
+      .input('stepNumber', sql.Int, nextStep)
+      .input('forwardedTo', sql.NVarChar(450), branchSupervisor.user_id)
+      .query(`
+        INSERT INTO approval_history
+          (request_approval_id, action_type, action_by, comments, step_number, is_current_step, forwarded_to)
+        VALUES
+          (@approvalId, 'forwarded_to_supervisor', @actionBy, @comments, @stepNumber, 1, @forwardedTo)
+      `);
+
+    await transaction.request()
+      .input('approvalId', sql.UniqueIdentifier, requestRow.approval_id)
+      .input('supervisorId', sql.NVarChar(450), branchSupervisor.user_id)
+      .query(`
+        UPDATE request_approvals
+        SET current_approver_id = @supervisorId,
+            current_status = 'pending',
+            updated_date = GETDATE()
+        WHERE id = @approvalId
+      `);
+
+    await transaction.request()
+      .input('requestId', sql.UniqueIdentifier, requestId)
+      .query(`
+        UPDATE stock_issuance_requests
+        SET approval_status = 'Forwarded to Branch Supervisor',
+            request_status = 'Pending',
+            updated_at = GETDATE()
+        WHERE id = @requestId
+      `);
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Request forwarded to branch supervisor', supervisor: branchSupervisor });
+  } catch (error) {
+    try { await transaction.rollback(); } catch (_) {}
+    console.error('❌ Error submitting branch storekeeper review:', error);
+    res.status(500).json({ error: 'Failed to submit branch storekeeper review', details: error.message });
   }
 });
 

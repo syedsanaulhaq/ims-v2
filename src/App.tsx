@@ -88,6 +88,8 @@ import StockOperationRequestDetails from "./pages/StockOperationRequestDetails";
 import RequestHistoryPage from "./pages/RequestHistoryPage";
 import WingRequestHistoryPage from "./pages/WingRequestHistoryPage";
 import BranchRequestHistoryPage from "./pages/BranchRequestHistoryPage";
+import BranchStorekeeperReviewPage from "./pages/BranchStorekeeperReviewPage";
+import RequiredItemsPage from "./pages/RequiredItemsPage";
 import RequestsHistoryLayout from "./pages/RequestsHistory/RequestsHistoryLayout";
 import FutureRequestsPage from "./pages/RequestsHistory/FutureRequestsPage";
 import RejectedRequestsPage from "./pages/RequestsHistory/RejectedRequestsPage";
@@ -258,6 +260,7 @@ function App() {
                   </Route>
                   <Route path="wing-request-history" element={<WingRequestHistoryPage />} />
                   <Route path="branch-request-history" element={<BranchRequestHistoryPage />} />
+                  <Route path="branch-storekeeper-review" element={<BranchStorekeeperReviewPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
                 </Route>
@@ -293,6 +296,7 @@ function App() {
                   <Route path="transaction-manager/:tenderId" element={<TransactionManager />} />
                   <Route path="issuances" element={<StockIssuances />} />
                   <Route path="tender-management" element={<TenderDashboard />} />
+                  <Route path="required-items" element={<RequiredItemsPage />} />
                   <Route path="contract-tender" element={<ContractTender />} />
                   <Route path="create-tender" element={<CreateTender />} />
                   <Route path="tender-details/:id" element={<TenderDetails />} />

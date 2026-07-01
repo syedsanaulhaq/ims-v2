@@ -172,9 +172,11 @@ router.get('/stats', requireAuth, async (req, res) => {
 // Body: { item_ids: string[], tender_id: string, tender_type: string, tender_reference?: string }
 // ============================================================================
 router.post('/link-tender', requireAuth, async (req, res) => {
+  const pool = getPool();
+  const transaction = new sql.Transaction(pool);
+
   try {
     const { item_ids, tender_id, tender_type, tender_reference } = req.body;
-    const pool = getPool();
 
     if (!item_ids?.length || !tender_id || !tender_type) {
       return res.status(400).json({ error: 'item_ids, tender_id, and tender_type are required' });
@@ -191,10 +193,27 @@ router.post('/link-tender', requireAuth, async (req, res) => {
 
     const tender = tenderCheck.recordset[0];
     const tenderRef = tender_reference || tender.reference_number || tender.title;
+    await transaction.begin();
+
+    const demandItems = [];
 
     // Update each required item
     for (const itemId of item_ids) {
-      await pool.request()
+      const itemResult = await transaction.request()
+        .input('id', sql.UniqueIdentifier, itemId)
+        .query(`
+          SELECT id, item_master_id, nomenclature, quantity_needed, unit, notes
+          FROM required_items
+          WHERE id = @id
+            AND is_deleted = 0
+            AND status IN ('Pending', 'Planned')
+        `);
+
+      const requiredItem = itemResult.recordset[0];
+      if (!requiredItem) continue;
+      demandItems.push(requiredItem);
+
+      await transaction.request()
         .input('id', sql.UniqueIdentifier, itemId)
         .input('tenderId', sql.UniqueIdentifier, tender_id)
         .input('tenderType', sql.NVarChar, tender_type)
@@ -210,13 +229,70 @@ router.post('/link-tender', requireAuth, async (req, res) => {
         `);
     }
 
+    const groupedDemand = new Map();
+    for (const item of demandItems) {
+      const key = item.item_master_id ? `master:${item.item_master_id}` : `custom:${item.nomenclature}`;
+      const existing = groupedDemand.get(key) || {
+        item_master_id: item.item_master_id,
+        nomenclature: item.nomenclature,
+        quantity: 0,
+        unit: item.unit,
+        notes: []
+      };
+      existing.quantity += Number(item.quantity_needed || 0);
+      if (item.notes) existing.notes.push(item.notes);
+      groupedDemand.set(key, existing);
+    }
+
+    for (const item of groupedDemand.values()) {
+      await transaction.request()
+        .input('tenderId', sql.UniqueIdentifier, tender_id)
+        .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id || null)
+        .input('nomenclature', sql.NVarChar(500), item.nomenclature)
+        .input('quantity', sql.Int, Math.max(1, item.quantity))
+        .input('remarks', sql.NVarChar(sql.MAX), item.notes.length ? item.notes.join('\n') : 'Created from required-items demand')
+        .query(`
+          IF EXISTS (
+            SELECT 1
+            FROM tender_items
+            WHERE tender_id = @tenderId
+              AND (
+                item_master_id = @itemMasterId
+                OR (item_master_id IS NULL AND @itemMasterId IS NULL AND nomenclature = @nomenclature)
+              )
+          )
+          BEGIN
+            UPDATE tender_items
+            SET quantity = ISNULL(quantity, 0) + @quantity,
+                remarks = @remarks,
+                updated_at = GETDATE()
+            WHERE tender_id = @tenderId
+              AND (
+                item_master_id = @itemMasterId
+                OR (item_master_id IS NULL AND @itemMasterId IS NULL AND nomenclature = @nomenclature)
+              );
+          END
+          ELSE
+          BEGIN
+            INSERT INTO tender_items
+              (id, tender_id, item_master_id, nomenclature, quantity, remarks, status, created_at, updated_at)
+            VALUES
+              (NEWID(), @tenderId, @itemMasterId, @nomenclature, @quantity, @remarks, 'pending', GETDATE(), GETDATE());
+          END
+        `);
+    }
+
+    await transaction.commit();
+
     res.json({
       success: true,
       message: `${item_ids.length} item(s) linked to tender "${tenderRef}"`,
       tender_id,
-      linked_count: item_ids.length
+      linked_count: demandItems.length,
+      tender_item_count: groupedDemand.size
     });
   } catch (error) {
+    try { await transaction.rollback(); } catch (_) {}
     console.error('❌ Error linking items to tender:', error);
     res.status(500).json({ error: 'Failed to link items to tender', details: error.message });
   }

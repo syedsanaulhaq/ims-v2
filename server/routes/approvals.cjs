@@ -41,6 +41,91 @@ const deriveParentLaneStatus = (lanes = []) => {
   return 'pending';
 };
 
+const createBranchDemandForForwardedShortages = async (transaction, approvalId, userId) => {
+  const shortageResult = await transaction.request()
+    .input('approvalId', sql.UniqueIdentifier, approvalId)
+    .query(`
+      SELECT
+        sir.id AS request_id,
+        sir.request_number,
+        sir.requester_wing_id,
+        sir.urgency_level,
+        ai.item_master_id,
+        COALESCE(ai.nomenclature, im.nomenclature, ai.custom_item_name) AS nomenclature,
+        COALESCE(im.unit, ai.unit, 'units') AS unit,
+        CASE
+          WHEN ISNULL(ai.requested_quantity, 0) - ISNULL(ai.allocated_quantity, 0) > 0
+            THEN ISNULL(ai.requested_quantity, 0) - ISNULL(ai.allocated_quantity, 0)
+          ELSE ISNULL(ai.requested_quantity, 0)
+        END AS quantity_needed,
+        CAST(sir.requester_branch_id AS NVARCHAR(200)) AS branch_name
+      FROM request_approvals ra
+      INNER JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+      INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+      LEFT JOIN item_masters im ON im.id = ai.item_master_id
+      WHERE ra.id = @approvalId
+        AND sir.request_type = 'branch'
+        AND ai.decision_type = 'FORWARD_TO_ADMIN'
+        AND ISNULL(ai.requested_quantity, 0) > 0
+    `);
+
+  for (const item of shortageResult.recordset || []) {
+    const quantityNeeded = Math.max(1, Number(item.quantity_needed || 0));
+
+    await transaction.request()
+      .input('sourceRequestId', sql.UniqueIdentifier, item.request_id)
+      .input('sourceRequestNumber', sql.NVarChar(100), item.request_number)
+      .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id || null)
+      .input('nomenclature', sql.NVarChar(500), item.nomenclature || 'Custom Item')
+      .input('quantityNeeded', sql.Int, quantityNeeded)
+      .input('unit', sql.NVarChar(50), item.unit || 'units')
+      .input('wingId', sql.Int, item.requester_wing_id || null)
+      .input('branchName', sql.NVarChar(200), item.branch_name || null)
+      .input('urgencyLevel', sql.NVarChar(50), item.urgency_level || 'Medium')
+      .input('createdBy', sql.NVarChar(450), userId)
+      .input('notes', sql.NVarChar(sql.MAX), 'Demand created from branch shortage forwarded to admin workflow')
+      .query(`
+        IF EXISTS (
+          SELECT 1
+          FROM required_items
+          WHERE source_request_id = @sourceRequestId
+            AND status IN ('Pending', 'Planned')
+            AND is_deleted = 0
+            AND (
+              (item_master_id = @itemMasterId)
+              OR (item_master_id IS NULL AND @itemMasterId IS NULL AND nomenclature = @nomenclature)
+            )
+        )
+        BEGIN
+          UPDATE required_items
+          SET quantity_needed = @quantityNeeded,
+              unit = @unit,
+              urgency_level = @urgencyLevel,
+              notes = @notes,
+              updated_at = GETDATE()
+          WHERE source_request_id = @sourceRequestId
+            AND status IN ('Pending', 'Planned')
+            AND is_deleted = 0
+            AND (
+              (item_master_id = @itemMasterId)
+              OR (item_master_id IS NULL AND @itemMasterId IS NULL AND nomenclature = @nomenclature)
+            );
+        END
+        ELSE
+        BEGIN
+          INSERT INTO required_items
+            (item_master_id, nomenclature, quantity_needed, unit, source_request_id, source_request_number,
+             requested_by_wing_id, requested_by_wing_name, urgency_level, status, notes, created_by)
+          VALUES
+            (@itemMasterId, @nomenclature, @quantityNeeded, @unit, @sourceRequestId, @sourceRequestNumber,
+             @wingId, @branchName, @urgencyLevel, 'Pending', @notes, @createdBy);
+        END
+      `);
+  }
+
+  return shortageResult.recordset?.length || 0;
+};
+
 // ============================================================================
 // Middleware: Authentication and Permission Checking
 // ============================================================================
@@ -1902,6 +1987,10 @@ router.post('/:approvalId/approve', async (req, res) => {
               WHERE id = @itemId
             `);
         }
+      }
+
+      if (hasForwardToAdmin) {
+        await createBranchDemandForForwardedShortages(transaction, approvalId, userId);
       }
 
       // Add history entry

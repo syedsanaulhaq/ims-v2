@@ -113,6 +113,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const hasBranchScope = Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) > 0;
 
   const roleNames = (user?.ims_roles || []).map(r => String(r.role_name || '').toUpperCase());
+  const hasBranchStorekeeperRole = roleNames.some(role =>
+    role === 'BRANCH_STORE_KEEPER' ||
+    role === 'BRANCH STOREKEEPER' ||
+    role === 'BRANCH STORE KEEPER' ||
+    role === 'CUSTOM_BRANCH_STORE_KEEPER'
+  );
   const hasApproverRole = roleNames.some(role =>
     role === 'AD ADMIN-I' ||
     role === 'AD ADMIN-II' ||
@@ -245,6 +251,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Store Keeper Menu",
     icon: Warehouse,
     items: [
+      ...(hasBranchStorekeeperRole ? [
+        { title: "Branch Request Review", icon: ClipboardList, path: "/dashboard/branch-storekeeper-review", permission: undefined },
+      ] : []),
       { title: "Forwarded Verifications", icon: Eye, path: "/dashboard/store-keeper-verifications", permission: undefined },
       { title: "Verification History", icon: History, path: "/dashboard/verification-history", permission: undefined },
       { title: "Wing Inventory", icon: Package, path: "/dashboard/wing-inventory", permission: undefined },
@@ -286,6 +295,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Contract/Tender", icon: FileText, path: "/dashboard/contract-tender", permission: 'procurement.manage' },
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Petty Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
+      { title: "Required Items", icon: ClipboardList, path: "/dashboard/required-items", permission: 'procurement.manage' },
       { title: "Review Requests", icon: CheckCircle, path: "/procurement/admin-review", permission: 'procurement.approve' },
     ]
   };
