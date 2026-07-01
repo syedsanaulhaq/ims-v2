@@ -617,9 +617,9 @@ const RequisitionReportPage: React.FC = () => {
         <Card>
           <CardContent className="pt-6 text-center space-y-4">
             <p className="text-red-600">{error || 'Unable to load report'}</p>
-            <Button variant="outline" onClick={() => navigate('/dashboard/my-requests')}>
+            <Button variant="outline" onClick={() => navigate('/dashboard/requisition-report')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to My Requests
+              Back to Requisition Report
             </Button>
           </CardContent>
         </Card>
@@ -720,9 +720,9 @@ const RequisitionReportPage: React.FC = () => {
         }
       `}</style>
       <div className="requisition-print-actions flex items-center justify-between mb-6 print:hidden">
-        <Button variant="outline" onClick={() => navigate(`/dashboard/request-details/${report.id}`)}>
+        <Button variant="outline" onClick={() => navigate('/dashboard/requisition-report')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
+          Back to Requisition Report
         </Button>
         <Button variant="outline" onClick={handlePrint}>
           <Printer className="h-4 w-4 mr-2" />
