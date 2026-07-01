@@ -7,13 +7,44 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { getPool, sql } = require('../db/connection.cjs');
-const { initializeWorkflowForRequest, bindRequestApprovalId } = require('../utils/workflowEngine.cjs');
+const { initializeWorkflowForRequest, bindRequestApprovalId, getUserWorkflowRoles } = require('../utils/workflowEngine.cjs');
 
 const requireAuth = (req, res, next) => {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
+};
+
+const isBranchSupervisorRole = (roleName) => {
+  const normalized = String(roleName || '').trim().toUpperCase().replace(/\s+/g, '_');
+  return normalized === 'BRANCH_SUPERVISOR' || normalized === 'CUSTOM_BRANCH_SUPERVISOR';
+};
+
+const findFirstAdminChainApprover = async (pool, excludedUserId) => {
+  const result = await pool.request()
+    .input('excludedUserId', sql.NVarChar(450), String(excludedUserId || ''))
+    .query(`
+      SELECT TOP 1 ur.user_id,
+        CASE
+          WHEN r.role_name = 'DD Admin' THEN 1
+          WHEN r.role_name = 'AD Admin-I' THEN 2
+          WHEN r.role_name = 'AD Admin-II' THEN 3
+          WHEN r.role_name = 'Storekeeper' THEN 4
+          ELSE 99
+        END AS role_priority
+      FROM ims_user_roles ur
+      INNER JOIN ims_roles r ON r.id = ur.role_id
+      INNER JOIN AspNetUsers u ON u.Id = ur.user_id
+      WHERE ur.is_active = 1
+        AND r.is_active = 1
+        AND u.ISACT = 1
+        AND ur.user_id <> @excludedUserId
+        AND r.role_name IN ('DD Admin', 'AD Admin-I', 'AD Admin-II', 'Storekeeper')
+      ORDER BY role_priority ASC, u.FullName ASC
+    `);
+
+  return result.recordset[0]?.user_id || null;
 };
 
 // ============================================================================
@@ -901,10 +932,17 @@ const createStockIssuanceRequest = async (req, res) => {
         let dynamicWorkflowResult = null;
         let approverId = null;
 
+        const submitterWorkflowRoles = await getUserWorkflowRoles(pool, userId);
+        const isBranchSupervisorSubmission = normalizedRequestType === 'branch'
+          && submitterWorkflowRoles.some(isBranchSupervisorRole);
+
         // Always use the same workflow initialization path for all request types
         // (personal, wing, organizational) so routing starts at the configured first step.
+        // Branch supervisors submit directly to the admin chain for the item group.
         try {
-          dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null);
+          dynamicWorkflowResult = await initializeWorkflowForRequest(pool, requestId, userId, null, {
+            startAtAdminChain: isBranchSupervisorSubmission
+          });
           if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
             approverId = dynamicWorkflowResult.approverId;
           }
@@ -913,6 +951,10 @@ const createStockIssuanceRequest = async (req, res) => {
         }
 
         // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
+        if (!approverId && isBranchSupervisorSubmission) {
+          approverId = await findFirstAdminChainApprover(pool, userId);
+        }
+
         if (!approverId && normalizedRequestType === 'branch') {
           const branchSupervisorResult = await pool.request()
             .input('branchId', sql.Int, requester_branch_id)
@@ -1125,6 +1167,56 @@ router.post('/items', requireAuth, async (req, res) => {
         
         if (approvalResult.recordset.length > 0) {
           const approvalId = approvalResult.recordset[0].approval_id;
+
+          const requestResult = await pool.request()
+            .input('requestId', sql.UniqueIdentifier, request_id)
+            .query(`
+              SELECT TOP 1 request_type, requester_user_id
+              FROM stock_issuance_requests
+              WHERE id = @requestId
+            `);
+
+          const stockRequest = requestResult.recordset[0] || null;
+          const submittedBy = stockRequest?.requester_user_id || req.session.userId;
+          const submitterWorkflowRoles = await getUserWorkflowRoles(pool, submittedBy);
+          const isBranchSupervisorSubmission = String(stockRequest?.request_type || '').trim().toLowerCase() === 'branch'
+            && submitterWorkflowRoles.some(isBranchSupervisorRole);
+
+          if (isBranchSupervisorSubmission) {
+            const dynamicWorkflowResult = await initializeWorkflowForRequest(pool, request_id, submittedBy, approvalId, {
+              startAtAdminChain: true
+            });
+
+            if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
+              const laneStatusText = dynamicWorkflowResult.laneCount && dynamicWorkflowResult.laneCount > 1
+                ? `Pending ${dynamicWorkflowResult.laneCount} Group Lanes`
+                : `Pending Step ${dynamicWorkflowResult.currentStepOrder} of ${dynamicWorkflowResult.totalSteps}`;
+
+              await pool.request()
+                .input('approvalId', sql.UniqueIdentifier, approvalId)
+                .input('approverId', sql.NVarChar(450), dynamicWorkflowResult.approverId)
+                .query(`
+                  UPDATE request_approvals
+                  SET current_approver_id = @approverId,
+                      current_status = 'pending',
+                      is_admin_workflow = 1,
+                      updated_date = GETDATE()
+                  WHERE id = @approvalId
+                `);
+
+              await pool.request()
+                .input('requestId', sql.UniqueIdentifier, request_id)
+                .input('approvalStatus', sql.NVarChar(100), laneStatusText)
+                .query(`
+                  UPDATE stock_issuance_requests
+                  SET approval_status = @approvalStatus,
+                      updated_at = GETDATE()
+                  WHERE id = @requestId
+                `);
+            } else {
+              console.warn(`⚠️ Branch supervisor admin workflow init failed for request ${request_id}:`, dynamicWorkflowResult?.code || 'unknown');
+            }
+          }
           
           // Get the items we just inserted
           const insertedItems = await pool.request()

@@ -34,11 +34,15 @@ const WORKFLOW_ROLE_NAMES = [
   'DG Admin',
   'Branch Supervisor',
   'BRANCH_SUPERVISOR',
+  'CUSTOM_BRANCH_SUPERVISOR',
   'Storekeeper',
   'Branch Storekeeper',
   'BRANCH_STORE_KEEPER',
   'Transport Supervisor'
 ];
+
+const ADMIN_CHAIN_START_ROLES = ['DD Admin'];
+const ADMIN_CHAIN_ROLE_NAMES = ['DD Admin', 'AD Admin-I', 'AD Admin-II', 'Storekeeper'];
 
 const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
   .map((_, index) => `@role${index}`)
@@ -70,6 +74,10 @@ const roleMatches = (userRole, ruleValue) => {
   if (!user || !rule) return false;
 
   return user === rule;
+};
+
+const stepHasAnyRole = (step, roleNames) => {
+  return (step?.rules || []).some((rule) => roleNames.some((roleName) => roleMatches(roleName, rule.designation_value)));
 };
 
 const getWorkflowRoles = async (pool) => {
@@ -404,7 +412,7 @@ const pickApproverForStep = async (pool, stepRules, excludedUserIds = []) => {
   };
 };
 
-const initializeWorkflowForRequest = async (pool, requestId, submittedBy, requestApprovalId = null) => {
+const initializeWorkflowForRequest = async (pool, requestId, submittedBy, requestApprovalId = null, options = {}) => {
   await ensureTables(pool);
 
   const { groups } = await getGroupFromRequestItems(pool, requestId);
@@ -425,7 +433,11 @@ const initializeWorkflowForRequest = async (pool, requestId, submittedBy, reques
       return { ok: false, code: 'workflow_not_defined', groupNumber };
     }
 
-    const firstStep = steps[0];
+    const firstStep = options.startAtAdminChain
+      ? (steps.find((step) => stepHasAnyRole(step, ADMIN_CHAIN_START_ROLES))
+        || steps.find((step) => stepHasAnyRole(step, ADMIN_CHAIN_ROLE_NAMES))
+        || steps[0])
+      : steps[0];
     const approver = await pickApproverForStep(pool, firstStep.rules, [submittedBy]);
     if (!approver) {
       return { ok: false, code: 'approver_not_found', groupNumber, stepOrder: firstStep.step_order };
