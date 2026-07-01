@@ -337,7 +337,7 @@
       <div class="summary-card"><strong>Starting Point</strong><span>Branch employee creates a request for required item(s).</span></div>
       <div class="summary-card"><strong>First Review</strong><span>Branch storekeeper checks what is available and what is short.</span></div>
       <div class="summary-card"><strong>Approval Route</strong><span>Branch supervisor approves, disapproves, or forwards shortage to admin workflow.</span></div>
-      <div class="summary-card"><strong>Demand Planning</strong><span>Unavailable items become required demand for tender planning.</span></div>
+      <div class="summary-card"><strong>Tender Assignment</strong><span>Tender module groups required demands and assigns them to procurement files.</span></div>
     </section>
 
     <div class="legend">
@@ -476,15 +476,71 @@
 
     <h2>4. Required Items and Tender Demand</h2>
     <section class="section-band demand">
-      <p>When the branch does not have an item, IMS should not lose that demand. The shortage quantity becomes a required item entry. Procurement/tender teams can later use these pending required items while preparing tenders, so tender quantities are based on real branch demands.</p>
+      <p>When the branch does not have an item, IMS should not lose that demand. The shortage quantity becomes a required item entry. The tender module receives these pending required items, groups them by item/category, and allows procurement staff to assign them to a new or existing tender.</p>
       <div class="flow-line">
         <span class="pill">Branch Shortage Marked</span><span class="chev">→</span>
         <span class="pill">Required Item Created</span><span class="chev">→</span>
         <span class="pill">Grouped by Item / Category</span><span class="chev">→</span>
-        <span class="pill">Used in Tender Planning</span><span class="chev">→</span>
+        <span class="pill">Assigned to Tender</span><span class="chev">→</span>
         <span class="pill">Procured Stock Allotted</span>
       </div>
     </section>
+
+    <h2>5. Tender Module Assignment Workflow</h2>
+    <section class="section-band demand">
+      <p>The tender module should act as the procurement receiver for approved shortages. It should not require procurement staff to re-enter the same requested items manually. Instead, it should pull pending required items from branch/wing requests and assign them to tender records.</p>
+      <div class="flow-line">
+        <span class="pill">Required Items Queue</span><span class="chev">→</span>
+        <span class="pill">Review Demand Summary</span><span class="chev">→</span>
+        <span class="pill">Select Items</span><span class="chev">→</span>
+        <span class="pill">Create / Link Tender</span><span class="chev">→</span>
+        <span class="pill">Tender Items Prepared</span><span class="chev">→</span>
+        <span class="pill">Vendor / PO / Procurement</span>
+      </div>
+    </section>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Tender Step</th>
+          <th>Who Acts</th>
+          <th>What Should Happen</th>
+          <th>System Output</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Receive Demand</td>
+          <td>Tender Module</td>
+          <td>Read approved shortages from required items / demand list.</td>
+          <td>Pending demand appears without duplicate manual entry.</td>
+        </tr>
+        <tr>
+          <td>Demand Grouping</td>
+          <td>Procurement / Admin</td>
+          <td>Group demands by item, category, branch/wing, urgency, and source request.</td>
+          <td>Consolidated quantity needed for tender planning.</td>
+        </tr>
+        <tr>
+          <td>Tender Assignment</td>
+          <td>Procurement / Admin</td>
+          <td>Select required items and assign them to an existing tender or create a new tender.</td>
+          <td>Required item status becomes In Tender and stores tender reference.</td>
+        </tr>
+        <tr>
+          <td>Tender Item Creation</td>
+          <td>System / Procurement</td>
+          <td>Create tender item lines from selected demands with quantity and item details.</td>
+          <td>Tender contains demand-backed item quantities.</td>
+        </tr>
+        <tr>
+          <td>Procurement Completion</td>
+          <td>Procurement / Storekeeper</td>
+          <td>After vendor, PO, delivery, and stock acquisition, received stock becomes available for issue.</td>
+          <td>Required item can be marked Procured and linked requests can be fulfilled.</td>
+        </tr>
+      </tbody>
+    </table>
 
     <table>
       <thead>
@@ -524,7 +580,13 @@
           <td>Demand Capture</td>
           <td>System / Procurement</td>
           <td>Record unavailable requested items as pending required items.</td>
-          <td>Demand list can be used when creating annual tender/contract tender items.</td>
+          <td>Tender module receives the demand list for tender assignment.</td>
+        </tr>
+        <tr>
+          <td>Tender Assignment</td>
+          <td>Procurement / Tender Module</td>
+          <td>Group required items, select demand rows, and assign them to a new or existing tender.</td>
+          <td>Required items are linked to tender reference and tender items can be prepared from real demand.</td>
         </tr>
         <tr>
           <td>Allotment / Issuance</td>
@@ -541,7 +603,7 @@
       </tbody>
     </table>
 
-    <h2>5. Final Inventory Movement</h2>
+    <h2>6. Final Inventory Movement</h2>
     <section class="inventory-movement">
       <div class="move-box">
         <h3>Store Inventory</h3>
@@ -561,7 +623,7 @@
       </div>
     </section>
 
-    <h2>6. End-to-End Example</h2>
+    <h2>7. End-to-End Example</h2>
     <section class="section-band">
       <ol>
         <li>Employee of a branch requests 5 laptops.</li>
@@ -570,13 +632,14 @@
         <li>Branch supervisor approves or disapproves the request and can adjust approved quantity with comments.</li>
         <li>For the available 3 laptops, branch storekeeper allots them to the employee after supervisor approval.</li>
         <li>For the 2 short laptops, IMS records required demand and forwards the shortage to admin workflow based on the laptop item group.</li>
+        <li>The tender module receives those 2 laptops as pending required demand, groups them with similar requests, and assigns them to a new or existing tender.</li>
         <li>DD Admin and AD Admin review the shortage request, can adjust quantity, and record comments.</li>
-        <li>After final approval and stock/procurement availability, storekeeper allots the approved quantity to the employee.</li>
+        <li>After tender, PO, delivery, and stock acquisition, storekeeper allots the approved/procured quantity to the employee.</li>
         <li>IMS deducts the issued quantity from store inventory, writes stock transaction history, updates employee inventory, and keeps the shortage demand available for tender planning until fulfilled.</li>
       </ol>
     </section>
 
-    <h2>7. Statuses the Client Will See</h2>
+    <h2>8. Statuses the Client Will See</h2>
     <table>
       <thead>
         <tr>
@@ -589,6 +652,8 @@
         <tr><td>Forwarded to Branch Supervisor</td><td>Branch storekeeper checked availability and forwarded the request with remarks.</td></tr>
         <tr><td>Approved by Branch Supervisor</td><td>Branch supervisor approved available quantity for allotment.</td></tr>
         <tr><td>Required Item / Demand Recorded</td><td>Unavailable quantity has been captured for tender/procurement planning.</td></tr>
+        <tr><td>Assigned to Tender</td><td>Procurement selected the required item and linked it to a tender file.</td></tr>
+        <tr><td>In Tender / Procurement</td><td>The demand is part of tender, vendor, PO, delivery, or acquisition process.</td></tr>
         <tr><td>Forwarded to Admin Workflow</td><td>Branch supervisor approved the need but local stock was unavailable, so it moved to group-wise admin approval.</td></tr>
         <tr><td>Pending DD Admin / AD Admin</td><td>Request is moving through item-group admin workflow.</td></tr>
         <tr><td>Approved for Allotment</td><td>Final approver approved the quantity and storekeeper can allot it.</td></tr>

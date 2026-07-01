@@ -83,6 +83,8 @@ router.get('/', requireAuth, async (req, res) => {
     // Count
     const countReq = pool.request();
     if (status && status !== 'all') countReq.input('status', sql.NVarChar, status);
+    if (urgency) countReq.input('urgency', sql.NVarChar, urgency);
+    if (wing_id) countReq.input('wing_id', sql.Int, parseInt(wing_id));
     const countResult = await countReq.query(`
       SELECT COUNT(*) AS total FROM required_items ri
       ${whereClause.replace('@limit', '').replace('@offset', '')}
