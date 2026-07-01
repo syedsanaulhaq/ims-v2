@@ -832,10 +832,16 @@ const createStockIssuanceRequest = async (req, res) => {
     
     const pool = getPool();
 
-    // Use requester_wing_id if wing_id not provided
-    const wingId = wing_id || requester_wing_id;
-    
-    if (!wingId) {
+    // Use requester_wing_id if wing_id not provided. Branch requests are scoped by
+    // requester_branch_id and may not have a wing in session.
+    const wingId = wing_id || requester_wing_id || null;
+    const normalizedRequestType = String(request_type || '').trim().toLowerCase();
+
+    if (normalizedRequestType === 'branch' && !requester_branch_id) {
+      return res.status(400).json({ error: 'requester_branch_id is required for branch requests' });
+    }
+
+    if (normalizedRequestType !== 'branch' && !wingId) {
       return res.status(400).json({ error: 'wing_id or requester_wing_id is required' });
     }
 
@@ -852,7 +858,7 @@ const createStockIssuanceRequest = async (req, res) => {
         .input('requestType', sql.NVarChar(50), request_type || 'Individual')
         .input('officeId', sql.Int, requester_office_id || null)
         .input('wingId', sql.Int, wingId)
-        .input('branchId', sql.NVarChar(50), requester_branch_id || null)
+        .input('branchId', sql.Int, requester_branch_id || null)
         .input('requesterId', sql.NVarChar(450), requester_user_id || req.session.userId)
         .input('purpose', sql.NVarChar(sql.MAX), purpose || null)
         .input('urgencyLevel', sql.NVarChar(50), urgency_level || 'Normal')
@@ -907,7 +913,7 @@ const createStockIssuanceRequest = async (req, res) => {
         }
 
         // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
-        if (!approverId) {
+        if (!approverId && wingId) {
           const supervisorResult = await pool.request()
             .input('wingId', sql.Int, wingId)
             .input('requesterId', sql.NVarChar(450), userId)
