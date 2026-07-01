@@ -177,6 +177,8 @@ GO
 DECLARE @SuperAdminRoleId UNIQUEIDENTIFIER = NEWID();
 DECLARE @AdminRoleId UNIQUEIDENTIFIER = NEWID();
 DECLARE @SupervisorRoleId UNIQUEIDENTIFIER = NEWID();
+DECLARE @BranchSupervisorRoleId UNIQUEIDENTIFIER = NEWID();
+DECLARE @BranchStoreKeeperRoleId UNIQUEIDENTIFIER = NEWID();
 DECLARE @UserRoleId UNIQUEIDENTIFIER = NEWID();
 DECLARE @ProcurementRoleId UNIQUEIDENTIFIER = NEWID();
 DECLARE @AuditorRoleId UNIQUEIDENTIFIER = NEWID();
@@ -223,7 +225,35 @@ BEGIN
     PRINT '✅ Created Wing Supervisor role';
 END
 
--- 4. General User (Default)
+    -- 4. Branch Supervisor
+    IF NOT EXISTS (SELECT 1 FROM ims_roles WHERE role_name = 'BRANCH_SUPERVISOR')
+    BEGIN
+        INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role)
+        VALUES (
+            @BranchSupervisorRoleId,
+            'BRANCH_SUPERVISOR',
+            'Branch Supervisor',
+            'Manage branch-level inventory and approve branch requests. Scope limited to assigned branch(es).',
+            1
+        );
+        PRINT '✅ Created Branch Supervisor role';
+    END
+
+    -- 5. Branch Store Keeper
+    IF NOT EXISTS (SELECT 1 FROM ims_roles WHERE role_name = 'BRANCH_STORE_KEEPER')
+    BEGIN
+        INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role)
+        VALUES (
+            @BranchStoreKeeperRoleId,
+            'BRANCH_STORE_KEEPER',
+            'Branch Store Keeper',
+            'Process approved stock issuance for assigned branch inventory. Scope limited to assigned branch(es).',
+            1
+        );
+        PRINT '✅ Created Branch Store Keeper role';
+    END
+
+    -- 6. General User (Default)
 IF NOT EXISTS (SELECT 1 FROM ims_roles WHERE role_name = 'GENERAL_USER')
 BEGIN
     INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role)
@@ -237,7 +267,7 @@ BEGIN
     PRINT '✅ Created General User role';
 END
 
--- 5. Procurement Officer
+-- 7. Procurement Officer
 IF NOT EXISTS (SELECT 1 FROM ims_roles WHERE role_name = 'PROCUREMENT_OFFICER')
 BEGIN
     INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role)
@@ -251,7 +281,7 @@ BEGIN
     PRINT '✅ Created Procurement Officer role';
 END
 
--- 6. Auditor (Read-Only)
+-- 8. Auditor (Read-Only)
 IF NOT EXISTS (SELECT 1 FROM ims_roles WHERE role_name = 'AUDITOR')
 BEGIN
     INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role)
@@ -446,13 +476,43 @@ CROSS JOIN ims_permissions p
 WHERE r.role_name = 'WING_SUPERVISOR'
   AND p.permission_key IN (
       'inventory.view_wing', 'inventory.edit_wing',
-      'stock_request.view_wing', 'stock_request.approve_supervisor', 
+    'stock_request.view_wing', 'stock_request.approve_supervisor',
       'stock_request.forward', 'stock_request.reject',
       'stock_transfer.wing_to_personal',
       'reports.view_wing'
   )
   AND NOT EXISTS (SELECT 1 FROM ims_role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
 PRINT '✅ Wing Supervisor: Permissions assigned';
+
+-- Branch Supervisor Permissions
+INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)
+SELECT r.id, p.id, 'SYSTEM_SETUP'
+FROM ims_roles r
+CROSS JOIN ims_permissions p
+WHERE r.role_name = 'BRANCH_SUPERVISOR'
+    AND p.permission_key IN (
+            'inventory.view_wing', 'inventory.edit_wing',
+            'stock_request.view_wing', 'stock_request.approve_supervisor',
+            'stock_request.forward', 'stock_request.reject',
+            'reports.view_wing'
+    )
+    AND NOT EXISTS (SELECT 1 FROM ims_role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+PRINT '✅ Branch Supervisor: Permissions assigned';
+
+-- Branch Store Keeper Permissions
+INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)
+SELECT r.id, p.id, 'SYSTEM_SETUP'
+FROM ims_roles r
+CROSS JOIN ims_permissions p
+WHERE r.role_name = 'BRANCH_STORE_KEEPER'
+    AND p.permission_key IN (
+            'inventory.view_wing',
+            'stock_request.view_wing',
+            'stock_transfer.wing_to_personal',
+            'reports.view_wing'
+    )
+    AND NOT EXISTS (SELECT 1 FROM ims_role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+PRINT '✅ Branch Store Keeper: Permissions assigned';
 
 -- General User Permissions
 INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)

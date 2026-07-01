@@ -913,6 +913,34 @@ const createStockIssuanceRequest = async (req, res) => {
         }
 
         // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
+        if (!approverId && normalizedRequestType === 'branch') {
+          const branchSupervisorResult = await pool.request()
+            .input('branchId', sql.Int, requester_branch_id)
+            .input('requesterId', sql.NVarChar(450), userId)
+            .query(`
+              SELECT TOP 1 u.Id as user_id, u.FullName
+              FROM ims_user_roles ur
+              INNER JOIN ims_roles r ON ur.role_id = r.id
+              INNER JOIN AspNetUsers u ON u.Id = ur.user_id
+              WHERE ur.is_active = 1
+                AND r.is_active = 1
+                AND u.ISACT = 1
+                AND u.Id != @requesterId
+                AND r.role_name IN ('BRANCH_SUPERVISOR', 'Branch Supervisor', 'CUSTOM_BRANCH_SUPERVISOR')
+                AND (
+                  ur.scope_branch_id = @branchId
+                  OR u.intBranchID = @branchId
+                )
+              ORDER BY
+                CASE WHEN ur.scope_branch_id = @branchId THEN 1 ELSE 2 END,
+                u.FullName ASC
+            `);
+
+          if (branchSupervisorResult.recordset.length > 0) {
+            approverId = branchSupervisorResult.recordset[0].user_id;
+          }
+        }
+
         if (!approverId && wingId) {
           const supervisorResult = await pool.request()
             .input('wingId', sql.Int, wingId)
@@ -1020,7 +1048,8 @@ const createStockIssuanceRequest = async (req, res) => {
 
           console.log(`✅ Created approval record ${approvalId} for request ${requestId}, assigned to ${approverId}`);
         } else {
-          console.warn(`⚠️ No supervisor found for wing ${wingId} - approval record not created`);
+          const missingScope = normalizedRequestType === 'branch' ? `branch ${requester_branch_id}` : `wing ${wingId}`;
+          console.warn(`⚠️ No supervisor found for ${missingScope} - approval record not created`);
         }
       } catch (approvalError) {
         // Don't fail the request creation, just log the error
@@ -1173,13 +1202,14 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
     // Verify the issuing user is a store keeper for the requester's wing
     const userWingResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
-      .query(`SELECT u.intWingID as WingId, u.FullName FROM AspNetUsers u WHERE u.Id = @userId`);
+      .query(`SELECT u.intWingID as WingId, u.intBranchID as BranchId, u.FullName FROM AspNetUsers u WHERE u.Id = @userId`);
     
     if (userWingResult.recordset.length === 0) {
       return res.status(403).json({ error: 'User not found' });
     }
 
     const issuerWingId = userWingResult.recordset[0].WingId;
+    const issuerBranchId = userWingResult.recordset[0].BranchId;
     const issuerName = userWingResult.recordset[0].FullName;
 
     // Check if user is a store keeper
@@ -1208,6 +1238,14 @@ router.post('/issue/:id', requireAuth, async (req, res) => {
         error: 'You can only issue items for requests from your own wing',
         your_wing: issuerWingId,
         request_wing: request.requester_wing_id
+      });
+    }
+
+    if (issuerBranchId && request.requester_branch_id && issuerBranchId !== request.requester_branch_id) {
+      return res.status(403).json({
+        error: 'You can only issue items for requests from your own branch',
+        your_branch: issuerBranchId,
+        request_branch: request.requester_branch_id
       });
     }
 

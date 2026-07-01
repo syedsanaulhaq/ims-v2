@@ -32,7 +32,11 @@ const WORKFLOW_ROLE_NAMES = [
   'AD Admin-II',
   'DD Admin',
   'DG Admin',
+  'Branch Supervisor',
+  'BRANCH_SUPERVISOR',
   'Storekeeper',
+  'Branch Storekeeper',
+  'BRANCH_STORE_KEEPER',
   'Transport Supervisor'
 ];
 

@@ -170,8 +170,11 @@ router.get('/roles', requireAuth, async (req, res) => {
           WHEN role_name = 'IMS_SUPER_ADMIN' THEN 1
           WHEN role_name = 'IMS_ADMIN' THEN 2
           WHEN role_name = 'WING_SUPERVISOR' THEN 3
-          WHEN role_name = 'GENERAL_USER' THEN 4
-          ELSE 5
+          WHEN role_name = 'BRANCH_SUPERVISOR' THEN 4
+          WHEN role_name = 'WING_STORE_KEEPER' THEN 5
+          WHEN role_name = 'BRANCH_STORE_KEEPER' THEN 6
+          WHEN role_name = 'GENERAL_USER' THEN 7
+          ELSE 8
         END,
         display_name
     `);

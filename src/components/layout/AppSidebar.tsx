@@ -117,9 +117,13 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     role === 'AD ADMIN-I' ||
     role === 'AD ADMIN-II' ||
     role === 'DD ADMIN' ||
+    role === 'BRANCH SUPERVISOR' ||
+    role === 'BRANCH_SUPERVISOR' ||
     role === 'STOREKEEPER' ||
     role === 'WING_STORE_KEEPER' ||
+    role === 'BRANCH_STORE_KEEPER' ||
     role === 'CUSTOM_WING_STORE_KEEPER' ||
+    role === 'CUSTOM_BRANCH_STORE_KEEPER' ||
     role === 'ADMINISTRATOR' ||
     role === 'IMS_ADMIN'
   );
@@ -131,7 +135,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     role === 'DD ADMIN' ||
     role === 'STOREKEEPER' ||
     role === 'WING_STORE_KEEPER' ||
+    role === 'BRANCH_STORE_KEEPER' ||
     role === 'CUSTOM_WING_STORE_KEEPER' ||
+    role === 'CUSTOM_BRANCH_STORE_KEEPER' ||
     role === 'IMS_ADMIN' ||
     role === 'ADMINISTRATOR'
   );
@@ -139,7 +145,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   // Check if user has any store keeper role (including custom roles)
   const hasStoreKeeperRole = user?.ims_roles?.some(role => 
     role.role_name === 'WING_STORE_KEEPER' || 
+    role.role_name === 'BRANCH_STORE_KEEPER' ||
     role.role_name === 'CUSTOM_WING_STORE_KEEPER' ||
+    role.role_name === 'CUSTOM_BRANCH_STORE_KEEPER' ||
     role.role_name.includes('STORE_KEEPER')
   ) || false;
   

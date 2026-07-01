@@ -113,6 +113,36 @@ WHERE r.role_name = 'WING_SUPERVISOR'
   AND NOT EXISTS (SELECT 1 FROM ims_role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
 PRINT '✅ Wing Supervisor: Generic permissions assigned';
 
+-- Branch Supervisor
+INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)
+SELECT r.id, p.id, 'SYSTEM_SETUP'
+FROM ims_roles r
+CROSS JOIN ims_permissions p
+WHERE r.role_name = 'BRANCH_SUPERVISOR'
+  AND p.permission_key IN (
+      'inventory.view',
+      'issuance.view', 'issuance.process',
+      'approval.approve',
+      'reports.view'
+  )
+  AND NOT EXISTS (SELECT 1 FROM ims_role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+PRINT '✅ Branch Supervisor: Generic permissions assigned';
+
+-- Branch Store Keeper
+INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)
+SELECT r.id, p.id, 'SYSTEM_SETUP'
+FROM ims_roles r
+CROSS JOIN ims_permissions p
+WHERE r.role_name = 'BRANCH_STORE_KEEPER'
+  AND p.permission_key IN (
+      'inventory.view',
+      'issuance.view', 'issuance.process',
+      'inventory.manage_store_keeper',
+      'reports.view'
+  )
+  AND NOT EXISTS (SELECT 1 FROM ims_role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
+PRINT '✅ Branch Store Keeper: Generic permissions assigned';
+
 -- General User
 INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)
 SELECT r.id, p.id, 'SYSTEM_SETUP'
@@ -175,8 +205,11 @@ ORDER BY
         WHEN 'IMS_SUPER_ADMIN' THEN 1
         WHEN 'IMS_ADMIN' THEN 2
         WHEN 'WING_SUPERVISOR' THEN 3
-        WHEN 'GENERAL_USER' THEN 4
-        WHEN 'PROCUREMENT_OFFICER' THEN 5
-        WHEN 'AUDITOR' THEN 6
-        ELSE 7
+        WHEN 'BRANCH_SUPERVISOR' THEN 4
+        WHEN 'WING_STORE_KEEPER' THEN 5
+        WHEN 'BRANCH_STORE_KEEPER' THEN 6
+        WHEN 'GENERAL_USER' THEN 7
+        WHEN 'PROCUREMENT_OFFICER' THEN 8
+        WHEN 'AUDITOR' THEN 9
+        ELSE 10
     END;
