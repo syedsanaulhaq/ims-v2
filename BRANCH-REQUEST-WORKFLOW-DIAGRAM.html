@@ -115,52 +115,71 @@
   <main>
     <header>
       <h1>Branch Request to Tender and Final Allotment Workflow</h1>
-      <p class="subtitle">Simple diagram of the branch request flow from employee request to storekeeper check, supervisor approval, tender demand, procurement, and final allotment.</p>
+      <p class="subtitle">Simple diagram showing that procured/admin stock is allotted to the Branch Supervisor first, handed to Branch Storekeeper, entered into branch store, and then issued to the requested employee.</p>
     </header>
 
     <section class="diagram-wrap" aria-label="Branch request workflow diagram">
       <pre class="mermaid">
-flowchart TD
-    A[Branch Employee creates request] --> B[Branch Storekeeper receives request]
+flowchart LR
+    subgraph S1[Branch Request Starts]
+      A[Branch Employee creates request]
+      B[Branch Storekeeper receives request]
+      C[Storekeeper checks branch stock]
+      D{Item available?}
+      A --> B --> C --> D
+    end
 
-    B --> C[Storekeeper checks branch stock]
-    C --> D{Item available?}
+    subgraph S2[Branch Approval]
+      E[Storekeeper marks available quantity]
+      L[Storekeeper marks shortage quantity]
+      F[Forward to Branch Supervisor]
+      G{Branch Supervisor decision}
+      Z[Request rejected or returned with comments]
+      E --> F
+      L --> F
+      F --> G
+      G -->|Rejected / Returned| Z
+    end
 
-    D -->|Yes / Full or partial available| E[Storekeeper marks available quantity]
-    E --> F[Forward to Branch Supervisor]
-    F --> G{Branch Supervisor decision}
+    subgraph S3[Available in Branch Store]
+      H[Branch Storekeeper issues available item to requested employee]
+      I[Stock deducted from branch store]
+      J[Item added to employee inventory]
+      K[Request completed]
+      H --> I --> J --> K
+    end
 
-    G -->|Approved| H[Branch Storekeeper allots available item to employee]
-    G -->|Rejected / Returned| Z[Request rejected or returned with comments]
+    subgraph S4[Not Available: Admin and Tender Demand]
+      M[Shortage becomes Required Item / Demand]
+      N[Admin workflow starts by item group]
+      O[DD Admin review]
+      P[AD Admin review]
+      Q{Admin approved?}
+      R[Demand goes to Tender Module]
+      S[Required Items Queue]
+      T[Procurement groups similar demands]
+      U[Assign demand to new or existing tender]
+      V[Tender items prepared]
+      W[Vendor / PO / Delivery / Stock Acquisition]
+      M --> N --> O --> P --> Q
+      Q -->|Yes| R --> S --> T --> U --> V --> W
+      Q -->|No| Z
+    end
 
-    H --> I[Stock deducted from branch/store inventory]
-    I --> J[Item added to employee inventory]
-    J --> K[Request completed]
+    subgraph S5[Procured Stock Handoff to Branch]
+      X[Stock received by Admin / Central Store]
+      Y[Admin allots approved stock to Branch Supervisor]
+      AA[Branch Supervisor gives stock to Branch Storekeeper]
+      AB[Branch Storekeeper enters item into branch store]
+      AC[Branch Storekeeper issues item to requested employee]
+      X --> Y --> AA --> AB --> AC
+    end
 
-    D -->|No / Short quantity| L[Storekeeper marks shortage quantity]
-    L --> F
-
-    G -->|Approved but item not available| M[Shortage becomes Required Item / Demand]
-    M --> N[Admin workflow starts by item group]
-
-    N --> O[DD Admin review]
-    O --> P[AD Admin review]
-    P --> Q{Admin approved?}
-
-    Q -->|No| Z
-    Q -->|Yes| R[Demand goes to Tender Module]
-
-    R --> S[Required Items Queue]
-    S --> T[Procurement groups similar demands]
-    T --> U[Assign demand to new or existing tender]
-    U --> V[Tender items prepared]
-    V --> W[Vendor / PO / Delivery / Stock Acquisition]
-
-    W --> X[Stock received by Admin / Central Store]
-    X --> Y[Admin allots approved stock to Branch Supervisor]
-    Y --> AA[Branch Supervisor hands stock to Branch Storekeeper]
-    AA --> AB[Branch Storekeeper enters item into branch store]
-    AB --> AC[Branch Storekeeper issues item to requested employee]
+    D -->|Yes / full or partial available| E
+    D -->|No / short quantity| L
+    G -->|Approved and available| H
+    G -->|Approved but not available| M
+    W --> X
     AC --> I
 
     classDef employee fill:#e8f6ef,stroke:#21845a,stroke-width:2px,color:#172033;
