@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IMS Request to Issuance Workflow</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #c8d3e1;
+      --panel: #f7f9fc;
+      --employee: #e8f6ef;
+      --supervisor: #fff3df;
+      --admin: #e9efff;
+      --store: #edf7ff;
+      --inventory: #f1ecff;
+      --danger: #fff0f0;
+      --green: #21845a;
+      --orange: #b95f13;
+      --blue: #3157c9;
+      --cyan: #087ea4;
+      --violet: #6941c6;
+      --red: #b42318;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #e9eef5;
+      color: var(--ink);
+      font-family: "Aptos", "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px;
+      background: white;
+      min-height: 100vh;
+    }
+
+    header {
+      border-bottom: 3px solid #24426f;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+
+    h1, h2, h3 { margin: 0; }
+    h1 { font-size: 32px; letter-spacing: 0; color: #102a4c; }
+    h2 { font-size: 22px; color: #183b63; margin: 28px 0 14px; }
+    h3 { font-size: 16px; color: #253858; margin-bottom: 8px; }
+    p { margin: 8px 0; }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 15px;
+      margin-top: 8px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0 24px;
+    }
+
+    .summary-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .summary-card strong {
+      display: block;
+      font-size: 13px;
+      color: #344054;
+      margin-bottom: 6px;
+    }
+
+    .summary-card span {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      background: #f5f7fb;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 18px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #344054;
+    }
+
+    .dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 2px solid currentColor;
+      display: inline-block;
+    }
+
+    .workflow {
+      display: grid;
+      grid-template-columns: 1fr 44px 1fr 44px 1fr;
+      gap: 10px;
+      align-items: stretch;
+      margin: 18px 0;
+    }
+
+    .lane {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: white;
+      min-height: 100%;
+    }
+
+    .lane-title {
+      padding: 12px 14px;
+      color: white;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .employee .lane-title { background: var(--green); }
+    .supervisor .lane-title { background: var(--orange); }
+    .admin .lane-title { background: var(--blue); }
+    .store .lane-title { background: var(--cyan); }
+    .inventory .lane-title { background: var(--violet); }
+
+    .lane-body { padding: 12px; display: grid; gap: 10px; }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: white;
+      min-height: 82px;
+    }
+
+    .employee .step { background: var(--employee); }
+    .supervisor .step { background: var(--supervisor); }
+    .admin .step { background: var(--admin); }
+    .store .step { background: var(--store); }
+    .inventory .step { background: var(--inventory); }
+    .step.reject { background: var(--danger); border-color: #f3b7b7; }
+
+    .step-number {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      background: #344054;
+      font-weight: 700;
+      font-size: 12px;
+      margin-right: 6px;
+    }
+
+    .step-title {
+      font-weight: 700;
+      display: inline;
+      color: #182230;
+    }
+
+    .step p, .step ul {
+      margin: 8px 0 0;
+      color: #344054;
+      font-size: 13px;
+    }
+
+    ul { padding-left: 18px; }
+    li { margin: 4px 0; }
+
+    .arrow-col {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #49627f;
+  font-weight: 700;
+      font-size: 28px;
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 14px 0 18px;
+    }
+
+    .path {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      padding: 14px;
+  background: #fbfcff;
+    }
+
+    .path.available { border-left: 6px solid var(--green); }
+    .path.not-available { border-left: 6px solid var(--blue); }
+
+    .flow-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: white;
+      color: #253858;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .chev { color: #667085; font-weight: 800; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 13px;
+      overflow: hidden;
+      border-radius: 8px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #24426f;
+      color: white;
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    .note {
+      border-left: 5px solid #f79009;
+      background: #fff8eb;
+      padding: 12px 14px;
+      border-radius: 6px;
+      color: #4b320f;
+      margin: 16px 0;
+    }
+
+    .section-band {
+      background: #f7f9fc;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      margin: 14px 0;
+    }
+
+    .inventory-movement {
+      display: grid;
+      grid-template-columns: 1fr 40px 1fr 40px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    .move-box {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      padding: 14px;
+      min-height: 110px;
+      background: white;
+    }
+
+    .move-box h3 { margin-bottom: 8px; }
+    .minus { color: var(--red); font-weight: 800; }
+    .plus { color: var(--green); font-weight: 800; }
+
+    footer {
+      margin-top: 28px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .summary, .decision-grid, .workflow, .inventory-movement { grid-template-columns: 1fr; }
+      .arrow-col { transform: rotate(90deg); min-height: 28px; }
+    }
+
+    @media print {
+      body { background: white; }
+      .page { padding: 0; max-width: none; }
+      .section-band, .lane, .path, table, .inventory-movement { break-inside: avoid; }
+      h2 { break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>Inventory Request to Final Issuance Workflow</h1>
+      <p class="subtitle">Simple client-facing view of how IMS handles personal/branch requests, supervisor review, admin workflow, storekeeper issuance, and inventory movement.</p>
+    </header>
+
+    <section class="summary">
+      <div class="summary-card"><strong>Starting Point</strong><span>Employee creates a personal request from branch/wing context.</span></div>
+      <div class="summary-card"><strong>First Review</strong><span>Employee supervisor checks stock, quantity, and justification.</span></div>
+      <div class="summary-card"><strong>If Stock Missing</strong><span>Request moves to admin workflow based on item group.</span></div>
+      <div class="summary-card"><strong>Final Action</strong><span>Storekeeper issues item, stock is deducted, requester inventory is updated.</span></div>
+    </section>
+
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background: var(--employee); color: var(--green);"></span>Employee</div>
+      <div class="legend-item"><span class="dot" style="background: var(--supervisor); color: var(--orange);"></span>Supervisor</div>
+      <div class="legend-item"><span class="dot" style="background: var(--admin); color: var(--blue);"></span>Admin Workflow</div>
+      <div class="legend-item"><span class="dot" style="background: var(--store); color: var(--cyan);"></span>Storekeeper</div>
+      <div class="legend-item"><span class="dot" style="background: var(--inventory); color: var(--violet);"></span>Inventory Movement</div>
+    </div>
+
+    <h2>1. Main Workflow at a Glance</h2>
+    <section class="workflow">
+      <div class="lane employee">
+        <div class="lane-title">Employee / Requester</div>
+        <div class="lane-body">
+          <div class="step">
+            <span class="step-number">1</span><span class="step-title">Creates Request</span>
+            <p>Employee selects item(s), enters required quantity, purpose, and submits the request.</p>
+          </div>
+          <div class="step">
+            <span class="step-number">2</span><span class="step-title">Request is Logged</span>
+            <p>IMS stores request number, requester, branch/wing, item list, quantity, and status.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow-col">→</div>
+
+      <div class="lane supervisor">
+        <div class="lane-title">Employee Supervisor</div>
+        <div class="lane-body">
+          <div class="step">
+            <span class="step-number">3</span><span class="step-title">Checks Request</span>
+            <p>Supervisor reviews purpose, item, quantity, and branch/wing stock availability.</p>
+          </div>
+          <div class="step">
+            <span class="step-number">4</span><span class="step-title">Can Modify Quantity</span>
+            <p>Supervisor can approve less/more appropriate quantity and must write comments.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow-col">→</div>
+
+      <div class="lane admin">
+        <div class="lane-title">Admin Workflow / Storekeeper</div>
+        <div class="lane-body">
+          <div class="step">
+            <span class="step-number">5</span><span class="step-title">Two Possible Paths</span>
+            <p>If stock is available locally, supervisor sends to storekeeper. If not, supervisor forwards to group-wise admin workflow.</p>
+          </div>
+          <div class="step">
+            <span class="step-number">6</span><span class="step-title">Final Issuance</span>
+            <p>After approval, storekeeper issues item and IMS updates inventory records.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <h2>2. Supervisor Decision Point</h2>
+    <section class="decision-grid">
+      <div class="path available">
+        <h3>Path A: Item Available in Branch/Wing Stock</h3>
+        <p>The supervisor does not need admin procurement/workflow approval. The request goes directly to the local storekeeper for issuance.</p>
+        <div class="flow-line">
+          <span class="pill">Employee Request</span><span class="chev">→</span>
+          <span class="pill">Supervisor Review</span><span class="chev">→</span>
+          <span class="pill">Qty Adjusted + Comments</span><span class="chev">→</span>
+          <span class="pill">Storekeeper Issues</span><span class="chev">→</span>
+          <span class="pill">Requester Inventory Updated</span>
+        </div>
+      </div>
+
+      <div class="path not-available">
+        <h3>Path B: Item Not Available in Branch/Wing Stock</h3>
+        <p>The supervisor forwards the request to admin workflow. The workflow is based on the group of the requested item.</p>
+        <div class="flow-line">
+          <span class="pill">Employee Request</span><span class="chev">→</span>
+          <span class="pill">Supervisor Review</span><span class="chev">→</span>
+          <span class="pill">Forward to Admin</span><span class="chev">→</span>
+          <span class="pill">DD Admin</span><span class="chev">→</span>
+          <span class="pill">AD Admin</span><span class="chev">→</span>
+          <span class="pill">Storekeeper</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="note">
+      <strong>Important:</strong> At every approval stage, the approver should be able to change the approved quantity and add comments. The system should preserve the requested quantity, approved quantity, approver name, date/time, and comments for audit/history.
+    </div>
+
+    <h2>3. Group-Wise Admin Workflow</h2>
+    <section class="section-band">
+      <p>When stock is not available locally, the request is routed according to the group of the requested item. Each group can have its own approval path. A common client-friendly example is:</p>
+      <div class="flow-line">
+        <span class="pill">Supervisor Forward</span><span class="chev">→</span>
+        <span class="pill">DD Admin</span><span class="chev">→</span>
+        <span class="pill">AD Admin-I / AD Admin-II</span><span class="chev">→</span>
+        <span class="pill">Storekeeper</span><span class="chev">→</span>
+        <span class="pill">Issue Item</span>
+      </div>
+    </section>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>Who Acts</th>
+          <th>What They Can Do</th>
+          <th>System Output</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Request Submission</td>
+          <td>Employee</td>
+          <td>Select item, enter quantity, write purpose/justification.</td>
+          <td>Request number generated and request status becomes Submitted/Pending.</td>
+        </tr>
+        <tr>
+          <td>First Review</td>
+          <td>Supervisor</td>
+          <td>Check stock, approve/reject/forward, change quantity, write comments.</td>
+          <td>Request either goes to storekeeper or admin workflow.</td>
+        </tr>
+        <tr>
+          <td>Admin Group Workflow</td>
+          <td>DD Admin / AD Admin</td>
+          <td>Review item group, change approved quantity, approve/reject/forward, write comments.</td>
+          <td>Approval history is updated and request moves to next admin step.</td>
+        </tr>
+        <tr>
+          <td>Issuance</td>
+          <td>Storekeeper</td>
+          <td>Verify final approved item and quantity, issue stock to requester.</td>
+          <td>Stock is deducted from store inventory and added to requester inventory.</td>
+        </tr>
+        <tr>
+          <td>Completion</td>
+          <td>System</td>
+          <td>Record final issued quantity, issuer, issue date, and inventory ledger movement.</td>
+          <td>Request status becomes Issued/Completed and appears in history/reports.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>4. Final Inventory Movement</h2>
+    <section class="inventory-movement">
+      <div class="move-box">
+        <h3>Store Inventory</h3>
+        <p><span class="minus">Deduct:</span> Final issued quantity is subtracted from the issuing storekeeper's stock.</p>
+        <p>Example: 20 available - 3 issued = 17 remaining.</p>
+      </div>
+      <div class="arrow-col">→</div>
+      <div class="move-box">
+        <h3>Stock Ledger</h3>
+        <p>The system records a transaction with request number, item, quantity, issuer, receiver, date, and remarks.</p>
+      </div>
+      <div class="arrow-col">→</div>
+      <div class="move-box">
+        <h3>Requester Inventory</h3>
+        <p><span class="plus">Add:</span> The issued item is added to the employee's personal inventory or branch/wing possession list.</p>
+        <p>The requester can later see it in My Inventory / Issued Items.</p>
+      </div>
+    </section>
+
+    <h2>5. End-to-End Example</h2>
+    <section class="section-band">
+      <ol>
+        <li>Employee of a branch requests 5 laptops.</li>
+        <li>Supervisor receives the request and checks local branch stock.</li>
+        <li>If 3 laptops are available, supervisor may change approved quantity from 5 to 3 and add comments.</li>
+        <li>If local stock is enough, supervisor sends the request to the branch/wing storekeeper for issuance.</li>
+        <li>If local stock is not enough, supervisor forwards it to admin workflow based on the laptop item group.</li>
+        <li>DD Admin and AD Admin review the request, can adjust quantity, and record comments.</li>
+        <li>After final approval, storekeeper issues the approved quantity.</li>
+        <li>IMS deducts the issued quantity from store inventory, writes stock transaction history, and adds the item to the requester inventory.</li>
+      </ol>
+    </section>
+
+    <h2>6. Statuses the Client Will See</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Submitted / Pending Supervisor Review</td><td>Request has been created and is waiting for supervisor action.</td></tr>
+        <tr><td>Approved by Supervisor</td><td>Supervisor approved and can send to storekeeper if stock is available.</td></tr>
+        <tr><td>Forwarded to Admin Workflow</td><td>Supervisor could not fulfill from local stock and sent it to group-wise admin approval.</td></tr>
+        <tr><td>Pending DD Admin / AD Admin</td><td>Request is moving through item-group admin workflow.</td></tr>
+        <tr><td>Approved for Issuance</td><td>Final approver approved the quantity and storekeeper can issue.</td></tr>
+        <tr><td>Issued / Completed</td><td>Item has been issued, inventory deducted, and requester inventory updated.</td></tr>
+        <tr><td>Rejected / Returned</td><td>Approver rejected or returned the request with comments.</td></tr>
+      </tbody>
+    </table>
+
+    <footer>
+      IMS workflow explanation prepared for client discussion. This document describes the intended business process from first request to final inventory allocation.
+    </footer>
+  </main>
+</body>
+</html>
