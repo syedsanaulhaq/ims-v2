@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Printer, Search } from 'lucide-react';
 import { getApiBaseUrl } from '@/services/invmisApi';
 
@@ -43,6 +44,7 @@ interface RequisitionOption {
   request_status?: string;
   office_name?: string;
   wing_name?: string;
+  is_completed?: boolean;
 }
 
 const formatDate = (value?: string | null, fallback = '-') => {
@@ -68,6 +70,7 @@ const isCompletedRequest = (request: any) => {
 
   return (
     statusBlob.includes('completed') ||
+    statusBlob.includes('approved') ||
     statusBlob === 'issued' ||
     statusBlob.includes('finalized') ||
     statusBlob.includes('finalised') ||
@@ -247,9 +250,8 @@ const RequisitionReportPage: React.FC = () => {
         });
 
         if (!requestId) {
-          const requestsToShow = (myRequests.length > 0 ? myRequests : allRequests)
-            .filter((request) => !isCompletedRequest(request));
-          console.log(`Requisition report: showing ${requestsToShow.length} incomplete requests (filtered: ${myRequests.length}, all: ${allRequests.length})`);
+          const requestsToShow = myRequests.length > 0 ? myRequests : allRequests;
+          console.log(`Requisition report: showing ${requestsToShow.length} requests grouped by status (filtered: ${myRequests.length}, all: ${allRequests.length})`);
 
           const options = requestsToShow
             .sort((a: any, b: any) => {
@@ -274,7 +276,8 @@ const RequisitionReportPage: React.FC = () => {
               request_type: r.request_type || '-',
               request_status: r.request_status || r.approval_status || '-',
               office_name: r.office?.name || r.office?.office_name || '-',
-              wing_name: r.wing?.name || '-'
+              wing_name: r.wing?.name || '-',
+              is_completed: isCompletedRequest(r)
             }));
           setRequestOptions(options);
           return;
@@ -538,6 +541,44 @@ const RequisitionReportPage: React.FC = () => {
 
     return blob.includes(q);
   });
+  const pendingRequestOptions = filteredRequestOptions.filter((req) => !req.is_completed);
+  const completedRequestOptions = filteredRequestOptions.filter((req) => req.is_completed);
+
+  const renderRequestGroup = (title: string, options: RequisitionOption[], variant: 'pending' | 'completed') => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between border-b pb-2">
+        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+        <Badge className={variant === 'completed' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
+          {options.length}
+        </Badge>
+      </div>
+      {options.length === 0 ? (
+        <div className="text-sm text-gray-500 py-3">No {variant} requisition reports found.</div>
+      ) : (
+        options.map((req) => (
+          <div key={req.id} className="border rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold text-sm">{req.request_number || req.id.slice(0, 12)}</p>
+                <Badge className={req.is_completed ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
+                  {req.is_completed ? 'Completed' : 'Pending'}
+                </Badge>
+              </div>
+              <p className="text-sm text-gray-700"><span className="font-medium">Requested By:</span> {req.requester_name || '-'}</p>
+              <p className="text-sm text-gray-700"><span className="font-medium">Designation:</span> {req.requester_designation || '-'}</p>
+              <p className="text-sm text-gray-700"><span className="font-medium">Office/Wing:</span> {req.office_name || '-'} / {req.wing_name || '-'}</p>
+              <p className="text-sm text-gray-700"><span className="font-medium">Type/Status:</span> {req.request_type || '-'} / {req.request_status || '-'}</p>
+              <p className="text-sm text-gray-600"><span className="font-medium">Purpose:</span> {req.purpose || '-'}</p>
+              <p className="text-xs text-gray-500"><span className="font-medium">Submitted:</span> {formatDate(req.submitted_at, '-')}</p>
+            </div>
+            <Button size="sm" onClick={() => navigate(`/dashboard/requisition-report/${req.id}`)}>
+              Open Report
+            </Button>
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   if (!requestId) {
     return (
@@ -559,22 +600,10 @@ const RequisitionReportPage: React.FC = () => {
             {filteredRequestOptions.length === 0 ? (
               <div className="text-center text-sm text-gray-600 py-6">No matching requisition reports found.</div>
             ) : (
-              filteredRequestOptions.map((req) => (
-                <div key={req.id} className="border rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-sm">{req.request_number || req.id.slice(0, 12)}</p>
-                    <p className="text-sm text-gray-700"><span className="font-medium">Requested By:</span> {req.requester_name || '-'}</p>
-                    <p className="text-sm text-gray-700"><span className="font-medium">Designation:</span> {req.requester_designation || '-'}</p>
-                    <p className="text-sm text-gray-700"><span className="font-medium">Office/Wing:</span> {req.office_name || '-'} / {req.wing_name || '-'}</p>
-                    <p className="text-sm text-gray-700"><span className="font-medium">Type/Status:</span> {req.request_type || '-'} / {req.request_status || '-'}</p>
-                    <p className="text-sm text-gray-600"><span className="font-medium">Purpose:</span> {req.purpose || '-'}</p>
-                    <p className="text-xs text-gray-500"><span className="font-medium">Submitted:</span> {formatDate(req.submitted_at, '-')}</p>
-                  </div>
-                  <Button size="sm" onClick={() => navigate(`/dashboard/requisition-report/${req.id}`)}>
-                    Open Report
-                  </Button>
-                </div>
-              ))
+              <div className="space-y-8">
+                {renderRequestGroup('Pending Requisitions', pendingRequestOptions, 'pending')}
+                {renderRequestGroup('Completed Requisitions', completedRequestOptions, 'completed')}
+              </div>
             )}
           </CardContent>
         </Card>
