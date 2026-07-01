@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/api-config';
 import { useSession } from '../contexts/SessionContext';
+import { generateScopedRequestNumber } from '@/utils/requestNumber';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -170,7 +171,7 @@ const StockIssuanceBranch: React.FC = () => {
 
       const userId = (user as any)?.user_id || (user as any)?.Id;
       const wingId = (user as any)?.wing_id || (user as any)?.intWingID || (user as any)?.WingID || null;
-      const requestNumber = `BRANCH-${Date.now()}`;
+      const requestNumber = generateScopedRequestNumber(branchName, 'BRANCH');
 
       const requestPayload = {
         request_number: requestNumber,

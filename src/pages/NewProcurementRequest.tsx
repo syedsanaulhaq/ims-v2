@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/api-config';
 import { useSession } from '../contexts/SessionContext';
 import erpDatabaseService from '@/services/erpDatabaseService';
+import { generateScopedRequestNumber } from '@/utils/requestNumber';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -189,8 +190,8 @@ const NewProcurementRequest: React.FC = () => {
       // Get wing ID from user
       const wingId = user?.intWingID || user?.wing_id || user?.WingID;
 
-      // Generate request number
-      const requestNumber = `WING-${Date.now()}`;
+      // Generate request number from the current wing name, e.g. Project Management Unit -> PMU-1234567890
+      const requestNumber = generateScopedRequestNumber(wingName || (user as any)?.wing_name, 'WING');
 
       // Create the stock issuance request first
       const requestPayload = {
