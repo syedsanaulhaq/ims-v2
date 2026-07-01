@@ -110,15 +110,20 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
   const { hasPermission: isWingStoreKeeper } = usePermission('inventory.manage_store_keeper');
   const { hasPermission: isSuperAdmin } = usePermission('admin.super');
-  const hasBranchScope = Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) > 0;
 
   const roleNames = (user?.ims_roles || []).map(r => String(r.role_name || '').toUpperCase());
+  const hasBranchSupervisorRole = roleNames.some(role =>
+    role === 'BRANCH_SUPERVISOR' ||
+    role === 'BRANCH SUPERVISOR' ||
+    role === 'CUSTOM_BRANCH_SUPERVISOR'
+  );
   const hasBranchStorekeeperRole = roleNames.some(role =>
     role === 'BRANCH_STORE_KEEPER' ||
     role === 'BRANCH STOREKEEPER' ||
     role === 'BRANCH STORE KEEPER' ||
     role === 'CUSTOM_BRANCH_STORE_KEEPER'
   );
+  const canAccessBranchMenu = isSuperAdmin || hasBranchSupervisorRole || hasBranchStorekeeperRole;
   const hasApproverRole = roleNames.some(role =>
     role === 'AD ADMIN-I' ||
     role === 'AD ADMIN-II' ||
@@ -177,10 +182,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       canRequestIssuance: !!user?.ims_permissions?.some(p => p.permission_key === 'issuance.request'),
       canApprove: !!user?.ims_permissions?.some(p => p.permission_key === 'approval.approve'),
       isWingSupervisor: !!user?.ims_permissions?.some(p => p.permission_key === 'wing.supervisor'),
+      hasBranchSupervisorRole,
+      hasBranchStorekeeperRole,
       hasStoreKeeperRole: hasStoreKeeperRole,
       isSuperAdmin: user?.is_super_admin
     });
-  }, [user, hasStoreKeeperRole]);
+  }, [user, hasStoreKeeperRole, hasBranchSupervisorRole, hasBranchStorekeeperRole]);
 
   const handleLogout = async () => {
     try {
@@ -233,7 +240,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ]
   };
 
-  // BRANCH MENU - For branch-scoped users
+  // BRANCH MENU - For branch supervisors and branch storekeepers
   const branchMenuGroup: MenuGroup = {
     label: "Branch Menu",
     icon: Building2,
@@ -399,8 +406,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show branch menu for branch-scoped users and super admins.
-    if (hasBranchScope || isSuperAdmin) {
+    // Show branch menu only to branch supervisors, branch storekeepers, and super admins.
+    if (canAccessBranchMenu) {
       const visibleBranchItems = branchMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleBranchItems.length > 0) {
         groups.push({ ...branchMenuGroup, items: visibleBranchItems });
