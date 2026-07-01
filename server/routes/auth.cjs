@@ -39,16 +39,17 @@ function pickExistingColumn(columnsSet, candidates) {
   return null;
 }
 
-async function resolveBranchDetailsFromEmployeeView(pool, { userId, userName, cnic, fallbackBranchId = null, fallbackBranchName = null }) {
+async function resolveBranchDetailsFromEmployeeView(pool, { userId, userName, cnic, fallbackBranchId = null, fallbackBranchName = null, fallbackBranchAcron = null }) {
   try {
     const columns = await getEmployeeBranchViewColumns(pool);
 
     const branchIdColumn = pickExistingColumn(columns, ['DEC_ID', 'branch_id', 'BranchID', 'intBranchID']);
     if (!branchIdColumn) {
-      return { branchId: fallbackBranchId, branchName: fallbackBranchName };
+      return { branchId: fallbackBranchId, branchName: fallbackBranchName, branchAcron: fallbackBranchAcron };
     }
 
     const branchNameColumn = pickExistingColumn(columns, ['BranchName', 'branch_name', 'DECName', 'Name']);
+    const branchAcronColumn = pickExistingColumn(columns, ['BranchAcron', 'branch_acron', 'BranchAcronym', 'branch_acronym']);
     const idColumn = pickExistingColumn(columns, ['Id', 'ID', 'user_id', 'UserId', 'aspnet_user_id', 'AspNetUserId']);
     const userNameColumn = pickExistingColumn(columns, ['UserName', 'user_name']);
     const cnicColumn = pickExistingColumn(columns, ['CNIC', 'cnic']);
@@ -59,7 +60,8 @@ async function resolveBranchDetailsFromEmployeeView(pool, { userId, userName, cn
         .query(`
           SELECT TOP 1
             [${branchIdColumn}] AS branch_id,
-            ${branchNameColumn ? `[${branchNameColumn}]` : 'CAST(NULL AS NVARCHAR(200))'} AS branch_name
+            ${branchNameColumn ? `[${branchNameColumn}]` : 'CAST(NULL AS NVARCHAR(200))'} AS branch_name,
+            ${branchAcronColumn ? `[${branchAcronColumn}]` : 'CAST(NULL AS NVARCHAR(50))'} AS branch_acron
           FROM vw_employee_branch
           WHERE [${cnicColumn}] = @cnic
         `);
@@ -67,7 +69,8 @@ async function resolveBranchDetailsFromEmployeeView(pool, { userId, userName, cn
       if (cnicResult.recordset?.[0]?.branch_id) {
         return {
           branchId: cnicResult.recordset[0].branch_id,
-          branchName: cnicResult.recordset[0].branch_name ?? fallbackBranchName
+          branchName: cnicResult.recordset[0].branch_name ?? fallbackBranchName,
+          branchAcron: cnicResult.recordset[0].branch_acron ?? fallbackBranchAcron
         };
       }
     }
@@ -86,26 +89,29 @@ async function resolveBranchDetailsFromEmployeeView(pool, { userId, userName, cn
     }
 
     if (whereParts.length === 0) {
-      return { branchId: fallbackBranchId, branchName: fallbackBranchName };
+      return { branchId: fallbackBranchId, branchName: fallbackBranchName, branchAcron: fallbackBranchAcron };
     }
 
     const result = await request.query(`
       SELECT TOP 1
         [${branchIdColumn}] AS branch_id,
-        ${branchNameColumn ? `[${branchNameColumn}]` : 'CAST(NULL AS NVARCHAR(200))'} AS branch_name
+        ${branchNameColumn ? `[${branchNameColumn}]` : 'CAST(NULL AS NVARCHAR(200))'} AS branch_name,
+        ${branchAcronColumn ? `[${branchAcronColumn}]` : 'CAST(NULL AS NVARCHAR(50))'} AS branch_acron
       FROM vw_employee_branch
       WHERE ${whereParts.join(' OR ')}
     `);
 
     const resolvedBranchId = result.recordset?.[0]?.branch_id;
     const resolvedBranchName = result.recordset?.[0]?.branch_name;
+    const resolvedBranchAcron = result.recordset?.[0]?.branch_acron;
     return {
       branchId: resolvedBranchId ?? fallbackBranchId,
-      branchName: resolvedBranchName ?? fallbackBranchName
+      branchName: resolvedBranchName ?? fallbackBranchName,
+      branchAcron: resolvedBranchAcron ?? fallbackBranchAcron
     };
   } catch (error) {
     console.warn('⚠️ Could not resolve branch from vw_employee_branch:', error.message);
-    return { branchId: fallbackBranchId, branchName: fallbackBranchName };
+    return { branchId: fallbackBranchId, branchName: fallbackBranchName, branchAcron: fallbackBranchAcron };
   }
 }
 
@@ -304,6 +310,7 @@ router.post('/login', async (req, res) => {
       intWingID: user.intWingID,
       intBranchID: resolvedBranch.branchId,
       BranchName: resolvedBranch.branchName,
+      BranchAcron: resolvedBranch.branchAcron,
       intDesignationID: user.intDesignationID
     };
 
@@ -407,12 +414,14 @@ router.get('/session', async (req, res) => {
       userName: req.session.user?.UserName,
       cnic: sessionCnic,
       fallbackBranchId: req.session.user?.intBranchID || null,
-      fallbackBranchName: req.session.user?.BranchName || null
+      fallbackBranchName: req.session.user?.BranchName || null,
+      fallbackBranchAcron: req.session.user?.BranchAcron || null
     });
 
     req.session.user.CNIC = sessionCnic;
     req.session.user.intBranchID = branchDetails.branchId;
     req.session.user.BranchName = branchDetails.branchName;
+    req.session.user.BranchAcron = branchDetails.branchAcron;
 
     const sessionUser = {
       user_id: req.session.userId,
@@ -424,6 +433,7 @@ router.get('/session', async (req, res) => {
       wing_id: req.session.user?.intWingID || 19,
       branch_id: branchDetails.branchId || null,
       branch_name: branchDetails.branchName || null,
+      branch_acronym: branchDetails.branchAcron || null,
       ims_roles: imsData?.roles || [],
       ims_permissions: imsData?.permissions || [],
       is_super_admin: imsData?.is_super_admin || false
@@ -621,6 +631,7 @@ router.post('/ds-authenticate', async (req, res) => {
         district_id: user.intDistrictID,
         branch_id: resolvedBranch.branchId,
         branch_name: resolvedBranch.branchName,
+        branch_acronym: resolvedBranch.branchAcron,
         designation_id: user.intDesignationID,
         role: user.Role,
         uid: user.UID,
@@ -753,6 +764,7 @@ router.get('/sso-login', async (req, res) => {
     });
     req.session.user.intBranchID = resolvedBranch.branchId;
     req.session.user.BranchName = resolvedBranch.branchName;
+    req.session.user.BranchAcron = resolvedBranch.branchAcron;
 
     // Assign default GENERAL_USER role if user has no IMS roles yet
     // (IMS Super Admin pre-assigns specific roles in ims_user_roles table)

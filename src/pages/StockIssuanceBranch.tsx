@@ -52,6 +52,7 @@ const StockIssuanceBranch: React.FC = () => {
 
   const branchId = Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) || 0;
   const branchName = (user as any)?.branch_name || (user as any)?.BranchName || 'Unknown Branch';
+  const branchAcronym = (user as any)?.branch_acronym || (user as any)?.BranchAcron || '';
 
   useEffect(() => {
     fetchItemsLibrary();
@@ -171,7 +172,7 @@ const StockIssuanceBranch: React.FC = () => {
 
       const userId = (user as any)?.user_id || (user as any)?.Id;
       const wingId = (user as any)?.wing_id || (user as any)?.intWingID || (user as any)?.WingID || null;
-      const requestNumber = generateScopedRequestNumber(branchName, 'BRANCH');
+      const requestNumber = generateScopedRequestNumber(branchAcronym || branchName, 'BRANCH');
 
       const requestPayload = {
         request_number: requestNumber,

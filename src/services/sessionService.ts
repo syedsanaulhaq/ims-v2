@@ -11,6 +11,7 @@ interface User {
   wing_id: number;
   branch_id?: number | null;
   branch_name?: string | null;
+  branch_acronym?: string | null;
   created_at: string;
   // IMS Role System fields
   ims_roles?: Array<{
