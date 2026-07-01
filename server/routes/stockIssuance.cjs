@@ -1085,7 +1085,7 @@ const createStockIssuanceRequest = async (req, res) => {
             if (startsAtBranchStorekeeper) {
               await pool.request()
                 .input('requestId', sql.UniqueIdentifier, requestId)
-                .input('approvalStatus', sql.NVarChar(100), 'Pending Branch Storekeeper Review')
+                .input('approvalStatus', sql.NVarChar(100), 'Pending Supervisor Review')
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,
@@ -1358,7 +1358,10 @@ async function handleBranchStorekeeperRequests(req, res) {
           sir.purpose,
           sir.justification,
           sir.urgency_level,
-          sir.approval_status,
+          CASE
+            WHEN sir.approval_status = 'Pending Supervisor Review' THEN 'Pending Branch Storekeeper'
+            ELSE sir.approval_status
+          END AS approval_status,
           sir.request_status,
           sir.submitted_at,
           u.FullName AS requester_name,
@@ -1385,7 +1388,7 @@ async function handleBranchStorekeeperRequests(req, res) {
           AND ra.current_status = 'pending'
           AND sir.request_type = 'branch'
           AND sir.requester_branch_id = @branchId
-          AND sir.approval_status = 'Pending Branch Storekeeper Review'
+          AND sir.approval_status IN ('Pending Supervisor Review', 'Pending')
           AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
           AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
         ORDER BY sir.submitted_at DESC, sir.request_number DESC, nomenclature ASC
@@ -1462,7 +1465,7 @@ router.post('/branch-storekeeper/review/:requestId', requireAuth, async (req, re
           AND sir.request_type = 'branch'
           AND ra.current_approver_id = @userId
           AND ra.current_status = 'pending'
-          AND sir.approval_status = 'Pending Branch Storekeeper Review'
+          AND sir.approval_status IN ('Pending Supervisor Review', 'Pending')
       `);
 
     const requestRow = requestResult.recordset[0];
@@ -1544,7 +1547,7 @@ router.post('/branch-storekeeper/review/:requestId', requireAuth, async (req, re
         INSERT INTO approval_history
           (request_approval_id, action_type, action_by, comments, step_number, is_current_step, forwarded_to)
         VALUES
-          (@approvalId, 'forwarded_to_supervisor', @actionBy, @comments, @stepNumber, 1, @forwardedTo)
+          (@approvalId, 'forwarded', @actionBy, @comments, @stepNumber, 1, @forwardedTo)
       `);
 
     await transaction.request()
@@ -1562,7 +1565,7 @@ router.post('/branch-storekeeper/review/:requestId', requireAuth, async (req, re
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`
         UPDATE stock_issuance_requests
-        SET approval_status = 'Forwarded to Branch Supervisor',
+        SET approval_status = 'Pending Supervisor Review',
             request_status = 'Pending',
             updated_at = GETDATE()
         WHERE id = @requestId
