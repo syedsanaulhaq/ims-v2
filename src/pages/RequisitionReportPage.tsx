@@ -546,9 +546,12 @@ const RequisitionReportPage: React.FC = () => {
 
   const renderRequestGroup = (title: string, options: RequisitionOption[], variant: 'pending' | 'completed') => (
     <div className="space-y-3">
-      <div className="flex items-center justify-between border-b pb-2">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        <Badge className={variant === 'completed' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
+      <div className={variant === 'completed'
+        ? 'flex items-center justify-between rounded-md border border-green-200 bg-green-50 px-4 py-2 border-l-4 border-l-green-600'
+        : 'flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-4 py-2 border-l-4 border-l-amber-600'
+      }>
+        <h3 className={variant === 'completed' ? 'text-base font-semibold text-green-900' : 'text-base font-semibold text-amber-900'}>{title}</h3>
+        <Badge className={variant === 'completed' ? 'bg-green-700 text-white' : 'bg-amber-700 text-white'}>
           {options.length}
         </Badge>
       </div>
