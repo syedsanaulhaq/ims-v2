@@ -211,21 +211,73 @@ const BranchDemandsManager: React.FC = () => {
             ) : demands.length === 0 ? (
               <div className="text-sm text-gray-500">No demand lines found.</div>
             ) : (
-              <div className="space-y-3">
-                {demands.map((demand) => (
-                  <div key={demand.id} className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-12 gap-2 text-sm">
-                    <div className="md:col-span-4">
-                      <div className="font-medium break-words">{demand.item_nomenclature}</div>
-                      <div className="text-xs text-gray-600">Staff: {demand.staff_name || '-'}</div>
+              <div className="space-y-4">
+                {requests.map((request) => {
+                  const requestItems = request.items;
+                  const effectiveStatus = request.approval_status || request.request_status || 'Pending';
+                  return (
+                    <div key={request.id} className="border rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        <div>
+                          <div className="text-sm text-gray-600">Request Number</div>
+                          <div className="text-lg font-bold">{request.request_number || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Submitted By</div>
+                          <div className="font-medium">{request.requester_name || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Date & Time</div>
+                          <div className="font-medium">{toDateTime(request.submitted_at || request.created_at)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Total Items</div>
+                          <div className="font-bold text-lg">
+                            {request.total_requested_quantity} Qty <span className="text-sm text-gray-600">({request.total_demand_lines} lines)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center border-t pt-3">
+                        <div>
+                          <div className="text-sm text-gray-600">Status</div>
+                          <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Priority</div>
+                          <div className="font-medium">{request.urgency_level || 'Normal'}</div>
+                        </div>
+                        <div></div>
+                        <div>
+                          <button
+                            type="button"
+                            className="px-3 py-2 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors w-full text-center"
+                            onClick={() => setSelectedRequest(request)}
+                          >
+                            View Items ({requestItems.length})
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="md:col-span-2">Qty: <span className="font-semibold">{demand.requested_quantity} {demand.unit_label || 'No(s)'}</span></div>
-                    <div className="md:col-span-2">
-                      <Badge className={statusClass(demand.status)}>{demand.status || 'SUBMITTED'}</Badge>
+                  );
+                })}
+                
+                {demands.filter((d) => !d.included_in_request_id).length > 0 && (
+                  <div className="border-2 border-amber-200 rounded-lg p-4 bg-amber-50">
+                    <div className="text-sm font-semibold text-amber-900 mb-3">Pending Inclusion in Request</div>
+                    <div className="space-y-2">
+                      {demands.filter((d) => !d.included_in_request_id).map((demand) => (
+                        <div key={demand.id} className="flex justify-between items-center text-sm">
+                          <div>
+                            <span className="font-medium">{demand.item_nomenclature}</span>
+                            <span className="text-gray-600 ml-2">- Qty: {demand.requested_quantity} {demand.unit_label || 'No(s)'}</span>
+                          </div>
+                          <Badge className={statusClass(demand.status)}>{demand.status || 'SUBMITTED'}</Badge>
+                        </div>
+                      ))}
                     </div>
-                    <div className="md:col-span-2 break-words">Request: {demand.included_request_number || '-'}</div>
-                    <div className="md:col-span-2 text-gray-600">{toDateTime(demand.created_at)}</div>
                   </div>
-                ))}
+                )}
               </div>
             )}
           </CardContent>
