@@ -1973,18 +1973,42 @@ router.post('/:approvalId/approve', async (req, res) => {
         for (const allocation of item_allocations) {
           await transaction.request()
             .input('itemId', sql.NVarChar, allocation.requested_item_id)
+            .input('requested_quantity', sql.Int, allocation.requested_quantity || 0)
             .input('allocated_quantity', sql.Int, allocation.allocated_quantity || 0)
             .input('decision_type', sql.NVarChar, allocation.decision_type)
             .input('rejection_reason', sql.NVarChar, allocation.rejection_reason || '')
             .input('forwarding_reason', sql.NVarChar, allocation.forwarding_reason || '')
             .query(`
               UPDATE approval_items
-              SET allocated_quantity = @allocated_quantity,
+              SET requested_quantity = CASE
+                    WHEN @requested_quantity > 0 THEN @requested_quantity
+                    ELSE requested_quantity
+                  END,
+                  allocated_quantity = @allocated_quantity,
                   decision_type = @decision_type,
                   rejection_reason = @rejection_reason,
                   forwarding_reason = @forwarding_reason,
                   updated_at = GETDATE()
               WHERE id = @itemId
+            `);
+
+          await transaction.request()
+            .input('itemId', sql.NVarChar, allocation.requested_item_id)
+            .input('requested_quantity', sql.Int, allocation.requested_quantity || 0)
+            .input('allocated_quantity', sql.Int, allocation.allocated_quantity || 0)
+            .input('decision_type', sql.NVarChar, allocation.decision_type)
+            .query(`
+              UPDATE stock_issuance_items
+              SET requested_quantity = CASE
+                    WHEN @requested_quantity > 0 THEN @requested_quantity
+                    ELSE requested_quantity
+                  END,
+                  approved_quantity = CASE
+                    WHEN @decision_type = 'APPROVE_FROM_STOCK' THEN @allocated_quantity
+                    ELSE approved_quantity
+                  END,
+                  updated_at = GETDATE()
+              WHERE id = TRY_CONVERT(uniqueidentifier, @itemId)
             `);
         }
       }

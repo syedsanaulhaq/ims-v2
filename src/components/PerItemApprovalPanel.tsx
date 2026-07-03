@@ -72,6 +72,7 @@ interface RequestItem {
   item_description?: string;
   unit?: string;
   approved_quantity?: number;
+  allocated_quantity?: number;
   request_purpose?: string;
   expected_return_date?: string;
   is_returnable?: boolean;
@@ -541,7 +542,37 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const getItemQuantity = (item: RequestItem) => {
-    return item.requested_quantity || item.quantity || 0;
+    const allocatedQty = Number(item.allocated_quantity ?? 0);
+    if (Number.isFinite(allocatedQty) && allocatedQty > 0) {
+      return allocatedQty;
+    }
+    const requestedQty = Number(item.requested_quantity ?? item.quantity ?? 0);
+    return Number.isFinite(requestedQty) ? requestedQty : 0;
+  };
+
+  const getEditableQuantity = (item: RequestItem) => {
+    const itemId = getItemId(item);
+    const decision = getItemDecision(itemId);
+    const qty = Number(decision?.approvedQuantity ?? getItemQuantity(item));
+    return Number.isFinite(qty) ? qty : 0;
+  };
+
+  const updateItemQuantity = (item: RequestItem, nextValue: string) => {
+    const itemId = getItemId(item);
+    if (!itemId) return;
+
+    const parsedQty = Math.max(0, parseInt(nextValue || '0', 10) || 0);
+    const existingDecision = getItemDecision(itemId);
+    const newDecisions = new Map(itemDecisions);
+
+    newDecisions.set(itemId, {
+      itemId,
+      decision: existingDecision?.decision || null,
+      approvedQuantity: parsedQty,
+      reason: existingDecision?.reason || ''
+    });
+
+    setItemDecisions(newDecisions);
   };
 
   const getItemId = (item: RequestItem) => {
@@ -684,16 +715,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         const decision = getItemDecision(itemId);
       let decisionType: 'APPROVE_FROM_STOCK' | 'FORWARD_TO_ADMIN' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' | 'RETURN' = 'REJECT';
         let allocatedQty = 0;
+        const revisedQty = Math.max(0, Number(decision?.approvedQuantity ?? getItemQuantity(item) || 0));
 
         if (decision?.decision === 'approve_wing') {
           decisionType = 'APPROVE_FROM_STOCK';
-          allocatedQty = decision.approvedQuantity || getItemQuantity(item);
+          allocatedQty = revisedQty;
         } else if (decision?.decision === 'forward_admin') {
           decisionType = 'FORWARD_TO_ADMIN';
-          allocatedQty = decision.approvedQuantity || getItemQuantity(item);
+          allocatedQty = revisedQty;
         } else if (decision?.decision === 'forward_supervisor') {
           decisionType = 'FORWARD_TO_SUPERVISOR';
-          allocatedQty = decision.approvedQuantity || getItemQuantity(item);
+          allocatedQty = revisedQty;
         } else if (decision?.decision === 'return') {
           decisionType = 'RETURN'; // Use explicit RETURN decision type
           allocatedQty = 0;
@@ -707,6 +739,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
         return {
           requested_item_id: itemId,
+          requested_quantity: revisedQty,
           allocated_quantity: allocatedQty,
           decision_type: decisionType,
           rejection_reason: decision?.decision === 'reject' 
@@ -1176,7 +1209,23 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                             <div className="font-medium text-gray-900">{getItemName(item)}</div>
                             <div className="text-xs text-gray-500">Code: {item.item_code || 'N/A'}</div>
                           </td>
-                          <td className="px-3 py-2">{getItemQuantity(item)} {item.unit || 'units'}</td>
+                          <td className="px-3 py-2">
+                            {isDecisionStage ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={getEditableQuantity(item)}
+                                  onChange={(e) => updateItemQuantity(item, e.target.value)}
+                                  disabled={shouldDisableControls()}
+                                  className="h-8 w-20"
+                                />
+                                <span className="text-xs text-gray-600">No(s)</span>
+                              </div>
+                            ) : (
+                              <span>{getEditableQuantity(item)} No(s)</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2">
                             {isDecisionStage ? (
                               <Select
@@ -1187,7 +1236,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                     decisionValue === 'approve_wing' ||
                                     decisionValue === 'forward_admin' ||
                                     decisionValue === 'forward_supervisor'
-                                  ) ? getItemQuantity(item) : 0;
+                                  ) ? getEditableQuantity(item) : 0;
                                   handleItemDecisionChange(itemId, decisionValue, approvedQuantity);
                                 }}
                                 disabled={shouldDisableControls()}
@@ -1415,7 +1464,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 
                 <div>
                   <div className="text-xs text-gray-600 font-medium mb-1">Requested Qty</div>
-                  <div className="font-semibold">{getItemQuantity(selectedItemForStock)} {selectedItemForStock.unit || 'units'}</div>
+                  <div className="font-semibold">{getItemQuantity(selectedItemForStock)} No(s)</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-600 font-medium mb-1">Stock Available</div>
@@ -1423,7 +1472,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     <div className="text-xs"><LoadingSpinner size="sm" className="inline" /> Loading...</div>
                   ) : (
                     <div className={`font-bold ${stockAvailable >= getItemQuantity(selectedItemForStock) ? 'text-green-600' : 'text-red-600'}`}>
-                      {stockAvailable} {selectedItemForStock.unit || 'units'}
+                      {stockAvailable} No(s)
                     </div>
                   )}
                 </div>
@@ -1456,11 +1505,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
               <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
                 {stockAvailable >= getItemQuantity(selectedItemForStock) ? (
                   <div className="text-sm text-green-700">
-                    <strong>✓ Stock Available</strong> - {stockAvailable} units in stock (Requested: {getItemQuantity(selectedItemForStock)})
+                    <strong>✓ Stock Available</strong> - {stockAvailable} No(s) in stock (Requested: {getItemQuantity(selectedItemForStock)} No(s))
                   </div>
                 ) : (
                   <div className="text-sm text-red-700">
-                    <strong>✗ Insufficient Stock</strong> - Only {stockAvailable} units in stock (Requested: {getItemQuantity(selectedItemForStock)})
+                    <strong>✗ Insufficient Stock</strong> - Only {stockAvailable} No(s) in stock (Requested: {getItemQuantity(selectedItemForStock)} No(s))
                   </div>
                 )}
               </div>
@@ -1500,7 +1549,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 
                 <div>
                   <div className="text-xs text-gray-600 font-medium mb-1">Requested Qty</div>
-                  <div className="font-semibold">{getItemQuantity(wingConfirmItem)} {wingConfirmItem.unit || 'units'}</div>
+                  <div className="font-semibold">{getItemQuantity(wingConfirmItem)} No(s)</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-600 font-medium mb-1">Current Stock</div>
@@ -1508,7 +1557,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     <div className="text-xs"><LoadingSpinner size="sm" className="inline" /> Loading...</div>
                   ) : (
                     <div className={`font-bold ${wingStockAvailable >= getItemQuantity(wingConfirmItem) ? 'text-green-600' : 'text-amber-600'}`}>
-                      {wingStockAvailable} {wingConfirmItem.unit || 'units'}
+                      {wingStockAvailable} No(s)
                     </div>
                   )}
                 </div>
