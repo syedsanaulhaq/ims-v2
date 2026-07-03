@@ -4,17 +4,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useSession } from '@/contexts/SessionContext';
 import { AlertCircle, CheckCircle2, History, RefreshCcw } from 'lucide-react';
 
 interface DemandRow {
   id: string;
+  staff_user_id?: string;
   staff_name?: string;
   item_nomenclature: string;
   requested_quantity: number;
   unit_label?: string;
   status: string;
+  included_in_request_id?: string;
   included_request_number?: string;
   included_request_status?: string;
+  included_request_submitted_at?: string;
   created_at?: string;
 }
 
@@ -27,6 +31,12 @@ interface RequestRow {
   urgency_level?: string;
   submitted_at?: string;
   created_at?: string;
+}
+
+interface RequestWithTotals extends RequestRow {
+  total_requested_quantity: number;
+  total_demand_lines: number;
+  items: DemandRow[];
 }
 
 const parseApiJsonSafely = (raw: string) => {
@@ -60,11 +70,13 @@ const toDateTime = (value?: string) => {
 };
 
 const BranchDemandsManager: React.FC = () => {
+  const { user } = useSession();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [demands, setDemands] = useState<DemandRow[]>([]);
-  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [requests, setRequests] = useState<RequestWithTotals[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<RequestWithTotals | null>(null);
 
   const loadData = async () => {
     try {
@@ -81,14 +93,43 @@ const BranchDemandsManager: React.FC = () => {
         throw new Error(data?.error || 'Failed to load branch demands manager');
       }
 
-      setDemands(data.demands || []);
-      setRequests(data.requests || []);
+      const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '');
+      const myDemands = (data.demands || []).filter((d: DemandRow) => String(d.staff_user_id || '') === currentUserId);
+
+      const requestMap = new Map<string, RequestWithTotals>();
+      for (const req of (data.requests || []) as RequestRow[]) {
+        requestMap.set(String(req.id), {
+          ...req,
+          total_requested_quantity: 0,
+          total_demand_lines: 0,
+          items: []
+        });
+      }
+
+      for (const demand of myDemands) {
+        const requestId = String(demand.included_in_request_id || '');
+        if (!requestId || !requestMap.has(requestId)) continue;
+        const current = requestMap.get(requestId)!;
+        current.items.push(demand);
+        current.total_demand_lines += 1;
+        current.total_requested_quantity += Number(demand.requested_quantity || 0);
+      }
+
+      const myRequests = Array.from(requestMap.values()).sort((a, b) => {
+        const da = new Date(a.submitted_at || a.created_at || 0).getTime();
+        const db = new Date(b.submitted_at || b.created_at || 0).getTime();
+        return db - da;
+      });
+
+      setDemands(myDemands);
+      setRequests(myRequests);
       setSuccess('Branch demands manager loaded successfully.');
       setTimeout(() => setSuccess(''), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load branch demands manager');
       setDemands([]);
       setRequests([]);
+      setSelectedRequest(null);
     } finally {
       setLoading(false);
     }
@@ -205,11 +246,18 @@ const BranchDemandsManager: React.FC = () => {
                         <div className="font-medium">{request.request_number || '-'}</div>
                         <div className="text-xs text-gray-600">By: {request.requester_name || '-'}</div>
                       </div>
-                      <div className="md:col-span-3">
+                      <div className="md:col-span-2">
                         <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
                       </div>
                       <div className="md:col-span-2">Priority: <span className="font-medium">{request.urgency_level || 'Normal'}</span></div>
-                      <div className="md:col-span-4 text-gray-600">Submitted: {toDateTime(request.submitted_at || request.created_at)}</div>
+                      <div className="md:col-span-2">Total Qty: <span className="font-semibold">{request.total_requested_quantity}</span></div>
+                      <div className="md:col-span-1">Lines: <span className="font-semibold">{request.total_demand_lines}</span></div>
+                      <div className="md:col-span-2 text-blue-700">
+                        <button type="button" className="underline" onClick={() => setSelectedRequest(request)}>
+                          Items ({request.items.length})
+                        </button>
+                      </div>
+                      <div className="md:col-span-12 text-gray-600">Date & Time: {toDateTime(request.submitted_at || request.created_at)}</div>
                     </div>
                   );
                 })}
@@ -217,6 +265,33 @@ const BranchDemandsManager: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        {selectedRequest && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Demanded Items - {selectedRequest.request_number || '-'}</h2>
+                <Button variant="outline" size="sm" onClick={() => setSelectedRequest(null)}>Close</Button>
+              </div>
+              <div className="p-4 overflow-y-auto max-h-[65vh] space-y-2">
+                {selectedRequest.items.length === 0 ? (
+                  <div className="text-sm text-gray-500">No linked demand items found for this request.</div>
+                ) : (
+                  selectedRequest.items.map((item) => (
+                    <div key={item.id} className="border rounded p-3 text-sm grid grid-cols-1 md:grid-cols-12 gap-2">
+                      <div className="md:col-span-6 font-medium break-words">{item.item_nomenclature}</div>
+                      <div className="md:col-span-2">Qty: {item.requested_quantity}</div>
+                      <div className="md:col-span-2">Unit: {item.unit_label || 'No(s)'}</div>
+                      <div className="md:col-span-2">
+                        <Badge className={statusClass(item.status || 'SUBMITTED')}>{item.status || 'SUBMITTED'}</Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

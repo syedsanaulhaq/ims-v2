@@ -641,26 +641,10 @@ router.get('/branch-demands/manager', requireAuth, async (req, res) => {
     if (!branchId) {
       return res.status(400).json({ error: 'No branch is assigned to this user' });
     }
-
-    const roleResult = await pool.request()
+    const demandsResult = await pool.request()
+      .input('branchId', sql.Int, branchId)
       .input('userId', sql.NVarChar(450), userId)
       .query(`
-        SELECT r.role_name
-        FROM ims_user_roles ur
-        INNER JOIN ims_roles r ON ur.role_id = r.id
-        WHERE ur.user_id = @userId
-          AND ur.is_active = 1
-          AND r.is_active = 1
-      `);
-
-    const roleNames = (roleResult.recordset || []).map((row) => String(row.role_name || ''));
-    const canViewAllBranchDemands = roleNames.some((role) => isBranchSupervisorRole(role) || isBranchStorekeeperRole(role));
-
-    const demandsRequest = pool.request()
-      .input('branchId', sql.Int, branchId)
-      .input('userId', sql.NVarChar(450), userId);
-
-    const demandsResult = await demandsRequest.query(`
       SELECT
         d.id,
         d.branch_id,
@@ -675,17 +659,15 @@ router.get('/branch-demands/manager', requireAuth, async (req, res) => {
         d.included_in_request_id,
         sr.request_number as included_request_number,
         ISNULL(sr.approval_status, sr.request_status) as included_request_status,
+        COALESCE(sr.submitted_at, sr.created_at) as included_request_submitted_at,
         d.created_at,
         d.updated_at
       FROM branch_staff_demands d
       LEFT JOIN AspNetUsers u ON u.Id = d.staff_user_id
       LEFT JOIN stock_issuance_requests sr ON sr.id = d.included_in_request_id
       WHERE d.branch_id = @branchId
+        AND d.staff_user_id = @userId
         AND (d.is_deleted = 0 OR d.is_deleted IS NULL)
-        AND (
-          @userId = @userId
-          AND (${canViewAllBranchDemands ? '1 = 1' : 'd.staff_user_id = @userId'})
-        )
       ORDER BY d.created_at DESC
     `);
 
@@ -712,11 +694,8 @@ router.get('/branch-demands/manager', requireAuth, async (req, res) => {
         LEFT JOIN branch_staff_demands d ON d.included_in_request_id = sir.id
         WHERE sir.request_type = 'branch'
           AND sir.requester_branch_id = @branchId
-          AND (
-            ${canViewAllBranchDemands
-              ? '1 = 1'
-              : '(sir.requester_user_id = @userId OR d.staff_user_id = @userId)'}
-          )
+          AND d.staff_user_id = @userId
+          AND (d.is_deleted = 0 OR d.is_deleted IS NULL)
           AND (
             COL_LENGTH('stock_issuance_requests', 'is_deleted') IS NULL
             OR sir.is_deleted = 0
@@ -727,7 +706,7 @@ router.get('/branch-demands/manager', requireAuth, async (req, res) => {
 
     res.json({
       success: true,
-      can_view_all: canViewAllBranchDemands,
+      can_view_all: false,
       demands: demandsResult.recordset,
       requests: requestsResult.recordset
     });
