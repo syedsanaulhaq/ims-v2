@@ -59,9 +59,18 @@ export interface UpdateInventoryItem extends Partial<CreateInventoryItem> {}
 export const inventoryLocalService = {
   async getAll(): Promise<InventoryItem[]> {
     try {
-      const response = await fetch(`${getBaseUrl()}/current-stock`, {
+      let response = await fetch(`${getBaseUrl()}/current-stock`, {
         credentials: 'include'
       });
+
+      // Scoped users (personal/wing/branch) are blocked from central current-stock.
+      // For request forms, fall back to a limited catalog endpoint.
+      if (response.status === 403) {
+        response = await fetch(`${getBaseUrl()}/requestable-items`, {
+          credentials: 'include'
+        });
+      }
+
       if (!response.ok) {
         throw new Error(`Failed to fetch inventory: ${response.statusText}`);
       }

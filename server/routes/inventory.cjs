@@ -209,6 +209,65 @@ router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/inventory/requestable-items
+// Request form item catalog for authenticated users (not central dashboard data)
+// ============================================================================
+router.get('/requestable-items', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const { search, category_id } = req.query;
+
+    let query = `
+      SELECT
+        im.id AS id,
+        im.id AS item_master_id,
+        im.nomenclature,
+        im.item_code,
+        im.unit,
+        im.specifications,
+        c.category_name,
+        c.description AS category_description,
+        ISNULL(cis.current_quantity, 0) AS current_quantity,
+        cis.last_transaction_date,
+        cis.last_updated
+      FROM item_masters im
+      LEFT JOIN categories c ON c.id = im.category_id
+      LEFT JOIN current_inventory_stock cis ON cis.item_master_id = im.id
+      WHERE (im.is_deleted = 0 OR im.is_deleted IS NULL)
+        AND (im.status = 'Active' OR im.status IS NULL)
+    `;
+
+    let request = pool.request();
+
+    if (search) {
+      query += ` AND (im.nomenclature LIKE @search OR im.item_code LIKE @search)`;
+      request = request.input('search', sql.NVarChar, `%${search}%`);
+    }
+
+    if (category_id) {
+      query += ` AND im.category_id = @categoryId`;
+      request = request.input('categoryId', sql.UniqueIdentifier, category_id);
+    }
+
+    query += ` ORDER BY im.nomenclature`;
+
+    const result = await request.query(query);
+    res.json({
+      success: true,
+      inventory: result.recordset,
+      total: result.recordset.length
+    });
+  } catch (error) {
+    console.error('Error fetching requestable items:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch requestable items',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
 // GET /api/inventory/dashboard-stats - Get dashboard statistics
 // ============================================================================
 router.get('/dashboard-stats', requireGlobalInventoryAccess, async (req, res) => {
