@@ -241,27 +241,52 @@ const BranchDemandsManager: React.FC = () => {
             ) : requests.length === 0 ? (
               <div className="text-sm text-gray-500">No branch requests found.</div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {requests.map((request) => {
                   const effectiveStatus = request.approval_status || request.request_status || 'Pending';
                   return (
-                    <div key={request.id} className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-12 gap-2 text-sm">
-                      <div className="md:col-span-3">
-                        <div className="font-medium">{request.request_number || '-'}</div>
-                        <div className="text-xs text-gray-600">By: {request.requester_name || '-'}</div>
+                    <div key={request.id} className="border rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        <div>
+                          <div className="text-sm text-gray-600">Request Number</div>
+                          <div className="text-lg font-bold">{request.request_number || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Submitted By</div>
+                          <div className="font-medium">{request.requester_name || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Date & Time</div>
+                          <div className="font-medium">{toDateTime(request.submitted_at || request.created_at)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Total Items</div>
+                          <div className="font-bold text-lg">
+                            {request.total_requested_quantity} Qty <span className="text-sm text-gray-600">({request.total_demand_lines} lines)</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="md:col-span-2">
-                        <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center border-t pt-3">
+                        <div>
+                          <div className="text-sm text-gray-600">Status</div>
+                          <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Priority</div>
+                          <div className="font-medium">{request.urgency_level || 'Normal'}</div>
+                        </div>
+                        <div></div>
+                        <div>
+                          <button
+                            type="button"
+                            className="px-3 py-2 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors w-full text-center"
+                            onClick={() => setSelectedRequest(request)}
+                          >
+                            View Items ({request.items.length})
+                          </button>
+                        </div>
                       </div>
-                      <div className="md:col-span-2">Priority: <span className="font-medium">{request.urgency_level || 'Normal'}</span></div>
-                      <div className="md:col-span-2">Total Qty: <span className="font-semibold">{request.total_requested_quantity}</span></div>
-                      <div className="md:col-span-1">Lines: <span className="font-semibold">{request.total_demand_lines}</span></div>
-                      <div className="md:col-span-2 text-blue-700">
-                        <button type="button" className="underline" onClick={() => setSelectedRequest(request)}>
-                          Items ({request.items.length})
-                        </button>
-                      </div>
-                      <div className="md:col-span-12 text-gray-600">Date & Time: {toDateTime(request.submitted_at || request.created_at)}</div>
                     </div>
                   );
                 })}
