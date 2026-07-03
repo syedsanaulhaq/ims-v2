@@ -78,7 +78,7 @@ export default function PersonalInventory() {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`http://localhost:3001/api/personal-inventory/${user?.user_id}`, {
+      const response = await fetch(`http://localhost:3001/api/inventory/personal-inventory/${user?.user_id}`, {
         credentials: 'include'
       });
       

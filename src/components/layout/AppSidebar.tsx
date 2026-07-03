@@ -123,6 +123,21 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     role === 'BRANCH STORE KEEPER' ||
     role === 'CUSTOM_BRANCH_STORE_KEEPER'
   );
+  const hasWingSupervisorRole = roleNames.some(role =>
+    role === 'WING_SUPERVISOR' ||
+    role === 'WING SUPERVISOR'
+  );
+  const hasWingStorekeeperRole = roleNames.some(role =>
+    role === 'WING_STORE_KEEPER' ||
+    role === 'WING STOREKEEPER' ||
+    role === 'WING STORE KEEPER' ||
+    role === 'CUSTOM_WING_STORE_KEEPER'
+  );
+  const hasScopedOperationalRole =
+    hasBranchSupervisorRole ||
+    hasBranchStorekeeperRole ||
+    hasWingSupervisorRole ||
+    hasWingStorekeeperRole;
   const canAccessBranchMenu = isSuperAdmin || hasBranchSupervisorRole || hasBranchStorekeeperRole;
   const hasApproverRole = roleNames.some(role =>
     role === 'AD ADMIN-I' ||
@@ -214,7 +229,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Request Form", icon: ShoppingCart, path: "/dashboard/stock-issuance-personal", permission: undefined },
       { title: "My Request", icon: ClipboardList, path: "/dashboard/my-requests", permission: undefined },
       { title: "Stock Return", icon: Undo2, path: "/dashboard/stock-return", permission: undefined },
-      { title: "My Inventory", icon: Package, path: "/dashboard/my-issued-items", permission: undefined },
+      { title: "My Inventory", icon: Package, path: "/dashboard/personal-inventory", permission: undefined },
     ]
   };
 
@@ -424,7 +439,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
     // Show inventory menu for super admins and inventory managers.
     // Store-keeper exclusion should not hide inventory menu from super admins.
-    if ((isSuperAdmin || canViewInventory || canManageInventory) && (!canAccessStoreKeeperMenu || isSuperAdmin)) {
+    if ((isSuperAdmin || canViewInventory || canManageInventory) && (!canAccessStoreKeeperMenu || isSuperAdmin) && (!hasScopedOperationalRole || isSuperAdmin)) {
       const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleInventoryItems.length > 0) {
         groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });

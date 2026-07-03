@@ -14,10 +14,58 @@ const requireAuth = (req, res, next) => {
   next();
 };
 
+const normalizeRole = (value) => String(value || '').trim().toUpperCase().replace(/\s+/g, '_');
+
+const hasScopedRole = (roles = [], targets = []) => {
+  const normalizedTargets = new Set(targets.map(normalizeRole));
+  return roles.some((role) => normalizedTargets.has(normalizeRole(role?.role_name || role)));
+};
+
+const isSuperAdminSession = (session) => {
+  if (session?.user?.is_super_admin === true) return true;
+  const roles = session?.user?.ims_roles || [];
+  return hasScopedRole(roles, ['IMS_SUPER_ADMIN', 'ADMINISTRATOR']);
+};
+
+const hasWingOrBranchScopedRole = (session) => {
+  const roles = session?.user?.ims_roles || [];
+  return hasScopedRole(roles, [
+    'WING_SUPERVISOR',
+    'WING_STORE_KEEPER',
+    'CUSTOM_WING_STORE_KEEPER',
+    'BRANCH_SUPERVISOR',
+    'CUSTOM_BRANCH_SUPERVISOR',
+    'BRANCH_STORE_KEEPER',
+    'CUSTOM_BRANCH_STORE_KEEPER'
+  ]);
+};
+
+const canAccessGlobalInventory = (session) => {
+  if (isSuperAdminSession(session)) return true;
+  if (hasWingOrBranchScopedRole(session)) return false;
+
+  const roles = session?.user?.ims_roles || [];
+  return hasScopedRole(roles, ['IMS_ADMIN', 'STOREKEEPER']);
+};
+
+const requireGlobalInventoryAccess = (req, res, next) => {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!canAccessGlobalInventory(req.session)) {
+    return res.status(403).json({
+      error: 'Forbidden: this inventory view is restricted to central inventory roles'
+    });
+  }
+
+  next();
+};
+
 // ============================================================================
 // GET /api/inventory - Get all inventory items (root route for /api/inventory-stock alias)
 // ============================================================================
-router.get('/', async (req, res) => {
+router.get('/', requireGlobalInventoryAccess, async (req, res) => {
   try {
     const pool = getPool();
     const { wing_id, category_id, search, includeDeleted } = req.query;
@@ -76,9 +124,94 @@ router.get('/', async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/inventory/personal-inventory/:userId
+// Personal inventory for a user (strictly scoped to self unless super admin)
+// ============================================================================
+router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const sessionUserId = req.session.userId;
+    const requestedUserId = String(req.params.userId || '');
+    const isSuperAdmin = isSuperAdminSession(req.session);
+
+    if (!requestedUserId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    if (!isSuperAdmin && requestedUserId !== sessionUserId) {
+      return res.status(403).json({ error: 'Forbidden: personal inventory is only available for current user' });
+    }
+
+    const effectiveUserId = isSuperAdmin ? requestedUserId : sessionUserId;
+
+    const itemsResult = await pool.request()
+      .input('userId', sql.NVarChar(450), effectiveUserId)
+      .query(`
+        SELECT
+          sii.id AS ledger_id,
+          sir.request_number,
+          COALESCE(im.nomenclature, sii.nomenclature, 'Unknown Item') AS nomenclature,
+          c.category_name,
+          COALESCE(NULLIF(sii.issued_quantity, 0), NULLIF(sii.approved_quantity, 0), sii.requested_quantity, 0) AS issued_quantity,
+          CAST(0 AS DECIMAL(18,2)) AS unit_price,
+          CAST(0 AS DECIMAL(18,2)) AS total_value,
+          COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) AS issued_at,
+          '' AS issued_by_name,
+          sir.purpose,
+          sir.request_type,
+          COALESCE(sir.is_returnable, 0) AS is_returnable,
+          sir.expected_return_date,
+          NULL AS actual_return_date,
+          CASE
+            WHEN COALESCE(sir.is_returnable, 0) = 0 THEN 'Not Returnable'
+            WHEN sir.expected_return_date IS NOT NULL AND sir.expected_return_date < GETDATE() THEN 'Overdue'
+            ELSE 'Not Returned'
+          END AS return_status,
+          CASE
+            WHEN COALESCE(sir.is_returnable, 0) = 1
+              AND sir.expected_return_date IS NOT NULL
+              AND sir.expected_return_date < GETDATE()
+            THEN 'Overdue'
+            WHEN UPPER(COALESCE(sir.approval_status, '')) = 'RETURNED'
+            THEN 'Returned'
+            ELSE 'Not Returned'
+          END AS current_return_status,
+          COALESCE(sir.approval_status, sir.request_status, 'Issued') AS status,
+          '' AS issuance_notes
+        FROM stock_issuance_items sii
+        INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
+        LEFT JOIN item_masters im ON sii.item_master_id = im.id
+        LEFT JOIN categories c ON im.category_id = c.id
+        WHERE sir.requester_user_id = @userId
+          AND (
+            UPPER(COALESCE(sir.request_status, '')) IN ('ISSUED', 'COMPLETED')
+            OR UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
+          )
+          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
+          AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
+        ORDER BY COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) DESC
+      `);
+
+    const items = itemsResult.recordset || [];
+    const summary = {
+      total_items: items.length,
+      total_value: items.reduce((sum, item) => sum + Number(item.total_value || 0), 0),
+      returnable_items: items.filter((item) => !!item.is_returnable).length,
+      not_returned: items.filter((item) => !!item.is_returnable && item.current_return_status !== 'Returned').length,
+      overdue: items.filter((item) => item.current_return_status === 'Overdue').length
+    };
+
+    res.json({ items, summary });
+  } catch (error) {
+    console.error('Error fetching personal inventory:', error);
+    res.status(500).json({ error: 'Failed to fetch personal inventory', details: error.message });
+  }
+});
+
+// ============================================================================
 // GET /api/inventory/dashboard-stats - Get dashboard statistics
 // ============================================================================
-router.get('/dashboard-stats', async (req, res) => {
+router.get('/dashboard-stats', requireGlobalInventoryAccess, async (req, res) => {
   try {
     const pool = getPool();
 
@@ -153,7 +286,7 @@ router.get('/dashboard-stats', async (req, res) => {
 // ============================================================================
 // GET /api/inventory/dashboard - Alias for dashboard-stats
 // ============================================================================
-router.get('/dashboard', async (req, res) => {
+router.get('/dashboard', requireGlobalInventoryAccess, async (req, res) => {
   // Redirect to dashboard-stats handler by directly calling it
   try {
     const pool = getPool();
@@ -904,7 +1037,7 @@ router.get('/stock/:itemMasterId', async (req, res) => {
 // ============================================================================
 // GET /api/inventory/current-stock - Get current inventory from deliveries
 // ============================================================================
-router.get('/current-stock', async (req, res) => {
+router.get('/current-stock', requireGlobalInventoryAccess, async (req, res) => {
   try {
     const pool = getPool();
     const { search, category_id, low_stock } = req.query;
@@ -967,7 +1100,7 @@ router.get('/current-stock', async (req, res) => {
 // ============================================================================
 // GET /api/inventory/current-stock/summary - Get inventory summary stats
 // ============================================================================
-router.get('/current-stock/summary', async (req, res) => {
+router.get('/current-stock/summary', requireGlobalInventoryAccess, async (req, res) => {
   try {
     const pool = getPool();
 
@@ -1000,7 +1133,7 @@ router.get('/current-stock/summary', async (req, res) => {
 // ============================================================================
 // GET /api/inventory/stock-breakdown - Get stock with OPB vs new acquisitions breakdown
 // ============================================================================
-router.get('/stock-breakdown', async (req, res) => {
+router.get('/stock-breakdown', requireGlobalInventoryAccess, async (req, res) => {
   try {
     const pool = getPool();
     const { search, category_id, low_stock, show_zero_stock } = req.query;
@@ -1172,7 +1305,7 @@ router.get('/stock-breakdown', async (req, res) => {
 // ============================================================================
 // GET /api/inventory/current-stock/:id/history - Get item transaction history
 // ============================================================================
-router.get('/current-stock/:id/history', async (req, res) => {
+router.get('/current-stock/:id/history', requireGlobalInventoryAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const pool = getPool();
