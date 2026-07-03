@@ -675,7 +675,7 @@ router.get('/branch-demands/manager', requireAuth, async (req, res) => {
       .input('branchId', sql.Int, branchId)
       .input('userId', sql.NVarChar(450), userId)
       .query(`
-        SELECT DISTINCT
+        SELECT
           sir.id,
           sir.request_number,
           sir.request_type,
@@ -688,19 +688,20 @@ router.get('/branch-demands/manager', requireAuth, async (req, res) => {
           sir.created_at,
           sir.updated_at,
           sir.requester_user_id,
-          u.FullName as requester_name
+          u.FullName as requester_name,
+          COALESCE(COUNT(DISTINCT d.id), 0) as linked_demand_count,
+          COALESCE(SUM(d.requested_quantity), 0) as linked_demand_qty
         FROM stock_issuance_requests sir
         LEFT JOIN AspNetUsers u ON u.Id = sir.requester_user_id
-        LEFT JOIN branch_staff_demands d ON d.included_in_request_id = sir.id
+        LEFT JOIN branch_staff_demands d ON d.included_in_request_id = sir.id AND d.staff_user_id = @userId AND (d.is_deleted = 0 OR d.is_deleted IS NULL)
         WHERE sir.request_type = 'branch'
           AND sir.requester_branch_id = @branchId
-          AND d.staff_user_id = @userId
-          AND (d.is_deleted = 0 OR d.is_deleted IS NULL)
           AND (
             COL_LENGTH('stock_issuance_requests', 'is_deleted') IS NULL
             OR sir.is_deleted = 0
             OR sir.is_deleted IS NULL
           )
+        GROUP BY sir.id, sir.request_number, sir.request_type, sir.purpose, sir.justification, sir.urgency_level, sir.request_status, sir.approval_status, sir.submitted_at, sir.created_at, sir.updated_at, sir.requester_user_id, u.FullName
         ORDER BY sir.submitted_at DESC, sir.created_at DESC
       `);
 

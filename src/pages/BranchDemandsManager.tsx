@@ -31,6 +31,8 @@ interface RequestRow {
   urgency_level?: string;
   submitted_at?: string;
   created_at?: string;
+  linked_demand_count?: number;
+  linked_demand_qty?: number;
 }
 
 interface RequestWithTotals extends RequestRow {
@@ -94,14 +96,16 @@ const BranchDemandsManager: React.FC = () => {
       }
 
       const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '');
-      const myDemands = (data.demands || []).filter((d: DemandRow) => String(d.staff_user_id || '') === currentUserId);
+      const myDemands = (data.demands || []);
 
       const requestMap = new Map<string, RequestWithTotals>();
       for (const req of (data.requests || []) as RequestRow[]) {
+        const linkedCount = Number(req.linked_demand_count || 0);
+        const linkedQty = Number(req.linked_demand_qty || 0);
         requestMap.set(String(req.id), {
           ...req,
-          total_requested_quantity: 0,
-          total_demand_lines: 0,
+          total_requested_quantity: linkedQty,
+          total_demand_lines: linkedCount,
           items: []
         });
       }
@@ -111,15 +115,15 @@ const BranchDemandsManager: React.FC = () => {
         if (!requestId || !requestMap.has(requestId)) continue;
         const current = requestMap.get(requestId)!;
         current.items.push(demand);
-        current.total_demand_lines += 1;
-        current.total_requested_quantity += Number(demand.requested_quantity || 0);
       }
 
-      const myRequests = Array.from(requestMap.values()).sort((a, b) => {
-        const da = new Date(a.submitted_at || a.created_at || 0).getTime();
-        const db = new Date(b.submitted_at || b.created_at || 0).getTime();
-        return db - da;
-      });
+      const myRequests = Array.from(requestMap.values())
+        .filter((r) => r.total_demand_lines > 0)
+        .sort((a, b) => {
+          const da = new Date(a.submitted_at || a.created_at || 0).getTime();
+          const db = new Date(b.submitted_at || b.created_at || 0).getTime();
+          return db - da;
+        });
 
       setDemands(myDemands);
       setRequests(myRequests);
