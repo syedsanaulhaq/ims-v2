@@ -48,6 +48,15 @@ interface BranchStaffDemand {
   created_at?: string;
 }
 
+const parseApiJsonSafely = (raw: string) => {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+};
+
 const StockIssuanceBranch: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSession();
@@ -90,7 +99,7 @@ const StockIssuanceBranch: React.FC = () => {
         credentials: 'include'
       });
       const raw = await response.text();
-      const data = raw ? JSON.parse(raw) : {};
+      const data = parseApiJsonSafely(raw);
       if (!response.ok) {
         throw new Error(data?.error || 'Failed to load branch demand inbox');
       }
@@ -110,7 +119,7 @@ const StockIssuanceBranch: React.FC = () => {
         credentials: 'include'
       });
       const raw = await response.text();
-      const data = raw ? JSON.parse(raw) : {};
+      const data = parseApiJsonSafely(raw);
       if (!response.ok) {
         throw new Error(data?.error || 'Failed to load your branch demands');
       }
@@ -276,7 +285,7 @@ const StockIssuanceBranch: React.FC = () => {
       });
 
       const raw = await response.text();
-      const data = raw ? JSON.parse(raw) : {};
+      const data = parseApiJsonSafely(raw);
       if (!response.ok) {
         throw new Error(data.error || 'Failed to submit branch demand');
       }
@@ -340,7 +349,7 @@ const StockIssuanceBranch: React.FC = () => {
       });
 
       const requestRaw = await requestResponse.text();
-      const requestData = requestRaw ? JSON.parse(requestRaw) : {};
+      const requestData = parseApiJsonSafely(requestRaw);
       if (!requestResponse.ok) {
         throw new Error(requestData.error || requestData.message || 'Failed to create request');
       }
@@ -371,7 +380,7 @@ const StockIssuanceBranch: React.FC = () => {
 
       if (!itemResponse.ok) {
         const itemRaw = await itemResponse.text();
-        const itemError = itemRaw ? JSON.parse(itemRaw) : {};
+        const itemError = parseApiJsonSafely(itemRaw);
         throw new Error(itemError.error || itemError.message || 'Request was created, but items could not be added');
       }
 
