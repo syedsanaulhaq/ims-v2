@@ -781,52 +781,55 @@ const StockIssuancePersonal: React.FC = () => {
               {/* Selected Items */}
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-3">Selected Items ({issuanceItems.length})</h4>
-                <div className="overflow-x-auto border rounded-lg">
-                  <table className="w-full min-w-[820px] text-sm">
+                <div className="border rounded-lg">
+                  <table className="w-full table-fixed text-xs">
                     <thead className="bg-gray-100 text-gray-700">
                       <tr>
-                        <th className="text-left px-3 py-2">Item</th>
-                        <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
-                        <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
-                        <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
-                        <th className="text-left px-3 py-2 w-24">Action</th>
+                        <th className="text-left px-2 py-2 w-[34%]">Item</th>
+                        <th className="text-left px-2 py-2 w-[16%]">Last Qty</th>
+                        <th className="text-left px-2 py-2 w-[16%]">Last Date</th>
+                        <th className="text-left px-2 py-2 w-[24%]">Fresh Req</th>
+                        <th className="text-left px-2 py-2 w-[10%]">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {issuanceItems.map(item => (
                         <tr key={item.inventory_id} className="border-t align-middle">
-                          <td className="px-3 py-2">
-                            <div className="font-medium">{item.nomenclature}</div>
-                            <div className="text-xs text-gray-500">
+                          <td className="px-2 py-2 align-top">
+                            <div className="font-medium leading-tight break-words">{item.nomenclature}</div>
+                            <div className="text-[11px] text-gray-500 leading-tight">
                               {item.item_type === 'custom' ? 'Custom item' : `Available: ${item.available_stock}`}
                             </div>
                           </td>
-                          <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : (item.last_issued_quantity ?? 0)}</td>
-                          <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : formatDate(item.last_issue_date)}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
+                          <td className="px-2 py-2 align-top">{item.item_type === 'custom' ? '-' : (item.last_issued_quantity ?? 0)}</td>
+                          <td className="px-2 py-2 align-top">{item.item_type === 'custom' ? '-' : formatDate(item.last_issue_date)}</td>
+                          <td className="px-2 py-2 align-top">
+                            <div className="flex items-center gap-1">
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => updateQuantity(item.inventory_id, item.requested_quantity - 1)}
+                                className="h-7 w-7 p-0"
                               >
                                 <Minus className="w-3 h-3" />
                               </Button>
-                              <span className="w-10 text-center text-sm font-medium">{item.requested_quantity}</span>
+                              <span className="w-8 text-center text-xs font-medium">{item.requested_quantity}</span>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => updateQuantity(item.inventory_id, item.requested_quantity + 1)}
+                                className="h-7 w-7 p-0"
                               >
                                 <Plus className="w-3 h-3" />
                               </Button>
                             </div>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2 align-top">
                             <Button
                               size="sm"
                               variant="destructive"
                               onClick={() => removeIssuanceItem(item.inventory_id)}
+                              className="h-7 px-2 text-[11px]"
                             >
                               Remove
                             </Button>
