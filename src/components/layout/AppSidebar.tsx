@@ -110,6 +110,10 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   const { hasPermission: isWingSupervisor } = usePermission('wing.supervisor');
   const { hasPermission: isWingStoreKeeper } = usePermission('inventory.manage_store_keeper');
   const { hasPermission: isSuperAdmin } = usePermission('admin.super');
+  const permissionKeys = new Set((user?.ims_permissions || []).map(p => String(p.permission_key || '').toLowerCase()));
+  const hasCentralInventoryViewPermission = permissionKeys.has('inventory.view');
+  const hasCentralInventoryManagePermission = permissionKeys.has('inventory.manage');
+  const canAccessCentralInventoryMenu = isSuperAdmin || hasCentralInventoryViewPermission || hasCentralInventoryManagePermission;
 
   const roleNames = (user?.ims_roles || []).map(r => String(r.role_name || '').toUpperCase());
   const hasBranchSupervisorRole = roleNames.some(role =>
@@ -376,8 +380,8 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     }
     
     switch (permissionKey) {
-      case 'inventory.view': return canViewInventory;
-      case 'inventory.manage': return canManageInventory;
+      case 'inventory.view': return hasCentralInventoryViewPermission || isSuperAdmin;
+      case 'inventory.manage': return hasCentralInventoryManagePermission || isSuperAdmin;
       case 'inventory.manage_store_keeper': return isWingStoreKeeper;
       case 'procurement.view': return canViewProcurement;
       case 'procurement.manage': return canManageProcurement;
@@ -439,7 +443,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
     // Show inventory menu for super admins and inventory managers.
     // Store-keeper exclusion should not hide inventory menu from super admins.
-    if ((isSuperAdmin || canViewInventory || canManageInventory) && (!canAccessStoreKeeperMenu || isSuperAdmin) && (!hasScopedOperationalRole || isSuperAdmin)) {
+    if (canAccessCentralInventoryMenu && (!canAccessStoreKeeperMenu || isSuperAdmin) && (!hasScopedOperationalRole || isSuperAdmin)) {
       const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleInventoryItems.length > 0) {
         groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });

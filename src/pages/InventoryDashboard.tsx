@@ -66,14 +66,19 @@ const InventoryDashboard: React.FC = () => {
     setError(null);
 
     try {
+      const apiGet = (url: string) => fetch(url, { credentials: 'include' });
+
       // Fetch summary stats
-      const summaryResponse = await fetch('http://localhost:3001/api/inventory/current-stock/summary');
+      const summaryResponse = await apiGet('http://localhost:3001/api/inventory/current-stock/summary');
+      if (summaryResponse.status === 403) {
+        throw new Error('You are not authorized to view central inventory dashboard. Please use your assigned inventory view.');
+      }
       if (!summaryResponse.ok) throw new Error('Failed to fetch summary');
       const summaryData = await summaryResponse.json();
       setSummary(summaryData.summary);
 
       // Fetch inventory items
-      const inventoryResponse = await fetch('http://localhost:3001/api/inventory/current-stock');
+      const inventoryResponse = await apiGet('http://localhost:3001/api/inventory/current-stock');
       if (!inventoryResponse.ok) throw new Error('Failed to fetch inventory');
       const inventoryData = await inventoryResponse.json();
       setInventory(inventoryData.inventory || []);
