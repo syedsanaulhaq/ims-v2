@@ -89,6 +89,7 @@ import RequestHistoryPage from "./pages/RequestHistoryPage";
 import WingRequestHistoryPage from "./pages/WingRequestHistoryPage";
 import BranchRequestHistoryPage from "./pages/BranchRequestHistoryPage";
 import BranchStorekeeperReviewPage from "./pages/BranchStorekeeperReviewPage";
+import BranchDemandsManager from "./pages/BranchDemandsManager";
 import RequiredItemsPage from "./pages/RequiredItemsPage";
 import RequestsHistoryLayout from "./pages/RequestsHistory/RequestsHistoryLayout";
 import FutureRequestsPage from "./pages/RequestsHistory/FutureRequestsPage";
@@ -260,6 +261,7 @@ function App() {
                   </Route>
                   <Route path="wing-request-history" element={<WingRequestHistoryPage />} />
                   <Route path="branch-request-history" element={<BranchRequestHistoryPage />} />
+                  <Route path="branch-demands-manager" element={<BranchDemandsManager />} />
                   <Route path="branch-storekeeper-review" element={<BranchStorekeeperReviewPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />

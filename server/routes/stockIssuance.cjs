@@ -623,6 +623,121 @@ router.get('/branch-demands/branch-inbox', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/stock-issuance/branch-demands/manager
+// Combined manager view for demand lines and related branch request statuses
+// ============================================================================
+router.get('/branch-demands/manager', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureBranchDemandTables(pool);
+
+    const userId = req.session.userId;
+
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`SELECT intBranchID as branch_id FROM AspNetUsers WHERE Id = @userId`);
+
+    const branchId = Number(userResult.recordset[0]?.branch_id || 0);
+    if (!branchId) {
+      return res.status(400).json({ error: 'No branch is assigned to this user' });
+    }
+
+    const roleResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT r.role_name
+        FROM ims_user_roles ur
+        INNER JOIN ims_roles r ON ur.role_id = r.id
+        WHERE ur.user_id = @userId
+          AND ur.is_active = 1
+          AND r.is_active = 1
+      `);
+
+    const roleNames = (roleResult.recordset || []).map((row) => String(row.role_name || ''));
+    const canViewAllBranchDemands = roleNames.some((role) => isBranchSupervisorRole(role) || isBranchStorekeeperRole(role));
+
+    const demandsRequest = pool.request()
+      .input('branchId', sql.Int, branchId)
+      .input('userId', sql.NVarChar(450), userId);
+
+    const demandsResult = await demandsRequest.query(`
+      SELECT
+        d.id,
+        d.branch_id,
+        d.staff_user_id,
+        u.FullName as staff_name,
+        d.item_master_id,
+        d.item_nomenclature,
+        d.requested_quantity,
+        d.unit_label,
+        d.justification,
+        d.status,
+        d.included_in_request_id,
+        sr.request_number as included_request_number,
+        ISNULL(sr.approval_status, sr.request_status) as included_request_status,
+        d.created_at,
+        d.updated_at
+      FROM branch_staff_demands d
+      LEFT JOIN AspNetUsers u ON u.Id = d.staff_user_id
+      LEFT JOIN stock_issuance_requests sr ON sr.id = d.included_in_request_id
+      WHERE d.branch_id = @branchId
+        AND (d.is_deleted = 0 OR d.is_deleted IS NULL)
+        AND (
+          @userId = @userId
+          AND (${canViewAllBranchDemands ? '1 = 1' : 'd.staff_user_id = @userId'})
+        )
+      ORDER BY d.created_at DESC
+    `);
+
+    const requestsResult = await pool.request()
+      .input('branchId', sql.Int, branchId)
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT DISTINCT
+          sir.id,
+          sir.request_number,
+          sir.request_type,
+          sir.purpose,
+          sir.justification,
+          sir.urgency_level,
+          sir.request_status,
+          sir.approval_status,
+          sir.submitted_at,
+          sir.created_at,
+          sir.updated_at,
+          sir.requester_user_id,
+          u.FullName as requester_name
+        FROM stock_issuance_requests sir
+        LEFT JOIN AspNetUsers u ON u.Id = sir.requester_user_id
+        LEFT JOIN branch_staff_demands d ON d.included_in_request_id = sir.id
+        WHERE sir.request_type = 'branch'
+          AND sir.requester_branch_id = @branchId
+          AND (
+            ${canViewAllBranchDemands
+              ? '1 = 1'
+              : '(sir.requester_user_id = @userId OR d.staff_user_id = @userId)'}
+          )
+          AND (
+            COL_LENGTH('stock_issuance_requests', 'is_deleted') IS NULL
+            OR sir.is_deleted = 0
+            OR sir.is_deleted IS NULL
+          )
+        ORDER BY sir.submitted_at DESC, sir.created_at DESC
+      `);
+
+    res.json({
+      success: true,
+      can_view_all: canViewAllBranchDemands,
+      demands: demandsResult.recordset,
+      requests: requestsResult.recordset
+    });
+  } catch (error) {
+    console.error('Error fetching branch demands manager data:', error);
+    res.status(500).json({ error: 'Failed to fetch branch demands manager data', details: error.message });
+  }
+});
+
+// ============================================================================
 // POST /api/stock-issuance/branch-demands/attach-to-request
 // Mark demand lines included in finalized branch request
 // ============================================================================
