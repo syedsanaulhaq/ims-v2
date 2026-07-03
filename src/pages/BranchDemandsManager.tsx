@@ -211,60 +211,54 @@ const BranchDemandsManager: React.FC = () => {
             ) : demands.length === 0 ? (
               <div className="text-sm text-gray-500">No demand lines found.</div>
             ) : (
-              <div className="space-y-4">
-                {requests.map((request) => {
-                  const requestItems = request.items;
-                  const effectiveStatus = request.approval_status || request.request_status || 'Pending';
-                  return (
-                    <div key={request.id} className="border rounded-lg p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                        <div>
-                          <div className="text-sm text-gray-600">Request Number</div>
-                          <div className="text-lg font-bold">{request.request_number || '-'}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Submitted By</div>
-                          <div className="font-medium">{request.requester_name || '-'}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Date & Time</div>
-                          <div className="font-medium">{toDateTime(request.submitted_at || request.created_at)}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Total Items</div>
-                          <div className="font-bold text-lg">
-                            {request.total_requested_quantity} Qty <span className="text-sm text-gray-600">({request.total_demand_lines} lines)</span>
-                          </div>
-                        </div>
-                      </div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-gray-300 bg-gray-50">
+                      <th className="text-left p-3 font-semibold">Request Number</th>
+                      <th className="text-left p-3 font-semibold">Submitted By</th>
+                      <th className="text-left p-3 font-semibold">Date & Time</th>
+                      <th className="text-left p-3 font-semibold">Total Items</th>
+                      <th className="text-left p-3 font-semibold">Status</th>
+                      <th className="text-center p-3 font-semibold">Items</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.map((request) => {
+                      const effectiveStatus = request.approval_status || request.request_status || 'Pending';
+                      return (
+                        <tr key={request.id} className="border-b border-gray-200 hover:bg-gray-50">
+                          <td className="p-3">
+                            <div className="font-bold text-base">{request.request_number || '-'}</div>
+                          </td>
+                          <td className="p-3">{request.requester_name || '-'}</td>
+                          <td className="p-3">{toDateTime(request.submitted_at || request.created_at)}</td>
+                          <td className="p-3">
+                            <div className="font-semibold">
+                              {request.total_requested_quantity} Qty <span className="text-xs text-gray-600">({request.total_demand_lines} lines)</span>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              className="px-3 py-1 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors text-sm"
+                              onClick={() => setSelectedRequest(request)}
+                            >
+                              Items ({request.items.length})
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
 
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center border-t pt-3">
-                        <div>
-                          <div className="text-sm text-gray-600">Status</div>
-                          <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Priority</div>
-                          <div className="font-medium">{request.urgency_level || 'Normal'}</div>
-                        </div>
-                        <div></div>
-                        <div>
-                          <button
-                            type="button"
-                            className="px-3 py-2 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors w-full text-center"
-                            onClick={() => setSelectedRequest(request)}
-                          >
-                            View Items ({requestItems.length})
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                
                 {demands.filter((d) => !d.included_in_request_id).length > 0 && (
-                  <div className="border-2 border-amber-200 rounded-lg p-4 bg-amber-50">
-                    <div className="text-sm font-semibold text-amber-900 mb-3">Pending Inclusion in Request</div>
+                  <div className="border-2 border-amber-200 rounded-lg p-3 bg-amber-50 mt-4">
+                    <div className="text-sm font-semibold text-amber-900 mb-2">Pending Inclusion in Request</div>
                     <div className="space-y-2">
                       {demands.filter((d) => !d.included_in_request_id).map((demand) => (
                         <div key={demand.id} className="flex justify-between items-center text-sm">
