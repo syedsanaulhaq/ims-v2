@@ -89,12 +89,15 @@ const StockIssuanceBranch: React.FC = () => {
       const response = await fetch(`${getApiBaseUrl()}/api/stock-issuance/branch-demands/branch-inbox`, {
         credentials: 'include'
       });
-      const data = await response.json();
-      if (response.ok) {
-        setStaffDemands(data.demands || []);
+      const raw = await response.text();
+      const data = raw ? JSON.parse(raw) : {};
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to load branch demand inbox');
       }
+      setStaffDemands(data.demands || []);
     } catch (err) {
       console.error('Error loading branch demand inbox:', err);
+      setStaffDemands([]);
     } finally {
       setDemandLoading(false);
     }
@@ -106,12 +109,15 @@ const StockIssuanceBranch: React.FC = () => {
       const response = await fetch(`${getApiBaseUrl()}/api/stock-issuance/branch-demands/my`, {
         credentials: 'include'
       });
-      const data = await response.json();
-      if (response.ok) {
-        setMyDemands(data.demands || []);
+      const raw = await response.text();
+      const data = raw ? JSON.parse(raw) : {};
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to load your branch demands');
       }
+      setMyDemands(data.demands || []);
     } catch (err) {
       console.error('Error loading my branch demands:', err);
+      setMyDemands([]);
     } finally {
       setDemandLoading(false);
     }
@@ -269,7 +275,8 @@ const StockIssuanceBranch: React.FC = () => {
         })
       });
 
-      const data = await response.json();
+      const raw = await response.text();
+      const data = raw ? JSON.parse(raw) : {};
       if (!response.ok) {
         throw new Error(data.error || 'Failed to submit branch demand');
       }
@@ -332,7 +339,8 @@ const StockIssuanceBranch: React.FC = () => {
         body: JSON.stringify(requestPayload)
       });
 
-      const requestData = await requestResponse.json();
+      const requestRaw = await requestResponse.text();
+      const requestData = requestRaw ? JSON.parse(requestRaw) : {};
       if (!requestResponse.ok) {
         throw new Error(requestData.error || requestData.message || 'Failed to create request');
       }
@@ -362,7 +370,8 @@ const StockIssuanceBranch: React.FC = () => {
       });
 
       if (!itemResponse.ok) {
-        const itemError = await itemResponse.json();
+        const itemRaw = await itemResponse.text();
+        const itemError = itemRaw ? JSON.parse(itemRaw) : {};
         throw new Error(itemError.error || itemError.message || 'Request was created, but items could not be added');
       }
 
@@ -680,26 +689,26 @@ const StockIssuanceBranch: React.FC = () => {
 
                 <div className="border-t pt-4">
                   <h4 className="font-medium mb-3">Selected Items ({selectedItems.length})</h4>
-                  <div className="overflow-x-auto border rounded-lg">
-                    <table className="w-full min-w-[720px] text-sm">
+                  <div className="border rounded-lg">
+                    <table className="w-full table-fixed text-sm">
                       <thead className="bg-gray-100 text-gray-700">
                         <tr>
-                          <th className="text-left px-3 py-2">Item</th>
-                          <th className="text-left px-3 py-2 w-48">Unit</th>
-                          <th className="text-left px-3 py-2 w-44">Required Quantity</th>
-                          <th className="text-left px-3 py-2 w-24">Action</th>
+                          <th className="text-left px-3 py-2 w-[52%]">Item</th>
+                          <th className="text-left px-3 py-2 w-[14%]">Unit</th>
+                          <th className="text-left px-3 py-2 w-[22%]">Required Quantity</th>
+                          <th className="text-left px-3 py-2 w-[12%]">Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedItems.map((item, index) => (
                           <tr key={`${item.item_master_id}-${index}`} className="border-t align-middle">
                             <td className="px-3 py-2">
-                              <div className="font-medium">{item.item_nomenclature}</div>
+                              <div className="font-medium break-words">{item.item_nomenclature}</div>
                               <div className="text-xs text-gray-500">
                                 {item.item_master_id.toString().startsWith('custom_') ? 'Custom item' : 'Standard item'}
                               </div>
                             </td>
-                            <td className="px-3 py-2">{item.unit_of_measurement || '-'}</td>
+                            <td className="px-3 py-2 break-words">{item.unit_of_measurement || '-'}</td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
                                 <Button
