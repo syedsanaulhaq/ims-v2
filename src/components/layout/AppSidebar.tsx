@@ -143,6 +143,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     hasWingSupervisorRole ||
     hasWingStorekeeperRole;
   const canAccessBranchMenu = isSuperAdmin || hasBranchSupervisorRole || hasBranchStorekeeperRole;
+  const hasBranchAssignment = !!((user as any)?.branch_id || (user as any)?.intBranchID || 0);
   const hasApproverRole = roleNames.some(role =>
     role === 'AD ADMIN-I' ||
     role === 'AD ADMIN-II' ||
@@ -231,6 +232,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "Dashboard", icon: Home, path: "/personal-dashboard", permission: undefined },
       { title: "Request Form", icon: ShoppingCart, path: "/dashboard/stock-issuance-personal", permission: undefined },
+      ...(!canAccessBranchMenu && hasBranchAssignment ? [
+        { title: "Branch Demand", icon: Building2, path: "/dashboard/stock-issuance-branch", permission: undefined }
+      ] : []),
       { title: "My Request", icon: ClipboardList, path: "/dashboard/my-requests", permission: undefined },
       { title: "Stock Return", icon: Undo2, path: "/dashboard/stock-return", permission: undefined },
       { title: "My Inventory", icon: Package, path: "/dashboard/personal-inventory", permission: undefined },
