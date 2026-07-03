@@ -7,16 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { 
   Package, 
-  Calendar, 
   ArrowLeft,
   CheckCircle,
   AlertTriangle,
   XCircle,
   Search,
-  Download,
   TrendingUp,
   Clock,
-  DollarSign,
   User
 } from 'lucide-react';
 import { formatDateDMY } from '@/utils/dateUtils';
@@ -158,33 +155,6 @@ export default function PersonalInventory() {
     }
   };
 
-  const exportToCSV = () => {
-    const headers = ['Request Number', 'Item Name', 'Category', 'Quantity', 'Unit Price', 'Total Value', 'Issued Date', 'Status', 'Return Status'];
-    const rows = filteredItems.map(item => [
-      item.request_number,
-      item.nomenclature,
-      item.category_name,
-      item.issued_quantity,
-      item.unit_price,
-      item.total_value,
-      formatDateDMY(item.issued_at),
-      item.status,
-      item.current_return_status
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `personal-inventory-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -210,9 +180,9 @@ export default function PersonalInventory() {
             <p className="text-gray-500">Track all items issued to you</p>
           </div>
         </div>
-        <Button onClick={exportToCSV} className="bg-teal-600 hover:bg-teal-700">
-          <Download className="h-4 w-4 mr-2" />
-          Export Data
+        <Button onClick={() => navigate('/dashboard/stock-issuance-personal')} className="bg-teal-600 hover:bg-teal-700 text-white">
+          <Package className="h-4 w-4 mr-2" />
+          Create Request
         </Button>
       </div>
 
@@ -239,14 +209,12 @@ export default function PersonalInventory() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-500" />
+              <CardTitle className="text-sm font-medium">Account Scope</CardTitle>
+              <User className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                Rs. {summary.total_value.toLocaleString()}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">Under your custody</p>
+              <div className="text-2xl font-bold">Personal</div>
+              <p className="text-xs text-gray-500 mt-1">Issued to your account only</p>
             </CardContent>
           </Card>
 
@@ -288,16 +256,18 @@ export default function PersonalInventory() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by item name, request number, or category..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by item name, request number, or category..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex gap-2">
@@ -360,11 +330,17 @@ export default function PersonalInventory() {
                     <div>
                       <h3 className="font-semibold text-lg">{item.nomenclature}</h3>
                       <p className="text-sm text-gray-500">Request: {item.request_number}</p>
-                      {item.category_name && (
-                        <Badge variant="outline" className="mt-1">
-                          {item.category_name}
+                      <div className="flex items-center gap-2 mt-1">
+                        {item.category_name && (
+                          <Badge variant="outline">
+                            {item.category_name}
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="bg-blue-100">
+                          <User className="h-3 w-3 mr-1" />
+                          Self
                         </Badge>
-                      )}
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       {getStatusBadge(item)}
@@ -376,18 +352,10 @@ export default function PersonalInventory() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-500">Quantity</p>
                       <p className="font-semibold">{item.issued_quantity}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Unit Price</p>
-                      <p className="font-semibold">Rs. {item.unit_price.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Total Value</p>
-                      <p className="font-semibold">Rs. {item.total_value.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-gray-500">Issued Date</p>
