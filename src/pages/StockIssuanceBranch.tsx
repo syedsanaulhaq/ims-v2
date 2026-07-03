@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Building2, CheckCircle, Minus, Package, Plus, Search, Send } from 'lucide-react';
+import { AlertCircle, Building2, CheckCircle, Minus, Package, Plus, Search, Send, Users } from 'lucide-react';
 
 interface SelectedItem {
   item_master_id: number | string;
@@ -22,6 +22,8 @@ interface SelectedItem {
   unit_of_measurement: string;
   estimated_unit_price?: number;
   notes?: string;
+  source_demand_ids?: string[];
+  source_staff_names?: string[];
 }
 
 interface ItemMaster {
@@ -31,6 +33,19 @@ interface ItemMaster {
   vCategoryName: string;
   vSubCategoryName: string;
   vUnitOfMeasure: string;
+}
+
+interface BranchStaffDemand {
+  id: string;
+  item_master_id?: string | null;
+  item_nomenclature: string;
+  requested_quantity: number;
+  unit_label: string;
+  staff_user_id: string;
+  staff_name?: string;
+  status: string;
+  justification?: string;
+  created_at?: string;
 }
 
 const StockIssuanceBranch: React.FC = () => {
@@ -49,14 +64,58 @@ const StockIssuanceBranch: React.FC = () => {
   const [itemsLibrary, setItemsLibrary] = useState<ItemMaster[]>([]);
   const [itemsError, setItemsError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [staffDemands, setStaffDemands] = useState<BranchStaffDemand[]>([]);
+  const [myDemands, setMyDemands] = useState<BranchStaffDemand[]>([]);
+  const [demandLoading, setDemandLoading] = useState(false);
 
   const branchId = Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) || 0;
   const branchName = (user as any)?.branch_name || (user as any)?.BranchName || 'Unknown Branch';
   const branchAcronym = (user as any)?.branch_acronym || (user as any)?.BranchAcron || '';
+  const roleNames = ((user as any)?.ims_roles || []).map((r: any) => String(r?.role_name || '').toUpperCase().replace(/\s+/g, '_'));
+  const isBranchSupervisor = roleNames.some((role: string) => role === 'BRANCH_SUPERVISOR' || role === 'CUSTOM_BRANCH_SUPERVISOR') || (user as any)?.is_super_admin;
 
   useEffect(() => {
     fetchItemsLibrary();
-  }, []);
+    if (isBranchSupervisor) {
+      fetchBranchDemandInbox();
+    } else {
+      fetchMyBranchDemands();
+    }
+  }, [isBranchSupervisor]);
+
+  const fetchBranchDemandInbox = async () => {
+    try {
+      setDemandLoading(true);
+      const response = await fetch(`${getApiBaseUrl()}/api/stock-issuance/branch-demands/branch-inbox`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStaffDemands(data.demands || []);
+      }
+    } catch (err) {
+      console.error('Error loading branch demand inbox:', err);
+    } finally {
+      setDemandLoading(false);
+    }
+  };
+
+  const fetchMyBranchDemands = async () => {
+    try {
+      setDemandLoading(true);
+      const response = await fetch(`${getApiBaseUrl()}/api/stock-issuance/branch-demands/my`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setMyDemands(data.demands || []);
+      }
+    } catch (err) {
+      console.error('Error loading my branch demands:', err);
+    } finally {
+      setDemandLoading(false);
+    }
+  };
 
   const fetchItemsLibrary = async () => {
     try {
@@ -149,6 +208,83 @@ const StockIssuanceBranch: React.FC = () => {
     setError('Please enter a valid custom item name and quantity');
   };
 
+  const addStaffDemandToSelection = (demand: BranchStaffDemand) => {
+    const demandId = String(demand.id);
+    const existingIndex = selectedItems.findIndex((item) => {
+      const sameMaster = String(item.item_master_id || '') === String(demand.item_master_id || '');
+      const sameName = item.item_nomenclature.trim().toLowerCase() === String(demand.item_nomenclature || '').trim().toLowerCase();
+      return sameMaster || sameName;
+    });
+
+    if (existingIndex >= 0) {
+      const updated = [...selectedItems];
+      const target = updated[existingIndex];
+      target.requested_quantity = Math.max(1, Number(target.requested_quantity || 0) + Number(demand.requested_quantity || 0));
+      target.source_demand_ids = Array.from(new Set([...(target.source_demand_ids || []), demandId]));
+      target.source_staff_names = Array.from(new Set([...(target.source_staff_names || []), demand.staff_name || 'Staff'])) ;
+      setSelectedItems(updated);
+      return;
+    }
+
+    setSelectedItems((prev) => [
+      ...prev,
+      {
+        item_master_id: demand.item_master_id || `demand_${demand.id}`,
+        item_nomenclature: demand.item_nomenclature,
+        item_code: '',
+        category_name: '',
+        subcategory_name: '',
+        requested_quantity: Number(demand.requested_quantity || 1),
+        unit_of_measurement: 'No(s)',
+        notes: demand.justification || '',
+        source_demand_ids: [demandId],
+        source_staff_names: [demand.staff_name || 'Staff']
+      }
+    ]);
+  };
+
+  const handleSubmitStaffDemand = async () => {
+    try {
+      setSubmitting(true);
+      setError('');
+      setSuccess('');
+
+      if (!selectedItems || selectedItems.length === 0) {
+        setError('Please add at least one demand line');
+        return;
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/stock-issuance/branch-demands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          justification,
+          demand_lines: selectedItems.map((item) => ({
+            item_master_id: String(item.item_master_id).startsWith('custom_') ? null : item.item_master_id,
+            item_nomenclature: item.item_nomenclature,
+            requested_quantity: item.requested_quantity,
+            justification: item.notes || justification || ''
+          }))
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit branch demand');
+      }
+
+      setSuccess('Branch demand submitted to Branch Supervisor successfully!');
+      setSelectedItems([]);
+      setJustification('');
+      fetchMyBranchDemands();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit branch demand');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
@@ -230,6 +366,19 @@ const StockIssuanceBranch: React.FC = () => {
         throw new Error(itemError.error || itemError.message || 'Request was created, but items could not be added');
       }
 
+      const demandIds = Array.from(new Set(selectedItems.flatMap((item) => item.source_demand_ids || [])));
+      if (demandIds.length > 0) {
+        await fetch(`${getApiBaseUrl()}/api/stock-issuance/branch-demands/attach-to-request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            request_id: requestId,
+            demand_ids: demandIds
+          })
+        });
+      }
+
       setSuccess('Branch request submitted successfully!');
       setSelectedItems([]);
       setJustification('');
@@ -255,8 +404,8 @@ const StockIssuanceBranch: React.FC = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Branch Stock Request</h1>
-          <p className="text-gray-600 mt-1">Request procurement of items for your branch</p>
+          <h1 className="text-3xl font-bold text-gray-900">{isBranchSupervisor ? 'Branch Stock Request' : 'Branch Demand Submission'}</h1>
+          <p className="text-gray-600 mt-1">{isBranchSupervisor ? 'Consolidate and submit branch procurement request' : 'Submit your branch demand lines to Branch Supervisor'}</p>
         </div>
 
         {success && (
@@ -279,7 +428,7 @@ const StockIssuanceBranch: React.FC = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Building2 className="w-5 h-5" />
-                  Branch Stock Request Details
+                  {isBranchSupervisor ? 'Branch Stock Request Details' : 'Branch Demand Details'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -304,18 +453,18 @@ const StockIssuanceBranch: React.FC = () => {
                     </div>
                     <div className="bg-green-50 p-2 rounded border border-green-200 mt-2">
                       <p className="text-sm text-green-700">
-                        <strong>Branch Request:</strong> This request is being created for your current branch from session.
+                        <strong>{isBranchSupervisor ? 'Branch Request' : 'Branch Demand'}:</strong> {isBranchSupervisor ? 'You are creating the final branch request.' : 'You are sending demand lines for supervisor consolidation.'}
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <Label>Purpose *</Label>
+                  <Label>{isBranchSupervisor ? 'Purpose *' : 'Demand Purpose *'}</Label>
                   <Textarea
                     value={justification}
                     onChange={event => setJustification(event.target.value)}
-                    placeholder="Explain why these items are needed for your branch"
+                    placeholder={isBranchSupervisor ? 'Explain why these items are needed for your branch' : 'Explain why these items are needed by your section/team'}
                     rows={3}
                   />
                 </div>
@@ -348,11 +497,44 @@ const StockIssuanceBranch: React.FC = () => {
           </div>
 
           <div className="space-y-6">
+            {isBranchSupervisor && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Staff Demand Inbox ({staffDemands.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {demandLoading ? (
+                  <div className="text-sm text-gray-500">Loading staff demands...</div>
+                ) : staffDemands.length === 0 ? (
+                  <div className="text-sm text-gray-500">No pending staff demand lines found.</div>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto">
+                    {staffDemands.map((demand) => (
+                      <div key={demand.id} className="border rounded-lg p-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm">{demand.item_nomenclature}</div>
+                          <div className="text-xs text-gray-600">{demand.staff_name || 'Staff'} requested {demand.requested_quantity} No(s)</div>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => addStaffDemandToSelection(demand)}>
+                          <Plus className="w-4 h-4 mr-1" />
+                          Include
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Package className="w-5 h-5" />
-                  Select Items
+                  {isBranchSupervisor ? 'Select Items' : 'Add Demand Items'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -549,14 +731,34 @@ const StockIssuanceBranch: React.FC = () => {
                   </div>
                 </div>
 
+                {!isBranchSupervisor && (
+                  <div className="border-t pt-4 mt-4">
+                    <h4 className="font-medium mb-2">My Submitted Branch Demands ({myDemands.length})</h4>
+                    {demandLoading ? (
+                      <div className="text-sm text-gray-500">Loading...</div>
+                    ) : myDemands.length === 0 ? (
+                      <div className="text-sm text-gray-500">No submitted demands yet.</div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {myDemands.map((demand) => (
+                          <div key={demand.id} className="text-xs border rounded p-2 flex items-center justify-between">
+                            <span>{demand.item_nomenclature} - {demand.requested_quantity} No(s)</span>
+                            <span className="font-medium text-blue-700">{demand.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="mt-6">
-                  <Button disabled={selectedItems.length === 0 || submitting} className="w-full" onClick={handleSubmit}>
+                  <Button disabled={selectedItems.length === 0 || submitting} className="w-full" onClick={isBranchSupervisor ? handleSubmit : handleSubmitStaffDemand}>
                     {submitting ? (
                       'Submitting...'
                     ) : (
                       <>
                         <Send className="w-4 h-4 mr-2" />
-                        Submit Branch Request
+                        {isBranchSupervisor ? 'Submit Branch Request' : 'Submit Branch Demand'}
                       </>
                     )}
                   </Button>

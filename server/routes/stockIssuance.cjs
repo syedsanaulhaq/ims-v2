@@ -86,6 +86,36 @@ const findFirstAdminChainApprover = async (pool, excludedUserId) => {
   return result.recordset[0]?.user_id || null;
 };
 
+let branchDemandTablesEnsured = false;
+const ensureBranchDemandTables = async (pool) => {
+  if (branchDemandTablesEnsured) return;
+
+  await pool.request().query(`
+    IF OBJECT_ID('branch_staff_demands', 'U') IS NULL
+    BEGIN
+      CREATE TABLE branch_staff_demands (
+        id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        branch_id INT NOT NULL,
+        staff_user_id NVARCHAR(450) NOT NULL,
+        item_master_id UNIQUEIDENTIFIER NULL,
+        item_nomenclature NVARCHAR(MAX) NOT NULL,
+        requested_quantity INT NOT NULL,
+        unit_label NVARCHAR(20) NOT NULL DEFAULT 'No(s)',
+        justification NVARCHAR(MAX) NULL,
+        status NVARCHAR(30) NOT NULL DEFAULT 'SUBMITTED',
+        included_in_request_id UNIQUEIDENTIFIER NULL,
+        included_by NVARCHAR(450) NULL,
+        included_at DATETIME2 NULL,
+        created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+        updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+        is_deleted BIT NOT NULL DEFAULT 0
+      );
+    END
+  `);
+
+  branchDemandTablesEnsured = true;
+};
+
 // ============================================================================
 // GET /api/stock-issuance - Get all stock issuance requests
 // ============================================================================
@@ -440,6 +470,197 @@ router.get('/requests', requireAuth, async (req, res) => {
       error: 'Failed to fetch requests', 
       details: error.message 
     });
+  }
+});
+
+// ============================================================================
+// POST /api/stock-issuance/branch-demands - Staff submit branch demand lines
+// ============================================================================
+router.post('/branch-demands', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureBranchDemandTables(pool);
+
+    const userId = req.session.userId;
+    const { demand_lines = [], justification = '' } = req.body;
+
+    if (!Array.isArray(demand_lines) || demand_lines.length === 0) {
+      return res.status(400).json({ error: 'demand_lines are required' });
+    }
+
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`SELECT intBranchID as branch_id FROM AspNetUsers WHERE Id = @userId`);
+
+    const branchId = Number(userResult.recordset[0]?.branch_id || 0);
+    if (!branchId) {
+      return res.status(400).json({ error: 'No branch is assigned to this user' });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      for (const line of demand_lines) {
+        const qty = Math.max(1, Number(line.requested_quantity || 0));
+        const nomenclature = String(line.item_nomenclature || '').trim();
+
+        if (!nomenclature) continue;
+
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, uuidv4())
+          .input('branchId', sql.Int, branchId)
+          .input('staffUserId', sql.NVarChar(450), userId)
+          .input('itemMasterId', sql.UniqueIdentifier, line.item_master_id || null)
+          .input('nomenclature', sql.NVarChar(sql.MAX), nomenclature)
+          .input('qty', sql.Int, qty)
+          .input('justification', sql.NVarChar(sql.MAX), line.justification || justification || null)
+          .query(`
+            INSERT INTO branch_staff_demands
+              (id, branch_id, staff_user_id, item_master_id, item_nomenclature, requested_quantity, unit_label, justification, status, created_at, updated_at, is_deleted)
+            VALUES
+              (@id, @branchId, @staffUserId, @itemMasterId, @nomenclature, @qty, 'No(s)', @justification, 'SUBMITTED', GETDATE(), GETDATE(), 0)
+          `);
+      }
+
+      await transaction.commit();
+      res.status(201).json({ success: true, message: 'Branch demand submitted', count: demand_lines.length });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('Error submitting branch demands:', error);
+    res.status(500).json({ error: 'Failed to submit branch demand', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/stock-issuance/branch-demands/my - Current user demand lines
+// ============================================================================
+router.get('/branch-demands/my', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureBranchDemandTables(pool);
+
+    const userId = req.session.userId;
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`
+        SELECT
+          d.id,
+          d.branch_id,
+          d.item_master_id,
+          d.item_nomenclature,
+          d.requested_quantity,
+          d.unit_label,
+          d.justification,
+          d.status,
+          d.included_in_request_id,
+          d.created_at,
+          d.updated_at
+        FROM branch_staff_demands d
+        WHERE d.staff_user_id = @userId
+          AND (d.is_deleted = 0 OR d.is_deleted IS NULL)
+        ORDER BY d.created_at DESC
+      `);
+
+    res.json({ success: true, demands: result.recordset });
+  } catch (error) {
+    console.error('Error fetching my branch demands:', error);
+    res.status(500).json({ error: 'Failed to fetch demands', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/stock-issuance/branch-demands/branch-inbox - Supervisor inbox
+// ============================================================================
+router.get('/branch-demands/branch-inbox', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureBranchDemandTables(pool);
+
+    const userId = req.session.userId;
+    const userResult = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query(`SELECT intBranchID as branch_id FROM AspNetUsers WHERE Id = @userId`);
+
+    const branchId = Number(userResult.recordset[0]?.branch_id || 0);
+    if (!branchId) {
+      return res.status(400).json({ error: 'No branch is assigned to this user' });
+    }
+
+    const status = String(req.query.status || 'SUBMITTED').toUpperCase();
+
+    const result = await pool.request()
+      .input('branchId', sql.Int, branchId)
+      .input('status', sql.NVarChar(30), status)
+      .query(`
+        SELECT
+          d.id,
+          d.item_master_id,
+          d.item_nomenclature,
+          d.requested_quantity,
+          d.unit_label,
+          d.justification,
+          d.status,
+          d.staff_user_id,
+          u.FullName as staff_name,
+          d.created_at
+        FROM branch_staff_demands d
+        LEFT JOIN AspNetUsers u ON u.Id = d.staff_user_id
+        WHERE d.branch_id = @branchId
+          AND d.status = @status
+          AND (d.is_deleted = 0 OR d.is_deleted IS NULL)
+        ORDER BY d.created_at DESC
+      `);
+
+    res.json({ success: true, demands: result.recordset });
+  } catch (error) {
+    console.error('Error fetching branch demand inbox:', error);
+    res.status(500).json({ error: 'Failed to fetch branch demand inbox', details: error.message });
+  }
+});
+
+// ============================================================================
+// POST /api/stock-issuance/branch-demands/attach-to-request
+// Mark demand lines included in finalized branch request
+// ============================================================================
+router.post('/branch-demands/attach-to-request', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureBranchDemandTables(pool);
+
+    const userId = req.session.userId;
+    const { request_id, demand_ids = [] } = req.body;
+
+    if (!request_id || !Array.isArray(demand_ids) || demand_ids.length === 0) {
+      return res.status(400).json({ error: 'request_id and demand_ids are required' });
+    }
+
+    const idsCsv = demand_ids.map((id) => String(id)).filter(Boolean).join(',');
+
+    await pool.request()
+      .input('requestId', sql.UniqueIdentifier, request_id)
+      .input('actorId', sql.NVarChar(450), userId)
+      .input('idsCsv', sql.NVarChar(sql.MAX), idsCsv)
+      .query(`
+        UPDATE branch_staff_demands
+        SET status = 'INCLUDED',
+            included_in_request_id = @requestId,
+            included_by = @actorId,
+            included_at = GETDATE(),
+            updated_at = GETDATE()
+        WHERE id IN (
+          SELECT TRY_CONVERT(uniqueidentifier, LTRIM(RTRIM(value)))
+          FROM STRING_SPLIT(@idsCsv, ',')
+        )
+      `);
+
+    res.json({ success: true, message: 'Demand lines linked to request' });
+  } catch (error) {
+    console.error('Error attaching demands to request:', error);
+    res.status(500).json({ error: 'Failed to attach demand lines', details: error.message });
   }
 });
 
