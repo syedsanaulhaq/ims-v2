@@ -715,7 +715,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         const decision = getItemDecision(itemId);
       let decisionType: 'APPROVE_FROM_STOCK' | 'FORWARD_TO_ADMIN' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' | 'RETURN' = 'REJECT';
         let allocatedQty = 0;
-        const revisedQty = Math.max(0, Number(decision?.approvedQuantity ?? getItemQuantity(item) || 0));
+        const revisedQty = Math.max(0, Number((decision?.approvedQuantity ?? getItemQuantity(item)) || 0));
 
         if (decision?.decision === 'approve_wing') {
           decisionType = 'APPROVE_FROM_STOCK';
