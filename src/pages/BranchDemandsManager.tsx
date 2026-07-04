@@ -68,7 +68,15 @@ const toDateTime = (value?: string) => {
   if (!value) return '-';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleString();
+
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const sec = String(d.getSeconds()).padStart(2, '0');
+
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}:${sec}`;
 };
 
 const BranchDemandsManager: React.FC = () => {
@@ -95,8 +103,9 @@ const BranchDemandsManager: React.FC = () => {
         throw new Error(data?.error || 'Failed to load branch demands manager');
       }
 
-      const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '');
-      const myDemands = (data.demands || []) as DemandRow[];
+      const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '').toLowerCase();
+      const myDemands = ((data.demands || []) as DemandRow[])
+        .filter((d) => String(d.staff_user_id || '').toLowerCase() === currentUserId);
 
       const requestMap = new Map<string, RequestWithTotals>();
       for (const req of (data.requests || []) as RequestRow[]) {
