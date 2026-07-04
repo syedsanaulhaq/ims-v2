@@ -127,26 +127,32 @@ const BranchDemandsManager: React.FC = () => {
 
       const unlinkedDemandRows = myDemands
         .filter((d) => !d.included_in_request_id)
-        .map((d) => ({
-          id: d.id,
-          display_id: d.id,
-          request_number: d.id,
-          requester_name: d.staff_name || 'Current User',
-          request_status: d.status || 'SUBMITTED',
-          approval_status: d.status || 'SUBMITTED',
-          urgency_level: 'Normal',
-          submitted_at: d.created_at,
-          created_at: d.created_at,
-          linked_demand_count: 1,
-          linked_demand_qty: Number(d.requested_quantity || 0),
-          total_requested_quantity: Number(d.requested_quantity || 0),
-          total_demand_lines: 1,
-          items: [d]
-        }));
+        .sort((a, b) => new Date(String(b.created_at || 0)).getTime() - new Date(String(a.created_at || 0)).getTime());
 
-      unlinkedDemandRows.forEach((row) => {
-        requestMap.set(String(row.id), row as RequestWithTotals);
-      });
+      if (unlinkedDemandRows.length > 0) {
+        const totalQty = unlinkedDemandRows.reduce((sum, d) => sum + Number(d.requested_quantity || 0), 0);
+        const requestTitle = unlinkedDemandRows.length === 1
+          ? unlinkedDemandRows[0].item_nomenclature
+          : `${unlinkedDemandRows[0].item_nomenclature} + ${unlinkedDemandRows.length - 1} more`;
+        const latestCreatedAt = unlinkedDemandRows[0]?.created_at;
+
+        requestMap.set(`pending-${unlinkedDemandRows[0].staff_user_id || 'me'}`, {
+          id: `pending-${unlinkedDemandRows[0].staff_user_id || 'me'}`,
+          display_id: requestTitle,
+          request_number: requestTitle,
+          requester_name: unlinkedDemandRows[0]?.staff_name || 'Current User',
+          request_status: 'SUBMITTED',
+          approval_status: 'SUBMITTED',
+          urgency_level: 'Normal',
+          submitted_at: latestCreatedAt,
+          created_at: latestCreatedAt,
+          linked_demand_count: unlinkedDemandRows.length,
+          linked_demand_qty: totalQty,
+          total_requested_quantity: totalQty,
+          total_demand_lines: unlinkedDemandRows.length,
+          items: unlinkedDemandRows
+        });
+      }
 
       const myRequests = Array.from(requestMap.values())
         .filter((r) => r.total_demand_lines > 0)
