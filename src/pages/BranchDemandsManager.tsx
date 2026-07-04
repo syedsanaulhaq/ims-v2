@@ -25,6 +25,8 @@ interface DemandRow {
 interface RequestRow {
   id: string;
   request_number?: string;
+  purpose?: string;
+  justification?: string;
   requester_name?: string;
   request_status?: string;
   approval_status?: string;
@@ -39,7 +41,6 @@ interface RequestWithTotals extends RequestRow {
   total_requested_quantity: number;
   total_demand_lines: number;
   items: DemandRow[];
-  display_id?: string;
 }
 
 const parseApiJsonSafely = (raw: string) => {
@@ -138,8 +139,9 @@ const BranchDemandsManager: React.FC = () => {
 
         requestMap.set(`pending-${unlinkedDemandRows[0].staff_user_id || 'me'}`, {
           id: `pending-${unlinkedDemandRows[0].staff_user_id || 'me'}`,
-          display_id: requestTitle,
           request_number: requestTitle,
+          purpose: unlinkedDemandRows[0]?.justification || requestTitle,
+          justification: unlinkedDemandRows[0]?.justification || requestTitle,
           requester_name: unlinkedDemandRows[0]?.staff_name || 'Current User',
           request_status: 'SUBMITTED',
           approval_status: 'SUBMITTED',
@@ -266,10 +268,7 @@ const BranchDemandsManager: React.FC = () => {
                       return (
                         <tr key={request.id} className="border-b border-gray-200 hover:bg-gray-50">
                           <td className="p-3">
-                            <div className="font-bold text-base break-all">{request.display_id || request.id}</div>
-                            {request.request_number && request.request_number !== (request.display_id || request.id) && (
-                              <div className="text-xs text-gray-500 break-words">{request.request_number}</div>
-                            )}
+                            <div className="font-bold text-base break-words">{request.justification || request.purpose || '-'}</div>
                           </td>
                           <td className="p-3">{request.requester_name || '-'}</td>
                           <td className="p-3">{toDateTime(request.submitted_at || request.created_at)}</td>
