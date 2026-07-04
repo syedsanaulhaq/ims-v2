@@ -208,8 +208,8 @@ const BranchDemandsManager: React.FC = () => {
           <CardContent>
             {loading ? (
               <div className="text-sm text-gray-500">Loading demands...</div>
-            ) : demands.length === 0 ? (
-              <div className="text-sm text-gray-500">No demand lines found.</div>
+            ) : requests.length === 0 ? (
+              <div className="text-sm text-gray-500">No submitted branch requests found yet.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm">
@@ -255,87 +255,6 @@ const BranchDemandsManager: React.FC = () => {
                     })}
                   </tbody>
                 </table>
-
-                {demands.filter((d) => !d.included_in_request_id).length > 0 && (
-                  <div className="border-2 border-amber-200 rounded-lg p-3 bg-amber-50 mt-4">
-                    <div className="text-sm font-semibold text-amber-900 mb-2">Pending Inclusion in Request</div>
-                    <div className="space-y-2">
-                      {demands.filter((d) => !d.included_in_request_id).map((demand) => (
-                        <div key={demand.id} className="flex justify-between items-center text-sm">
-                          <div>
-                            <span className="font-medium">{demand.item_nomenclature}</span>
-                            <span className="text-gray-600 ml-2">- Qty: {demand.requested_quantity} {demand.unit_label || 'No(s)'}</span>
-                          </div>
-                          <Badge className={statusClass(demand.status)}>{demand.status || 'SUBMITTED'}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Previously Submitted Branch Requests (With Status)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-sm text-gray-500">Loading branch requests...</div>
-            ) : requests.length === 0 ? (
-              <div className="text-sm text-gray-500">No branch requests found.</div>
-            ) : (
-              <div className="space-y-4">
-                {requests.map((request) => {
-                  const effectiveStatus = request.approval_status || request.request_status || 'Pending';
-                  return (
-                    <div key={request.id} className="border rounded-lg p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                        <div>
-                          <div className="text-sm text-gray-600">Request Number</div>
-                          <div className="text-lg font-bold">{request.request_number || '-'}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Submitted By</div>
-                          <div className="font-medium">{request.requester_name || '-'}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Date & Time</div>
-                          <div className="font-medium">{toDateTime(request.submitted_at || request.created_at)}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Total Items</div>
-                          <div className="font-bold text-lg">
-                            {request.total_requested_quantity} Qty <span className="text-sm text-gray-600">({request.total_demand_lines} lines)</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center border-t pt-3">
-                        <div>
-                          <div className="text-sm text-gray-600">Status</div>
-                          <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-600">Priority</div>
-                          <div className="font-medium">{request.urgency_level || 'Normal'}</div>
-                        </div>
-                        <div></div>
-                        <div>
-                          <button
-                            type="button"
-                            className="px-3 py-2 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors w-full text-center"
-                            onClick={() => setSelectedRequest(request)}
-                          >
-                            View Items ({request.items.length})
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             )}
           </CardContent>
