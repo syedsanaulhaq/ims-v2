@@ -262,7 +262,10 @@ const BranchDemandsManager: React.FC = () => {
                       return (
                         <tr key={request.id} className="border-b border-gray-200 hover:bg-gray-50">
                           <td className="p-3">
-                            <div className="font-bold text-base">{request.request_number || '-'}</div>
+                            <div className="font-bold text-base break-all">{request.id}</div>
+                            {request.request_number && request.request_number !== request.id && (
+                              <div className="text-xs text-gray-500 break-words">{request.request_number}</div>
+                            )}
                           </td>
                           <td className="p-3">{request.requester_name || '-'}</td>
                           <td className="p-3">{toDateTime(request.submitted_at || request.created_at)}</td>
