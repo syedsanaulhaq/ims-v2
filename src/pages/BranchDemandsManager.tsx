@@ -96,7 +96,7 @@ const BranchDemandsManager: React.FC = () => {
       }
 
       const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '');
-      const myDemands = (data.demands || []);
+      const myDemands = (data.demands || []) as DemandRow[];
 
       const requestMap = new Map<string, RequestWithTotals>();
       for (const req of (data.requests || []) as RequestRow[]) {
@@ -117,8 +117,33 @@ const BranchDemandsManager: React.FC = () => {
         current.items.push(demand);
       }
 
+      const unlinkedDemands = myDemands.filter((d) => !d.included_in_request_id);
+      if (unlinkedDemands.length > 0) {
+        const totalQty = unlinkedDemands.reduce((sum, d) => sum + Number(d.requested_quantity || 0), 0);
+        const latestCreatedAt = unlinkedDemands
+          .map((d) => d.created_at)
+          .filter(Boolean)
+          .sort((a, b) => new Date(String(b)).getTime() - new Date(String(a)).getTime())[0];
+
+        requestMap.set(`pending-${currentUserId || 'me'}`, {
+          id: `pending-${currentUserId || 'me'}`,
+          request_number: 'Pending Supervisor Request',
+          requester_name: unlinkedDemands[0]?.staff_name || (user as any)?.user_name || 'Current User',
+          request_status: 'Submitted',
+          approval_status: 'Submitted',
+          urgency_level: 'Normal',
+          submitted_at: latestCreatedAt,
+          created_at: latestCreatedAt,
+          linked_demand_count: unlinkedDemands.length,
+          linked_demand_qty: totalQty,
+          total_requested_quantity: totalQty,
+          total_demand_lines: unlinkedDemands.length,
+          items: unlinkedDemands
+        });
+      }
+
       const myRequests = Array.from(requestMap.values())
-        .filter((r) => r.total_demand_lines > 0)
+        .filter((r) => r.total_demand_lines > 0 || String(r.request_number || '').toLowerCase().includes('pending supervisor request'))
         .sort((a, b) => {
           const da = new Date(a.submitted_at || a.created_at || 0).getTime();
           const db = new Date(b.submitted_at || b.created_at || 0).getTime();
