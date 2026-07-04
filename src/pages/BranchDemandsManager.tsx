@@ -39,6 +39,7 @@ interface RequestWithTotals extends RequestRow {
   total_requested_quantity: number;
   total_demand_lines: number;
   items: DemandRow[];
+  display_id?: string;
 }
 
 const parseApiJsonSafely = (raw: string) => {
@@ -103,7 +104,6 @@ const BranchDemandsManager: React.FC = () => {
         throw new Error(data?.error || 'Failed to load branch demands manager');
       }
 
-      const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '');
       const myDemands = (data.demands || []) as DemandRow[];
 
       const requestMap = new Map<string, RequestWithTotals>();
@@ -125,33 +125,31 @@ const BranchDemandsManager: React.FC = () => {
         current.items.push(demand);
       }
 
-      const unlinkedDemands = myDemands.filter((d) => !d.included_in_request_id);
-      if (unlinkedDemands.length > 0) {
-        const totalQty = unlinkedDemands.reduce((sum, d) => sum + Number(d.requested_quantity || 0), 0);
-        const latestCreatedAt = unlinkedDemands
-          .map((d) => d.created_at)
-          .filter(Boolean)
-          .sort((a, b) => new Date(String(b)).getTime() - new Date(String(a)).getTime())[0];
-
-        requestMap.set(`pending-${currentUserId || 'me'}`, {
-          id: `pending-${currentUserId || 'me'}`,
-          request_number: 'Pending Supervisor Request',
-          requester_name: unlinkedDemands[0]?.staff_name || (user as any)?.user_name || 'Current User',
-          request_status: 'Submitted',
-          approval_status: 'Submitted',
+      const unlinkedDemandRows = myDemands
+        .filter((d) => !d.included_in_request_id)
+        .map((d) => ({
+          id: d.id,
+          display_id: d.id,
+          request_number: d.id,
+          requester_name: d.staff_name || 'Current User',
+          request_status: d.status || 'SUBMITTED',
+          approval_status: d.status || 'SUBMITTED',
           urgency_level: 'Normal',
-          submitted_at: latestCreatedAt,
-          created_at: latestCreatedAt,
-          linked_demand_count: unlinkedDemands.length,
-          linked_demand_qty: totalQty,
-          total_requested_quantity: totalQty,
-          total_demand_lines: unlinkedDemands.length,
-          items: unlinkedDemands
-        });
-      }
+          submitted_at: d.created_at,
+          created_at: d.created_at,
+          linked_demand_count: 1,
+          linked_demand_qty: Number(d.requested_quantity || 0),
+          total_requested_quantity: Number(d.requested_quantity || 0),
+          total_demand_lines: 1,
+          items: [d]
+        }));
+
+      unlinkedDemandRows.forEach((row) => {
+        requestMap.set(String(row.id), row as RequestWithTotals);
+      });
 
       const myRequests = Array.from(requestMap.values())
-        .filter((r) => r.total_demand_lines > 0 || String(r.request_number || '').toLowerCase().includes('pending supervisor request'))
+        .filter((r) => r.total_demand_lines > 0)
         .sort((a, b) => {
           const da = new Date(a.submitted_at || a.created_at || 0).getTime();
           const db = new Date(b.submitted_at || b.created_at || 0).getTime();
@@ -262,8 +260,8 @@ const BranchDemandsManager: React.FC = () => {
                       return (
                         <tr key={request.id} className="border-b border-gray-200 hover:bg-gray-50">
                           <td className="p-3">
-                            <div className="font-bold text-base break-all">{request.id}</div>
-                            {request.request_number && request.request_number !== request.id && (
+                            <div className="font-bold text-base break-all">{request.display_id || request.id}</div>
+                            {request.request_number && request.request_number !== (request.display_id || request.id) && (
                               <div className="text-xs text-gray-500 break-words">{request.request_number}</div>
                             )}
                           </td>
