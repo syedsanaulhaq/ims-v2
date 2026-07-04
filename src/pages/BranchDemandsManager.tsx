@@ -103,9 +103,8 @@ const BranchDemandsManager: React.FC = () => {
         throw new Error(data?.error || 'Failed to load branch demands manager');
       }
 
-      const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '').toLowerCase();
-      const myDemands = ((data.demands || []) as DemandRow[])
-        .filter((d) => String(d.staff_user_id || '').toLowerCase() === currentUserId);
+      const currentUserId = String((user as any)?.user_id || (user as any)?.Id || '');
+      const myDemands = (data.demands || []) as DemandRow[];
 
       const requestMap = new Map<string, RequestWithTotals>();
       for (const req of (data.requests || []) as RequestRow[]) {
