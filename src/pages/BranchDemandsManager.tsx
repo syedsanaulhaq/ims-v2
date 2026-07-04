@@ -254,7 +254,7 @@ const BranchDemandsManager: React.FC = () => {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b-2 border-gray-300 bg-gray-50">
-                      <th className="text-left p-3 font-semibold">Request Number</th>
+                      <th className="text-left p-3 font-semibold">Demand Purpose</th>
                       <th className="text-left p-3 font-semibold">Submitted By</th>
                       <th className="text-left p-3 font-semibold">Date & Time</th>
                       <th className="text-left p-3 font-semibold">Total Items</th>
