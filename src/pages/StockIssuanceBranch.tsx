@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../utils/api-config';
 import { useSession } from '../contexts/SessionContext';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Building2, CheckCircle, Minus, Package, Plus, Search, Send, Users } from 'lucide-react';
+import { AlertCircle, Building2, CheckCircle, Minus, Package, Plus, Search, Send, Trash2, Users } from 'lucide-react';
 
 interface SelectedItem {
   item_master_id: number | string;
@@ -82,6 +82,18 @@ const StockIssuanceBranch: React.FC = () => {
   const branchAcronym = (user as any)?.branch_acronym || (user as any)?.BranchAcron || '';
   const roleNames = ((user as any)?.ims_roles || []).map((r: any) => String(r?.role_name || '').toUpperCase().replace(/\s+/g, '_'));
   const isBranchSupervisor = roleNames.some((role: string) => role === 'BRANCH_SUPERVISOR' || role === 'CUSTOM_BRANCH_SUPERVISOR') || (user as any)?.is_super_admin;
+
+  const selectedDemandIdSet = useMemo(() => {
+    return new Set(
+      selectedItems
+        .flatMap((item) => item.source_demand_ids || [])
+        .map((id) => String(id))
+    );
+  }, [selectedItems]);
+
+  const visibleStaffDemands = useMemo(() => {
+    return staffDemands.filter((demand) => !selectedDemandIdSet.has(String(demand.id)));
+  }, [staffDemands, selectedDemandIdSet]);
 
   useEffect(() => {
     fetchItemsLibrary();
@@ -520,17 +532,17 @@ const StockIssuanceBranch: React.FC = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="w-5 h-5" />
-                  Staff Demand Inbox ({staffDemands.length})
+                  Staff Demand Inbox ({visibleStaffDemands.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {demandLoading ? (
                   <div className="text-sm text-gray-500">Loading staff demands...</div>
-                ) : staffDemands.length === 0 ? (
+                ) : visibleStaffDemands.length === 0 ? (
                   <div className="text-sm text-gray-500">No pending staff demand lines found.</div>
                 ) : (
                   <div className="space-y-2 max-h-56 overflow-y-auto">
-                    {staffDemands.map((demand) => (
+                    {visibleStaffDemands.map((demand) => (
                       <div key={demand.id} className="border rounded-lg p-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="font-medium text-sm">{demand.item_nomenclature}</div>
@@ -704,8 +716,8 @@ const StockIssuanceBranch: React.FC = () => {
                         <tr>
                           <th className="text-left px-3 py-2 w-[52%]">Item</th>
                           <th className="text-left px-3 py-2 w-[14%]">Unit</th>
-                          <th className="text-left px-3 py-2 w-[22%]">Required Quantity</th>
-                          <th className="text-left px-3 py-2 w-[12%]">Action</th>
+                          <th className="text-left px-3 py-2 w-[24%]">Required Quantity</th>
+                          <th className="text-left px-3 py-2 w-[10%]">Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -738,8 +750,15 @@ const StockIssuanceBranch: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-3 py-2">
-                              <Button size="sm" variant="destructive" onClick={() => removeItem(index)}>
-                                Remove
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => removeItem(index)}
+                                aria-label="Remove item"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-4 h-4" />
                               </Button>
                             </td>
                           </tr>
