@@ -746,7 +746,6 @@ const StockIssuancePersonal: React.FC = () => {
                     <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">{item.nomenclature}</div>
-                        <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(Number(item.current_stock || 0))}`}>
                         <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getPersonalInventoryQty(item))}`}>
                           Personal Inventory Qty: {getPersonalInventoryQty(item)}
                         </div>
