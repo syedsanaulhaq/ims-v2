@@ -1329,7 +1329,7 @@ const createStockIssuanceRequest = async (req, res) => {
           approverId = await findFirstAdminChainApprover(pool, userId);
         }
 
-        if (!approverId && normalizedRequestType === 'branch') {
+        if (!approverId && normalizedRequestType === 'branch' && !isBranchSupervisorSubmission) {
           const branchSupervisor = await findBranchRoleUser(pool, requester_branch_id, [
             'BRANCH_SUPERVISOR',
             'Branch Supervisor',
@@ -1418,6 +1418,16 @@ const createStockIssuanceRequest = async (req, res) => {
               await pool.request()
                 .input('requestId', sql.UniqueIdentifier, requestId)
                 .input('approvalStatus', sql.NVarChar(100), laneStatusText)
+                .query(`
+                  UPDATE stock_issuance_requests
+                  SET approval_status = @approvalStatus,
+                      updated_at = GETDATE()
+                  WHERE id = @requestId
+                `);
+            } else if (isBranchSupervisorSubmission) {
+              await pool.request()
+                .input('requestId', sql.UniqueIdentifier, requestId)
+                .input('approvalStatus', sql.NVarChar(100), 'Forwarded to Admin')
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,
