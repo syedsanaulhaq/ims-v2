@@ -1388,12 +1388,13 @@ const createStockIssuanceRequest = async (req, res) => {
             .input('requestType', sql.NVarChar(50), 'stock_issuance')
             .input('approverId', sql.NVarChar(450), approverId)
             .input('submittedBy', sql.NVarChar(450), userId)
+            .input('isAdminWorkflow', sql.Bit, isBranchSupervisorSubmission ? 1 : 0)
             .query(`
               INSERT INTO request_approvals 
                 (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by, submitted_date, created_date, updated_date, is_admin_workflow)
               OUTPUT INSERTED.id
               VALUES 
-                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE(), 0)
+                (@requestId, @requestType, NEWID(), @approverId, 'pending', @submittedBy, GETDATE(), GETDATE(), GETDATE(), @isAdminWorkflow)
             `);
 
           const approvalId = approvalResult.recordset[0].id;
@@ -1402,6 +1403,20 @@ const createStockIssuanceRequest = async (req, res) => {
               await pool.request()
                 .input('requestId', sql.UniqueIdentifier, requestId)
                 .input('approvalStatus', sql.NVarChar(100), 'Pending Supervisor Review')
+                .query(`
+                  UPDATE stock_issuance_requests
+                  SET approval_status = @approvalStatus,
+                      updated_at = GETDATE()
+                  WHERE id = @requestId
+                `);
+            } else if (isBranchSupervisorSubmission) {
+              if (dynamicWorkflowResult?.ok) {
+                await bindRequestApprovalId(pool, requestId, approvalId);
+              }
+
+              await pool.request()
+                .input('requestId', sql.UniqueIdentifier, requestId)
+                .input('approvalStatus', sql.NVarChar(100), 'Forwarded to Admin')
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,
@@ -1418,16 +1433,6 @@ const createStockIssuanceRequest = async (req, res) => {
               await pool.request()
                 .input('requestId', sql.UniqueIdentifier, requestId)
                 .input('approvalStatus', sql.NVarChar(100), laneStatusText)
-                .query(`
-                  UPDATE stock_issuance_requests
-                  SET approval_status = @approvalStatus,
-                      updated_at = GETDATE()
-                  WHERE id = @requestId
-                `);
-            } else if (isBranchSupervisorSubmission) {
-              await pool.request()
-                .input('requestId', sql.UniqueIdentifier, requestId)
-                .input('approvalStatus', sql.NVarChar(100), 'Forwarded to Admin')
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,
@@ -1566,10 +1571,6 @@ router.post('/items', requireAuth, async (req, res) => {
             });
 
             if (dynamicWorkflowResult?.ok && dynamicWorkflowResult?.approverId) {
-              const laneStatusText = dynamicWorkflowResult.laneCount && dynamicWorkflowResult.laneCount > 1
-                ? `Pending ${dynamicWorkflowResult.laneCount} Group Lanes`
-                : `Pending Step ${dynamicWorkflowResult.currentStepOrder} of ${dynamicWorkflowResult.totalSteps}`;
-
               await pool.request()
                 .input('approvalId', sql.UniqueIdentifier, approvalId)
                 .input('approverId', sql.NVarChar(450), dynamicWorkflowResult.approverId)
@@ -1584,7 +1585,7 @@ router.post('/items', requireAuth, async (req, res) => {
 
               await pool.request()
                 .input('requestId', sql.UniqueIdentifier, request_id)
-                .input('approvalStatus', sql.NVarChar(100), laneStatusText)
+                .input('approvalStatus', sql.NVarChar(100), 'Forwarded to Admin')
                 .query(`
                   UPDATE stock_issuance_requests
                   SET approval_status = @approvalStatus,
