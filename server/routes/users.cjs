@@ -321,8 +321,8 @@ router.get('/aspnet/filtered', async (req, res) => {
           CAST(NULL AS INT) as intOfficeID,
           CAST(NULL AS INT) as intWingID,
           eb.BranchID as intBranchID,
-          CAST(NULL AS INT) as intDesignationID,
-          '-' as designation,
+          au.intDesignationID as intDesignationID,
+          COALESCE(NULLIF(vud.strDesignation, ''), NULLIF(d.strDesignation, ''), '-') as designation,
           CAST(NULL AS NVARCHAR(200)) as officeName,
           CAST(NULL AS NVARCHAR(200)) as wingName,
           CAST(NULL AS NVARCHAR(200)) as wing_name,
@@ -332,6 +332,14 @@ router.get('/aspnet/filtered', async (req, res) => {
           eb.FATHER_NAME as FatherOrHusbandName,
           eb.CONTACT as PhoneNumber
         FROM vw_employee_branch eb
+        OUTER APPLY (
+          SELECT TOP 1 u.Id, u.intDesignationID
+          FROM AspNetUsers u
+          WHERE REPLACE(u.CNIC, '-', '') = REPLACE(eb.CNIC, '-', '')
+          ORDER BY u.ISACT DESC, u.AddedOn DESC
+        ) au
+        LEFT JOIN vw_User_with_designation vud ON CONVERT(NVARCHAR(450), vud.Id) = CONVERT(NVARCHAR(450), au.Id)
+        LEFT JOIN tblUserDesignations d ON au.intDesignationID = d.intDesignationID
         WHERE eb.BranchID = @branchId
       `;
 

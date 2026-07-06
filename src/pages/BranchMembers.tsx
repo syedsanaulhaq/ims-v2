@@ -14,6 +14,9 @@ interface BranchMember {
   FullName: string;
   UserName: string;
   Email: string;
+  CNIC?: string;
+  PhoneNumber?: string;
+  designation?: string;
   Role: string;
   intBranchID?: number;
 }
@@ -52,8 +55,10 @@ const BranchMembers: React.FC = () => {
 
   const filteredMembers = members.filter((member) =>
     String(member.FullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    String(member.UserName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    String(member.Email || '').toLowerCase().includes(searchTerm.toLowerCase())
+    String(member.CNIC || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(member.PhoneNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(member.Email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(member.designation || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -83,7 +88,7 @@ const BranchMembers: React.FC = () => {
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search by name, username, or email..."
+              placeholder="Search by CNIC, name, phone, email, or designation..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -105,23 +110,21 @@ const BranchMembers: React.FC = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-gray-50">
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">CNIC</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Name</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Username</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Phone</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Email</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Role</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Designation</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMembers.map((member, index) => (
                   <tr key={member.Id} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                    <td className="px-6 py-4 text-sm text-gray-700">{member.CNIC || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 font-medium">{member.FullName}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">@{member.UserName}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{member.PhoneNumber || '-'}</td>
                     <td className="px-6 py-4 text-sm text-blue-700">{member.Email}</td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{member.Role || 'Member'}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <Badge className="bg-green-100 text-green-800">Active</Badge>
-                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{member.designation || '-'}</td>
                   </tr>
                 ))}
               </tbody>
