@@ -794,14 +794,14 @@ const StockIssuanceBranch: React.FC = () => {
 
                 <div className="border-t pt-4">
                   <h4 className="font-medium mb-3">Selected Items ({selectedItems.length})</h4>
-                  <div className="border rounded-lg">
-                    <table className="w-full table-fixed text-sm">
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="w-full min-w-[760px] table-fixed text-sm">
                       <thead className="bg-gray-100 text-gray-700">
                         <tr>
                           <th className="text-left px-3 py-2 w-[52%]">Item</th>
                           <th className="text-left px-3 py-2 w-[14%]">Unit</th>
                           <th className="text-left px-3 py-2 w-[24%]">Required Quantity</th>
-                          <th className="text-left px-3 py-2 w-[10%]">Action</th>
+                          <th className="text-center px-3 py-2 w-[10%] whitespace-nowrap">Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -838,7 +838,7 @@ const StockIssuanceBranch: React.FC = () => {
                                 </Button>
                               </div>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2 text-center">
                               <Button
                                 size="icon"
                                 variant="ghost"
