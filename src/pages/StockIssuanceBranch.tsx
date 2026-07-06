@@ -35,6 +35,13 @@ interface ItemMaster {
   vUnitOfMeasure: string;
 }
 
+interface BranchInventoryRow {
+  item_master_id?: number | string | null;
+  nomenclature?: string;
+  issued_quantity?: number;
+  current_return_status?: string;
+}
+
 interface BranchStaffDemand {
   id: string;
   item_master_id?: string | null;
@@ -76,6 +83,8 @@ const StockIssuanceBranch: React.FC = () => {
   const [staffDemands, setStaffDemands] = useState<BranchStaffDemand[]>([]);
   const [myDemands, setMyDemands] = useState<BranchStaffDemand[]>([]);
   const [demandLoading, setDemandLoading] = useState(false);
+  const [branchInventoryByItemId, setBranchInventoryByItemId] = useState<Record<string, number>>({});
+  const [branchInventoryByName, setBranchInventoryByName] = useState<Record<string, number>>({});
 
   const branchId = Number((user as any)?.branch_id ?? (user as any)?.intBranchID ?? 0) || 0;
   const branchName = (user as any)?.branch_name || (user as any)?.BranchName || 'Unknown Branch';
@@ -99,10 +108,70 @@ const StockIssuanceBranch: React.FC = () => {
     fetchItemsLibrary();
     if (isBranchSupervisor) {
       fetchBranchDemandInbox();
+      fetchBranchInventoryTotals();
     } else {
       fetchMyBranchDemands();
     }
   }, [isBranchSupervisor]);
+
+  const fetchBranchInventoryTotals = async () => {
+    try {
+      if (!branchId) {
+        setBranchInventoryByItemId({});
+        setBranchInventoryByName({});
+        return;
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/branch-inventory/${branchId}`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const rows: BranchInventoryRow[] = Array.isArray(data?.items) ? data.items : [];
+      const byItemId: Record<string, number> = {};
+      const byName: Record<string, number> = {};
+
+      rows
+        .filter((row) => String(row.current_return_status || '').toLowerCase() !== 'returned')
+        .forEach((row) => {
+          const qty = Number(row.issued_quantity || 0);
+          if (!qty) return;
+
+          if (row.item_master_id !== null && row.item_master_id !== undefined && String(row.item_master_id) !== '') {
+            const key = String(row.item_master_id);
+            byItemId[key] = Number(byItemId[key] || 0) + qty;
+          }
+
+          const nameKey = String(row.nomenclature || '').trim().toLowerCase();
+          if (nameKey) {
+            byName[nameKey] = Number(byName[nameKey] || 0) + qty;
+          }
+        });
+
+      setBranchInventoryByItemId(byItemId);
+      setBranchInventoryByName(byName);
+    } catch (err) {
+      console.error('Error loading branch inventory totals:', err);
+      setBranchInventoryByItemId({});
+      setBranchInventoryByName({});
+    }
+  };
+
+  const getBranchInventoryQty = (item: { id?: number | string; vItemNomenclature?: string; item_master_id?: number | string; item_nomenclature?: string; }) => {
+    const itemId = item.id ?? item.item_master_id;
+    if (itemId !== undefined && itemId !== null && String(itemId) !== '') {
+      const byId = branchInventoryByItemId[String(itemId)];
+      if (byId !== undefined) return byId;
+    }
+
+    const name = (item.vItemNomenclature || item.item_nomenclature || '').trim().toLowerCase();
+    if (!name) return 0;
+    return Number(branchInventoryByName[name] || 0);
+  };
 
   const fetchBranchDemandInbox = async () => {
     try {
@@ -605,6 +674,11 @@ const StockIssuanceBranch: React.FC = () => {
                             <div className="text-xs text-gray-600 line-clamp-2">
                               Unit: {item.vUnitOfMeasure || 'N/A'}
                             </div>
+                            {isBranchSupervisor && (
+                              <div className="text-xs text-blue-700 mt-1">
+                                Branch Inventory Qty: {getBranchInventoryQty(item)}
+                              </div>
+                            )}
                           </div>
                           <Button
                             size="sm"
@@ -728,6 +802,11 @@ const StockIssuanceBranch: React.FC = () => {
                               <div className="text-xs text-gray-500">
                                 {item.item_master_id.toString().startsWith('custom_') ? 'Custom item' : 'Standard item'}
                               </div>
+                              {isBranchSupervisor && !item.item_master_id.toString().startsWith('custom_') && (
+                                <div className="text-xs text-blue-700 mt-1">
+                                  Branch Inventory Qty: {getBranchInventoryQty(item)}
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 py-2 break-words">{item.unit_of_measurement || '-'}</td>
                             <td className="px-3 py-2">
