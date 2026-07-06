@@ -313,30 +313,38 @@ router.get('/aspnet/filtered', async (req, res) => {
       const request = pool.request().input('branchId', sql.Int, Number(effectiveBranchId));
       let query = `
         SELECT DISTINCT
-          COALESCE(CONVERT(NVARCHAR(450), eb.ID), eb.CNIC, eb.EMAIL, eb.NAME) as Id,
-          COALESCE(NULLIF(eb.NAME, ''), '-') as FullName,
-          COALESCE(NULLIF(eb.CNIC, ''), NULLIF(eb.EMAIL, ''), eb.NAME) as UserName,
-          COALESCE(NULLIF(eb.EMAIL, ''), '') as Email,
+          COALESCE(CONVERT(NVARCHAR(450), eb.ID), CONVERT(NVARCHAR(450), eb.Id), eb.CNIC, eb.Expr1, eb.EMAIL, eb.Expr2, eb.NAME, eb.FullName) as Id,
+          COALESCE(NULLIF(eb.FullName, ''), NULLIF(eb.NAME, ''), '-') as FullName,
+          COALESCE(NULLIF(eb.CNIC, ''), NULLIF(eb.Expr1, ''), NULLIF(eb.EMAIL, ''), NULLIF(eb.Expr2, ''), eb.FullName, eb.NAME) as UserName,
+          COALESCE(NULLIF(eb.Email, ''), NULLIF(eb.EMAIL, ''), NULLIF(eb.Expr2, ''), '') as Email,
           'Member' as Role,
           CAST(NULL AS INT) as intOfficeID,
           CAST(NULL AS INT) as intWingID,
-          eb.BranchID as intBranchID,
-          CAST(NULL AS INT) as intDesignationID,
-          COALESCE(NULLIF(CONVERT(NVARCHAR(200), eb.designation), ''), '-') as designation,
+          COALESCE(TRY_CONVERT(INT, eb.BranchID), TRY_CONVERT(INT, eb.DEC_ID)) as intBranchID,
+          TRY_CONVERT(INT, eb.Designation) as intDesignationID,
+          COALESCE(NULLIF(d.strDesignation, ''), NULLIF(CONVERT(NVARCHAR(200), eb.Designation), ''), '-') as designation,
           CAST(NULL AS NVARCHAR(200)) as officeName,
           CAST(NULL AS NVARCHAR(200)) as wingName,
           CAST(NULL AS NVARCHAR(200)) as wing_name,
-          eb.BranchName as branchName,
-          eb.BranchName as branch_name,
-          eb.CNIC,
-          eb.FATHER_NAME as FatherOrHusbandName,
-          eb.CONTACT as PhoneNumber
+          COALESCE(NULLIF(eb.BranchName, ''), NULLIF(eb.DECName, ''), '-') as branchName,
+          COALESCE(NULLIF(eb.BranchName, ''), NULLIF(eb.DECName, ''), '-') as branch_name,
+          COALESCE(NULLIF(eb.CNIC, ''), NULLIF(eb.Expr1, '')) as CNIC,
+          COALESCE(NULLIF(eb.FatherOrHusbandName, ''), NULLIF(eb.FATHER_NAME, '')) as FatherOrHusbandName,
+          COALESCE(NULLIF(eb.PhoneNumber, ''), NULLIF(eb.CONTACT, '')) as PhoneNumber
         FROM vw_employee_branch eb
-        WHERE eb.BranchID = @branchId
+        LEFT JOIN tblUserDesignations d ON TRY_CONVERT(INT, eb.Designation) = d.intDesignationID
+        WHERE COALESCE(TRY_CONVERT(INT, eb.BranchID), TRY_CONVERT(INT, eb.DEC_ID)) = @branchId
       `;
 
       if (search) {
-        query += ` AND (eb.NAME LIKE @search OR eb.CNIC LIKE @search OR eb.EMAIL LIKE @search OR eb.BranchName LIKE @search OR CONVERT(NVARCHAR(200), eb.designation) LIKE @search)`;
+        query += ` AND (
+          COALESCE(eb.FullName, eb.NAME, '') LIKE @search
+          OR COALESCE(eb.CNIC, eb.Expr1, '') LIKE @search
+          OR COALESCE(eb.Email, eb.EMAIL, eb.Expr2, '') LIKE @search
+          OR COALESCE(eb.BranchName, eb.DECName, '') LIKE @search
+          OR COALESCE(eb.PhoneNumber, eb.CONTACT, '') LIKE @search
+          OR COALESCE(d.strDesignation, CONVERT(NVARCHAR(200), eb.Designation), '') LIKE @search
+        )`;
         request.input('search', sql.NVarChar, `%${search}%`);
       }
 
