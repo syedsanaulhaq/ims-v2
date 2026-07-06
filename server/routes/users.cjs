@@ -7,6 +7,35 @@ const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../db/connection.cjs');
 
+let employeeBranchViewColumnsCache = null;
+
+async function getEmployeeBranchViewColumns(pool) {
+  if (employeeBranchViewColumnsCache) {
+    return employeeBranchViewColumnsCache;
+  }
+
+  const colsResult = await pool.request().query(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'vw_employee_branch'
+  `);
+
+  employeeBranchViewColumnsCache = new Set(
+    (colsResult.recordset || []).map((r) => String(r.COLUMN_NAME || '').toLowerCase())
+  );
+
+  return employeeBranchViewColumnsCache;
+}
+
+function pickExistingColumn(columnsSet, candidates) {
+  for (const name of candidates) {
+    if (columnsSet.has(name.toLowerCase())) {
+      return name;
+    }
+  }
+  return null;
+}
+
 async function resolveBranchIdFromLoggedInUserCnic(pool, req) {
   let cnic = req.session?.user?.CNIC || req.session?.user?.cnic || null;
 
@@ -21,28 +50,24 @@ async function resolveBranchIdFromLoggedInUserCnic(pool, req) {
     return null;
   }
 
-  const normalizedCnic = String(cnic).replace(/-/g, '').trim();
-  const exactBranchResult = await pool.request()
-    .input('cnic', sql.NVarChar(30), String(cnic).trim())
-    .query(`
-      SELECT TOP 1 BranchID
-      FROM vw_employee_branch
-      WHERE LTRIM(RTRIM(CNIC)) = @cnic
-    `);
+  const columns = await getEmployeeBranchViewColumns(pool);
+  const cnicColumn = pickExistingColumn(columns, ['CNIC', 'cnic']);
+  const branchIdColumn = pickExistingColumn(columns, ['BranchID', 'DEC_ID', 'branch_id', 'intBranchID']);
 
-  if (exactBranchResult.recordset[0]?.BranchID) {
-    return exactBranchResult.recordset[0].BranchID;
+  if (!cnicColumn || !branchIdColumn) {
+    return null;
   }
 
-  const normalizedBranchResult = await pool.request()
+  const normalizedCnic = String(cnic).replace(/-/g, '').trim();
+  const branchResult = await pool.request()
     .input('normalizedCnic', sql.NVarChar(30), normalizedCnic)
     .query(`
-      SELECT TOP 1 BranchID
+      SELECT TOP 1 [${branchIdColumn}] AS BranchID
       FROM vw_employee_branch
-      WHERE REPLACE(LTRIM(RTRIM(CNIC)), '-', '') = @normalizedCnic
+      WHERE REPLACE(LTRIM(RTRIM(CONVERT(NVARCHAR(50), [${cnicColumn}]))), '-', '') = @normalizedCnic
     `);
 
-  return normalizedBranchResult.recordset[0]?.BranchID || null;
+  return branchResult.recordset[0]?.BranchID || null;
 }
 
 // ============================================================================
@@ -299,9 +324,10 @@ router.get('/aspnet/filtered', async (req, res) => {
     const pool = getPool();
     const { role, office_id, wing_id, branch_id, search } = req.query;
     const hasBranchFilter = branch_id !== undefined && branch_id !== null && String(branch_id).trim() !== '';
+    const sessionBranchId = req.session?.user?.intBranchID || null;
     const effectiveBranchId = hasBranchFilter
       ? String(branch_id).toLowerCase() === 'me'
-        ? await resolveBranchIdFromLoggedInUserCnic(pool, req)
+        ? (await resolveBranchIdFromLoggedInUserCnic(pool, req)) || sessionBranchId
         : Number(branch_id)
       : null;
 
@@ -310,41 +336,80 @@ router.get('/aspnet/filtered', async (req, res) => {
         return res.json([]);
       }
 
+      const columns = await getEmployeeBranchViewColumns(pool);
+      const idColumn = pickExistingColumn(columns, ['Id', 'ID']);
+      const fullNameColumn = pickExistingColumn(columns, ['FullName', 'NAME']);
+      const userNameColumn = pickExistingColumn(columns, ['UserName', 'user_name']);
+      const emailColumn = pickExistingColumn(columns, ['Email', 'EMAIL']);
+      const cnicColumn = pickExistingColumn(columns, ['CNIC', 'cnic']);
+      const phoneColumn = pickExistingColumn(columns, ['PhoneNumber', 'CONTACT']);
+      const fatherNameColumn = pickExistingColumn(columns, ['FatherOrHusbandName', 'FATHER_NAME']);
+      const branchIdColumn = pickExistingColumn(columns, ['BranchID', 'DEC_ID', 'branch_id', 'intBranchID']);
+      const branchNameColumn = pickExistingColumn(columns, ['BranchName', 'DECName', 'branch_name']);
+      const designationColumn = pickExistingColumn(columns, ['Designation', 'DEPARTMENT_DESIGNATION_ID', 'intDesignationID']);
+
+      if (!branchIdColumn) {
+        return res.json([]);
+      }
+
+      const asText = (col) => col ? `NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(400), eb.[${col}]))), '')` : null;
+      const asInt = (col) => col ? `TRY_CONVERT(INT, eb.[${col}])` : 'CAST(NULL AS INT)';
+      const firstNonEmpty = (candidates, fallback) => {
+        const filtered = candidates.filter(Boolean);
+        return filtered.length > 0 ? `COALESCE(${filtered.join(', ')}, ${fallback})` : fallback;
+      };
+
+      const idExpr = firstNonEmpty([
+        idColumn ? `CONVERT(NVARCHAR(450), eb.[${idColumn}])` : null,
+        asText(cnicColumn),
+        asText(emailColumn),
+        asText(fullNameColumn)
+      ], `CONVERT(NVARCHAR(450), NEWID())`);
+
+      const fullNameExpr = firstNonEmpty([asText(fullNameColumn)], "'-'");
+      const userNameExpr = firstNonEmpty([asText(userNameColumn), asText(cnicColumn), asText(fullNameColumn)], "'-'");
+      const emailExpr = firstNonEmpty([asText(emailColumn)], "''");
+      const cnicExpr = firstNonEmpty([asText(cnicColumn)], "''");
+      const phoneExpr = firstNonEmpty([asText(phoneColumn)], "''");
+      const fatherNameExpr = firstNonEmpty([asText(fatherNameColumn)], "''");
+      const branchNameExpr = firstNonEmpty([asText(branchNameColumn)], "'-'");
+      const designationIntExpr = asInt(designationColumn);
+      const designationTextExpr = designationColumn ? `CONVERT(NVARCHAR(200), eb.[${designationColumn}])` : "''";
+
       const request = pool.request().input('branchId', sql.Int, Number(effectiveBranchId));
       let query = `
         SELECT DISTINCT
-          CONVERT(NVARCHAR(450), eb.Id) as Id,
-          COALESCE(NULLIF(eb.FullName, ''), '-') as FullName,
-          COALESCE(NULLIF(eb.UserName, ''), NULLIF(eb.CNIC, ''), eb.FullName) as UserName,
-          COALESCE(NULLIF(eb.Email, ''), '') as Email,
+          ${idExpr} as Id,
+          ${fullNameExpr} as FullName,
+          ${userNameExpr} as UserName,
+          ${emailExpr} as Email,
           'Member' as Role,
           CAST(NULL AS INT) as intOfficeID,
           CAST(NULL AS INT) as intWingID,
-          TRY_CONVERT(INT, eb.BranchID) as intBranchID,
-          TRY_CONVERT(INT, eb.Designation) as intDesignationID,
-          COALESCE(NULLIF(d.strDesignation, ''), NULLIF(CONVERT(NVARCHAR(200), eb.Designation), ''), '-') as designation,
+          TRY_CONVERT(INT, eb.[${branchIdColumn}]) as intBranchID,
+          ${designationIntExpr} as intDesignationID,
+          COALESCE(NULLIF(d.strDesignation, ''), NULLIF(${designationTextExpr}, ''), '-') as designation,
           CAST(NULL AS NVARCHAR(200)) as officeName,
           CAST(NULL AS NVARCHAR(200)) as wingName,
           CAST(NULL AS NVARCHAR(200)) as wing_name,
-          COALESCE(NULLIF(eb.BranchName, ''), '-') as branchName,
-          COALESCE(NULLIF(eb.BranchName, ''), '-') as branch_name,
-          COALESCE(NULLIF(eb.CNIC, '')) as CNIC,
-          COALESCE(NULLIF(eb.FatherOrHusbandName, '')) as FatherOrHusbandName,
-          COALESCE(NULLIF(eb.PhoneNumber, '')) as PhoneNumber
+          ${branchNameExpr} as branchName,
+          ${branchNameExpr} as branch_name,
+          ${cnicExpr} as CNIC,
+          ${fatherNameExpr} as FatherOrHusbandName,
+          ${phoneExpr} as PhoneNumber
         FROM vw_employee_branch eb
-        LEFT JOIN tblUserDesignations d ON TRY_CONVERT(INT, eb.Designation) = d.intDesignationID
-        WHERE TRY_CONVERT(INT, eb.BranchID) = @branchId
+        LEFT JOIN tblUserDesignations d ON ${designationIntExpr} = d.intDesignationID
+        WHERE TRY_CONVERT(INT, eb.[${branchIdColumn}]) = @branchId
       `;
 
       if (search) {
+        const searchableColumns = [fullNameColumn, userNameColumn, cnicColumn, emailColumn, branchNameColumn, phoneColumn, designationColumn]
+          .filter(Boolean)
+          .map((col) => `COALESCE(CONVERT(NVARCHAR(400), eb.[${col}]), '') LIKE @search`);
+
         query += ` AND (
-          COALESCE(eb.FullName, '') LIKE @search
-          OR COALESCE(eb.UserName, '') LIKE @search
-          OR COALESCE(eb.CNIC, '') LIKE @search
-          OR COALESCE(eb.Email, '') LIKE @search
-          OR COALESCE(eb.BranchName, '') LIKE @search
-          OR COALESCE(eb.PhoneNumber, '') LIKE @search
-          OR COALESCE(d.strDesignation, CONVERT(NVARCHAR(200), eb.Designation), '') LIKE @search
+          ${searchableColumns.length > 0 ? searchableColumns.join(' OR ') : "1 = 0"}
+          OR COALESCE(d.strDesignation, '') LIKE @search
         )`;
         request.input('search', sql.NVarChar, `%${search}%`);
       }
