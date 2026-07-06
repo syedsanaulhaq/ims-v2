@@ -173,6 +173,16 @@ const StockIssuanceBranch: React.FC = () => {
     return Number(branchInventoryByName[name] || 0);
   };
 
+  const getInventoryQtyBadgeClass = (qty: number) => {
+    if (qty <= 0) {
+      return 'text-red-700 bg-red-50 border border-red-200';
+    }
+    if (qty <= 5) {
+      return 'text-amber-700 bg-amber-50 border border-amber-200';
+    }
+    return 'text-green-700 bg-green-50 border border-green-200';
+  };
+
   const fetchBranchDemandInbox = async () => {
     try {
       setDemandLoading(true);
@@ -675,7 +685,7 @@ const StockIssuanceBranch: React.FC = () => {
                               Unit: {item.vUnitOfMeasure || 'N/A'}
                             </div>
                             {isBranchSupervisor && (
-                              <div className="text-xs text-blue-700 mt-1">
+                              <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getBranchInventoryQty(item))}`}>
                                 Branch Inventory Qty: {getBranchInventoryQty(item)}
                               </div>
                             )}
@@ -803,7 +813,7 @@ const StockIssuanceBranch: React.FC = () => {
                                 {item.item_master_id.toString().startsWith('custom_') ? 'Custom item' : 'Standard item'}
                               </div>
                               {isBranchSupervisor && !item.item_master_id.toString().startsWith('custom_') && (
-                                <div className="text-xs text-blue-700 mt-1">
+                                <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getBranchInventoryQty(item))}`}>
                                   Branch Inventory Qty: {getBranchInventoryQty(item)}
                                 </div>
                               )}
