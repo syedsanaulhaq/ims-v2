@@ -254,8 +254,8 @@ const BranchRequestHistoryPage: React.FC = () => {
         // Prefer workflow-aware fallback titles if no specific approver info is available
         if (!request.current_approver_name) {
           if (statusText.includes('forwarded to admin') || statusText.includes('pending admin')) {
-            currentApprover = 'Admin';
-            currentDesignation = 'Administrator Approval';
+            currentApprover = 'DD Admin';
+            currentDesignation = 'Admin Approval';
           } else if (statusText.includes('pending supervisor') || statusText.includes('forwarded to supervisor')) {
             currentApprover = 'Branch Supervisor';
             currentDesignation = 'Supervisor Approval';
@@ -263,8 +263,8 @@ const BranchRequestHistoryPage: React.FC = () => {
             currentApprover = 'Branch Storekeeper';
             currentDesignation = 'Store Review';
           } else {
-            currentApprover = 'Admin';
-            currentDesignation = 'Administrator Approval';
+            currentApprover = 'DD Admin';
+            currentDesignation = 'Admin Approval';
           }
         }
 
