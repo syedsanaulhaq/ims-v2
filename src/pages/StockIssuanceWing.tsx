@@ -859,15 +859,14 @@ const StockIssuanceWing: React.FC = () => {
               {/* Selected Items */}
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-3">Selected Items ({issuanceItems.length})</h4>
-                <div className="overflow-x-auto border rounded-lg">
-                  <table className="w-full min-w-[820px] text-sm">
+                <div className="border rounded-lg">
+                  <table className="w-full table-fixed text-sm">
                     <thead className="bg-gray-100 text-gray-700">
                       <tr>
-                        <th className="text-left px-3 py-2">Item</th>
-                        <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
-                        <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
-                        <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
-                        <th className="text-left px-3 py-2 w-24">Action</th>
+                        <th className="text-left px-3 py-2 w-[36%]">Item</th>
+                        <th className="text-left px-3 py-2 w-[16%]">Last Issued Qty</th>
+                        <th className="text-left px-3 py-2 w-[16%]">Last Issue Date</th>
+                        <th className="text-left px-3 py-2 w-[32%]">Fresh Requirement</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -898,21 +897,30 @@ const StockIssuanceWing: React.FC = () => {
                               >
                                 <Plus className="w-3 h-3" />
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => removeIssuanceItem(item.inventory_id)}
+                              >
+                                Remove
+                              </Button>
                             </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => removeIssuanceItem(item.inventory_id)}
-                            >
-                              Remove
-                            </Button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  <div className="border-t bg-gray-50 px-3 py-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full text-red-700 border-red-200 hover:bg-red-50"
+                      onClick={() => setIssuanceItems([])}
+                      disabled={issuanceItems.length === 0}
+                    >
+                      Clear Selected Items
+                    </Button>
+                  </div>
                 </div>
               </div>
 

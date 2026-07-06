@@ -785,11 +785,10 @@ const StockIssuancePersonal: React.FC = () => {
                   <table className="w-full table-fixed text-xs">
                     <thead className="bg-gray-100 text-gray-700">
                       <tr>
-                        <th className="text-left px-2 py-2 w-[34%]">Item</th>
+                        <th className="text-left px-2 py-2 w-[36%]">Item</th>
                         <th className="text-left px-2 py-2 w-[16%]">Last Qty</th>
                         <th className="text-left px-2 py-2 w-[16%]">Last Date</th>
-                        <th className="text-left px-2 py-2 w-[24%]">Fresh Req</th>
-                        <th className="text-left px-2 py-2 w-[10%]">Action</th>
+                        <th className="text-left px-2 py-2 w-[32%]">Fresh Req</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -822,22 +821,31 @@ const StockIssuancePersonal: React.FC = () => {
                               >
                                 <Plus className="w-3 h-3" />
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => removeIssuanceItem(item.inventory_id)}
+                                className="h-7 px-2 text-[11px]"
+                              >
+                                Remove
+                              </Button>
                             </div>
-                          </td>
-                          <td className="px-2 py-2 align-top">
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => removeIssuanceItem(item.inventory_id)}
-                              className="h-7 px-2 text-[11px]"
-                            >
-                              Remove
-                            </Button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  <div className="border-t bg-gray-50 px-3 py-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full text-red-700 border-red-200 hover:bg-red-50"
+                      onClick={() => setIssuanceItems([])}
+                      disabled={issuanceItems.length === 0}
+                    >
+                      Clear Selected Items
+                    </Button>
+                  </div>
                 </div>
               </div>
 
