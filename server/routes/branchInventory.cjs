@@ -59,6 +59,7 @@ router.get('/requests', requireAuth, async (req, res) => {
     const reqResult = await reqRequest.query(`
       SELECT
         sir.id,
+        sir.id AS request_id,
         sir.request_number,
         sir.request_type,
         COALESCE(sir.purpose, 'Stock Issuance Request') AS title,

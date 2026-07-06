@@ -56,6 +56,43 @@ const BranchRequestHistoryPage: React.FC = () => {
 
   const currentUser = sessionService.getCurrentUser();
 
+  const normalizeRequests = (rawRequests: BranchRequest[] = []): BranchRequest[] => {
+    const grouped = new Map<string, BranchRequest>();
+
+    rawRequests.forEach((request) => {
+      const key = String(request.request_id || request.id || request.title || '');
+      const existing = grouped.get(key);
+
+      if (!existing) {
+        grouped.set(key, {
+          ...request,
+          request_id: String(request.request_id || request.id || ''),
+          items: [...(request.items || [])],
+          total_items: Number(request.total_items || (request.items || []).length || 0)
+        });
+        return;
+      }
+
+      const mergedItems = [...existing.items, ...(request.items || [])];
+      const dedupedItems = mergedItems.filter((item, index, arr) => {
+        const itemKey = String(item.id || `${item.item_name}-${item.requested_quantity}-${item.unit}`);
+        return arr.findIndex((x) => String(x.id || `${x.item_name}-${x.requested_quantity}-${x.unit}`) === itemKey) === index;
+      });
+
+      grouped.set(key, {
+        ...existing,
+        items: dedupedItems,
+        total_items: dedupedItems.length,
+        submitted_date: existing.submitted_date || request.submitted_date,
+        requested_date: existing.requested_date || request.requested_date,
+      });
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => {
+      return new Date(b.submitted_date || b.requested_date || 0).getTime() - new Date(a.submitted_date || a.requested_date || 0).getTime();
+    });
+  };
+
   useEffect(() => {
     loadBranchRequestHistory();
   }, []);
@@ -77,8 +114,9 @@ const BranchRequestHistoryPage: React.FC = () => {
         const data = await response.json();
         console.log('📋 API Response data:', data);
         if (data.success) {
-          console.log(`Setting ${data.requests.length} branch requests`);
-          setRequests(data.requests || []);
+          const normalized = normalizeRequests(data.requests || []);
+          console.log(`Setting ${normalized.length} grouped branch requests`);
+          setRequests(normalized);
           setBranchName(data.branch_name || 'Your Branch');
         } else {
           console.error('❌ API returned success=false:', data.error);
