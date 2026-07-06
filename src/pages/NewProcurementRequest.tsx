@@ -34,6 +34,13 @@ interface ItemMaster {
   vUnitOfMeasure: string;
 }
 
+interface ScopedInventoryRow {
+  item_master_id?: number | string | null;
+  nomenclature?: string;
+  issued_quantity?: number;
+  current_return_status?: string;
+}
+
 const NewProcurementRequest: React.FC = () => {
     // Custom item state
     const [customItemName, setCustomItemName] = useState('');
@@ -63,12 +70,86 @@ const NewProcurementRequest: React.FC = () => {
   const [itemsLibrary, setItemsLibrary] = useState<ItemMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showItemPicker, setShowItemPicker] = useState(false);
+  const [wingInventoryByItemId, setWingInventoryByItemId] = useState<Record<string, number>>({});
+  const [wingInventoryByName, setWingInventoryByName] = useState<Record<string, number>>({});
 
 
   useEffect(() => {
     fetchItemsLibrary();
     fetchWingsAndSetWingName();
+    fetchWingInventoryTotals();
   }, []);
+
+  const getInventoryQtyBadgeClass = (qty: number) => {
+    if (qty <= 0) return 'text-red-700 bg-red-50 border border-red-200';
+    if (qty <= 5) return 'text-amber-700 bg-amber-50 border border-amber-200';
+    return 'text-green-700 bg-green-50 border border-green-200';
+  };
+
+  const getWingInventoryQty = (item: { id?: number | string; item_master_id?: number | string; item_nomenclature?: string; vItemNomenclature?: string; }) => {
+    const idCandidates = [item.item_master_id, item.id]
+      .filter((id) => id !== undefined && id !== null && String(id) !== '')
+      .map((id) => String(id));
+
+    for (const key of idCandidates) {
+      const value = wingInventoryByItemId[key];
+      if (value !== undefined) return value;
+    }
+
+    const nameKey = String(item.item_nomenclature || item.vItemNomenclature || '').trim().toLowerCase();
+    if (!nameKey) return 0;
+    return Number(wingInventoryByName[nameKey] || 0);
+  };
+
+  const fetchWingInventoryTotals = async () => {
+    try {
+      const wingId = user?.intWingID || user?.wing_id || user?.WingID;
+      if (!wingId) {
+        setWingInventoryByItemId({});
+        setWingInventoryByName({});
+        return;
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/wing-inventory/${wingId}`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        setWingInventoryByItemId({});
+        setWingInventoryByName({});
+        return;
+      }
+
+      const data = await response.json();
+      const rows: ScopedInventoryRow[] = Array.isArray(data?.items) ? data.items : [];
+      const byItemId: Record<string, number> = {};
+      const byName: Record<string, number> = {};
+
+      rows
+        .filter((row) => String(row.current_return_status || '').toLowerCase() !== 'returned')
+        .forEach((row) => {
+          const qty = Number(row.issued_quantity || 0);
+          if (!qty) return;
+
+          if (row.item_master_id !== undefined && row.item_master_id !== null && String(row.item_master_id) !== '') {
+            const key = String(row.item_master_id);
+            byItemId[key] = Number(byItemId[key] || 0) + qty;
+          }
+
+          const nameKey = String(row.nomenclature || '').trim().toLowerCase();
+          if (nameKey) {
+            byName[nameKey] = Number(byName[nameKey] || 0) + qty;
+          }
+        });
+
+      setWingInventoryByItemId(byItemId);
+      setWingInventoryByName(byName);
+    } catch (err) {
+      console.error('Error loading wing inventory totals:', err);
+      setWingInventoryByItemId({});
+      setWingInventoryByName({});
+    }
+  };
 
   const fetchWingsAndSetWingName = async () => {
     try {
@@ -444,6 +525,9 @@ const NewProcurementRequest: React.FC = () => {
                             <div className="text-xs text-gray-600 line-clamp-2">
                               Unit: {item.vUnitOfMeasure || 'N/A'}
                             </div>
+                            <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getWingInventoryQty(item))}`}>
+                              Wing Inventory Qty: {getWingInventoryQty(item)}
+                            </div>
                           </div>
                           <Button
                             size="sm"
@@ -573,6 +657,11 @@ const NewProcurementRequest: React.FC = () => {
                               <div className="text-xs text-gray-500">
                                 {item.item_master_id.toString().startsWith('custom_') ? 'Custom item' : 'Standard item'}
                               </div>
+                              {!item.item_master_id.toString().startsWith('custom_') && (
+                                <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getWingInventoryQty(item))}`}>
+                                  Wing Inventory Qty: {getWingInventoryQty(item)}
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 py-2">{item.unit_of_measurement || '-'}</td>
                             <td className="px-3 py-2">
