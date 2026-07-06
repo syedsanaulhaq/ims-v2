@@ -149,6 +149,7 @@ router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
       .query(`
         SELECT
           sii.id AS ledger_id,
+          sii.item_master_id,
           sir.request_number,
           COALESCE(im.nomenclature, sii.nomenclature, 'Unknown Item') AS nomenclature,
           c.category_name,
