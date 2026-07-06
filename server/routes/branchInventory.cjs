@@ -21,6 +21,51 @@ async function resolveBranchScope(session, pool) {
 
   const userId = session.userId;
   const sessionBranch = session?.user?.intBranchID || null;
+  const sessionBranchName = session?.user?.BranchName || null;
+
+  let cnic = session?.user?.CNIC || session?.user?.cnic || null;
+  if (!cnic && userId) {
+    const userCnicRes = await pool.request()
+      .input('userId', sql.NVarChar(450), userId)
+      .query('SELECT TOP 1 CNIC FROM AspNetUsers WHERE Id = @userId');
+    cnic = userCnicRes.recordset[0]?.CNIC || null;
+  }
+
+  if (cnic) {
+    const normalizedCnic = String(cnic).replace(/-/g, '').trim();
+
+    const exactBranchRes = await pool.request()
+      .input('cnic', sql.NVarChar(30), String(cnic).trim())
+      .query(`
+        SELECT TOP 1 BranchID, BranchName
+        FROM vw_employee_branch
+        WHERE CNIC = @cnic
+      `);
+
+    if (exactBranchRes.recordset[0]?.BranchID) {
+      return {
+        branchId: Number(exactBranchRes.recordset[0].BranchID),
+        branchName: exactBranchRes.recordset[0].BranchName || sessionBranchName || `Branch ${exactBranchRes.recordset[0].BranchID}`,
+        isAdmin: false
+      };
+    }
+
+    const normalizedBranchRes = await pool.request()
+      .input('normalizedCnic', sql.NVarChar(30), normalizedCnic)
+      .query(`
+        SELECT TOP 1 BranchID, BranchName
+        FROM vw_employee_branch
+        WHERE REPLACE(CNIC, '-', '') = @normalizedCnic
+      `);
+
+    if (normalizedBranchRes.recordset[0]?.BranchID) {
+      return {
+        branchId: Number(normalizedBranchRes.recordset[0].BranchID),
+        branchName: normalizedBranchRes.recordset[0].BranchName || sessionBranchName || `Branch ${normalizedBranchRes.recordset[0].BranchID}`,
+        isAdmin: false
+      };
+    }
+  }
 
   const userRes = await pool.request()
     .input('userId', sql.NVarChar(450), userId)
@@ -31,7 +76,7 @@ async function resolveBranchScope(session, pool) {
     `);
 
   const branchId = userRes.recordset[0]?.intBranchID || sessionBranch || null;
-  const branchName = branchId ? `Branch ${branchId}` : 'Your Branch';
+  const branchName = sessionBranchName || (branchId ? `Branch ${branchId}` : 'Your Branch');
   return { branchId, branchName, isAdmin: false };
 }
 
