@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, Filter, ArrowRight, User, Calendar, Package, MapPin, History, Building2 } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, RefreshCw, Search, User, Calendar, Package, History, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { useNavigate } from 'react-router-dom';
@@ -56,11 +56,26 @@ const BranchRequestHistoryPage: React.FC = () => {
 
   const currentUser = sessionService.getCurrentUser();
 
+  const dateToBucket = (value?: string, bucketMinutes = 10) => {
+    const time = new Date(value || 0).getTime();
+    if (!Number.isFinite(time) || time <= 0) return 'no-date';
+    const bucketMs = bucketMinutes * 60 * 1000;
+    return String(Math.floor(time / bucketMs));
+  };
+
   const normalizeRequests = (rawRequests: BranchRequest[] = []): BranchRequest[] => {
     const grouped = new Map<string, BranchRequest>();
 
     rawRequests.forEach((request) => {
-      const key = String(request.request_id || request.id || request.title || '');
+      const strictKey = String(request.request_number || request.request_id || request.id || '');
+      const fallbackKey = [
+        request.requester_name || 'unknown',
+        request.title || '',
+        request.description || '',
+        dateToBucket(request.submitted_date || request.requested_date, 10)
+      ].join('|').toLowerCase();
+
+      const key = strictKey || fallbackKey;
       const existing = grouped.get(key);
 
       if (!existing) {
@@ -75,14 +90,15 @@ const BranchRequestHistoryPage: React.FC = () => {
 
       const mergedItems = [...existing.items, ...(request.items || [])];
       const dedupedItems = mergedItems.filter((item, index, arr) => {
-        const itemKey = String(item.id || `${item.item_name}-${item.requested_quantity}-${item.unit}`);
-        return arr.findIndex((x) => String(x.id || `${x.item_name}-${x.requested_quantity}-${x.unit}`) === itemKey) === index;
+        const itemKey = String(item.id || `${item.item_name}-${item.unit}`);
+        return arr.findIndex((x) => String(x.id || `${x.item_name}-${x.unit}`) === itemKey) === index;
       });
 
       grouped.set(key, {
         ...existing,
         items: dedupedItems,
         total_items: dedupedItems.length,
+        request_id: String(existing.request_id || request.request_id || existing.id || request.id || ''),
         submitted_date: existing.submitted_date || request.submitted_date,
         requested_date: existing.requested_date || request.requested_date,
       });
@@ -416,8 +432,8 @@ const BranchRequestHistoryPage: React.FC = () => {
                       size="sm"
                       onClick={() => handleViewDetails(request)}
                     >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Details
+                      <Package className="h-4 w-4 mr-2" />
+                      Items ({request.total_items})
                     </Button>
                     <Button
                       variant="outline"
