@@ -794,14 +794,13 @@ const StockIssuanceBranch: React.FC = () => {
 
                 <div className="border-t pt-4">
                   <h4 className="font-medium mb-3">Selected Items ({selectedItems.length})</h4>
-                  <div className="border rounded-lg overflow-x-auto">
-                    <table className="w-full min-w-[760px] table-fixed text-sm">
+                  <div className="border rounded-lg">
+                    <table className="w-full table-fixed text-sm">
                       <thead className="bg-gray-100 text-gray-700">
                         <tr>
-                          <th className="text-left px-3 py-2 w-[52%]">Item</th>
+                          <th className="text-left px-3 py-2 w-[60%]">Item</th>
                           <th className="text-left px-3 py-2 w-[14%]">Unit</th>
-                          <th className="text-left px-3 py-2 w-[24%]">Required Quantity</th>
-                          <th className="text-center px-3 py-2 w-[10%] whitespace-nowrap">Action</th>
+                          <th className="text-left px-3 py-2 w-[26%]">Required Quantity</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -836,24 +835,33 @@ const StockIssuanceBranch: React.FC = () => {
                                 >
                                   <Plus className="w-3 h-3" />
                                 </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 ml-1"
+                                  onClick={() => removeItem(index)}
+                                  aria-label="Remove item"
+                                  title="Remove item"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => removeItem(index)}
-                                aria-label="Remove item"
-                                title="Remove item"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    <div className="border-t bg-gray-50 px-3 py-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full text-red-700 border-red-200 hover:bg-red-50"
+                        onClick={() => setSelectedItems([])}
+                        disabled={selectedItems.length === 0}
+                      >
+                        Clear Selected Items
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
