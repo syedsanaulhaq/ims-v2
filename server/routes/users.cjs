@@ -27,7 +27,7 @@ async function resolveBranchIdFromLoggedInUserCnic(pool, req) {
     .query(`
       SELECT TOP 1 BranchID
       FROM vw_employee_branch
-      WHERE CNIC = @cnic
+      WHERE LTRIM(RTRIM(CNIC)) = @cnic
     `);
 
   if (exactBranchResult.recordset[0]?.BranchID) {
@@ -39,7 +39,7 @@ async function resolveBranchIdFromLoggedInUserCnic(pool, req) {
     .query(`
       SELECT TOP 1 BranchID
       FROM vw_employee_branch
-      WHERE REPLACE(CNIC, '-', '') = @normalizedCnic
+      WHERE REPLACE(LTRIM(RTRIM(CNIC)), '-', '') = @normalizedCnic
     `);
 
   return normalizedBranchResult.recordset[0]?.BranchID || null;
@@ -313,36 +313,37 @@ router.get('/aspnet/filtered', async (req, res) => {
       const request = pool.request().input('branchId', sql.Int, Number(effectiveBranchId));
       let query = `
         SELECT DISTINCT
-          COALESCE(CONVERT(NVARCHAR(450), eb.ID), CONVERT(NVARCHAR(450), eb.Id), eb.CNIC, eb.Expr1, eb.EMAIL, eb.Expr2, eb.NAME, eb.FullName) as Id,
-          COALESCE(NULLIF(eb.FullName, ''), NULLIF(eb.NAME, ''), '-') as FullName,
-          COALESCE(NULLIF(eb.CNIC, ''), NULLIF(eb.Expr1, ''), NULLIF(eb.EMAIL, ''), NULLIF(eb.Expr2, ''), eb.FullName, eb.NAME) as UserName,
-          COALESCE(NULLIF(eb.Email, ''), NULLIF(eb.EMAIL, ''), NULLIF(eb.Expr2, ''), '') as Email,
+          CONVERT(NVARCHAR(450), eb.Id) as Id,
+          COALESCE(NULLIF(eb.FullName, ''), '-') as FullName,
+          COALESCE(NULLIF(eb.UserName, ''), NULLIF(eb.CNIC, ''), eb.FullName) as UserName,
+          COALESCE(NULLIF(eb.Email, ''), '') as Email,
           'Member' as Role,
           CAST(NULL AS INT) as intOfficeID,
           CAST(NULL AS INT) as intWingID,
-          COALESCE(TRY_CONVERT(INT, eb.BranchID), TRY_CONVERT(INT, eb.DEC_ID)) as intBranchID,
+          TRY_CONVERT(INT, eb.BranchID) as intBranchID,
           TRY_CONVERT(INT, eb.Designation) as intDesignationID,
           COALESCE(NULLIF(d.strDesignation, ''), NULLIF(CONVERT(NVARCHAR(200), eb.Designation), ''), '-') as designation,
           CAST(NULL AS NVARCHAR(200)) as officeName,
           CAST(NULL AS NVARCHAR(200)) as wingName,
           CAST(NULL AS NVARCHAR(200)) as wing_name,
-          COALESCE(NULLIF(eb.BranchName, ''), NULLIF(eb.DECName, ''), '-') as branchName,
-          COALESCE(NULLIF(eb.BranchName, ''), NULLIF(eb.DECName, ''), '-') as branch_name,
-          COALESCE(NULLIF(eb.CNIC, ''), NULLIF(eb.Expr1, '')) as CNIC,
-          COALESCE(NULLIF(eb.FatherOrHusbandName, ''), NULLIF(eb.FATHER_NAME, '')) as FatherOrHusbandName,
-          COALESCE(NULLIF(eb.PhoneNumber, ''), NULLIF(eb.CONTACT, '')) as PhoneNumber
+          COALESCE(NULLIF(eb.BranchName, ''), '-') as branchName,
+          COALESCE(NULLIF(eb.BranchName, ''), '-') as branch_name,
+          COALESCE(NULLIF(eb.CNIC, '')) as CNIC,
+          COALESCE(NULLIF(eb.FatherOrHusbandName, '')) as FatherOrHusbandName,
+          COALESCE(NULLIF(eb.PhoneNumber, '')) as PhoneNumber
         FROM vw_employee_branch eb
         LEFT JOIN tblUserDesignations d ON TRY_CONVERT(INT, eb.Designation) = d.intDesignationID
-        WHERE COALESCE(TRY_CONVERT(INT, eb.BranchID), TRY_CONVERT(INT, eb.DEC_ID)) = @branchId
+        WHERE TRY_CONVERT(INT, eb.BranchID) = @branchId
       `;
 
       if (search) {
         query += ` AND (
-          COALESCE(eb.FullName, eb.NAME, '') LIKE @search
-          OR COALESCE(eb.CNIC, eb.Expr1, '') LIKE @search
-          OR COALESCE(eb.Email, eb.EMAIL, eb.Expr2, '') LIKE @search
-          OR COALESCE(eb.BranchName, eb.DECName, '') LIKE @search
-          OR COALESCE(eb.PhoneNumber, eb.CONTACT, '') LIKE @search
+          COALESCE(eb.FullName, '') LIKE @search
+          OR COALESCE(eb.UserName, '') LIKE @search
+          OR COALESCE(eb.CNIC, '') LIKE @search
+          OR COALESCE(eb.Email, '') LIKE @search
+          OR COALESCE(eb.BranchName, '') LIKE @search
+          OR COALESCE(eb.PhoneNumber, '') LIKE @search
           OR COALESCE(d.strDesignation, CONVERT(NVARCHAR(200), eb.Designation), '') LIKE @search
         )`;
         request.input('search', sql.NVarChar, `%${search}%`);
