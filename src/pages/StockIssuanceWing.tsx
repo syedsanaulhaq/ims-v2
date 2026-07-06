@@ -97,6 +97,12 @@ const StockIssuanceWing: React.FC = () => {
     if (Number.isNaN(dt.getTime())) return '-';
     return dt.toLocaleDateString('en-GB');
   };
+
+  const getInventoryQtyBadgeClass = (qty: number) => {
+    if (qty <= 0) return 'text-red-700 bg-red-50 border border-red-200';
+    if (qty <= 5) return 'text-amber-700 bg-amber-50 border border-amber-200';
+    return 'text-green-700 bg-green-50 border border-green-200';
+  };
   
   // Load users dynamically when office, wing, or branch changes
   useEffect(() => {
@@ -784,6 +790,9 @@ const StockIssuanceWing: React.FC = () => {
                       <div className="text-xs text-gray-500">
                         Location: {item.primary_Location}
                       </div>
+                      <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(Number(item.current_stock || 0))}`}>
+                        Inventory Qty: {Number(item.current_stock || 0)}
+                      </div>
                     </div>
                     <Button
                       size="sm"
@@ -877,6 +886,11 @@ const StockIssuanceWing: React.FC = () => {
                             <div className="text-xs text-gray-500">
                               {item.item_type === 'custom' ? 'Custom item' : `Available: ${item.available_stock}`}
                             </div>
+                            {item.item_type !== 'custom' && (
+                              <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(Number(item.available_stock || 0))}`}>
+                                Inventory Qty: {Number(item.available_stock || 0)}
+                              </div>
+                            )}
                           </td>
                           <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : (item.last_issued_quantity ?? 0)}</td>
                           <td className="px-3 py-2">{item.item_type === 'custom' ? '-' : formatDate(item.last_issue_date)}</td>
