@@ -249,18 +249,22 @@ const BranchRequestHistoryPage: React.FC = () => {
         // Use actual current approver information from the request data
         let currentApprover = request.current_approver_name || 'Pending Approval';
         let currentDesignation = request.current_approver_designation || 'Next Approver';
+        const statusText = String(request.final_status || request.current_status || '').toLowerCase();
 
-        // Fallback to generic titles if no specific approver info is available
+        // Prefer workflow-aware fallback titles if no specific approver info is available
         if (!request.current_approver_name) {
-          if (actualHistory.length === 0) {
-            currentApprover = 'HR Supervisor';
-            currentDesignation = 'Human Resources';
-          } else if (actualHistory.length === 1) {
-            currentApprover = 'Inventory Manager';
-            currentDesignation = 'Inventory Management';
+          if (statusText.includes('forwarded to admin') || statusText.includes('pending admin')) {
+            currentApprover = 'Admin';
+            currentDesignation = 'Administrator Approval';
+          } else if (statusText.includes('pending supervisor') || statusText.includes('forwarded to supervisor')) {
+            currentApprover = 'Branch Supervisor';
+            currentDesignation = 'Supervisor Approval';
+          } else if (statusText.includes('storekeeper')) {
+            currentApprover = 'Branch Storekeeper';
+            currentDesignation = 'Store Review';
           } else {
-            currentApprover = 'Department Head';
-            currentDesignation = 'Final Approval';
+            currentApprover = 'Admin';
+            currentDesignation = 'Administrator Approval';
           }
         }
 
