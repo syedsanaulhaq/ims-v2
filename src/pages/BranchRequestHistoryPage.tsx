@@ -28,6 +28,8 @@ interface BranchRequest {
   requester_name: string;
   requester_office?: string;
   requester_branch?: string;
+  requester_branch_id?: string;
+  requester_branch_name?: string;
   current_approver_name?: string;
   current_approver_designation?: string;
   my_action: string;
@@ -99,6 +101,8 @@ const BranchRequestHistoryPage: React.FC = () => {
         items: dedupedItems,
         total_items: dedupedItems.length,
         request_id: String(existing.request_id || request.request_id || existing.id || request.id || ''),
+        requester_branch_id: existing.requester_branch_id || request.requester_branch_id,
+        requester_branch_name: existing.requester_branch_name || request.requester_branch_name,
         submitted_date: existing.submitted_date || request.submitted_date,
         requested_date: existing.requested_date || request.requested_date,
       });
@@ -394,6 +398,11 @@ const BranchRequestHistoryPage: React.FC = () => {
           filteredRequests.map((request) => (
             <Card key={request.id} className="hover:shadow-md transition-shadow">
               <CardContent className="pt-6">
+                {(() => {
+                  const branchDisplay = request.requester_branch_name
+                    ? `${request.requester_branch_name}${request.requester_branch_id ? ` (${request.requester_branch_id})` : ''}`
+                    : (request.requester_branch || '-');
+                  return (
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
@@ -421,7 +430,7 @@ const BranchRequestHistoryPage: React.FC = () => {
                     {request.requester_branch && (
                       <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
                         <Building2 className="h-4 w-4" />
-                        <span>{request.requester_branch}</span>
+                        <span>{branchDisplay}</span>
                       </div>
                     )}
                   </div>
@@ -445,6 +454,8 @@ const BranchRequestHistoryPage: React.FC = () => {
                     </Button>
                   </div>
                 </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))

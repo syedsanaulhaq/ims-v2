@@ -112,12 +112,19 @@ router.get('/requests', requireAuth, async (req, res) => {
         sir.created_at AS requested_date,
         sir.submitted_at AS submitted_date,
         u.FullName AS requester_name,
-        CAST(COALESCE(sir.requester_branch_id, u.intBranchID) AS NVARCHAR(50)) AS requester_branch,
+        CAST(COALESCE(sir.requester_branch_id, eb.BranchID, u.intBranchID) AS NVARCHAR(50)) AS requester_branch,
+        CAST(COALESCE(eb.BranchID, sir.requester_branch_id, u.intBranchID) AS NVARCHAR(50)) AS requester_branch_id,
+        COALESCE(eb.BranchName, CONCAT('Branch ', CAST(COALESCE(sir.requester_branch_id, u.intBranchID) AS NVARCHAR(50)))) AS requester_branch_name,
         COALESCE(sir.request_status, 'pending') AS current_status,
         COALESCE(sir.approval_status, sir.request_status, 'pending') AS final_status,
         COALESCE(sir.urgency_level, 'Medium') AS priority
       FROM stock_issuance_requests sir
       INNER JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      OUTER APPLY (
+        SELECT TOP 1 vb.BranchID, vb.BranchName
+        FROM vw_employee_branch vb
+        WHERE REPLACE(vb.CNIC, '-', '') = REPLACE(u.CNIC, '-', '')
+      ) eb
       ${branchFilter}
       ORDER BY sir.submitted_at DESC
     `);
