@@ -52,6 +52,7 @@ interface ScopedInventoryRow {
 interface IssuanceItem {
   inventory_id: string;
   inventory_intOfficeID: string;
+  item_master_id?: string;
   nomenclature: string;
   requested_quantity: number;
   last_issued_quantity?: number;
@@ -366,10 +367,11 @@ const StockIssuanceWing: React.FC = () => {
       return;
     }
 
-    const history = lastIssuedByItemId[String(item.intOfficeID || '')];
+    const history = lastIssuedByItemId[String(item.item_master_id || item.intOfficeID || '')];
     const newItem: IssuanceItem = {
       inventory_id: item.id,
       inventory_intOfficeID: item.intOfficeID,
+      item_master_id: item.item_master_id,
       nomenclature: item.nomenclature,
       requested_quantity: 1,
       last_issued_quantity: history?.qty,
@@ -800,7 +802,7 @@ const StockIssuanceWing: React.FC = () => {
             <CardContent>
               <StockAvailabilityChecker
                 selectedItems={issuanceItems.map(item => ({
-                  item_master_id: item.inventory_id,
+                  item_master_id: item.item_master_id || item.inventory_intOfficeID || item.inventory_id,
                   requested_quantity: item.requested_quantity
                 }))}
                 onItemSelect={(item) => {
@@ -809,6 +811,7 @@ const StockIssuanceWing: React.FC = () => {
                   const newItem: IssuanceItem = {
                     inventory_id: item.item_master_id,
                     inventory_intOfficeID: item.item_master_id,
+                    item_master_id: item.item_master_id,
                     nomenclature: item.nomenclature,
                     requested_quantity: 1,
                     last_issued_quantity: history?.qty,
