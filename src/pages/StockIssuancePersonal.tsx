@@ -55,12 +55,13 @@ interface IssuanceItem {
   unit_price: number;
   item_type: 'inventory' | 'custom';
   custom_item_name?: string;
+}
+
 interface ScopedInventoryRow {
   item_master_id?: number | string | null;
   nomenclature?: string;
   issued_quantity?: number;
   current_return_status?: string;
-}
 }
 
 const StockIssuancePersonal: React.FC = () => {
