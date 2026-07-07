@@ -361,7 +361,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Admin Wing",
     icon: CheckCircle,
     items: [
-      { title: "Admin Workflow Inbox", icon: CheckCircle, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
+      { title: "Approval Request", icon: CheckCircle, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
     ]
   };
 
