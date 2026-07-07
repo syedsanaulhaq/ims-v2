@@ -81,7 +81,51 @@ const PersonalDashboard = () => {
   };
 
   const getRequestDate = (request: any) =>
-    request?.submitted_date || request?.requested_date || request?.created_date || request?.date;
+    request?.submitted_at ||
+    request?.submitted_date ||
+    request?.requested_at ||
+    request?.requested_date ||
+    request?.created_at ||
+    request?.created_date ||
+    request?.date;
+
+  const parseDateSafely = (value: any): Date | null => {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value;
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const dateFromNumber = new Date(value);
+      return Number.isNaN(dateFromNumber.getTime()) ? null : dateFromNumber;
+    }
+
+    const raw = String(value).trim();
+    if (!raw) return null;
+
+    const dotNetTicksMatch = raw.match(/^\/Date\((\d+)\)\/$/);
+    if (dotNetTicksMatch) {
+      const ticks = Number(dotNetTicksMatch[1]);
+      const dotNetDate = new Date(ticks);
+      return Number.isNaN(dotNetDate.getTime()) ? null : dotNetDate;
+    }
+
+    if (/^\d+$/.test(raw)) {
+      const numericDate = new Date(Number(raw));
+      return Number.isNaN(numericDate.getTime()) ? null : numericDate;
+    }
+
+    let parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+
+    if (raw.includes(' ') && !raw.includes('T')) {
+      parsed = new Date(raw.replace(' ', 'T'));
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+
+    return null;
+  };
 
   const getRequestItems = (request: any): any[] => {
     if (Array.isArray(request?.items)) return request.items;
@@ -249,7 +293,11 @@ const PersonalDashboard = () => {
     });
 
     return filtered
-      .sort((a, b) => new Date(getRequestDate(b) || 0).getTime() - new Date(getRequestDate(a) || 0).getTime())
+      .sort((a, b) => {
+        const db = parseDateSafely(getRequestDate(b))?.getTime() || 0;
+        const da = parseDateSafely(getRequestDate(a))?.getTime() || 0;
+        return db - da;
+      })
       .slice(0, 8);
   }, [myRequests, searchRequestsFilter]);
 
@@ -451,6 +499,7 @@ const PersonalDashboard = () => {
                     const displayName = request?.request_number || request?.request_id || request?.title || 'Stock Issuance Request';
                     const itemCount = getRequestItems(request).length || getNumeric(request?.total_items, 0);
                     const quantity = getRequestQuantity(request);
+                    const submittedDate = parseDateSafely(getRequestDate(request));
 
                     return (
                       <tr key={String(requestKey)} className="border-b hover:bg-slate-50">
@@ -458,7 +507,7 @@ const PersonalDashboard = () => {
                           <div className="font-medium text-slate-900">{displayName}</div>
                           <div className="text-xs text-slate-500 truncate max-w-xs">{request?.description || request?.purpose || 'No description'}</div>
                         </td>
-                        <td className="px-3 py-3 text-slate-600">{formatDateTimeDMY(getRequestDate(request))}</td>
+                        <td className="px-3 py-3 text-slate-600">{submittedDate ? formatDateTimeDMY(submittedDate) : '-'}</td>
                         <td className="px-3 py-3 text-slate-600">
                           <div>{itemCount} item(s)</div>
                           <div className="text-xs text-slate-500">Qty: {quantity}</div>
