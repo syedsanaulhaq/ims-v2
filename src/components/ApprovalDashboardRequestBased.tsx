@@ -111,7 +111,9 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   useEffect(() => {
     let filteredRequests = allScopedRequests;
 
-    if (activeFilter !== 'pending') {
+    if (activeFilter === 'pending') {
+      filteredRequests = filteredRequests.filter(r => r.request_status === 'pending');
+    } else {
       filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
     }
 
