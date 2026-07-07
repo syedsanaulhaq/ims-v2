@@ -434,7 +434,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       case 'completed':
         return '✓ Completed';
       default:
-        return 'Pending';
+        return 'New Request';
     }
   };
 
