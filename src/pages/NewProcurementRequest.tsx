@@ -73,12 +73,15 @@ const NewProcurementRequest: React.FC = () => {
   const [wingInventoryByItemId, setWingInventoryByItemId] = useState<Record<string, number>>({});
   const [wingInventoryByName, setWingInventoryByName] = useState<Record<string, number>>({});
 
+  const resolvedWingId = (user as any)?.WingID || (user as any)?.wing_id || (user as any)?.intWingID || (user as any)?.WingId || null;
+  const resolvedWingName = (user as any)?.WingName || (user as any)?.wing_name || (user as any)?.wingName || '';
+
 
   useEffect(() => {
     fetchItemsLibrary();
     fetchWingsAndSetWingName();
     fetchWingInventoryTotals();
-  }, []);
+  }, [user]);
 
   const getInventoryQtyBadgeClass = (qty: number) => {
     if (qty <= 0) return 'text-red-700 bg-red-50 border border-red-200';
@@ -103,7 +106,7 @@ const NewProcurementRequest: React.FC = () => {
 
   const fetchWingInventoryTotals = async () => {
     try {
-      const wingId = user?.intWingID || user?.wing_id || user?.WingID;
+      const wingId = resolvedWingId;
       if (!wingId) {
         setWingInventoryByItemId({});
         setWingInventoryByName({});
@@ -153,16 +156,22 @@ const NewProcurementRequest: React.FC = () => {
 
   const fetchWingsAndSetWingName = async () => {
     try {
+      if (resolvedWingName) {
+        setWingName(String(resolvedWingName));
+      }
+
       const wingsData = await erpDatabaseService.getActiveWings();
       setWings(wingsData);
       // Debug: log wings data
       // eslint-disable-next-line no-console
       console.log('Wings data:', wingsData);
       // Try multiple possible user wing fields
-      const wingId = user?.intWingID || user?.wing_id || user?.WingID;
+      const wingId = resolvedWingId;
       if (wingId) {
-        const foundWing = wingsData.find((w: any) => w.Id === wingId || w.id === wingId);
-        setWingName(foundWing ? foundWing.Name || foundWing.name : 'Unknown Wing');
+        if (!resolvedWingName) {
+          const foundWing = wingsData.find((w: any) => Number(w.Id || w.id) === Number(wingId));
+          setWingName(foundWing ? foundWing.Name || foundWing.name : 'Unknown Wing');
+        }
       } else {
         setWingName('Unknown Wing');
         setWingsError('No wing ID found in user session.');
@@ -269,10 +278,10 @@ const NewProcurementRequest: React.FC = () => {
       }
 
       // Get wing ID from user
-      const wingId = user?.intWingID || user?.wing_id || user?.WingID;
+      const wingId = resolvedWingId;
 
       // Generate request number from the current wing name, e.g. Project Management Unit -> PMU-1234567890
-      const requestNumber = generateScopedRequestNumber(wingName || (user as any)?.wing_name, 'WING');
+      const requestNumber = generateScopedRequestNumber(wingName || resolvedWingName, 'WING');
 
       // Create the stock issuance request first
       const requestPayload = {
@@ -428,6 +437,10 @@ const NewProcurementRequest: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-700">Wing:</span>
                       <span className="text-gray-900">{wingName || 'Not available'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-700">Wing ID:</span>
+                      <span className="text-gray-900">{resolvedWingId || 'Not available'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-700">Requested By:</span>
