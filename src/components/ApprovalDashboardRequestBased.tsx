@@ -320,9 +320,21 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       }
 
       // Split flows by page mode to keep supervisor and admin experiences isolated.
-      const scopedRequests = Array.from(requestMap.values()).filter((request) =>
-        viewMode === 'admin' ? isAdminWorkflowRequest(request) : !isAdminWorkflowRequest(request)
-      );
+      const scopedRequests = Array.from(requestMap.values()).filter((request) => {
+        const adminWorkflow = isAdminWorkflowRequest(request);
+
+        if (viewMode === 'admin') {
+          return adminWorkflow;
+        }
+
+        // Keep supervisor ownership of "To Admin" history cards while still
+        // hiding admin-workflow inbox items from the supervisor page.
+        if (request.request_status === 'forward_admin') {
+          return true;
+        }
+
+        return !adminWorkflow;
+      });
 
       const scopedStatusCounts = {
         pending_count: scopedRequests.filter(r => r.request_status === 'pending').length,
