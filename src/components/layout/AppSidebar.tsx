@@ -356,11 +356,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ]
   };
 
-  // APPROVAL MENU - For approvers
-  const approvalMenuGroup: MenuGroup = {
-    label: "Approval Menu",
+  // ADMIN WING MENU - For admin approvers
+  const adminWingMenuGroup: MenuGroup = {
+    label: "Admin Wing",
     icon: CheckCircle,
     items: [
+      { title: "Admin Workflow Inbox", icon: CheckCircle, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
@@ -480,11 +481,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show approval menu if user has APPROVAL permissions (approvers only)
-    if (canApprove || hasApproverRole) {
-      const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleApprovalItems.length > 0) {
-        groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
+    // Show admin wing menu for admin-capable approvers.
+    if (canApprove || hasApproverRole || hasAdminApprovalRole || canManageRoles) {
+      const visibleAdminWingItems = adminWingMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleAdminWingItems.length > 0) {
+        groups.push({ ...adminWingMenuGroup, items: visibleAdminWingItems });
       }
     }
 
