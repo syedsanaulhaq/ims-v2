@@ -1560,11 +1560,11 @@ router.get('/my-approvals', async (req, res) => {
     // "rejected"/"returned" = things I rejected/returned
     let statusFilter = '';
     if (status === 'pending') {
-      // Requests assigned to me that are pending my action
+      // Requests that are still waiting for action and have not already been forwarded.
       statusFilter = `((ra.current_approver_id = @userId
-          AND ra.current_status IN ('pending', 'forwarded_to_admin', 'forwarded_to_supervisor'))
+          AND ra.current_status = 'pending')
         OR (
-          ra.current_status IN ('pending', 'forwarded_to_admin')
+          ra.current_status = 'pending'
           AND EXISTS (
             SELECT 1
             FROM ims_user_roles me
