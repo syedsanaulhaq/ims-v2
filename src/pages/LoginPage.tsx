@@ -52,7 +52,7 @@ const LoginPage: React.FC = () => {
       
       if (result.success) {
         await initializeSession();
-        navigate('/');
+        navigate('/personal-dashboard', { replace: true });
       } else {
         setError(result.error || 'Login failed');
       }

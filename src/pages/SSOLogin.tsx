@@ -64,10 +64,10 @@ export default function SSOLogin() {
         // Store token in localStorage for API calls
         localStorage.setItem('sso_token', token);
         
-        console.log('✅ SSO Authentication successful - Redirecting to dashboard');
+        console.log('✅ SSO Authentication successful - Redirecting to personal dashboard');
         
-        // Immediately redirect to dashboard (no delay)
-        navigate('/dashboard', { replace: true });
+        // Immediately redirect to personal dashboard (no delay)
+        navigate('/personal-dashboard', { replace: true });
       } else {
         throw new Error('Authentication failed');
       }

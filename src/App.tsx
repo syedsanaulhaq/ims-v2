@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/sonner";import InitialSetupPageFresh fr
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
@@ -176,9 +176,7 @@ function App() {
                 {/* Protected routes */}
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <Layout>
-                      <SmartDashboard />
-                    </Layout>
+                    <Navigate to="/personal-dashboard" replace />
                   </ProtectedRoute>
                 } />
                 
