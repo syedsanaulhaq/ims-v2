@@ -361,6 +361,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       const pendingFilteredScopedRequests = scopedRequests.filter((r) => {
         if (r.request_status !== 'pending') return true;
 
+        const approvalData = r.approval as any;
+        if (approvalData?.has_forwarded_to_admin_history) {
+          return false;
+        }
+
+        const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
+        if (approvalStatus.includes('forwarded to admin') || approvalStatus.includes('forwarded')) {
+          return false;
+        }
+
         if (!lanePendingAvailable) return true;
         if (pendingRequestIdSet.size === 0) return true;
 
@@ -379,7 +389,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const getRequestStatusFromApproval = (approval: RequestApproval, sourceStatus: string): RequestSummary['request_status'] => {
     // sourceStatus = which backend query returned this ('pending', 'approved', 'forwarded', 'rejected', 'returned')
     // For 'pending' source: these are things assigned to me that I need to act on -> show as pending
-    if (sourceStatus === 'pending') return 'pending';
+    if (sourceStatus === 'pending') {
+      const approvalData = approval as any;
+      const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
+
+      if (approvalData?.has_forwarded_to_admin_history || approvalStatus.includes('forwarded to admin') || approvalStatus.includes('forwarded')) {
+        return 'forward_admin';
+      }
+
+      return 'pending';
+    }
     
     // For 'approved' source: things I was involved in that are now approved
     if (sourceStatus === 'approved') return 'approve_wing';
