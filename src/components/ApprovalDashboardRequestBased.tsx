@@ -64,6 +64,14 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
 
+  const statusPriority: Record<string, number> = {
+    pending: 1,
+    approved: 2,
+    rejected: 3,
+    returned: 3,
+    forwarded: 4
+  };
+
   const isAdminWorkflowRequest = (request: RequestSummary) => {
     const explicitFlag = (request.approval as any)?.is_admin_workflow;
     if (explicitFlag === true || explicitFlag === 1) {
@@ -127,7 +135,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       // Get all approvals for this user from all statuses
       const allStatuses = ['pending', 'approved', 'rejected', 'forwarded', 'returned'] as const;
       const allApprovals: RequestApproval[] = [];
-      // Track which backend status each approval came from
+      // Track which backend status each approval came from using precedence
+      // so forwarded/rejected/returned is not downgraded to pending.
       const approvalSourceStatus = new Map<string, string>();
 
       const statusResults = await Promise.all(
@@ -148,7 +157,11 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
       for (const { status, approvals } of statusResults) {
         for (const a of approvals) {
-          if (!approvalSourceStatus.has(a.request_id)) {
+          const existingStatus = approvalSourceStatus.get(a.request_id);
+          const existingPriority = existingStatus ? (statusPriority[existingStatus] || 0) : 0;
+          const newPriority = statusPriority[status] || 0;
+
+          if (!existingStatus || newPriority >= existingPriority) {
             approvalSourceStatus.set(a.request_id, status);
           }
         }
@@ -604,7 +617,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
             <CheckCircle className="h-3 w-3 mr-1" />
-            {dashboardStats.pending_count} Pending
+            {dashboardStats.pending_count} New Requests
           </Badge>
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
             <Clock className="h-3 w-3 mr-1" />
@@ -632,7 +645,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-yellow-700 font-semibold text-sm">Pending</CardTitle>
+              <CardTitle className="text-yellow-700 font-semibold text-sm">New Request</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pending_count}</div>
