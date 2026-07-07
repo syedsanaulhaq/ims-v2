@@ -362,7 +362,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: CheckCircle,
     items: [
       { title: "Admin Workflow Inbox", icon: CheckCircle, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
-      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
 
@@ -372,6 +371,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Shield,
     items: [
       { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard", permission: 'admin.super' },
+      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'admin.super' },
       { title: "Roles & Permissions", icon: Shield, path: "/settings/roles", permission: 'roles.manage' },
       { title: "User Management", icon: Users, path: "/settings/users", permission: 'users.assign_roles' },
       { title: "System Settings", icon: Settings, path: "/dashboard/inventory-settings", permission: 'admin.super' },
