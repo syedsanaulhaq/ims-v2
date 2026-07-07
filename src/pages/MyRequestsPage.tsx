@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Eye, Clock, CheckCircle, XCircle, RefreshCw, Search, AlertCircle, Truck, UserCheck, Car, ArrowRight, Image as ImageIcon, Activity, X, ChevronRight, ClipboardList, ArrowUpRight } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { useSession } from '@/contexts/SessionContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
@@ -87,13 +87,30 @@ const MyRequestsPage: React.FC = () => {
   const [progressError, setProgressError] = useState('');
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { user: currentUser } = useSession();
+
+  const getInitialFilter = () => {
+    const params = new URLSearchParams(location.search);
+    const status = (params.get('status') || '').toLowerCase();
+
+    if (status === 'pending') return 'pending';
+    if (status === 'approved') return 'approved';
+    if (status === 'rejected') return 'rejected';
+    if (status === 'forwarded_to_admin') return 'forwarded_to_admin';
+    if (status === 'forwarded_to_supervisor') return 'forwarded_to_supervisor';
+    return 'all';
+  };
 
   useEffect(() => {
     if (currentUser?.user_id) {
       loadMyRequests();
     }
   }, [currentUser, refreshTrigger]);
+
+  useEffect(() => {
+    setActiveFilter(getInitialFilter());
+  }, [location.search]);
 
   const loadMyRequests = async () => {
     try {

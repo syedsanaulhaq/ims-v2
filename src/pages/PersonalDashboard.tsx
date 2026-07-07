@@ -175,6 +175,14 @@ const PersonalDashboard = () => {
     return 'Other';
   };
 
+  const openMyRequestsReport = (status?: string) => {
+    const params = new URLSearchParams();
+    if (status) {
+      params.set('status', status);
+    }
+    navigate(params.toString() ? `/dashboard/my-requests?${params.toString()}` : '/dashboard/my-requests');
+  };
+
   useEffect(() => {
     const fetchPersonalData = async () => {
       try {
@@ -344,55 +352,65 @@ const PersonalDashboard = () => {
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <Card className="border-l-4 border-l-cyan-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-slate-600">
-              <Package className="h-4 w-4" /> Inventory In Hand
-            </CardDescription>
-            <CardTitle className="text-3xl text-cyan-700">{inventorySummary.inPossessionQuantity}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-500">Items currently in your possession</CardContent>
-        </Card>
+        <button type="button" onClick={() => navigate('/dashboard/my-issued-items')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open inventory in hand report">
+          <Card className="border-l-4 border-l-cyan-500 h-full">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <Package className="h-4 w-4" /> Inventory In Hand
+              </CardDescription>
+              <CardTitle className="text-3xl text-cyan-700">{inventorySummary.inPossessionQuantity}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-slate-500">Items currently in your possession</CardContent>
+          </Card>
+        </button>
 
-        <Card className="border-l-4 border-l-indigo-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-slate-600">
-              <ClipboardList className="h-4 w-4" /> Total Requested
-            </CardDescription>
-            <CardTitle className="text-3xl text-indigo-700">{requestSummary.requested}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-500">Requests submitted by you</CardContent>
-        </Card>
+        <button type="button" onClick={() => navigate('/dashboard/requisition-report')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open total requested report">
+          <Card className="border-l-4 border-l-indigo-500 h-full">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <ClipboardList className="h-4 w-4" /> Total Requested
+              </CardDescription>
+              <CardTitle className="text-3xl text-indigo-700">{requestSummary.requested}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-slate-500">Requests submitted by you</CardContent>
+          </Card>
+        </button>
 
-        <Card className="border-l-4 border-l-amber-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-slate-600">
-              <Clock className="h-4 w-4" /> Pending Requests
-            </CardDescription>
-            <CardTitle className="text-3xl text-amber-700">{requestSummary.pending}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-500">Still awaiting approval decision</CardContent>
-        </Card>
+        <button type="button" onClick={() => openMyRequestsReport('pending')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open pending requests report">
+          <Card className="border-l-4 border-l-amber-500 h-full">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <Clock className="h-4 w-4" /> Pending Requests
+              </CardDescription>
+              <CardTitle className="text-3xl text-amber-700">{requestSummary.pending}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-slate-500">Still awaiting approval decision</CardContent>
+          </Card>
+        </button>
 
-        <Card className="border-l-4 border-l-rose-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-slate-600">
-              <XCircle className="h-4 w-4" /> Rejected Requests
-            </CardDescription>
-            <CardTitle className="text-3xl text-rose-700">{requestSummary.rejected}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-500">Requests marked as rejected</CardContent>
-        </Card>
+        <button type="button" onClick={() => openMyRequestsReport('rejected')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open rejected requests report">
+          <Card className="border-l-4 border-l-rose-500 h-full">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <XCircle className="h-4 w-4" /> Rejected Requests
+              </CardDescription>
+              <CardTitle className="text-3xl text-rose-700">{requestSummary.rejected}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-slate-500">Requests marked as rejected</CardContent>
+          </Card>
+        </button>
 
-        <Card className="border-l-4 border-l-teal-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-slate-600">
-              <Layers className="h-4 w-4" /> Requested Qty
-            </CardDescription>
-            <CardTitle className="text-3xl text-teal-700">{requestSummary.requestedQuantity}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-slate-500">Total quantity requested across requests</CardContent>
-        </Card>
+        <button type="button" onClick={() => navigate('/dashboard/requisition-report')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open requisition quantity report">
+          <Card className="border-l-4 border-l-teal-500 h-full">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-2 text-slate-600">
+                <Layers className="h-4 w-4" /> Requested Qty
+              </CardDescription>
+              <CardTitle className="text-3xl text-teal-700">{requestSummary.requestedQuantity}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-slate-500">Total quantity requested across requests</CardContent>
+          </Card>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
