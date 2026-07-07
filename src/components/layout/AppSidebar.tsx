@@ -358,10 +358,12 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
 
   // ADMIN WING MENU - For admin approvers
   const adminWingMenuGroup: MenuGroup = {
-    label: "Admin Wing",
-    icon: CheckCircle,
+    label: "Approval Request",
+    icon: ClipboardList,
     items: [
-      { title: "Approval Request", icon: CheckCircle, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
+      { title: "Personal Requests", icon: User, path: "/dashboard/approval-dashboard-request-based-admin?scope=personal", permission: 'approval.approve' },
+      { title: "Branch Requests", icon: Building2, path: "/dashboard/approval-dashboard-request-based-admin?scope=branch", permission: 'approval.approve' },
+      { title: "Wing Requests", icon: Users, path: "/dashboard/approval-dashboard-request-based-admin?scope=wing", permission: 'approval.approve' },
     ]
   };
 
