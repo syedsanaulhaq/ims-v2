@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ interface ApprovalDashboardRequestBasedProps {
 const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps> = ({ viewMode = 'supervisor' }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [requests, setRequests] = useState<RequestSummary[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     pending_count: 0,
@@ -63,6 +64,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
+  const selectedScope = new URLSearchParams(location.search).get('scope') || 'all';
 
   const statusPriority: Record<string, number> = {
     pending: 1,
@@ -632,6 +634,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return Math.ceil(getBranchRequests().length / itemsPerPage);
   };
 
+  const shouldShowScope = (scope: 'personal' | 'branch' | 'wing') => {
+    return selectedScope === 'all' || selectedScope === scope;
+  };
+
   const handleConfigureWorkflows = () => {
     navigate('/dashboard/workflow-admin');
   };
@@ -794,6 +800,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </div>
 
       {/* Personal Requests Table */}
+      {shouldShowScope('personal') && (
       <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
@@ -1011,9 +1018,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           </div>
         </CardFooter>
       </Card>
+      )}
 
       {/* Branch Requests Table */}
-      {viewMode === 'admin' && (
+      {viewMode === 'admin' && shouldShowScope('branch') && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
@@ -1191,7 +1199,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       )}
 
       {/* Wing Requests Table */}
-      {viewMode === 'admin' && (
+      {viewMode === 'admin' && shouldShowScope('wing') && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
