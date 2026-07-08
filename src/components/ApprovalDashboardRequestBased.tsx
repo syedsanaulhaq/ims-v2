@@ -664,6 +664,20 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return selectedScope === 'all' || selectedScope === scope;
   };
 
+  const getScopeLabel = () => {
+    if (selectedScope === 'personal') return 'Personal Requests';
+    if (selectedScope === 'branch') return 'Branch Requests';
+    if (selectedScope === 'wing') return 'Wing Requests';
+    return 'All Requests';
+  };
+
+  const getScopeTitle = () => {
+    if (selectedScope === 'personal') return 'Personal Approval Requests';
+    if (selectedScope === 'branch') return 'Branch Approval Requests';
+    if (selectedScope === 'wing') return 'Wing Approval Requests';
+    return 'Admin Workflow Approvals';
+  };
+
   const handleConfigureWorkflows = () => {
     navigate('/dashboard/workflow-admin');
   };
@@ -688,7 +702,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       {/* Page Header */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900">
-          {viewMode === 'admin' ? 'Admin Workflow Approvals' : 'Supervisor Dashboard'}
+          {viewMode === 'admin' ? getScopeTitle() : 'Supervisor Dashboard'}
         </h1>
         <p className="text-lg text-gray-600 mt-2">
           {viewMode === 'admin'
@@ -698,7 +712,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
             <CheckCircle className="h-3 w-3 mr-1" />
-            {dashboardStats.pending_count} New Requests
+            {dashboardStats.pending_count} {getScopeLabel()}
           </Badge>
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
             <Clock className="h-3 w-3 mr-1" />
@@ -726,7 +740,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-yellow-700 font-semibold text-sm">New Request</CardTitle>
+              <CardTitle className="text-yellow-700 font-semibold text-sm">{getScopeLabel()}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pending_count}</div>
