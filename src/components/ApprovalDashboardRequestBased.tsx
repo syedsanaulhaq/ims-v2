@@ -383,6 +383,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return_count: requestsByScope.filter(r => r.request_status === 'return').length,
       };
 
+      const scopedRequestTypeCount = requestsByScope.length;
+
       const pendingFilteredScopedRequests = requestsByScope.filter((r) => {
         if (r.request_status !== 'pending') return true;
 
@@ -403,7 +405,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       });
 
       setAllScopedRequests(pendingFilteredScopedRequests);
-      setDashboardStats(scopedStatusCounts);
+      setDashboardStats({
+        ...scopedStatusCounts,
+        pending_count: scopedRequestTypeCount,
+      });
     } catch (error) {
       console.error('Error loading request-based dashboard data:', error);
     } finally {
