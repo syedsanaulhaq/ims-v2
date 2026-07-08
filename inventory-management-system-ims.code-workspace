@@ -62,8 +62,10 @@
       "comments": false,
       "strings": false
     },
+    "editor.inlineSuggest.enabled": false,
     "editor.suggestOnTriggerCharacters": false,
     "editor.wordBasedSuggestions": "off",
+    "github.copilot.editor.enableAutoCompletions": false,
     "problems.decorations.enabled": false,
     "explorer.decorations.colors": false,
     "explorer.decorations.badges": false,
