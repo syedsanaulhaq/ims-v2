@@ -108,7 +108,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
   useEffect(() => {
     loadDashboardData();
-  }, [refreshTrigger, user]);
+  }, [refreshTrigger, user, selectedScope]);
 
   useEffect(() => {
     let filteredRequests = allScopedRequests;
@@ -845,7 +845,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Subordinate Requests</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">{getScopeLabel()}</Badge>
               <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
               <div className="flex items-center gap-2">
