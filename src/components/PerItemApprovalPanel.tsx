@@ -64,6 +64,8 @@ interface RequestItem {
   custom_item_name?: string;
   requested_quantity?: number;
   quantity?: number;
+  required_quantity?: number;
+  requestedQty?: number;
   stock_status?: string;
   current_stock?: number;
   wing_stock_available?: number;
@@ -79,6 +81,25 @@ interface RequestItem {
   item_status?: string;
   item_master_id?: string | null;
 }
+
+const resolveRequestedQuantity = (item: RequestItem): number => {
+  const candidates = [
+    item.allocated_quantity,
+    item.requested_quantity,
+    item.quantity,
+    item.required_quantity,
+    item.requestedQty
+  ];
+
+  for (const candidate of candidates) {
+    const numericValue = Number(candidate ?? 0);
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue;
+    }
+  }
+
+  return 0;
+};
 
 interface ApprovalRequest {
   id: string;
@@ -366,13 +387,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             switch (item.decision_type) {
               case 'APPROVE_FROM_STOCK':
                 decision = 'approve_wing';
-                approvedQty = item.allocated_quantity || item.requested_quantity || 0;
+                approvedQty = resolveRequestedQuantity(item);
                 break;
               case 'FORWARD_TO_ADMIN':
                 decision = 'forward_admin';
+                approvedQty = resolveRequestedQuantity(item);
                 break;
               case 'FORWARD_TO_SUPERVISOR':
                 decision = 'forward_supervisor';
+                approvedQty = resolveRequestedQuantity(item);
                 break;
                 case 'REJECT':
                   if (item.rejection_reason?.toLowerCase().includes('returned to requester')) {
@@ -542,19 +565,30 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const getItemQuantity = (item: RequestItem) => {
-    const allocatedQty = Number(item.allocated_quantity ?? 0);
-    if (Number.isFinite(allocatedQty) && allocatedQty > 0) {
-      return allocatedQty;
-    }
-    const requestedQty = Number(item.requested_quantity ?? item.quantity ?? 0);
-    return Number.isFinite(requestedQty) ? requestedQty : 0;
+    return resolveRequestedQuantity(item);
   };
 
   const getEditableQuantity = (item: RequestItem) => {
     const itemId = getItemId(item);
     const decision = getItemDecision(itemId);
-    const qty = Number(decision?.approvedQuantity ?? getItemQuantity(item));
-    return Number.isFinite(qty) ? qty : 0;
+    const decisionQty = Number(decision?.approvedQuantity);
+    if (
+      decision &&
+      (decision.decision === 'approve_wing' ||
+        decision.decision === 'forward_admin' ||
+        decision.decision === 'forward_supervisor')
+    ) {
+      if (Number.isFinite(decisionQty) && decisionQty > 0) {
+        return decisionQty;
+      }
+      return getItemQuantity(item);
+    }
+
+    if (Number.isFinite(decisionQty) && decisionQty >= 0) {
+      return decisionQty;
+    }
+
+    return getItemQuantity(item);
   };
 
   const updateItemQuantity = (item: RequestItem, nextValue: string) => {
