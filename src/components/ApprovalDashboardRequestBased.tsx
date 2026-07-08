@@ -666,6 +666,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return 'Admin Workflow Approvals';
   };
 
+  const getScopeLabel = () => {
+    return 'Personal Requests';
+  };
+
   const handleConfigureWorkflows = () => {
     navigate('/dashboard/workflow-admin');
   };
