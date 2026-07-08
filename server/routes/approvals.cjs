@@ -2254,6 +2254,8 @@ router.get('/:approvalId', async (req, res, next) => {
           sir.request_type as scope_type,
           sir.request_number,
           sir.requester_user_id,
+          sir.requester_wing_id,
+          sir.requester_branch_id,
           requester.FullName as requester_name
         FROM request_approvals ra
         LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id

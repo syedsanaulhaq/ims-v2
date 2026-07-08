@@ -105,6 +105,8 @@ interface ApprovalRequest {
   id: string;
   request_id?: string;
   request_number: string;
+  requester_wing_id?: number | null;
+  requester_branch_id?: number | null;
   requester_name?: string;
   requester_email?: string;
   requester_department?: string;
@@ -189,6 +191,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
   const [stockCheckLoading, setStockCheckLoading] = useState(false);
   const [stockAvailable, setStockAvailable] = useState<number>(0);
+  const [stockScopeLabel, setStockScopeLabel] = useState<'Wing' | 'Admin'>('Wing');
   const [wingConfirmItem, setWingConfirmItem] = useState<any>(null);
   const [wingConfirmLoading, setWingConfirmLoading] = useState(false);
   const [wingStockAvailable, setWingStockAvailable] = useState<number>(0);
@@ -828,15 +831,29 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setSelectedItemForStock(item);
     setStockCheckLoading(true);
     try {
-      // Fetch actual stock from inventory
       const itemMasterId = item.item_master_id || item.id;
-      const response = await fetch(`http://localhost:3001/api/inventory/stock/${itemMasterId}`, {
-        credentials: 'include'
+      const requestedQty = getItemQuantity(item);
+      const shouldUseAdminInventory = isAdminWorkflowContext;
+      const inventoryScope = shouldUseAdminInventory ? 'admin' : 'wing';
+      const wingId = Number(request?.requester_wing_id || currentUser?.wing_id || 0) || null;
+
+      setStockScopeLabel(shouldUseAdminInventory ? 'Admin' : 'Wing');
+
+      const response = await fetch(`${getApiUrl()}/api/inventory/check-availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          itemMasterId,
+          requestedQuantity: requestedQty,
+          wingId,
+          inventoryScope
+        })
       });
       
       if (response.ok) {
         const data = await response.json();
-        const available = data.available_quantity || data.quantity || 0;
+        const available = Number(data?.data?.available_quantity ?? data?.available_quantity ?? 0);
         setStockAvailable(available);
         console.log('✓ Stock available:', available);
       } else {
@@ -1501,7 +1518,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   <div className="font-semibold">{getItemQuantity(selectedItemForStock)} No(s)</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-600 font-medium mb-1">Stock Available</div>
+                  <div className="text-xs text-gray-600 font-medium mb-1">{stockScopeLabel} Stock Available</div>
                   {stockCheckLoading ? (
                     <div className="text-xs"><LoadingSpinner size="sm" className="inline" /> Loading...</div>
                   ) : (

@@ -885,36 +885,75 @@ router.get('/my-forwarded-verifications', async (req, res) => {
 // ============================================================================
 router.post('/check-availability', async (req, res) => {
   try {
-    const { itemMasterId, wingId, requestedQuantity } = req.body;
+    const { itemMasterId, wingId, requestedQuantity, inventoryScope } = req.body;
 
     if (!itemMasterId || !requestedQuantity) {
       return res.status(400).json({ error: 'Missing required fields: itemMasterId, requestedQuantity' });
     }
 
+    const normalizedScope = String(inventoryScope || '').trim().toLowerCase() === 'wing' ? 'wing' : 'admin';
+    const sessionWingId = Number(req.session?.user?.intWingID || req.session?.user?.wing_id || 0);
+    const payloadWingId = Number(wingId || 0);
+    const resolvedWingId = Number.isFinite(payloadWingId) && payloadWingId > 0
+      ? payloadWingId
+      : (Number.isFinite(sessionWingId) && sessionWingId > 0 ? sessionWingId : null);
+
     const pool = getPool();
 
-    // Check stock_admin for available quantity
     const result = await pool.request()
       .input('ItemMasterId', sql.NVarChar, itemMasterId)
       .input('RequestedQuantity', sql.Int, requestedQuantity)
+      .input('InventoryScope', sql.NVarChar(20), normalizedScope)
+      .input('WingId', sql.Int, resolvedWingId)
       .query(`
         SELECT 
-          CAST(sa.item_master_id AS NVARCHAR(450)) as item_master_id,
+          CAST(im.id AS NVARCHAR(450)) as item_master_id,
           ISNULL(im.nomenclature, 'Unknown Item') as item_name,
           ISNULL(im.unit, 'PCS') as unit,
           @RequestedQuantity as requested_quantity,
-          ISNULL(sa.available_quantity, 0) as available_quantity,
+          ISNULL(wing_stock.wing_qty, 0) as wing_available_quantity,
+          ISNULL(admin_stock.admin_qty, 0) as admin_available_quantity,
+          CASE
+            WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
+            ELSE ISNULL(admin_stock.admin_qty, 0)
+          END as available_quantity,
           CASE 
-            WHEN ISNULL(sa.available_quantity, 0) >= @RequestedQuantity THEN 1
+            WHEN (
+              CASE
+                WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
+                ELSE ISNULL(admin_stock.admin_qty, 0)
+              END
+            ) >= @RequestedQuantity THEN 1
             ELSE 0
           END as is_available,
           CASE 
-            WHEN ISNULL(sa.available_quantity, 0) >= @RequestedQuantity THEN 'Sufficient Stock'
-            ELSE 'Insufficient Stock (' + CAST(ISNULL(sa.available_quantity, 0) AS NVARCHAR(10)) + ' available)'
+            WHEN (
+              CASE
+                WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
+                ELSE ISNULL(admin_stock.admin_qty, 0)
+              END
+            ) >= @RequestedQuantity THEN 'Sufficient Stock'
+            ELSE 'Insufficient Stock (' + CAST(
+              CASE
+                WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
+                ELSE ISNULL(admin_stock.admin_qty, 0)
+              END
+            AS NVARCHAR(10)) + ' available)'
           END as availability_status
-        FROM stock_admin sa
-        LEFT JOIN item_masters im ON im.id = sa.item_master_id
-        WHERE sa.item_master_id = TRY_CAST(@ItemMasterId AS UNIQUEIDENTIFIER)
+        FROM item_masters im
+        LEFT JOIN (
+          SELECT item_master_id, available_quantity as admin_qty
+          FROM stock_admin
+          WHERE item_master_id = TRY_CAST(@ItemMasterId AS UNIQUEIDENTIFIER)
+        ) admin_stock ON admin_stock.item_master_id = im.id
+        LEFT JOIN (
+          SELECT item_master_id, SUM(available_quantity) as wing_qty
+          FROM stock_wing
+          WHERE item_master_id = TRY_CAST(@ItemMasterId AS UNIQUEIDENTIFIER)
+            AND (@WingId IS NULL OR wing_id = @WingId)
+          GROUP BY item_master_id
+        ) wing_stock ON wing_stock.item_master_id = im.id
+        WHERE im.id = TRY_CAST(@ItemMasterId AS UNIQUEIDENTIFIER)
       `);
 
     if (result.recordset.length === 0) {
@@ -925,16 +964,26 @@ router.post('/check-availability', async (req, res) => {
           item_name: 'Unknown Item',
           unit: 'PCS',
           requested_quantity: requestedQuantity,
+          wing_available_quantity: 0,
+          admin_available_quantity: 0,
           available_quantity: 0,
           is_available: false,
-          availability_status: 'Item not found in inventory'
+          availability_status: 'Item not found in inventory',
+          inventory_scope: normalizedScope,
+          wing_id: resolvedWingId
         }
       });
     }
 
+    const row = result.recordset[0];
+
     res.json({
       success: true,
-      data: result.recordset[0]
+      data: {
+        ...row,
+        inventory_scope: normalizedScope,
+        wing_id: resolvedWingId
+      }
     });
   } catch (error) {
     console.error('❌ Error checking availability:', error);
