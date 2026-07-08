@@ -10,6 +10,24 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '@/services/invmisApi';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
+const normalizeRequestedQuantity = (item: any): number => {
+  const candidates = [
+    item?.requested_quantity,
+    item?.quantity,
+    item?.required_quantity,
+    item?.requestedQty
+  ];
+
+  for (const candidate of candidates) {
+    const numericValue = Number(candidate);
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue;
+    }
+  }
+
+  return 1;
+};
+
 // Helper function to safely format dates
 const formatDate = (dateString: string | null | undefined, defaultText = 'N/A'): string => {
   if (!dateString) return defaultText;
@@ -230,7 +248,7 @@ const MyRequestsPage: React.FC = () => {
                 items: request.items?.map((item: any) => ({
                   id: item.id,
                   item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
-                  requested_quantity: item.requested_quantity || 1,
+                  requested_quantity: normalizeRequestedQuantity(item),
                   approved_quantity: item.approved_quantity,
                   unit: 'units'
                 })) || [],

@@ -100,6 +100,24 @@ interface RequestDetails {
   approval_history: ApprovalHistoryItem[];
 }
 
+const normalizeRequestedQuantity = (item: any): number => {
+  const candidates = [
+    item?.requested_quantity,
+    item?.quantity,
+    item?.required_quantity,
+    item?.requestedQty
+  ];
+
+  for (const candidate of candidates) {
+    const numericValue = Number(candidate);
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return numericValue;
+    }
+  }
+
+  return 1;
+};
+
 const RequestDetailsPage: React.FC = () => {
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
@@ -224,7 +242,7 @@ const RequestDetailsPage: React.FC = () => {
                 id: item.id,
                 item_master_id: item.item_master_id,
                 item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
-                requested_quantity: item.requested_quantity || 1,
+                requested_quantity: normalizeRequestedQuantity(item),
                 approved_quantity: item.approved_quantity,
                 unit: item.unit || 'units',
                 specifications: '',
@@ -263,7 +281,7 @@ const RequestDetailsPage: React.FC = () => {
                     id: item.id,
                     item_master_id: item.item_master_id,
                     item_name: item.nomenclature || item.custom_item_name || item.item_name || 'Unknown Item',
-                    requested_quantity: item.requested_quantity || 1,
+                    requested_quantity: normalizeRequestedQuantity(item),
                     approved_quantity: item.approved_quantity,
                     unit: item.unit || 'units',
                     specifications: '',
@@ -778,11 +796,11 @@ const RequestDetailsPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto border rounded-lg">
-                <table className="w-full min-w-[820px] text-sm">
+              <div className="w-full border rounded-lg overflow-hidden">
+                <table className="w-full table-fixed text-sm">
                   <thead className="bg-gray-100 text-gray-700">
                     <tr>
-                      <th className="text-left px-3 py-2">Item</th>
+                      <th className="text-left px-3 py-2 w-[36%]">Item</th>
                       <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
                       <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
                       <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
@@ -794,10 +812,10 @@ const RequestDetailsPage: React.FC = () => {
                       const approvalItem = request.approval_items.find(ai => ai.nomenclature === item.item_name);
                       return (
                         <tr key={index} className="border-t align-middle">
-                          <td className="px-3 py-2">
-                            <div className="font-medium text-gray-900">{item.item_name}</div>
+                          <td className="px-3 py-2 align-top">
+                            <div className="font-medium text-gray-900 break-words">{item.item_name}</div>
                             {item.specifications && (
-                              <div className="text-xs text-gray-500 mt-1">{item.specifications}</div>
+                              <div className="text-xs text-gray-500 mt-1 break-words">{item.specifications}</div>
                             )}
                           </td>
                           <td className="px-3 py-2">{item.last_issued_quantity ?? 0}</td>
