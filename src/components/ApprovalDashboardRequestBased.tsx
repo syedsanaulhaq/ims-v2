@@ -353,16 +353,37 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return !adminWorkflow;
       });
 
+      const requestsByScope = scopedRequests.filter((request) => {
+        if (selectedScope === 'all') return true;
+
+        const scopeType = String(request.approval?.scope_type || '').toLowerCase();
+        const requestType = String(request.request_type || '').toLowerCase();
+
+        if (selectedScope === 'personal') {
+          return scopeType === 'individual' || requestType === 'individual' || requestType === 'personal';
+        }
+
+        if (selectedScope === 'branch') {
+          return scopeType === 'branch' || requestType === 'branch';
+        }
+
+        if (selectedScope === 'wing') {
+          return scopeType === 'organizational' || requestType === 'organizational' || requestType === 'wing';
+        }
+
+        return true;
+      });
+
       const scopedStatusCounts = {
-        pending_count: scopedRequests.filter(r => r.request_status === 'pending').length,
-        approve_wing_count: scopedRequests.filter(r => r.request_status === 'approve_wing').length,
-        reject_count: scopedRequests.filter(r => r.request_status === 'reject').length,
-        forward_admin_count: scopedRequests.filter(r => r.request_status === 'forward_admin').length,
-        forward_supervisor_count: scopedRequests.filter(r => r.request_status === 'forward_supervisor').length,
-        return_count: scopedRequests.filter(r => r.request_status === 'return').length,
+        pending_count: requestsByScope.filter(r => r.request_status === 'pending').length,
+        approve_wing_count: requestsByScope.filter(r => r.request_status === 'approve_wing').length,
+        reject_count: requestsByScope.filter(r => r.request_status === 'reject').length,
+        forward_admin_count: requestsByScope.filter(r => r.request_status === 'forward_admin').length,
+        forward_supervisor_count: requestsByScope.filter(r => r.request_status === 'forward_supervisor').length,
+        return_count: requestsByScope.filter(r => r.request_status === 'return').length,
       };
 
-      const pendingFilteredScopedRequests = scopedRequests.filter((r) => {
+      const pendingFilteredScopedRequests = requestsByScope.filter((r) => {
         if (r.request_status !== 'pending') return true;
 
         const approvalData = r.approval as any;
