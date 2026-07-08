@@ -191,7 +191,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
   const [stockCheckLoading, setStockCheckLoading] = useState(false);
   const [stockAvailable, setStockAvailable] = useState<number>(0);
-  const [stockScopeLabel, setStockScopeLabel] = useState<'Wing' | 'Admin'>('Wing');
+  const [stockScopeLabel, setStockScopeLabel] = useState<'Wing' | 'Branch' | 'Admin'>('Wing');
   const [wingConfirmItem, setWingConfirmItem] = useState<any>(null);
   const [wingConfirmLoading, setWingConfirmLoading] = useState(false);
   const [wingStockAvailable, setWingStockAvailable] = useState<number>(0);
@@ -833,11 +833,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       const itemMasterId = item.item_master_id || item.id;
       const requestedQty = getItemQuantity(item);
+      const isBranchRequest = String(request?.request_type || '').trim().toLowerCase() === 'branch';
       const shouldUseAdminInventory = isAdminWorkflowContext;
-      const inventoryScope = shouldUseAdminInventory ? 'admin' : 'wing';
+      const inventoryScope = shouldUseAdminInventory ? 'admin' : (isBranchRequest ? 'branch' : 'wing');
       const wingId = Number(request?.requester_wing_id || currentUser?.wing_id || 0) || null;
+      const branchId = Number(request?.requester_branch_id || currentUser?.intBranchID || currentUser?.branch_id || 0) || null;
 
-      setStockScopeLabel(shouldUseAdminInventory ? 'Admin' : 'Wing');
+      setStockScopeLabel(
+        shouldUseAdminInventory
+          ? 'Admin'
+          : (isBranchRequest ? 'Branch' : 'Wing')
+      );
 
       const response = await fetch(`${getApiUrl()}/api/inventory/check-availability`, {
         method: 'POST',
@@ -847,6 +853,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           itemMasterId,
           requestedQuantity: requestedQty,
           wingId,
+          branchId,
           inventoryScope
         })
       });
