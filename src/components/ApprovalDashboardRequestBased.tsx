@@ -384,6 +384,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       };
 
       const pendingFilteredScopedRequests = requestsByScope.filter((r) => {
+        if (viewMode === 'admin') {
+          return true;
+        }
+
         if (r.request_status !== 'pending') return true;
 
         const approvalData = r.approval as any;
@@ -891,7 +895,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getPersonalRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No subordinate requests'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No requests found'}</p>
               </div>
             ) : (
               <div className="space-y-4">
