@@ -419,6 +419,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     // sourceStatus = which backend query returned this ('pending', 'approved', 'forwarded', 'rejected', 'returned')
     // For 'pending' source: these are things assigned to me that I need to act on -> show as pending
     if (sourceStatus === 'pending') {
+      if (viewMode === 'admin') {
+        return 'pending';
+      }
+
       const approvalData = approval as any;
       const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
 
@@ -575,20 +579,20 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   // Group requests by type (personal vs wing-wise)
   const getPersonalRequests = () => {
     const filtered = getFilteredRequests();
-    const personal = filtered.filter(r => {
-      const scopeType = (r.approval?.scope_type || '').toLowerCase();
-      return scopeType === 'individual';
+    return filtered.filter(r => {
+      const scopeType = String(r.approval?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'individual' || requestType === 'individual' || requestType === 'personal';
     });
-    return personal;
   };
 
   const getWingRequests = () => {
     const filtered = getFilteredRequests();
-    const wing = filtered.filter(r => {
-      const scopeType = (r.approval?.scope_type || '').toLowerCase();
-      return scopeType === 'organizational';
+    return filtered.filter(r => {
+      const scopeType = String(r.approval?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'organizational' || requestType === 'organizational' || requestType === 'wing';
     });
-    return wing;
   };
 
   const getBranchRequests = () => {
