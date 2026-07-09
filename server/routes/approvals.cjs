@@ -1562,7 +1562,7 @@ router.get('/my-approvals', async (req, res) => {
     if (status === 'pending') {
       // Requests that are still waiting for action and have not already been forwarded.
       statusFilter = `((ra.current_approver_id = @userId
-          AND ra.current_status = 'pending')
+          AND ra.current_status IN ('pending', 'forwarded_to_admin', 'forwarded_to_supervisor'))
         OR (
           ra.current_status = 'pending'
           AND EXISTS (
