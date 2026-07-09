@@ -730,6 +730,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     return 'To Next Workflow Role';
   };
 
+  const getForwardAdminLabel = (suffix = '') => {
+    const normalizedRequestType = String(request?.request_type || '').trim().toLowerCase();
+    const isBranchRequest = normalizedRequestType === 'branch' || String((request as any)?.approval?.scope_type || '').trim().toLowerCase() === 'branch';
+
+    if (isBranchRequest) {
+      return `Forward to Procurement${suffix}`.trim();
+    }
+
+    return suffix ? `Forward to Admin${suffix}` : 'Forward to Admin';
+  };
+
   const submitDecisions = async () => {
     if (!request) {
       setError('Approval request not loaded');
@@ -1189,7 +1200,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 <SelectContent>
                   <SelectItem value="approve_wing">Approve selected</SelectItem>
                   {(!isAdmin || isAdminWorkflowContext) && (
-                    <SelectItem value="forward_admin">Forward to Admin selected</SelectItem>
+                    <SelectItem value="forward_admin">{getForwardAdminLabel(' selected')}</SelectItem>
                   )}
                   {!isAdminWorkflowContext && (
                     <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
@@ -1306,7 +1317,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                 <SelectContent>
                                   <SelectItem value="approve_wing">Approve</SelectItem>
                                   {(!isAdmin || isAdminWorkflowContext) && (
-                                    <SelectItem value="forward_admin">Forward to Admin</SelectItem>
+                                    <SelectItem value="forward_admin">{getForwardAdminLabel()}</SelectItem>
                                   )}
                                   {!isAdminWorkflowContext && (
                                     <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
@@ -1429,7 +1440,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   {(!isAdmin || isAdminWorkflowContext) && (
                   <SelectItem value="forward_admin">
                     <span className="flex items-center gap-2">
-                      ⏭ {isAdminWorkflowContext ? `Forward to ${getNextForwardRoleLabel(request.items[0])}` : 'Forward to Admin'}
+                      ⏭ {isAdminWorkflowContext ? (String(request?.request_type || '').trim().toLowerCase() === 'branch' ? 'Forward to Procurement' : `Forward to ${getNextForwardRoleLabel(request.items[0])}`) : getForwardAdminLabel()}
                     </span>
                   </SelectItem>
                   )}
@@ -1471,7 +1482,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {requestStatus === 'approve_wing' ? (isAdminWorkflowContext && !isFinalStep(request.items[0]) ? `✓ Approve & Move to ${getNextForwardRoleLabel(request.items[0])}` : '✓ Approve') :
-                     requestStatus === 'forward_admin' ? (isAdminWorkflowContext ? `⏭ Forward to ${getNextForwardRoleLabel(request.items[0])}` : '⏭ Forward to Admin') :
+                     requestStatus === 'forward_admin' ? (isAdminWorkflowContext ? (String(request?.request_type || '').trim().toLowerCase() === 'branch' ? '⏭ Forward to Procurement' : `⏭ Forward to ${getNextForwardRoleLabel(request.items[0])}`) : `⏭ ${getForwardAdminLabel()}`) :
                     requestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
                     requestStatus === 'return_supervisor' ? '↩ Return to Supervisor' :
                      requestStatus === 'return' ? '↩ Return' :
