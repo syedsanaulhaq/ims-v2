@@ -701,7 +701,7 @@ export function StockIssuanceDashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Request Type</label>
-                  <p className="text-sm">{selectedRequest.request_type}</p>
+                  <p className="text-sm">{getRequestTypeLabel(selectedRequest.request_type)}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Status</label>
