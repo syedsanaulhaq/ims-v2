@@ -11,6 +11,7 @@ import {
 import PerItemApprovalPanel from './PerItemApprovalPanel';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { CheckCircle, Clock, RefreshCw, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { getRequestTypeLabel } from '@/utils/requestTypeLabel';
 
 interface RequestSummary {
   id: string;
@@ -920,7 +921,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                             {(request.approval as any)?.request_number || request.request_id}
                           </h3>
                           <Badge className="text-xs">
-                            {request.request_type.replace('_', ' ').toUpperCase()}
+                            {getRequestTypeLabel(request.request_type, request.approval?.scope_type)}
                           </Badge>
                           <Badge
                             variant="outline"

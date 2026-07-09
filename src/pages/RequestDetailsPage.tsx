@@ -7,6 +7,7 @@ import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Pack
 import { format, isValid } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { getApiBaseUrl } from '@/services/invmisApi';
+import { getRequestTypeLabel } from '@/utils/requestTypeLabel';
 
 // Helper function to safely format dates
 const formatDate = (dateString: string | null | undefined, formatStr = 'MMM dd, yyyy', defaultText = 'N/A'): string => {
@@ -747,9 +748,7 @@ const RequestDetailsPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Request Type</label>
-                  <p className="text-gray-900 mt-1 capitalize">
-                    {request.request_type.replace('_', ' ')}
-                  </p>
+                  <p className="text-gray-900 mt-1">{getRequestTypeLabel(request.request_type)}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Requester</label>

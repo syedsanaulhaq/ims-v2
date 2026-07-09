@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { getApiBaseUrl } from '@/services/invmisApi';
+import { getRequestTypeLabel } from '@/utils/requestTypeLabel';
 import {
   Table,
   TableBody,
@@ -318,7 +319,7 @@ export function StockIssuanceDashboard() {
             Manage stock issuance requests through organizational hierarchy
           </p>
         </div>
-        <div className="flex gap-2">
+                <p className="text-sm">{getRequestTypeLabel(selectedRequest.request_type)}</p>
           <Button onClick={() => navigate('/dashboard/stock-issuance-personal')} variant="default">
             <Plus className="h-4 w-4 mr-2" />
             Personal Request
@@ -496,6 +497,7 @@ export function StockIssuanceDashboard() {
                         <TableCell className="font-medium">{request.request_number}</TableCell>
                         <TableCell>{request.requester.full_name}</TableCell>
                         <TableCell>{getStatusBadge(request.request_status)}</TableCell>
+                        import { getRequestTypeLabel } from '@/utils/requestTypeLabel';
                         <TableCell>{getUrgencyBadge(request.urgency_level)}</TableCell>
                         <TableCell className="max-w-xs truncate">{request.purpose}</TableCell>
                         <TableCell>{format(new Date(request.submitted_at), 'MMM dd, yyyy')}</TableCell>

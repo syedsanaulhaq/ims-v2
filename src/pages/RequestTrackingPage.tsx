@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, User, ArrowRight, CheckCircle, XCircle, Forward, FileText, Calendar, MessageSquare } from 'lucide-react';
+import { getRequestTypeLabel } from '@/utils/requestTypeLabel';
 
 interface ApprovalTrackingEntry {
   step_number: number;
@@ -188,7 +189,7 @@ const RequestTrackingPage: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-sm font-medium text-gray-600">Type:</span>
-                  <p className="text-gray-900">{requestDetails.request_type.replace('_', ' ').toUpperCase()}</p>
+                  <p className="text-gray-900">{getRequestTypeLabel(requestDetails.request_type)}</p>
                 </div>
                 <div>
                   <span className="text-sm font-medium text-gray-600">Workflow:</span>
