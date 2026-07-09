@@ -1189,7 +1189,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                 <SelectContent>
                   <SelectItem value="approve_wing">Approve selected</SelectItem>
                   {(!isAdmin || isAdminWorkflowContext) && (
-                    <SelectItem value="forward_admin">Forward selected</SelectItem>
+                    <SelectItem value="forward_admin">Forward to Admin selected</SelectItem>
                   )}
                   {!isAdminWorkflowContext && (
                     <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
@@ -1306,7 +1306,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                 <SelectContent>
                                   <SelectItem value="approve_wing">Approve</SelectItem>
                                   {(!isAdmin || isAdminWorkflowContext) && (
-                                    <SelectItem value="forward_admin">Forward</SelectItem>
+                                    <SelectItem value="forward_admin">Forward to Admin</SelectItem>
                                   )}
                                   {!isAdminWorkflowContext && (
                                     <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
