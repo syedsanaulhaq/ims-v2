@@ -319,6 +319,7 @@ export function StockIssuanceDashboard() {
             Manage stock issuance requests through organizational hierarchy
           </p>
         </div>
+        <div className="flex gap-3">
           <Button onClick={() => navigate('/dashboard/stock-issuance-personal')} variant="default">
             <Plus className="h-4 w-4 mr-2" />
             Personal Request
