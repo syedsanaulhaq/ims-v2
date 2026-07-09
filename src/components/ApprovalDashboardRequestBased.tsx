@@ -65,6 +65,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
   const selectedScope = new URLSearchParams(location.search).get('scope') || 'all';
+  const normalizedUserId = String((user as any)?.user_id || (user as any)?.Id || '').toLowerCase();
 
   const statusPriority: Record<string, number> = {
     pending: 1,
@@ -339,9 +340,15 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       // Split flows by page mode to keep supervisor and admin experiences isolated.
       const scopedRequests = Array.from(requestMap.values()).filter((request) => {
         const adminWorkflow = isAdminWorkflowRequest(request);
+        const requestCurrentApproverId = String((request.approval as any)?.current_approver_id || '').toLowerCase();
+        const requestCurrentStatus = String((request.approval as any)?.current_status || '').toLowerCase();
+        const assignedToCurrentAdmin =
+          normalizedUserId !== '' &&
+          requestCurrentApproverId === normalizedUserId &&
+          ['pending', 'forwarded_to_admin', 'forwarded_to_supervisor'].includes(requestCurrentStatus);
 
         if (viewMode === 'admin') {
-          return adminWorkflow;
+          return adminWorkflow || assignedToCurrentAdmin;
         }
 
         // Keep supervisor ownership of "To Admin" history cards while still
@@ -356,7 +363,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       const requestsByScope = scopedRequests.filter((request) => {
         if (selectedScope === 'all') return true;
 
-        const scopeType = String(request.approval?.scope_type || '').toLowerCase();
+        const scopeType = String(request.approval?.scope_type || '').trim().toLowerCase();
         const requestType = String(request.request_type || '').toLowerCase();
 
         if (selectedScope === 'personal') {
@@ -580,7 +587,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const getPersonalRequests = () => {
     const filtered = getFilteredRequests();
     return filtered.filter(r => {
-      const scopeType = String(r.approval?.scope_type || '').toLowerCase();
+      const scopeType = String(r.approval?.scope_type || '').trim().toLowerCase();
       const requestType = String(r.request_type || '').toLowerCase();
       return scopeType === 'individual' || requestType === 'individual' || requestType === 'personal';
     });
@@ -589,7 +596,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const getWingRequests = () => {
     const filtered = getFilteredRequests();
     return filtered.filter(r => {
-      const scopeType = String(r.approval?.scope_type || '').toLowerCase();
+      const scopeType = String(r.approval?.scope_type || '').trim().toLowerCase();
       const requestType = String(r.request_type || '').toLowerCase();
       return scopeType === 'organizational' || requestType === 'organizational' || requestType === 'wing';
     });
@@ -598,7 +605,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const getBranchRequests = () => {
     const filtered = getFilteredRequests();
     return filtered.filter(r => {
-      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      const scopeType = String(r.approval?.scope_type || '').trim().toLowerCase();
       const requestType = String(r.request_type || '').toLowerCase();
       return scopeType === 'branch' || requestType === 'branch';
     });
