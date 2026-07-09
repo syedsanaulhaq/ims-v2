@@ -1540,7 +1540,7 @@ router.get('/history/:issuanceId', async (req, res) => {
 // ============================================================================
 router.get('/my-approvals', async (req, res) => {
   try {
-    let userId = req.query.userId || req.session?.userId;
+    let userId = req.session?.userId || req.query.userId;
 
     if (!userId) {
       return res.status(401).json({
