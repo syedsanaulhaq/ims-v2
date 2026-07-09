@@ -299,6 +299,69 @@ router.post('/link-tender', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
+// POST /api/required-items/attach-tender
+// Attach required items to a tender without recreating tender item rows.
+// Body: { item_ids: string[], tender_id: string, tender_type: string, tender_reference?: string }
+// ============================================================================
+router.post('/attach-tender', requireAuth, async (req, res) => {
+  try {
+    const { item_ids, tender_id, tender_type, tender_reference } = req.body;
+
+    if (!item_ids?.length || !tender_id || !tender_type) {
+      return res.status(400).json({ error: 'item_ids, tender_id, and tender_type are required' });
+    }
+
+    const pool = getPool();
+    const tenderCheck = await pool.request()
+      .input('tenderId', sql.UniqueIdentifier, tender_id)
+      .query(`SELECT id, title, reference_number FROM tenders WHERE id = @tenderId AND is_deleted = 0`);
+
+    if (tenderCheck.recordset.length === 0) {
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+
+    const tender = tenderCheck.recordset[0];
+    const tenderRef = tender_reference || tender.reference_number || tender.title;
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      for (const itemId of item_ids) {
+        await transaction.request()
+          .input('id', sql.UniqueIdentifier, itemId)
+          .input('tenderId', sql.UniqueIdentifier, tender_id)
+          .input('tenderType', sql.NVarChar, tender_type)
+          .input('tenderRef', sql.NVarChar, tenderRef)
+          .query(`
+            UPDATE required_items
+            SET status = 'In Tender',
+                tender_id = @tenderId,
+                tender_type = @tenderType,
+                tender_reference = @tenderRef,
+                updated_at = GETDATE()
+            WHERE id = @id AND is_deleted = 0
+          `);
+      }
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: `${item_ids.length} required item(s) attached to tender "${tenderRef}"`,
+        tender_id,
+        attached_count: item_ids.length
+      });
+    } catch (error) {
+      try { await transaction.rollback(); } catch (_) {}
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error attaching required items to tender:', error);
+    res.status(500).json({ error: 'Failed to attach items to tender', details: error.message });
+  }
+});
+
+// ============================================================================
 // PUT /api/required-items/:id/cancel - Cancel a required item
 // ============================================================================
 router.put('/:id/cancel', requireAuth, async (req, res) => {

@@ -248,28 +248,45 @@ export default function RequiredItemsPage() {
       } else {
         // Create New Tender flow: Redirect to Create Tender screen with items details passed in state/storage
         // We will store selected item details in sessionStorage
-        let itemsForNewTender = [];
+        let itemsForNewTender: any[] = [];
+        let sourceRequiredItemIds: string[] = [];
         if (activeTab === 'individual') {
-          itemsForNewTender = items
+          const selectedItems = items
             .filter(item => selectedIds.has(item.id))
-            .map(item => ({
+          itemsForNewTender = selectedItems.map(item => ({
               item_master_id: item.item_master_id || '',
               nomenclature: item.nomenclature,
               quantity: item.quantity_needed,
-              unit: item.unit || ''
+              unit: item.unit || '',
+              source_required_item_id: item.id,
+              source_request_id: item.source_request_id,
+              source_request_number: item.source_request_number,
+              requested_by_wing_name: item.requested_by_wing_name,
+              urgency_level: item.urgency_level,
+              remarks: item.notes || 'Imported from Out-of-Stock Pipeline'
             }));
+          sourceRequiredItemIds = selectedItems.map(item => item.id);
         } else {
-          itemsForNewTender = summary
+          const selectedSummaries = summary
             .filter(s => selectedSummaryKeys.has(s.group_key))
-            .map(s => ({
+          itemsForNewTender = selectedSummaries.map(s => ({
               item_master_id: s.item_master_id || '',
               nomenclature: s.nomenclature,
               quantity: s.total_quantity_needed,
-              unit: s.unit || ''
+              unit: s.unit || '',
+              source_required_item_ids: items
+                .filter(item => item.item_master_id === s.item_master_id || item.nomenclature === s.nomenclature)
+                .map(item => item.id),
+              source_request_numbers: s.source_requests,
+              remarks: `Imported from Out-of-Stock Pipeline | Requests: ${s.source_requests}`
             }));
+          sourceRequiredItemIds = items
+            .filter(item => selectedSummaries.some(s => s.item_master_id === item.item_master_id || s.nomenclature === item.nomenclature))
+            .map(item => item.id);
         }
 
         sessionStorage.setItem('prefilled_tender_items', JSON.stringify(itemsForNewTender));
+        sessionStorage.setItem('prefilled_tender_source_required_item_ids', JSON.stringify(sourceRequiredItemIds));
         
         let path = '/dashboard/create-tender';
         if (selectedTenderType === 'annual-tender') {

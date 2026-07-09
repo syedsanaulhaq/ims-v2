@@ -35,6 +35,12 @@ interface TenderItem {
   vendor_id?: string;
   category_name?: string;
   category_description?: string;
+  source_required_item_id?: string;
+  source_required_item_ids?: string[];
+  source_request_id?: string;
+  source_request_number?: string;
+  requested_by_wing_name?: string;
+  urgency_level?: string;
 }
 
 interface ItemMaster {
@@ -155,6 +161,7 @@ const CreateTender: React.FC = () => {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showCsvModal, setShowCsvModal] = useState<boolean>(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [sourceRequiredItemIds, setSourceRequiredItemIds] = useState<string[]>([]);
   const [newItem, setNewItem] = useState<TenderItem>({
     item_master_id: '',
     nomenclature: '',
@@ -221,12 +228,27 @@ const CreateTender: React.FC = () => {
             estimated_unit_price: 0,
             total_amount: 0,
             specifications: '',
-            remarks: 'Imported from Out-of-Stock Pipeline',
+            remarks: item.remarks || 'Imported from Out-of-Stock Pipeline',
+            source_required_item_id: item.source_required_item_id,
+            source_required_item_ids: item.source_required_item_ids,
+            source_request_id: item.source_request_id,
+            source_request_number: item.source_request_number,
+            requested_by_wing_name: item.requested_by_wing_name,
+            urgency_level: item.urgency_level,
             vendor_id: ''
           }));
           setTenderItems(mappedItems);
           sessionStorage.removeItem('prefilled_tender_items');
         }
+      }
+
+      const prefilledSourceIds = sessionStorage.getItem('prefilled_tender_source_required_item_ids');
+      if (prefilledSourceIds) {
+        const parsedIds = JSON.parse(prefilledSourceIds);
+        if (Array.isArray(parsedIds)) {
+          setSourceRequiredItemIds(parsedIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0));
+        }
+        sessionStorage.removeItem('prefilled_tender_source_required_item_ids');
       }
     } catch (e) {
       console.error('Failed to parse prefilled tender items:', e);
@@ -638,6 +660,28 @@ const CreateTender: React.FC = () => {
 
       const result = await response.json();
       const newTenderId = result.tenderId;
+
+      if (newTenderId && sourceRequiredItemIds.length > 0) {
+        try {
+          const attachResponse = await fetch('http://localhost:3001/api/required-items/attach-tender', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              item_ids: sourceRequiredItemIds,
+              tender_id: newTenderId,
+              tender_type: tenderType,
+              tender_reference: tenderData.reference_number || tenderData.title
+            })
+          });
+
+          if (!attachResponse.ok) {
+            const attachError = await attachResponse.json().catch(() => ({}));
+            console.warn('⚠️ Tender created but failed to attach source required items:', attachError.error || attachResponse.statusText);
+          }
+        } catch (attachErr) {
+          console.warn('⚠️ Tender created but failed to attach source required items:', attachErr);
+        }
+      }
       
       // Save bidders to the newly created tender
       if (bidders.length > 0 && newTenderId) {
