@@ -833,16 +833,17 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       const itemMasterId = item.item_master_id || item.id;
       const requestedQty = getItemQuantity(item);
-      const isBranchRequest = String(request?.request_type || '').trim().toLowerCase() === 'branch';
+      const normalizedRequestType = String(request?.request_type || '').trim().toLowerCase();
+      const isBranchOrPersonalRequest = normalizedRequestType === 'branch' || normalizedRequestType === 'individual' || normalizedRequestType === 'personal';
       const shouldUseAdminInventory = isAdminWorkflowContext;
-      const inventoryScope = shouldUseAdminInventory ? 'admin' : (isBranchRequest ? 'branch' : 'wing');
+      const inventoryScope = shouldUseAdminInventory ? 'admin' : (isBranchOrPersonalRequest ? 'branch' : 'wing');
       const wingId = Number(request?.requester_wing_id || currentUser?.wing_id || 0) || null;
       const branchId = Number(request?.requester_branch_id || currentUser?.intBranchID || currentUser?.branch_id || 0) || null;
 
       setStockScopeLabel(
         shouldUseAdminInventory
           ? 'Admin'
-          : (isBranchRequest ? 'Branch' : 'Wing')
+          : (isBranchOrPersonalRequest ? 'Branch' : 'Wing')
       );
 
       const response = await fetch(`${getApiUrl()}/api/inventory/check-availability`, {
