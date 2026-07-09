@@ -80,6 +80,9 @@ interface RequestItem {
   is_returnable?: boolean;
   item_status?: string;
   item_master_id?: string | null;
+  procurement_status?: string | null;
+  procurement_tender_id?: string | null;
+  procurement_tender_reference?: string | null;
 }
 
 const resolveRequestedQuantity = (item: RequestItem): number => {
@@ -204,6 +207,18 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       item.decision_type === 'RETURN' ||
       (item.decision_type === 'REJECT' && item.rejection_reason?.toLowerCase().includes('returned to requester'))
     );
+  };
+
+  const isProcurementLocked = (item: RequestItem) => {
+    const status = String(item?.procurement_status || '').trim().toLowerCase();
+    return status === 'pending' || status === 'in tender';
+  };
+
+  const getProcurementLockLabel = (item: RequestItem) => {
+    const status = String(item?.procurement_status || '').trim().toLowerCase();
+    if (status === 'pending') return 'Procurement Pending';
+    if (status === 'in tender') return 'In Tender';
+    return '';
   };
 
   // Helper function to check if controls should be disabled
@@ -459,6 +474,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       if (status === 'reject') {
         // Reject all items
         request.items.forEach((item: any) => {
+          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -470,6 +486,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'approve_wing') {
         // Approve all items
         request.items.forEach((item: any) => {
+          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -481,6 +498,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'forward_admin') {
         // Forward all items to admin
         request.items.forEach((item: any) => {
+          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -492,6 +510,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'forward_supervisor') {
         // Forward all items to supervisor
         request.items.forEach((item: any) => {
+          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -503,6 +522,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'return') {
         // Return all items to requester
         request.items.forEach((item: any) => {
+          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -513,6 +533,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         });
       } else if (status === 'return_supervisor') {
         request.items.forEach((item: any) => {
+          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -1155,6 +1176,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     selectedItemIds.forEach((itemId) => {
       const item = filteredItems.find((it) => getItemId(it) === itemId);
       if (!item) return;
+      if (isProcurementLocked(item)) return;
       const approvedQty = (
         bulkDecision === 'approve_wing' ||
         bulkDecision === 'forward_admin' ||
@@ -1278,6 +1300,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           <td className="px-3 py-2">
                             <div className="font-medium text-gray-900">{getItemName(item)}</div>
                             <div className="text-xs text-gray-500">Code: {item.item_code || 'N/A'}</div>
+                            {isProcurementLocked(item) && (
+                              <Badge variant="outline" className="mt-1 text-[11px] bg-amber-50 text-amber-800 border-amber-300">
+                                {getProcurementLockLabel(item)}
+                              </Badge>
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             {isDecisionStage ? (
@@ -1287,7 +1314,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                   min="0"
                                   value={getEditableQuantity(item)}
                                   onChange={(e) => updateItemQuantity(item, e.target.value)}
-                                  disabled={shouldDisableControls()}
+                                  disabled={shouldDisableControls() || isProcurementLocked(item)}
                                   className="h-8 w-20"
                                 />
                                 <span className="text-xs text-gray-600">No(s)</span>
@@ -1309,7 +1336,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                   ) ? getEditableQuantity(item) : 0;
                                   handleItemDecisionChange(itemId, decisionValue, approvedQuantity);
                                 }}
-                                disabled={shouldDisableControls()}
+                                disabled={shouldDisableControls() || isProcurementLocked(item)}
                               >
                                 <SelectTrigger className="h-8 bg-white">
                                   <SelectValue placeholder="Select..." />
@@ -1351,16 +1378,16 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                 });
                                 setItemDecisions(newDecisions);
                               }}
-                              disabled={shouldDisableControls()}
+                              disabled={shouldDisableControls() || isProcurementLocked(item)}
                               className="h-8"
                             />
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => checkStockAvailability(item)}>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => checkStockAvailability(item)} disabled={isProcurementLocked(item)}>
                                 Check Stock
                               </Button>
-                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => forwardToStoreKeeper(item)}>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => forwardToStoreKeeper(item)} disabled={isProcurementLocked(item)}>
                                 Forward to Store Keeper
                               </Button>
                             </div>

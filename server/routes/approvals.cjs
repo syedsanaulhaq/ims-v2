@@ -2291,13 +2291,38 @@ router.get('/:approvalId', async (req, res, next) => {
     // Get approval items
     let itemsResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)
+      .input('requestId', sql.UniqueIdentifier, approval.request_id || null)
       .query(`
         SELECT 
           ai.*,
           im.item_code,
-          im.description as item_description
+          im.description as item_description,
+          ri_match.status as procurement_status,
+          ri_match.tender_id as procurement_tender_id,
+          ri_match.tender_reference as procurement_tender_reference
         FROM approval_items ai
         LEFT JOIN item_masters im ON ai.item_master_id = im.id
+        OUTER APPLY (
+          SELECT TOP 1
+            ri.status,
+            ri.tender_id,
+            ri.tender_reference
+          FROM required_items ri
+          WHERE ri.is_deleted = 0
+            AND ri.source_request_id = @requestId
+            AND (
+              (ri.item_master_id = ai.item_master_id)
+              OR (ri.item_master_id IS NULL AND ai.item_master_id IS NULL AND ri.nomenclature = ai.nomenclature)
+            )
+          ORDER BY
+            CASE ri.status
+              WHEN 'Procured' THEN 1
+              WHEN 'In Tender' THEN 2
+              WHEN 'Pending' THEN 3
+              ELSE 4
+            END,
+            ri.created_at DESC
+        ) ri_match
         WHERE ai.request_approval_id = @approvalId
         ORDER BY ai.created_at
       `);
@@ -2334,13 +2359,38 @@ router.get('/:approvalId', async (req, res, next) => {
       if (stockItems.recordset.length > 0) {
         itemsResult = await pool.request()
           .input('approvalId', sql.UniqueIdentifier, approvalId)
+          .input('requestId', sql.UniqueIdentifier, approval.request_id || null)
           .query(`
             SELECT 
               ai.*,
               im.item_code,
-              im.description as item_description
+              im.description as item_description,
+              ri_match.status as procurement_status,
+              ri_match.tender_id as procurement_tender_id,
+              ri_match.tender_reference as procurement_tender_reference
             FROM approval_items ai
             LEFT JOIN item_masters im ON ai.item_master_id = im.id
+            OUTER APPLY (
+              SELECT TOP 1
+                ri.status,
+                ri.tender_id,
+                ri.tender_reference
+              FROM required_items ri
+              WHERE ri.is_deleted = 0
+                AND ri.source_request_id = @requestId
+                AND (
+                  (ri.item_master_id = ai.item_master_id)
+                  OR (ri.item_master_id IS NULL AND ai.item_master_id IS NULL AND ri.nomenclature = ai.nomenclature)
+                )
+              ORDER BY
+                CASE ri.status
+                  WHEN 'Procured' THEN 1
+                  WHEN 'In Tender' THEN 2
+                  WHEN 'Pending' THEN 3
+                  ELSE 4
+                END,
+                ri.created_at DESC
+            ) ri_match
             WHERE ai.request_approval_id = @approvalId
             ORDER BY ai.created_at
           `);
