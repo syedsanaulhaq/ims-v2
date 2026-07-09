@@ -191,7 +191,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [selectedItemForStock, setSelectedItemForStock] = useState<any>(null);
   const [stockCheckLoading, setStockCheckLoading] = useState(false);
   const [stockAvailable, setStockAvailable] = useState<number>(0);
-  const [stockScopeLabel, setStockScopeLabel] = useState<'Wing' | 'Branch' | 'Admin'>('Wing');
+  const [stockScopeLabel, setStockScopeLabel] = useState<'Wing' | 'Branch' | 'Main Inventory'>('Wing');
   const [wingConfirmItem, setWingConfirmItem] = useState<any>(null);
   const [wingConfirmLoading, setWingConfirmLoading] = useState(false);
   const [wingStockAvailable, setWingStockAvailable] = useState<number>(0);
@@ -842,7 +842,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
       setStockScopeLabel(
         shouldUseAdminInventory
-          ? 'Admin'
+          ? 'Main Inventory'
           : (isBranchOrPersonalRequest ? 'Branch' : 'Wing')
       );
 
