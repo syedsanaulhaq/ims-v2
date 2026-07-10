@@ -7,9 +7,11 @@
   "settings": {
     // Performance-focused settings to prevent freezing
     "typescript.preferences.useAliasesForRenames": false,
-    "typescript.validate.enable": true,
+    "typescript.validate.enable": false,
     "typescript.suggest.autoImports": false,
     "typescript.disableAutomaticTypeAcquisition": true,
+    "typescript.suggest.enabled": false,
+    "typescript.tsserver.maxMemoryMB": 512,
     "typescript.updateImportsOnFileMove.enabled": "never",
     
     // Aggressive file exclusions
