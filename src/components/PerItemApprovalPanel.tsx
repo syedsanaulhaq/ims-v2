@@ -122,6 +122,7 @@ interface ApprovalRequest {
   custom_items?: RequestItem[];
   submitted_by_name?: string;
   request_type?: string;
+  scope_type?: string;
   current_status?: string;
   workflow_id?: string;
   current_approver_id?: string;
@@ -753,9 +754,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
   const shouldShowProcurementForward = () => {
     const normalizedRequestType = String(request?.request_type || '').trim().toLowerCase();
-    const normalizedScopeType = String((request as any)?.approval?.scope_type || '').trim().toLowerCase();
+    const normalizedScopeType = String(request?.scope_type || (request as any)?.approval?.scope_type || '').trim().toLowerCase();
     const isProcurementManagedRequest = ['branch', 'individual', 'personal'].includes(normalizedRequestType) || ['branch', 'individual', 'personal'].includes(normalizedScopeType);
-    return isAdminWorkflowRoleUser && isProcurementManagedRequest;
+    return viewMode === 'admin' && isProcurementManagedRequest;
   };
 
   const getForwardAdminLabel = (suffix = '') => {
