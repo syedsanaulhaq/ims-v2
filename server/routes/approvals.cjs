@@ -65,7 +65,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       LEFT JOIN item_masters im ON im.id = ai.item_master_id
       WHERE ra.id = @approvalId
         AND LOWER(COALESCE(sir.request_type, '')) IN ('branch', 'individual', 'personal')
-        AND ai.decision_type = 'FORWARD_TO_ADMIN'
+        AND ai.decision_type IN ('FORWARD_TO_ADMIN', 'FORWARD_TO_PROCUREMENT')
         AND ISNULL(ai.requested_quantity, 0) > 0
     `);
 
@@ -1784,8 +1784,10 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       let overallStatus = 'pending';
       const hasForwardToAdmin = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_ADMIN');
+      const hasForwardToProcurement = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_PROCUREMENT');
       const hasForwardToSupervisor = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_SUPERVISOR');
       const hasForwardActions = hasForwardToAdmin || hasForwardToSupervisor;
+      const hasProcurementActions = hasForwardToProcurement;
       let newApproverId = null;
       let isDynamicStepTransition = false;
       let dynamicTransitionLabel = '';
@@ -1793,6 +1795,8 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       if (hasReturnActions) {
         overallStatus = 'returned';
+      } else if (hasProcurementActions) {
+        overallStatus = 'forwarded_to_procurement';
       } else if (hasForwardActions) {
         overallStatus = hasForwardToAdmin ? 'forwarded_to_admin' : 'forwarded_to_supervisor';
       } else if (item_allocations?.every(a => a.decision_type === 'REJECT')) {
@@ -1848,7 +1852,7 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       // Dynamic workflow transition: an "approved" action may move to next configured step,
       // and only the final step becomes fully approved.
-      if (overallStatus === 'approved' && !hasForwardActions && !hasReturnActions && requestId) {
+      if (overallStatus === 'approved' && !hasForwardActions && !hasReturnActions && !hasProcurementActions && requestId) {
         const transition = await advanceWorkflow(transaction, requestId, userId, {
           touchedGroups
         });
@@ -1888,7 +1892,7 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       // Update approval record
       // If forwarding, find the target user to reassign current_approver_id
-      if (hasForwardToAdmin && !newApproverId) {
+      if ((hasForwardToAdmin || hasForwardToProcurement) && !newApproverId) {
         // Fallback path when lane transition cannot produce next approver:
         // keep the role chain aligned with workflow progression.
         const actorRoles = await getUserWorkflowRoles(pool, userId);
@@ -1951,7 +1955,7 @@ router.post('/:approvalId/approve', async (req, res) => {
         .input('approver_name', sql.NVarChar, actualApproverName)
         .input('approver_designation', sql.NVarChar, actualApproverDesignation)
         .input('approval_comments', sql.NVarChar, approval_comments || '')
-        .input('markAdminWorkflow', sql.Bit, hasForwardToAdmin ? 1 : 0)
+        .input('markAdminWorkflow', sql.Bit, (hasForwardToAdmin || hasForwardToProcurement) ? 1 : 0)
         .input('newApproverId', sql.NVarChar, newApproverId)
         .query(`
           UPDATE request_approvals
@@ -2013,7 +2017,7 @@ router.post('/:approvalId/approve', async (req, res) => {
         }
       }
 
-      if (hasForwardToAdmin) {
+      if (hasForwardToAdmin || hasForwardToProcurement) {
         await createBranchDemandForForwardedShortages(transaction, approvalId, userId);
       }
 
@@ -2038,6 +2042,8 @@ router.post('/:approvalId/approve', async (req, res) => {
       // Determine a meaningful comment for the history entry
       const historyActionType = hasForwardToAdmin
         ? 'forwarded_to_admin'
+        : hasForwardToProcurement
+          ? 'forwarded_to_procurement'
         : hasForwardToSupervisor
           ? 'forwarded_to_supervisor'
           : isDynamicStepTransition
@@ -2046,6 +2052,7 @@ router.post('/:approvalId/approve', async (req, res) => {
       let historyComment = approval_comments || '';
       if (!historyComment) {
         if (historyActionType === 'forwarded_to_admin') historyComment = 'Forwarded request to Admin for approval';
+        else if (historyActionType === 'forwarded_to_procurement') historyComment = 'Forwarded request to Procurement';
         else if (historyActionType === 'forwarded_to_supervisor') historyComment = 'Forwarded request to Wing Supervisor';
         else if (historyActionType === 'approved_step') historyComment = dynamicTransitionLabel || 'Step approved and forwarded to next designation';
         else if (historyActionType === 'approved') historyComment = 'Request approved';
@@ -2183,6 +2190,9 @@ router.post('/:approvalId/approve', async (req, res) => {
           } else if (overallStatus === 'forwarded_to_admin') {
             sirStatus = 'Pending';
             sirApprovalStatus = 'Forwarded to Admin';
+          } else if (overallStatus === 'forwarded_to_procurement') {
+            sirStatus = 'Pending';
+            sirApprovalStatus = 'Forwarded to Procurement';
           } else if (overallStatus === 'forwarded_to_supervisor') {
             sirStatus = 'Pending';
             sirApprovalStatus = 'Pending Supervisor Review';

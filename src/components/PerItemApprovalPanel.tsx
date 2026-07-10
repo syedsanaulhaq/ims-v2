@@ -37,7 +37,7 @@ interface PerItemApprovalPanelProps {
 
 interface ItemDecision {
   itemId: string;
-  decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null;
+  decision: 'approve_wing' | 'forward_admin' | 'forward_procurement' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null;
   approvedQuantity: number;
   reason?: string;
 }
@@ -162,7 +162,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const [approverDesignation, setApproverDesignation] = useState('Wing Supervisor');
   const [approvalComments, setApprovalComments] = useState('');
   const [itemDecisions, setItemDecisions] = useState<Map<string, ItemDecision>>(new Map());
-  const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null>(null);
+  const [requestStatus, setRequestStatus] = useState<'approve_wing' | 'forward_admin' | 'forward_procurement' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [bulkDecision, setBulkDecision] = useState<DecisionValue | null>(null);
   const [itemGroupMap, setItemGroupMap] = useState<Record<string, number>>({});
@@ -466,7 +466,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     setItemDecisions(newDecisions);
   };
 
-  const handleRequestStatusChange = (status: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null) => {
+  const handleRequestStatusChange = (status: 'approve_wing' | 'forward_admin' | 'forward_procurement' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null) => {
     setRequestStatus(status);
     
     const newDecisions = new Map<string, ItemDecision>();
@@ -506,6 +506,18 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             decision: 'forward_admin',
             approvedQuantity: 0,
             reason: 'Request forwarded to admin at request level'
+          });
+        });
+      } else if (status === 'forward_procurement') {
+        // Forward all items to procurement
+        request.items.forEach((item: any) => {
+          if (isProcurementLocked(item)) return;
+          const itemId = getItemId(item);
+          newDecisions.set(itemId, {
+            itemId,
+            decision: 'forward_procurement',
+            approvedQuantity: 0,
+            reason: 'Request forwarded to procurement at request level'
           });
         });
       } else if (status === 'forward_supervisor') {
@@ -551,7 +563,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     }
   };
 
-  const handleItemDecisionChange = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor', approvedQty: number) => {
+  const handleItemDecisionChange = (itemId: string, decision: 'approve_wing' | 'forward_admin' | 'forward_procurement' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor', approvedQty: number) => {
     setItemDecision(itemId, decision, approvedQty);
     
     // Update request status based on item decisions
@@ -601,6 +613,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       decision &&
       (decision.decision === 'approve_wing' ||
         decision.decision === 'forward_admin' ||
+        decision?.decision === 'forward_procurement' ||
         decision.decision === 'forward_supervisor')
     ) {
       if (Number.isFinite(decisionQty) && decisionQty > 0) {
@@ -759,13 +772,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     return viewMode === 'admin' && isProcurementManagedRequest;
   };
 
-  const getForwardAdminLabel = (suffix = '') => {
-    if (shouldShowProcurementForward()) {
-      return `Forward to Procurement${suffix}`.trim();
-    }
+  const getForwardAdminLabel = (suffix = '') => suffix ? `Forward to Admin${suffix}` : 'Forward to Admin';
 
-    return suffix ? `Forward to Admin${suffix}` : 'Forward to Admin';
-  };
+  const getForwardProcurementLabel = (suffix = '') => suffix ? `Forward to Procurement${suffix}` : 'Forward to Procurement';
 
   const submitDecisions = async () => {
     if (!request) {
@@ -787,7 +796,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       const itemAllocations = items.map(item => {
         const itemId = getItemId(item);
         const decision = getItemDecision(itemId);
-      let decisionType: 'APPROVE_FROM_STOCK' | 'FORWARD_TO_ADMIN' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' | 'RETURN' = 'REJECT';
+      let decisionType: 'APPROVE_FROM_STOCK' | 'FORWARD_TO_ADMIN' | 'FORWARD_TO_PROCUREMENT' | 'FORWARD_TO_SUPERVISOR' | 'REJECT' | 'RETURN' = 'REJECT';
         let allocatedQty = 0;
         const revisedQty = Math.max(0, Number((decision?.approvedQuantity ?? getItemQuantity(item)) || 0));
 
@@ -797,6 +806,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         } else if (decision?.decision === 'forward_admin') {
           decisionType = 'FORWARD_TO_ADMIN';
           allocatedQty = revisedQty;
+        } else if (decision?.decision === 'forward_procurement') {
+          decisionType = 'FORWARD_TO_PROCUREMENT';
+          allocatedQty = 0;
         } else if (decision?.decision === 'forward_supervisor') {
           decisionType = 'FORWARD_TO_SUPERVISOR';
           allocatedQty = revisedQty;
@@ -821,7 +833,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             : decision?.decision === 'return'
             ? (decision.reason || 'Request returned to requester for editing')
             : undefined,
-          forwarding_reason: (decision?.decision === 'forward_admin' || decision?.decision === 'forward_supervisor' || decision?.decision === 'return_supervisor')
+          forwarding_reason: (decision?.decision === 'forward_admin' || decision?.decision === 'forward_procurement' || decision?.decision === 'forward_supervisor' || decision?.decision === 'return_supervisor')
             ? (decision.reason || 'Forwarded for further approval')
             : undefined
         };
@@ -1185,6 +1197,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       const approvedQty = (
         bulkDecision === 'approve_wing' ||
         bulkDecision === 'forward_admin' ||
+        bulkDecision === 'forward_procurement' ||
         bulkDecision === 'forward_supervisor'
       ) ? getItemQuantity(item) : 0;
       handleItemDecisionChange(itemId, bulkDecision, approvedQty);
@@ -1228,6 +1241,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   <SelectItem value="approve_wing">Approve selected</SelectItem>
                   {(!isAdmin || isAdminWorkflowContext) && (
                     <SelectItem value="forward_admin">{getForwardAdminLabel(' selected')}</SelectItem>
+                  )}
+                  {shouldShowProcurementForward() && (
+                    <SelectItem value="forward_procurement">{getForwardProcurementLabel(' selected')}</SelectItem>
                   )}
                   {!isAdminWorkflowContext && (
                     <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
@@ -1351,6 +1367,9 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                   {(!isAdmin || isAdminWorkflowContext) && (
                                     <SelectItem value="forward_admin">{getForwardAdminLabel()}</SelectItem>
                                   )}
+                                  {shouldShowProcurementForward() && (
+                                    <SelectItem value="forward_procurement">{getForwardProcurementLabel()}</SelectItem>
+                                  )}
                                   {!isAdminWorkflowContext && (
                                     <SelectItem value="forward_supervisor">Forward to supervisor</SelectItem>
                                   )}
@@ -1472,7 +1491,14 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   {(!isAdmin || isAdminWorkflowContext) && (
                   <SelectItem value="forward_admin">
                     <span className="flex items-center gap-2">
-                      ⏭ {shouldShowProcurementForward() ? 'Forward to Procurement' : (isAdminWorkflowContext ? `Forward to ${getNextForwardRoleLabel(request.items[0])}` : getForwardAdminLabel())}
+                      ⏭ {isAdminWorkflowContext ? `Forward to ${getNextForwardRoleLabel(request.items[0])}` : getForwardAdminLabel()}
+                    </span>
+                  </SelectItem>
+                  )}
+                  {shouldShowProcurementForward() && (
+                  <SelectItem value="forward_procurement">
+                    <span className="flex items-center gap-2">
+                      ⏭ {getForwardProcurementLabel()}
                     </span>
                   </SelectItem>
                   )}
@@ -1514,7 +1540,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {requestStatus === 'approve_wing' ? (isAdminWorkflowContext && !isFinalStep(request.items[0]) ? `✓ Approve & Move to ${getNextForwardRoleLabel(request.items[0])}` : '✓ Approve') :
-                     requestStatus === 'forward_admin' ? (shouldShowProcurementForward() ? '⏭ Forward to Procurement' : (isAdminWorkflowContext ? `⏭ Forward to ${getNextForwardRoleLabel(request.items[0])}` : `⏭ ${getForwardAdminLabel()}`)) :
+                     requestStatus === 'forward_admin' ? (isAdminWorkflowContext ? `⏭ Forward to ${getNextForwardRoleLabel(request.items[0])}` : `⏭ ${getForwardAdminLabel()}`) :
+                     requestStatus === 'forward_procurement' ? `⏭ ${getForwardProcurementLabel()}` :
                     requestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
                     requestStatus === 'return_supervisor' ? '↩ Return to Supervisor' :
                      requestStatus === 'return' ? '↩ Return' :

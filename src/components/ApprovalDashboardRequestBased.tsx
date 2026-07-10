@@ -467,6 +467,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       case 'reject':
         return 'bg-red-100 text-red-800 border-red-300';
       case 'forward_admin':
+      case 'forwarded_to_procurement':
         return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'forward_supervisor':
         return 'bg-purple-100 text-purple-800 border-purple-300';
@@ -487,6 +488,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return '✗ Rejected';
       case 'forward_admin':
         return '⏭ Forward to Admin';
+      case 'forwarded_to_procurement':
+        return '⏭ Forward to Procurement';
       case 'forward_supervisor':
         return '↗ Forward to Supervisor';
       case 'return':
