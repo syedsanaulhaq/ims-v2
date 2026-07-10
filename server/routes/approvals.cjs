@@ -64,8 +64,8 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
       LEFT JOIN item_masters im ON im.id = ai.item_master_id
       WHERE ra.id = @approvalId
-        AND LOWER(COALESCE(sir.request_type, '')) IN ('branch', 'individual', 'personal')
-        AND ai.decision_type IN ('FORWARD_TO_ADMIN', 'FORWARD_TO_PROCUREMENT')
+        AND sir.request_type = 'branch'
+        AND ai.decision_type = 'FORWARD_TO_ADMIN'
         AND ISNULL(ai.requested_quantity, 0) > 0
     `);
 
@@ -83,7 +83,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       .input('branchName', sql.NVarChar(200), item.branch_name || null)
       .input('urgencyLevel', sql.NVarChar(50), item.urgency_level || 'Medium')
       .input('createdBy', sql.NVarChar(450), userId)
-      .input('notes', sql.NVarChar(sql.MAX), 'Demand created from shortage forwarded to procurement workflow')
+      .input('notes', sql.NVarChar(sql.MAX), 'Demand created from branch shortage forwarded to admin workflow')
       .query(`
         IF EXISTS (
           SELECT 1
@@ -124,6 +124,86 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
   }
 
   return shortageResult.recordset?.length || 0;
+};
+
+const createProcurementRequestFromApproval = async (transaction, approvalId, userId) => {
+  const procurementResult = await transaction.request()
+    .input('approvalId', sql.UniqueIdentifier, approvalId)
+    .query(`
+      SELECT
+        sir.id AS request_id,
+        sir.request_number,
+        sir.requester_wing_id,
+        sir.urgency_level,
+        ai.item_master_id,
+        COALESCE(ai.nomenclature, im.nomenclature, ai.custom_item_name) AS nomenclature,
+        COALESCE(im.unit, ai.unit, 'units') AS unit,
+        ISNULL(ai.requested_quantity, 0) AS quantity_needed,
+        CAST(sir.requester_branch_id AS NVARCHAR(200)) AS branch_name
+      FROM request_approvals ra
+      INNER JOIN stock_issuance_requests sir ON sir.id = ra.request_id
+      INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
+      LEFT JOIN item_masters im ON im.id = ai.item_master_id
+      WHERE ra.id = @approvalId
+        AND ai.decision_type = 'FORWARD_TO_PROCUREMENT'
+        AND ISNULL(ai.requested_quantity, 0) > 0
+    `);
+
+  for (const item of procurementResult.recordset || []) {
+    const quantityNeeded = Math.max(1, Number(item.quantity_needed || 0));
+
+    await transaction.request()
+      .input('sourceRequestId', sql.UniqueIdentifier, item.request_id)
+      .input('sourceRequestNumber', sql.NVarChar(100), item.request_number)
+      .input('itemMasterId', sql.UniqueIdentifier, item.item_master_id || null)
+      .input('nomenclature', sql.NVarChar(500), item.nomenclature || 'Custom Item')
+      .input('quantityNeeded', sql.Int, quantityNeeded)
+      .input('unit', sql.NVarChar(50), item.unit || 'units')
+      .input('wingId', sql.Int, item.requester_wing_id || null)
+      .input('branchName', sql.NVarChar(200), item.branch_name || null)
+      .input('urgencyLevel', sql.NVarChar(50), item.urgency_level || 'Medium')
+      .input('createdBy', sql.NVarChar(450), userId)
+      .input('notes', sql.NVarChar(sql.MAX), 'Procurement request created from approval workflow')
+      .query(`
+        IF EXISTS (
+          SELECT 1
+          FROM required_items
+          WHERE source_request_id = @sourceRequestId
+            AND status IN ('Pending', 'Planned')
+            AND is_deleted = 0
+            AND (
+              (item_master_id = @itemMasterId)
+              OR (item_master_id IS NULL AND @itemMasterId IS NULL AND nomenclature = @nomenclature)
+            )
+        )
+        BEGIN
+          UPDATE required_items
+          SET quantity_needed = @quantityNeeded,
+              unit = @unit,
+              urgency_level = @urgencyLevel,
+              notes = @notes,
+              updated_at = GETDATE()
+          WHERE source_request_id = @sourceRequestId
+            AND status IN ('Pending', 'Planned')
+            AND is_deleted = 0
+            AND (
+              (item_master_id = @itemMasterId)
+              OR (item_master_id IS NULL AND @itemMasterId IS NULL AND nomenclature = @nomenclature)
+            );
+        END
+        ELSE
+        BEGIN
+          INSERT INTO required_items
+            (item_master_id, nomenclature, quantity_needed, unit, source_request_id, source_request_number,
+             requested_by_wing_id, requested_by_wing_name, urgency_level, status, notes, created_by)
+          VALUES
+            (@itemMasterId, @nomenclature, @quantityNeeded, @unit, @sourceRequestId, @sourceRequestNumber,
+             @wingId, @branchName, @urgencyLevel, 'Pending', @notes, @createdBy);
+        END
+      `);
+  }
+
+  return procurementResult.recordset?.length || 0;
 };
 
 // ============================================================================
@@ -1540,7 +1620,7 @@ router.get('/history/:issuanceId', async (req, res) => {
 // ============================================================================
 router.get('/my-approvals', async (req, res) => {
   try {
-    let userId = req.session?.userId || req.query.userId;
+    let userId = req.query.userId || req.session?.userId;
 
     if (!userId) {
       return res.status(401).json({
@@ -1560,11 +1640,11 @@ router.get('/my-approvals', async (req, res) => {
     // "rejected"/"returned" = things I rejected/returned
     let statusFilter = '';
     if (status === 'pending') {
-      // Requests that are still waiting for action and have not already been forwarded.
+      // Requests assigned to me that are pending my action
       statusFilter = `((ra.current_approver_id = @userId
           AND ra.current_status IN ('pending', 'forwarded_to_admin', 'forwarded_to_supervisor'))
         OR (
-          ra.current_status = 'pending'
+          ra.current_status IN ('pending', 'forwarded_to_admin')
           AND EXISTS (
             SELECT 1
             FROM ims_user_roles me
@@ -1770,8 +1850,6 @@ router.post('/:approvalId/approve', async (req, res) => {
       console.log('⚠️ Could not get user info, using request body values');
     }
 
-    console.log('✅ Processing per-item approval by user:', userId, 'items:', item_allocations?.length);
-
     const transaction = pool.transaction();
     await transaction.begin();
 
@@ -1786,8 +1864,7 @@ router.post('/:approvalId/approve', async (req, res) => {
       const hasForwardToAdmin = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_ADMIN');
       const hasForwardToProcurement = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_PROCUREMENT');
       const hasForwardToSupervisor = item_allocations?.some(a => a.decision_type === 'FORWARD_TO_SUPERVISOR');
-      const hasForwardActions = hasForwardToAdmin || hasForwardToSupervisor;
-      const hasProcurementActions = hasForwardToProcurement;
+      const hasForwardActions = hasForwardToAdmin || hasForwardToProcurement || hasForwardToSupervisor;
       let newApproverId = null;
       let isDynamicStepTransition = false;
       let dynamicTransitionLabel = '';
@@ -1795,10 +1872,12 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       if (hasReturnActions) {
         overallStatus = 'returned';
-      } else if (hasProcurementActions) {
-        overallStatus = 'forwarded_to_procurement';
       } else if (hasForwardActions) {
-        overallStatus = hasForwardToAdmin ? 'forwarded_to_admin' : 'forwarded_to_supervisor';
+        if (hasForwardToProcurement) {
+          overallStatus = 'forwarded_to_procurement';
+        } else {
+          overallStatus = hasForwardToAdmin ? 'forwarded_to_admin' : 'forwarded_to_supervisor';
+        }
       } else if (item_allocations?.every(a => a.decision_type === 'REJECT')) {
         overallStatus = 'rejected';
       } else if (item_allocations?.every(a =>
@@ -1852,7 +1931,7 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       // Dynamic workflow transition: an "approved" action may move to next configured step,
       // and only the final step becomes fully approved.
-      if (overallStatus === 'approved' && !hasForwardActions && !hasReturnActions && !hasProcurementActions && requestId) {
+      if (overallStatus === 'approved' && !hasForwardActions && !hasReturnActions && requestId) {
         const transition = await advanceWorkflow(transaction, requestId, userId, {
           touchedGroups
         });
@@ -1870,7 +1949,8 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       // Forward actions for mixed-group requests should move touched lanes to their
       // next configured workflow approvers instead of assigning one static admin user.
-      if (hasForwardActions && !hasReturnActions && requestId) {
+      // Procurement forwarding skips lane advancement and targets procurement queue.
+      if (hasForwardActions && !hasReturnActions && !hasForwardToProcurement && requestId) {
         const transition = await advanceWorkflow(transaction, requestId, userId, {
           touchedGroups
         });
@@ -1892,7 +1972,7 @@ router.post('/:approvalId/approve', async (req, res) => {
 
       // Update approval record
       // If forwarding, find the target user to reassign current_approver_id
-      if ((hasForwardToAdmin || hasForwardToProcurement) && !newApproverId) {
+      if (hasForwardToAdmin && !newApproverId) {
         // Fallback path when lane transition cannot produce next approver:
         // keep the role chain aligned with workflow progression.
         const actorRoles = await getUserWorkflowRoles(pool, userId);
@@ -1955,7 +2035,7 @@ router.post('/:approvalId/approve', async (req, res) => {
         .input('approver_name', sql.NVarChar, actualApproverName)
         .input('approver_designation', sql.NVarChar, actualApproverDesignation)
         .input('approval_comments', sql.NVarChar, approval_comments || '')
-        .input('markAdminWorkflow', sql.Bit, (hasForwardToAdmin || hasForwardToProcurement) ? 1 : 0)
+        .input('markAdminWorkflow', sql.Bit, hasForwardToAdmin ? 1 : 0)
         .input('newApproverId', sql.NVarChar, newApproverId)
         .query(`
           UPDATE request_approvals
@@ -2017,8 +2097,12 @@ router.post('/:approvalId/approve', async (req, res) => {
         }
       }
 
-      if (hasForwardToAdmin || hasForwardToProcurement) {
+      if (hasForwardToAdmin) {
         await createBranchDemandForForwardedShortages(transaction, approvalId, userId);
+      }
+
+      if (hasForwardToProcurement) {
+        await createProcurementRequestFromApproval(transaction, approvalId, userId);
       }
 
       // Add history entry
@@ -2044,15 +2128,15 @@ router.post('/:approvalId/approve', async (req, res) => {
         ? 'forwarded_to_admin'
         : hasForwardToProcurement
           ? 'forwarded_to_procurement'
-        : hasForwardToSupervisor
-          ? 'forwarded_to_supervisor'
-          : isDynamicStepTransition
-            ? 'approved_step'
-            : (hasReturnActions ? 'returned' : overallStatus);
+          : hasForwardToSupervisor
+            ? 'forwarded_to_supervisor'
+            : isDynamicStepTransition
+              ? 'approved_step'
+              : (hasReturnActions ? 'returned' : overallStatus);
       let historyComment = approval_comments || '';
       if (!historyComment) {
         if (historyActionType === 'forwarded_to_admin') historyComment = 'Forwarded request to Admin for approval';
-        else if (historyActionType === 'forwarded_to_procurement') historyComment = 'Forwarded request to Procurement';
+        else if (historyActionType === 'forwarded_to_procurement') historyComment = 'Forwarded request to Procurement for purchase';
         else if (historyActionType === 'forwarded_to_supervisor') historyComment = 'Forwarded request to Wing Supervisor';
         else if (historyActionType === 'approved_step') historyComment = dynamicTransitionLabel || 'Step approved and forwarded to next designation';
         else if (historyActionType === 'approved') historyComment = 'Request approved';
@@ -2264,8 +2348,6 @@ router.get('/:approvalId', async (req, res, next) => {
           sir.request_type as scope_type,
           sir.request_number,
           sir.requester_user_id,
-          sir.requester_wing_id,
-          sir.requester_branch_id,
           requester.FullName as requester_name
         FROM request_approvals ra
         LEFT JOIN AspNetUsers submitter ON ra.submitted_by = submitter.Id
@@ -2301,38 +2383,13 @@ router.get('/:approvalId', async (req, res, next) => {
     // Get approval items
     let itemsResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)
-      .input('requestId', sql.UniqueIdentifier, approval.request_id || null)
       .query(`
         SELECT 
           ai.*,
           im.item_code,
-          im.description as item_description,
-          ri_match.status as procurement_status,
-          ri_match.tender_id as procurement_tender_id,
-          ri_match.tender_reference as procurement_tender_reference
+          im.description as item_description
         FROM approval_items ai
         LEFT JOIN item_masters im ON ai.item_master_id = im.id
-        OUTER APPLY (
-          SELECT TOP 1
-            ri.status,
-            ri.tender_id,
-            ri.tender_reference
-          FROM required_items ri
-          WHERE ri.is_deleted = 0
-            AND ri.source_request_id = @requestId
-            AND (
-              (ri.item_master_id = ai.item_master_id)
-              OR (ri.item_master_id IS NULL AND ai.item_master_id IS NULL AND ri.nomenclature = ai.nomenclature)
-            )
-          ORDER BY
-            CASE ri.status
-              WHEN 'Procured' THEN 1
-              WHEN 'In Tender' THEN 2
-              WHEN 'Pending' THEN 3
-              ELSE 4
-            END,
-            ri.created_at DESC
-        ) ri_match
         WHERE ai.request_approval_id = @approvalId
         ORDER BY ai.created_at
       `);
@@ -2369,38 +2426,13 @@ router.get('/:approvalId', async (req, res, next) => {
       if (stockItems.recordset.length > 0) {
         itemsResult = await pool.request()
           .input('approvalId', sql.UniqueIdentifier, approvalId)
-          .input('requestId', sql.UniqueIdentifier, approval.request_id || null)
           .query(`
             SELECT 
               ai.*,
               im.item_code,
-              im.description as item_description,
-              ri_match.status as procurement_status,
-              ri_match.tender_id as procurement_tender_id,
-              ri_match.tender_reference as procurement_tender_reference
+              im.description as item_description
             FROM approval_items ai
             LEFT JOIN item_masters im ON ai.item_master_id = im.id
-            OUTER APPLY (
-              SELECT TOP 1
-                ri.status,
-                ri.tender_id,
-                ri.tender_reference
-              FROM required_items ri
-              WHERE ri.is_deleted = 0
-                AND ri.source_request_id = @requestId
-                AND (
-                  (ri.item_master_id = ai.item_master_id)
-                  OR (ri.item_master_id IS NULL AND ai.item_master_id IS NULL AND ri.nomenclature = ai.nomenclature)
-                )
-              ORDER BY
-                CASE ri.status
-                  WHEN 'Procured' THEN 1
-                  WHEN 'In Tender' THEN 2
-                  WHEN 'Pending' THEN 3
-                  ELSE 4
-                END,
-                ri.created_at DESC
-            ) ri_match
             WHERE ai.request_approval_id = @approvalId
             ORDER BY ai.created_at
           `);

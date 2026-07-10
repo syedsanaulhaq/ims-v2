@@ -145,12 +145,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   activeFilter = 'pending',
   viewMode = 'supervisor'
 }) => {
-  // Debug: Confirm latest code is running
-  console.log('🚀 PerItemApprovalPanel: Latest code loaded - Return button should be visible!');
-  console.log('📋 Approval ID:', approvalId);
-  console.log('📊 Active Filter:', activeFilter);
-  console.log('✅ Component should render 5-button grid: ✓Approve, ⏭Forward, ↗Forward, ✗Reject, ↩Return');
-
   const [request, setRequest] = useState<ApprovalRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -210,22 +204,38 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     );
   };
 
+  const getTotalAvailableStock = (item: RequestItem) => {
+    const wing = Number(item?.wing_stock_available ?? item?.current_stock ?? 0);
+    const admin = Number((item as any)?.admin_stock_available ?? 0);
+    const total = (Number.isFinite(wing) ? wing : 0) + (Number.isFinite(admin) ? admin : 0);
+    return total;
+  };
+
+  const isOutOfStock = (item: RequestItem) => {
+    return getTotalAvailableStock(item) <= 0;
+  };
+
   const isProcurementLocked = (item: RequestItem) => {
-    const status = String(item?.procurement_status || '').trim().toLowerCase();
-    return status === 'pending' || status === 'in tender';
+    // Kept for legacy compatibility: real lock is based on actual stock availability.
+    return isOutOfStock(item);
   };
 
   const getProcurementLockLabel = (item: RequestItem) => {
-    const status = String(item?.procurement_status || '').trim().toLowerCase();
-    if (status === 'pending') return 'Procurement Pending';
-    if (status === 'in tender') return 'In Tender';
-    return '';
+    return 'Out of Stock / Needs Procurement';
   };
 
   // Helper function to check if controls should be disabled
   const shouldDisableControls = () => {
-    // Disable controls if user clicked on a non-pending filter (viewing past decisions)
-    return activeFilter !== 'pending' || hasReturnedItems();
+    // Disable controls when the request is not in an actionable state for the current user.
+    // The activeFilter only affects which items are listed; it must not lock the form.
+    if (hasReturnedItems()) return true;
+
+    const actionableStatuses = isAdminWorkflowContext
+      ? ['pending', 'forwarded_to_admin', 'forwarded_to_supervisor']
+      : ['pending'];
+
+    const status = String(request?.current_status || '').toLowerCase();
+    return !actionableStatuses.includes(status);
   };
 
   const isDecisionStage =
@@ -249,31 +259,22 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       
       // Extract data from wrapper if present
       let data = responseData.data || responseData;
-      
-      console.log('🔍 API Response from /api/approvals/{id}:', JSON.stringify(data, null, 2));
-      console.log('🔍 Response keys:', Object.keys(data));
-      console.log('🔍 data.items type:', typeof data.items, 'Array?:', Array.isArray(data.items));
-      
+
       // Ensure items array exists - try multiple possible field names
       if (!data.items) {
         if (data.approval_items) {
-          console.log('ℹ️ Using data.approval_items');
           data.items = data.approval_items;
         } else if (data.request_items) {
-          console.log('ℹ️ Using data.request_items');
           data.items = data.request_items;
         } else if (data.item_list) {
-          console.log('ℹ️ Using data.item_list');
           data.items = data.item_list;
         } else {
-          console.log('ℹ️ No items field found, initializing empty array');
           data.items = [];
         }
       }
-      
+
       // If still no items but we have item_ids, we need to fetch them separately
       if (!data.items || (Array.isArray(data.items) && data.items.length === 0) || !Array.isArray(data.items)) {
-        console.warn('⚠️ No items found in response or not an array, fetching from approval items endpoint');
         try {
           const apiUrl = getApiUrl();
           const itemsResponse = await fetch(`${apiUrl}/api/approval-items/${approvalId}`, {
@@ -282,29 +283,19 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           if (itemsResponse.ok) {
             const itemsDataWrapper = await itemsResponse.json();
             const itemsData = itemsDataWrapper.data || itemsDataWrapper;
-            
-            console.log('✅ Fetched from /api/approval-items:', JSON.stringify(itemsData, null, 2));
-            console.log('✅ itemsData type:', typeof itemsData, 'Array?:', Array.isArray(itemsData));
-            console.log('✅ itemsData keys:', Object.keys(itemsData));
-            
+
             // Handle if response is an array or object with items property
             if (Array.isArray(itemsData)) {
-              console.log('✅ Using itemsData as array directly');
               data.items = itemsData;
             } else if (itemsData?.items && Array.isArray(itemsData.items)) {
-              console.log('✅ Using itemsData.items');
               data.items = itemsData.items;
             } else if (itemsData?.approval_items && Array.isArray(itemsData.approval_items)) {
-              console.log('✅ Using itemsData.approval_items');
               data.items = itemsData.approval_items;
             } else if (itemsData?.request_items && Array.isArray(itemsData.request_items)) {
-              console.log('✅ Using itemsData.request_items');
               data.items = itemsData.request_items;
             } else if (itemsData?.data && Array.isArray(itemsData.data)) {
-              console.log('✅ Using itemsData.data');
               data.items = itemsData.data;
             } else {
-              console.warn('⚠️ Could not find array in itemsData, setting empty:', itemsData);
               data.items = [];
             }
           }
@@ -313,14 +304,12 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           data.items = [];
         }
       }
-      
+
       // Ensure items is always an array
       if (!Array.isArray(data.items)) {
-        console.warn('⚠️ After all processing, items is still not an array:', typeof data.items, data.items);
         data.items = [];
       }
-      
-      console.log('✅ FINAL: Loaded approval request with items:', data.items?.length || 0, 'items:', data.items);
+
       setRequest(data);
 
       if (data.request_id) {
@@ -433,10 +422,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   break;
             }
 
-              if (!decision && isProcurementLocked(item)) {
-                decision = 'forward_procurement';
-                approvedQty = 0;
-              }
             
             if (decision) {
               initialDecisions.set(item.id, {
@@ -449,7 +434,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           }
         });
         setItemDecisions(initialDecisions);
-        console.log('✅ Initialized item decisions from database:', Array.from(initialDecisions.entries()));
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load approval request');
@@ -484,7 +468,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       if (status === 'reject') {
         // Reject all items
         request.items.forEach((item: any) => {
-          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -496,7 +479,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'approve_wing') {
         // Approve all items
         request.items.forEach((item: any) => {
-          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -508,7 +490,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'forward_admin') {
         // Forward all items to admin
         request.items.forEach((item: any) => {
-          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -520,7 +501,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'forward_procurement') {
         // Forward all items to procurement
         request.items.forEach((item: any) => {
-          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -532,7 +512,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'forward_supervisor') {
         // Forward all items to supervisor
         request.items.forEach((item: any) => {
-          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -544,7 +523,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       } else if (status === 'return') {
         // Return all items to requester
         request.items.forEach((item: any) => {
-          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -555,7 +533,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         });
       } else if (status === 'return_supervisor') {
         request.items.forEach((item: any) => {
-          if (isProcurementLocked(item)) return;
           const itemId = getItemId(item);
           newDecisions.set(itemId, {
             itemId,
@@ -657,9 +634,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const getItemId = (item: RequestItem) => {
-    const id = item.id || item.item_id || '';
-    console.log('🔍 getItemId for', item.nomenclature, ':', id);
-    return id;
+    return item.id || item.item_id || '';
   };
 
   const getItemDecision = (itemId: string): ItemDecision | undefined => {
@@ -779,7 +754,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     const normalizedRequestType = String(request?.request_type || '').trim().toLowerCase();
     const normalizedScopeType = String(request?.scope_type || (request as any)?.approval?.scope_type || '').trim().toLowerCase();
     const isProcurementManagedRequest = ['branch', 'individual', 'personal'].includes(normalizedRequestType) || ['branch', 'individual', 'personal'].includes(normalizedScopeType);
-    return viewMode === 'admin' && isProcurementManagedRequest;
+    const hasOutOfStockItem = request?.items?.some((item: any) => isOutOfStock(item)) ?? false;
+    return viewMode === 'admin' && isProcurementManagedRequest && hasOutOfStockItem;
   };
 
   const getForwardAdminLabel = (suffix = '') => suffix ? `Forward to Admin${suffix}` : 'Forward to Admin';
@@ -1203,7 +1179,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     selectedItemIds.forEach((itemId) => {
       const item = filteredItems.find((it) => getItemId(it) === itemId);
       if (!item) return;
-      if (isProcurementLocked(item)) return;
       const approvedQty = (
         bulkDecision === 'approve_wing' ||
         bulkDecision === 'forward_admin' ||
@@ -1331,7 +1306,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                           <td className="px-3 py-2">
                             <div className="font-medium text-gray-900">{getItemName(item)}</div>
                             <div className="text-xs text-gray-500">Code: {item.item_code || 'N/A'}</div>
-                            {isProcurementLocked(item) && (
+                            {isOutOfStock(item) && (
                               <Badge variant="outline" className="mt-1 text-[11px] bg-amber-50 text-amber-800 border-amber-300">
                                 {getProcurementLockLabel(item)}
                               </Badge>
@@ -1345,7 +1320,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                   min="0"
                                   value={getEditableQuantity(item)}
                                   onChange={(e) => updateItemQuantity(item, e.target.value)}
-                                  disabled={shouldDisableControls() || isProcurementLocked(item)}
+                                  disabled={shouldDisableControls() || (!isAdminWorkflowContext && isOutOfStock(item))}
                                   className="h-8 w-20"
                                 />
                                 <span className="text-xs text-gray-600">No(s)</span>
@@ -1367,7 +1342,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                   ) ? getEditableQuantity(item) : 0;
                                   handleItemDecisionChange(itemId, decisionValue, approvedQuantity);
                                 }}
-                                disabled={shouldDisableControls() || isProcurementLocked(item)}
+                                disabled={shouldDisableControls() || (!isAdminWorkflowContext && isOutOfStock(item))}
                               >
                                 <SelectTrigger className="h-8 bg-white">
                                   <SelectValue placeholder="Select..." />
@@ -1412,16 +1387,16 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                 });
                                 setItemDecisions(newDecisions);
                               }}
-                              disabled={shouldDisableControls() || isProcurementLocked(item)}
+                              disabled={shouldDisableControls() || (!isAdminWorkflowContext && isOutOfStock(item))}
                               className="h-8"
                             />
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => checkStockAvailability(item)} disabled={isProcurementLocked(item)}>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => checkStockAvailability(item)} disabled={!isAdminWorkflowContext && isOutOfStock(item)}>
                                 Check Stock
                               </Button>
-                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => forwardToStoreKeeper(item)} disabled={isProcurementLocked(item)}>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => forwardToStoreKeeper(item)} disabled={!isAdminWorkflowContext && isOutOfStock(item)}>
                                 Forward to Store Keeper
                               </Button>
                             </div>
