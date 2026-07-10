@@ -400,7 +400,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         const initialDecisions = new Map<string, ItemDecision>();
         data.items.forEach((item: any) => {
           if (item.decision_type) {
-            let decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null = null;
+            let decision: 'approve_wing' | 'forward_admin' | 'forward_procurement' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor' | null = null;
             let approvedQty = 0;
             
             switch (item.decision_type) {
@@ -411,6 +411,10 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
               case 'FORWARD_TO_ADMIN':
                 decision = 'forward_admin';
                 approvedQty = resolveRequestedQuantity(item);
+                break;
+              case 'FORWARD_TO_PROCUREMENT':
+                decision = 'forward_procurement';
+                approvedQty = 0;
                 break;
               case 'FORWARD_TO_SUPERVISOR':
                 decision = 'forward_supervisor';
@@ -428,6 +432,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   decision = 'return';
                   break;
             }
+
+              if (!decision && isProcurementLocked(item)) {
+                decision = 'forward_procurement';
+                approvedQty = 0;
+              }
             
             if (decision) {
               initialDecisions.set(item.id, {
@@ -452,7 +461,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
 
   const setItemDecision = (
     itemId: string,
-    decision: 'approve_wing' | 'forward_admin' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor',
+    decision: 'approve_wing' | 'forward_admin' | 'forward_procurement' | 'forward_supervisor' | 'reject' | 'return' | 'return_supervisor',
     approvedQty: number
   ) => {
     const newDecisions = new Map(itemDecisions);
@@ -705,7 +714,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // If user clicked forwarded, show only forwarded items
     if (activeFilter === 'forwarded') {
       return request.items.filter((item: any) => 
-        ['FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN'].includes(
+        ['FORWARD_TO_SUPERVISOR', 'FORWARD_TO_ADMIN', 'FORWARD_TO_PROCUREMENT'].includes(
           normalizeDecisionType(item.decision_type)
         )
       );
@@ -726,6 +735,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       return {
       approveWing: decisions.filter(d => d?.decision === 'approve_wing').length,
       forwardAdmin: decisions.filter(d => d?.decision === 'forward_admin').length,
+      forwardProcurement: decisions.filter(d => d?.decision === 'forward_procurement').length,
         forwardSupervisor: decisions.filter(d => d?.decision === 'forward_supervisor' || d?.decision === 'return_supervisor').length,
       reject: decisions.filter(d => d?.decision === 'reject').length,
       undecided: decisions.filter(d => !d || !d.decision).length
