@@ -751,11 +751,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     return 'To Next Workflow Role';
   };
 
-  const getForwardAdminLabel = (suffix = '') => {
+  const shouldShowProcurementForward = () => {
     const normalizedRequestType = String(request?.request_type || '').trim().toLowerCase();
-    const isBranchRequest = normalizedRequestType === 'branch' || String((request as any)?.approval?.scope_type || '').trim().toLowerCase() === 'branch';
+    const normalizedScopeType = String((request as any)?.approval?.scope_type || '').trim().toLowerCase();
+    const isProcurementManagedRequest = ['branch', 'individual', 'personal'].includes(normalizedRequestType) || ['branch', 'individual', 'personal'].includes(normalizedScopeType);
+    return isAdminWorkflowRoleUser && isProcurementManagedRequest;
+  };
 
-    if (isBranchRequest) {
+  const getForwardAdminLabel = (suffix = '') => {
+    if (shouldShowProcurementForward()) {
       return `Forward to Procurement${suffix}`.trim();
     }
 
@@ -1467,7 +1471,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                   {(!isAdmin || isAdminWorkflowContext) && (
                   <SelectItem value="forward_admin">
                     <span className="flex items-center gap-2">
-                      ⏭ {isAdminWorkflowContext ? (String(request?.request_type || '').trim().toLowerCase() === 'branch' ? 'Forward to Procurement' : `Forward to ${getNextForwardRoleLabel(request.items[0])}`) : getForwardAdminLabel()}
+                      ⏭ {shouldShowProcurementForward() ? 'Forward to Procurement' : (isAdminWorkflowContext ? `Forward to ${getNextForwardRoleLabel(request.items[0])}` : getForwardAdminLabel())}
                     </span>
                   </SelectItem>
                   )}
@@ -1509,7 +1513,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {requestStatus === 'approve_wing' ? (isAdminWorkflowContext && !isFinalStep(request.items[0]) ? `✓ Approve & Move to ${getNextForwardRoleLabel(request.items[0])}` : '✓ Approve') :
-                     requestStatus === 'forward_admin' ? (isAdminWorkflowContext ? (String(request?.request_type || '').trim().toLowerCase() === 'branch' ? '⏭ Forward to Procurement' : `⏭ Forward to ${getNextForwardRoleLabel(request.items[0])}`) : `⏭ ${getForwardAdminLabel()}`) :
+                     requestStatus === 'forward_admin' ? (shouldShowProcurementForward() ? '⏭ Forward to Procurement' : (isAdminWorkflowContext ? `⏭ Forward to ${getNextForwardRoleLabel(request.items[0])}` : `⏭ ${getForwardAdminLabel()}`)) :
                     requestStatus === 'forward_supervisor' ? '↗ Forward to Supervisor' :
                     requestStatus === 'return_supervisor' ? '↩ Return to Supervisor' :
                      requestStatus === 'return' ? '↩ Return' :

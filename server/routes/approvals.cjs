@@ -64,7 +64,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
       LEFT JOIN item_masters im ON im.id = ai.item_master_id
       WHERE ra.id = @approvalId
-        AND sir.request_type = 'branch'
+        AND LOWER(COALESCE(sir.request_type, '')) IN ('branch', 'individual', 'personal')
         AND ai.decision_type = 'FORWARD_TO_ADMIN'
         AND ISNULL(ai.requested_quantity, 0) > 0
     `);
@@ -83,7 +83,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       .input('branchName', sql.NVarChar(200), item.branch_name || null)
       .input('urgencyLevel', sql.NVarChar(50), item.urgency_level || 'Medium')
       .input('createdBy', sql.NVarChar(450), userId)
-      .input('notes', sql.NVarChar(sql.MAX), 'Demand created from branch shortage forwarded to admin workflow')
+      .input('notes', sql.NVarChar(sql.MAX), 'Demand created from shortage forwarded to procurement workflow')
       .query(`
         IF EXISTS (
           SELECT 1
