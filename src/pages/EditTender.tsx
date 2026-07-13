@@ -75,6 +75,32 @@ interface Vendor {
   contact_person?: string;
 }
 
+const groupTenderItems = (items: TenderItem[], tenderType: string): TenderItem[] => {
+  const map = new Map<string, TenderItem>();
+  items.forEach(item => {
+    const vendorKey = tenderType === 'annual-tender'
+      ? (Array.isArray(item.vendor_ids) ? [...item.vendor_ids].sort().join(',') : item.vendor_id || '')
+      : (item.vendor_id || '');
+    const key = `${item.item_master_id || item.nomenclature || ''}|${vendorKey}`;
+    const existing = map.get(key);
+    if (existing) {
+      const qty = (existing.quantity || 0) + (item.quantity || 0);
+      const price = existing.estimated_unit_price || item.estimated_unit_price || 0;
+      map.set(key, {
+        ...existing,
+        quantity: qty,
+        estimated_unit_price: price,
+        total_amount: qty * price,
+        remarks: [existing.remarks, item.remarks].filter(Boolean).join('; '),
+        specifications: [existing.specifications, item.specifications].filter(Boolean).join('; ')
+      });
+    } else {
+      map.set(key, { ...item });
+    }
+  });
+  return Array.from(map.values());
+};
+
 const EditTender: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -204,7 +230,7 @@ const EditTender: React.FC = () => {
             }
             return item;
           });
-          setTenderItems(processedItems);
+          setTenderItems(groupTenderItems(processedItems, tender.tender_type));
         }
 
         // Load tender vendors/bidders
@@ -246,8 +272,8 @@ const EditTender: React.FC = () => {
                   vendor_ids: validVendorIds
                 };
               });
-              
-              setTenderItems(itemsWithValidVendors);
+
+              setTenderItems(groupTenderItems(itemsWithValidVendors, tender.tender_type));
             }
           } else {
             console.warn('Failed to load tender vendors:', vendorsResponse.status);
@@ -419,7 +445,7 @@ const EditTender: React.FC = () => {
       id: `temp-${Date.now()}`
     };
 
-    setTenderItems(prev => [...prev, item]);
+    setTenderItems(prev => groupTenderItems([...prev, item], tenderData.tender_type));
     setNewItem({
       item_master_id: '',
       nomenclature: '',
@@ -502,7 +528,7 @@ const EditTender: React.FC = () => {
       category_description: item.category_description || ''
     }));
 
-    setTenderItems(prev => [...prev, ...newItems]);
+    setTenderItems(prev => groupTenderItems([...prev, ...newItems], tenderData.tender_type));
     alert(`Successfully imported ${newItems.length} items from CSV`);
   };
 
@@ -1050,7 +1076,7 @@ const EditTender: React.FC = () => {
             }}
             onItemsChange={(updatedItems) => {
               console.log('Items updated from vendor deselection:', updatedItems);
-              setTenderItems(updatedItems);
+              setTenderItems(groupTenderItems(updatedItems, tenderData.tender_type));
             }}
             maxVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'single_quotation' ? 1 : tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'multiple_quotation' ? 3 : undefined}
             minVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'multiple_quotation' ? 3 : undefined}
