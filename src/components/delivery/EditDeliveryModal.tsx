@@ -72,7 +72,6 @@ export default function EditDeliveryModal({ delivery, onClose, onSuccess }: Edit
         throw new Error(errorData.error || `HTTP ${response.status}: Failed to update delivery`);
       }
 
-      console.log('✅ Delivery updated successfully');
       onSuccess();
       onClose();
     } catch (err: any) {

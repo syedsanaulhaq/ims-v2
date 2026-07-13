@@ -72,24 +72,19 @@ export const PendingVerificationsPage: React.FC = () => {
         return;
       }
       
-      console.log('📋 Fetching verification requests for user:', user.user_id);
       
       // Use the same endpoint as WingDashboard - fetches verification requests made BY the user
       const response = await fetch(`http://localhost:3001/api/inventory/my-verification-requests?userId=${encodeURIComponent(user.user_id)}`);
       const data = await response.json();
       
-      console.log('📦 API Response:', data);
       
       if (data.success) {
-        console.log('✅ Loaded', data.data.length, 'verification requests');
         setVerificationRequests(data.data || []);
       } else if (Array.isArray(data)) {
         // Fallback if API returns array directly
-        console.log('✅ Loaded', data.length, 'verification requests (array format)');
         setVerificationRequests(data);
       } else if (data.data) {
         // Fallback if response has data property
-        console.log('✅ Loaded', data.data.length, 'verification requests');
         setVerificationRequests(data.data);
       } else {
         console.warn('Unexpected response format:', data);
@@ -224,7 +219,6 @@ export const PendingVerificationsPage: React.FC = () => {
       const skData = await skResponse.json();
       if (skData.success && Array.isArray(skData.data)) {
         setStoreKeepers(skData.data);
-        console.log('✅ Found', skData.data.length, 'store keepers for wing', request.wing_id);
       } else {
         setStoreKeepers([]);
       }
@@ -258,7 +252,6 @@ export const PendingVerificationsPage: React.FC = () => {
         forwardNotes: verificationNotes || 'Please verify item availability from the store.'
       };
 
-      console.log('📦 Forwarding verification to store keeper:', forwardingPayload);
 
       const response = await fetch('http://localhost:3001/api/inventory/forward-verification-to-storekeeper', {
         method: 'POST',
@@ -268,7 +261,6 @@ export const PendingVerificationsPage: React.FC = () => {
       const result = await response.json();
 
       if (result.success) {
-        console.log('✅ Verification forwarded to store keeper successfully');
         setVerificationSubmitted(true);
         setSubmittedVerificationId(selectedRequest.id);
         

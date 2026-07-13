@@ -178,7 +178,6 @@ const MyRequestsPage: React.FC = () => {
                   }
                 }
               } catch (err) {
-                console.log('Could not fetch approval items for request:', request.id);
               }
 
               // Also try to get the request_approvals status directly

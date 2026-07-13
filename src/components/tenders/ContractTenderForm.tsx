@@ -82,7 +82,6 @@ const tenderSchema = z.object({
 type TenderFormData = z.infer<typeof tenderSchema>;
 
 const ContractTenderForm: React.FC = () => {
-  console.log("🔥 ContractTenderForm component loaded - DATABASE SCHEMA UPDATED");
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
   const navigate = useNavigate();
@@ -140,7 +139,6 @@ const ContractTenderForm: React.FC = () => {
     try {
       setSaving(true);
       
-      console.log('🚀 Submitting tender form:', data);
 
       // Prepare payload for backend
       const payload = {
@@ -154,7 +152,6 @@ const ContractTenderForm: React.FC = () => {
         created_by: 'system',
       };
 
-      console.log('📤 Payload being sent:', payload);
 
       const url = isEditMode 
         ? `${API_BASE_URL}/api/tenders/${id}`

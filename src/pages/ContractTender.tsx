@@ -131,7 +131,6 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       }
       
       const data = await response.json();
-      console.log('✅ Fetched tenders:', data);
       
       // Filter by tender type if needed
       let filteredTenders;
@@ -180,7 +179,6 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       }
 
       const result = await response.json();
-      console.log('✅ Tender finalized:', result);
 
       // Refresh the tender list to show updated status
       await fetchTenders();

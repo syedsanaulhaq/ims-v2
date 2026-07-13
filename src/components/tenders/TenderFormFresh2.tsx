@@ -87,7 +87,6 @@ const procurementMethods = [
 ];
 
 const TenderFormFresh2: React.FC = () => {
-  console.log("🎯 BRAND NEW TenderFormFresh2 component with REAL database connections!");
   
   const { id } = useParams<{ id: string }>();
   const isEditing = !!id;
@@ -156,7 +155,6 @@ const TenderFormFresh2: React.FC = () => {
     const loadHierarchyData = async () => {
       try {
         setHierarchyLoading(true);
-        console.log('🔄 Loading data from real database tables...');
         
         const [officesData, wingsData, decsData] = await Promise.all([
           officeApi.getOffices(),    // From tblOffices
@@ -164,9 +162,6 @@ const TenderFormFresh2: React.FC = () => {
           officeApi.getDecs()        // From DEC_MST
         ]);
         
-        console.log('✅ Loaded from tblOffices:', officesData);
-        console.log('✅ Loaded from WingsInformation:', wingsData);
-        console.log('✅ Loaded from DEC_MST:', decsData);
         
         setOffices(officesData);
         setWings(wingsData);
@@ -289,7 +284,6 @@ const TenderFormFresh2: React.FC = () => {
         rfp_file_path: data.rfp_file_path,
       };
 
-      console.log("🚀 Submitting tender with payload:", payload);
 
       const url = isEditing 
         ? `${API_BASE_URL}/api/tenders/${id}`
@@ -311,7 +305,6 @@ const TenderFormFresh2: React.FC = () => {
       }
 
       const result = await response.json();
-      console.log("✅ Tender saved successfully:", result);
 
       toast({
         title: "Success",

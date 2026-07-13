@@ -83,11 +83,9 @@ const StockAcquisitionDashboard: React.FC = () => {
       setLoading(true);
       
       // Fetch acquisition overview stats
-      console.log('📊 Fetching acquisition dashboard stats...');
       const statsResponse = await fetch('http://localhost:3001/api/acquisition/dashboard-stats');
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
-        console.log('✅ Stats data received:', statsData);
         setStats(statsData);
       } else {
         console.error('❌ Stats API error:', statsResponse.status, statsResponse.statusText);
@@ -96,22 +94,18 @@ const StockAcquisitionDashboard: React.FC = () => {
       }
 
       // Fetch active tenders
-      console.log('📋 Fetching active tenders...');
       const tendersResponse = await fetch('http://localhost:3001/api/acquisition/active-tenders');
       if (tendersResponse.ok) {
         const tendersData = await tendersResponse.json();
-        console.log('✅ Active tenders received:', tendersData.length, 'tenders');
         setActiveTenders(tendersData);
       } else {
         console.error('❌ Active tenders API error:', tendersResponse.status);
       }
 
       // Fetch recent deliveries
-      console.log('🚚 Fetching recent deliveries...');
       const deliveriesResponse = await fetch('http://localhost:3001/api/acquisition/recent-deliveries');
       if (deliveriesResponse.ok) {
         const deliveriesData = await deliveriesResponse.json();
-        console.log('✅ Recent deliveries received:', deliveriesData.length, 'deliveries');
         setRecentDeliveries(deliveriesData);
       } else {
         console.error('❌ Recent deliveries API error:', deliveriesResponse.status);

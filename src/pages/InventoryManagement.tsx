@@ -217,7 +217,6 @@ const InventoryManagement: React.FC = () => {
   const handleCreateItem = async () => {
     try {
       // In real app, call API to create item
-      console.log('Creating item:', itemFormData);
       
       // Reset form and close dialog
       setItemFormData({
@@ -251,7 +250,6 @@ const InventoryManagement: React.FC = () => {
       if (!selectedItem) return;
       
       // In real app, call API to adjust stock
-      console.log('Stock adjustment:', selectedItem.id, stockAdjustmentData);
       
       // Update local state
       const adjustmentAmount = stockAdjustmentData.adjustment_type === 'add' 

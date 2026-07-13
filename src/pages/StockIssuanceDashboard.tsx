@@ -120,7 +120,6 @@ export function StockIssuanceDashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      console.log('🔄 Loading stock issuance dashboard data...');
       
       // Try direct API call first
       const directResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
@@ -131,18 +130,14 @@ export function StockIssuanceDashboard() {
       }
       
       const directData = await directResponse.json();
-      console.log('📊 Direct API response:', directData);
-      console.log('👤 Current user ID:', user?.user_id);
       
       if (directData.success && directData.data && directData.summary) {
         // Filter requests to only show those created by the logged-in user
         const userRequests = (directData.data || []).filter((req: any) => {
           const isUserRequest = req.requester?.user_id === user?.user_id;
-          console.log(`Request ${req.request_number}: requester=${req.requester?.user_id}, currentUser=${user?.user_id}, match=${isUserRequest}`);
           return isUserRequest;
         });
         
-        console.log(`✅ Filtered ${userRequests.length} requests for user ${user?.user_name}`);
         
         setRequests(userRequests);
         
@@ -156,7 +151,6 @@ export function StockIssuanceDashboard() {
         
         setStats(userStats);
         
-        console.log('✅ Stats set successfully:', {
           totalRequests: directData.summary.totalCount || 0,
           pendingRequests: directData.summary.pendingCount || 0,
           approvedRequests: directData.summary.approvedCount || 0,
@@ -167,7 +161,6 @@ export function StockIssuanceDashboard() {
         throw new Error('Invalid API response structure');
       }
       
-      console.log('✅ Stock issuance dashboard data loaded successfully');
     } catch (error) {
       console.error('❌ Error loading stock issuance dashboard data:', error);
       toast({

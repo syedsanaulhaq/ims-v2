@@ -41,7 +41,6 @@ interface ItemPrice {
 
 export default function CreatePurchaseOrder() {
   // VERSION CHECK: PO with Vendor+Specification in summary - Feb 11, 2026 - v1.2.0
-  console.log('🔧 CreatePurchaseOrder loaded - Version 1.2.0 (Vendor+Spec in Summary)');
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -68,7 +67,6 @@ export default function CreatePurchaseOrder() {
     fetchTenders();
     // If tenderId is provided in URL, auto-select it
     if (tenderIdFromUrl) {
-      console.log('📌 tender ID from URL:', tenderIdFromUrl);
       setSelectedTenderId(tenderIdFromUrl);
     }
   }, [tenderIdFromUrl]);
@@ -102,7 +100,6 @@ export default function CreatePurchaseOrder() {
           if (!response.ok) throw new Error('Failed to fetch vendors');
           let data = await response.json();
           
-          console.log('📋 Raw vendor API response:', data);
           
           // Extract vendors array from the response
           let vendorsArray: Vendor[] = [];
@@ -124,12 +121,9 @@ export default function CreatePurchaseOrder() {
               };
               // Store using original ID only (no duplicates)
               vendorMap[String(v.id)] = vendorData;
-              console.log(`✅ Mapped vendor: ${v.id} => ${v.vendor_name}`);
             }
           });
           
-          console.log('📊 Final vendor map:', vendorMap);
-          console.log('🔍 Total vendors loaded:', Object.keys(vendorMap).length);
           setVendors(vendorMap);
           resolve();
         } catch (err) {
@@ -159,13 +153,11 @@ export default function CreatePurchaseOrder() {
       const response = await fetch(`${apiBaseUrl}/tenders/${tenderId}/items`);
       if (!response.ok) throw new Error('Failed to fetch tender items');
       const data = await response.json();
-      console.log('📦 Raw tender items from API:', data);
       setTenderItems(data);
       
       // Auto-select all items (user can deselect if needed)
       const allItemIds = data.map((item: TenderItem) => item.id);
       setSelectedItems(new Set(allItemIds));
-      console.log('✅ Auto-selected all items:', allItemIds);
       
       // Initialize quantities and prices from tender items
       const initialQuantities: { [key: string]: number } = {};
@@ -173,7 +165,6 @@ export default function CreatePurchaseOrder() {
       const initialVendors: { [key: string]: string } = {};
       
       data.forEach((item: TenderItem) => {
-        console.log(`� Processing item ${item.id}:`, { 
 
           vendor_id: item.vendor_id,
           nomenclature: item.nomenclature
@@ -189,19 +180,15 @@ export default function CreatePurchaseOrder() {
         if (item.vendor_id) {
           // Single vendor per item
           selectedVendorId = item.vendor_id;
-          console.log(`📌 Using vendor_id for item ${item.id}: ${selectedVendorId}`);
         }
         
         if (selectedVendorId) {
           initialVendors[item.id] = selectedVendorId;
-          console.log(`✅ Auto-selected vendor for item ${item.id}: ${selectedVendorId}`);
         } else {
           console.warn(`⚠️ No vendor found for item ${item.id}`);
         }
       });
       
-      console.log('📦 Initialized vendors:', initialVendors);
-      console.log('📊 Current vendor map:', vendors);
       setItemQuantities(initialQuantities);
       setItemPrices(initialPrices);
       setItemVendors(initialVendors);
@@ -297,7 +284,6 @@ export default function CreatePurchaseOrder() {
         itemQuantities: itemQuantities,
         itemSpecifications: itemSpecifications // PO-specific specifications
       };
-      console.log('🚀 SENDING PO CREATION REQUEST:', payload);
       const response = await fetch(`${apiBaseUrl}/purchase-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -508,7 +494,6 @@ export default function CreatePurchaseOrder() {
                                         const vendorId = itemVendors[item.id];
                                         const vendor = vendors[vendorId];
                                         
-                                        console.log(`🔍 Vendor display for item ${item.id}:`, {
                                           vendorId,
                                           vendor,
                                           totalVendors: Object.keys(vendors).length,

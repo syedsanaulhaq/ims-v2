@@ -92,7 +92,6 @@ const InitialInventorySetup = () => {
 
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
-        console.log('Categories loaded:', categoriesData); // Debug log
         setCategories(categoriesData);
       } else {
         console.error('Failed to fetch categories:', categoriesResponse.status);

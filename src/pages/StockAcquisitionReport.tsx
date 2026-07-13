@@ -67,7 +67,6 @@ const StockAcquisitionReport: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      console.log('Fetching stock acquisition report for tender ID:', id);
 
       // Step 1: Get tender basic information from SQL Server
       const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${id}`);
@@ -78,10 +77,8 @@ const StockAcquisitionReport: React.FC = () => {
       
       const tender = await tenderResponse.json();
 
-      console.log('Tender found:', tender);
 
       // Step 2: Get stock transactions with all joined data from the SQL Server view
-      console.log('Querying SQL Server View_stock_transactions_clean with tender_id:', id);
       
       const stockResponse = await fetch(`http://localhost:3001/api/view-stock-transactions-clean?tender_id=${id}`);
       
@@ -91,15 +88,11 @@ const StockAcquisitionReport: React.FC = () => {
       
       const stockTransactions = await stockResponse.json();
 
-      console.log('Stock transactions found:', stockTransactions?.length || 0);
-      console.log('Sample stock transaction data from SQL Server view:', stockTransactions?.[0]);
       
       // Debug: Show all field names and values in the first record from the view
       if (stockTransactions && stockTransactions.length > 0) {
         const firstRecord = stockTransactions[0];
-        console.log('First record fields from SQL Server view:');
         Object.keys(firstRecord).forEach(key => {
-          console.log(`  ${key}:`, firstRecord[key], `(type: ${typeof firstRecord[key]})`);
         });
       }
 
@@ -113,13 +106,7 @@ const StockAcquisitionReport: React.FC = () => {
       const enrichedItems: StockTransactionItem[] = [];
 
       for (const stockItem of stockTransactions) {
-        console.log('Processing stock item from SQL Server view:', stockItem.item_master_id);
 
-        console.log('Raw field values from SQL Server view:');
-        console.log('  actual_unit_price:', stockItem.actual_unit_price, 'type:', typeof stockItem.actual_unit_price);
-        console.log('  total_quantity_received:', stockItem.total_quantity_received, 'type:', typeof stockItem.total_quantity_received);
-        console.log('  nomenclature:', stockItem.nomenclature);
-        console.log('  sub_category_name:', stockItem.sub_category_name);
 
         const processedItem: StockTransactionItem = {
           id: stockItem.id,
@@ -134,20 +121,12 @@ const StockAcquisitionReport: React.FC = () => {
           unit: 'Units' // You can add unit to the view if needed
         };
 
-        console.log('Processed values from SQL Server view:');
-        console.log('  actual_unit_price processed:', processedItem.actual_unit_price);
-        console.log('  total_quantity_received processed:', processedItem.total_quantity_received);
-        console.log('  total amount would be:', processedItem.actual_unit_price * processedItem.total_quantity_received);
 
         enrichedItems.push(processedItem);
       }
 
       // Step 4: Get vendor and office information - names are already resolved in View_tenders
       // Debug: Log the entire tender object
-      console.log('Complete tender data:', tender);
-      console.log('tender.office_names:', tender.office_names);
-      console.log('tender.wing_names:', tender.wing_names);
-      console.log('tender.dec_names:', tender.dec_names);
 
       // Use vendor information from tender data or set default
       let vendorName = tender.vendor_name || 'Unknown Vendor';
@@ -167,7 +146,6 @@ const StockAcquisitionReport: React.FC = () => {
       });
       setStockItems(enrichedItems);
 
-      console.log('Final enriched items from SQL Server view:', enrichedItems);
 
     } catch (error: any) {
       console.error('Error fetching data:', error);
@@ -188,7 +166,6 @@ const StockAcquisitionReport: React.FC = () => {
   };
 
   const handleExport = () => {
-    console.log('Export functionality to be implemented');
   };
 
   if (isLoading) {

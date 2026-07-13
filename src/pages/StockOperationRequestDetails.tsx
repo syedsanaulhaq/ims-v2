@@ -148,7 +148,6 @@ const StockOperationRequestDetails: React.FC = () => {
           }
         }
       } catch (error) {
-        console.log('Could not load approval history from API, using minimal data');
       }
 
       // If no real data available, just show the basic submission info
@@ -468,5 +467,4 @@ const StockOperationRequestDetails: React.FC = () => {
 };
 
 export default StockOperationRequestDetails;
-
 

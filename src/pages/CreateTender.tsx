@@ -204,7 +204,6 @@ const CreateTender: React.FC = () => {
         const itemMastersResponse = await fetch('http://localhost:3001/api/item-masters');
         if (itemMastersResponse.ok) {
           const itemMastersData = await itemMastersResponse.json();
-          console.log('📦 Item Masters API response:', itemMastersData);
           // Handle the {success: true, items: [...]} format
           setItemMasters(itemMastersData.items || []);
         }
@@ -213,7 +212,6 @@ const CreateTender: React.FC = () => {
         const officesResponse = await fetch('http://localhost:3001/api/offices');
         if (officesResponse.ok) {
           const officesData = await officesResponse.json();
-          console.log('📍 Offices API response:', officesData);
           setOffices(Array.isArray(officesData) ? officesData : []);
         }
 
@@ -221,7 +219,6 @@ const CreateTender: React.FC = () => {
         const vendorsResponse = await fetch('http://localhost:3001/api/vendors');
         if (vendorsResponse.ok) {
           const vendorsData = await vendorsResponse.json();
-          console.log('🏪 Vendors API response:', vendorsData);
           // Handle the {vendors: [...]} format
           if (vendorsData.vendors && Array.isArray(vendorsData.vendors)) {
             setVendors(vendorsData.vendors);
@@ -456,7 +453,6 @@ const CreateTender: React.FC = () => {
           const response = await fetch(`http://localhost:3001/api/offices/${officeId}/wings`);
           if (response.ok) {
             const wingsData = await response.json();
-            console.log(`🪶 Wings for office ${officeId}:`, wingsData);
             const wings = Array.isArray(wingsData) ? wingsData : wingsData.data || [];
             allWings.push(...wings);
           }
@@ -532,8 +528,6 @@ const CreateTender: React.FC = () => {
 
   // Handle adding new item to tender
   const handleAddItem = () => {
-    console.log('🔍 handleAddItem called with newItem:', newItem);
-    console.log('🔍 vendor_id:', newItem.vendor_id);
     
     if (!newItem.item_master_id || !newItem.nomenclature || newItem.quantity <= 0) {
       alert('Please fill in all required item fields');
@@ -563,7 +557,6 @@ const CreateTender: React.FC = () => {
       id: `temp-${Date.now()}` // Temporary ID for frontend
     };
 
-    console.log('✅ Adding item with vendor_id:', item.vendor_id);
     setTenderItems(prev => [...prev, item]);
     setNewItem({
       item_master_id: '',
@@ -779,14 +772,9 @@ const CreateTender: React.FC = () => {
         }))
       };
 
-      console.log('🔍 Submitting tender data:', JSON.stringify(tenderFormData, null, 2));
       
       // Log each item's vendor info specifically
-      console.log('📦 Items being submitted:');
       tenderFormData.items.forEach((item, idx) => {
-        console.log(`  Item ${idx}: ${item.nomenclature}`);
-        console.log(`    - vendor_id:`, item.vendor_id);
-        console.log(`    - source_required_item_id:`, item.source_required_item_id);
       });
 
       // Add tender data as JSON string
@@ -842,7 +830,6 @@ const CreateTender: React.FC = () => {
       
       // Save bidders to the newly created tender
       if (bidders.length > 0 && newTenderId) {
-        console.log('💼 Saving', bidders.length, 'bidders to tender:', newTenderId);
         for (const bidder of bidders) {
           try {
             const bidderResponse = await fetch(`http://localhost:3001/api/tenders/${newTenderId}/vendors`, {
@@ -861,7 +848,6 @@ const CreateTender: React.FC = () => {
             if (!bidderResponse.ok) {
               console.error('⚠️ Failed to save bidder:', bidder.vendor_name);
             } else {
-              console.log('✅ Bidder saved:', bidder.vendor_name);
             }
           } catch (bidderErr) {
             console.error('❌ Error saving bidder:', bidderErr);
@@ -1554,12 +1540,10 @@ const CreateTender: React.FC = () => {
             tenderItems={tenderItems}
             tenderType={tenderType}
             onVendorsChange={(updatedVendors) => {
-              console.log('Vendors updated:', updatedVendors);
               // Store the bidders to be saved after tender creation
               setBidders(updatedVendors);
             }}
             onSuccessfulVendorChange={(vendorId) => {
-              console.log('Selected successful vendor:', vendorId);
               // When a vendor is marked as successful/selected, set it as the main vendor_id
               setTenderData(prev => ({
                 ...prev,
@@ -1567,7 +1551,6 @@ const CreateTender: React.FC = () => {
               }));
             }}
             onVendorAdded={() => {
-              console.log('New vendor created, refreshing vendor list...');
               fetchVendors();
             }}
             maxVendors={tenderType === 'spot-purchase' && tenderData.procurement_methods === 'single_quotation' ? 1 : tenderType === 'spot-purchase' && tenderData.procurement_methods === 'multiple_quotation' ? 3 : undefined}
@@ -1648,7 +1631,6 @@ const CreateTender: React.FC = () => {
                         <Select 
                           value={newItem.vendor_id || ''}
                           onValueChange={(selectedVendorId) => {
-                            console.log(`✅ Vendor selected: ${selectedVendorId}`);
                             setNewItem(prev => ({
                               ...prev,
                               vendor_id: selectedVendorId
@@ -2348,7 +2330,6 @@ const CreateTender: React.FC = () => {
         <AddCategoryModal
           onClose={() => setShowAddCategoryModal(false)}
           onSuccess={(categoryData) => {
-            console.log('Category created:', categoryData);
             // Refresh item masters to get new category
             fetchItemMasters();
             setShowAddCategoryModal(false);
@@ -2362,7 +2343,6 @@ const CreateTender: React.FC = () => {
           selectedCategory={selectedCategory}
           onClose={() => setShowAddItemModal(false)}
           onSuccess={(itemData) => {
-            console.log('Item created:', itemData);
             // Refresh item masters to get new item
             fetchItemMasters();
             // Auto-select the new item

@@ -134,10 +134,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       if (response.ok) {
         const data = await response.json();
-        console.log('📦 API Response:', data);
         
         if (data.success && data.notifications) {
-          console.log('📋 Raw notifications from API:', data.notifications);
           
           const apiNotifications = data.notifications.map((n: any) => {
             // Normalize type to valid values
@@ -161,8 +159,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
             };
           });
           
-          console.log('✅ Loaded notifications from API:', apiNotifications.length);
-          console.log('📋 Processed notifications:', apiNotifications);
           setNotifications(apiNotifications);
           return;
         } else {
@@ -213,7 +209,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     const effectiveUserId = user?.Id || (user as any)?.user_id;
     if (effectiveUserId) {
       // No sample notifications - only load real data from database
-      console.log('Loading real notifications for user:', effectiveUserId);
     }
   }, [user]);
 
@@ -223,7 +218,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     
     // Real-time notifications would come from WebSocket or periodic API calls
     // For now, just rely on the loadNotifications function called every 30 seconds above
-    console.log('Real-time notification system ready for user:', user.Id);
   }, [user?.Id]);
 
   const value: NotificationContextType = {

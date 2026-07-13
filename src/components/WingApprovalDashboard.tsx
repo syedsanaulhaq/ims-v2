@@ -29,7 +29,6 @@ export const WingApprovalDashboard: React.FC = () => {
   const [requestLanes, setRequestLanes] = useState<Record<string, RequestLaneSummary>>({});
 
   useEffect(() => {
-    console.log('🔍 WingApprovalDashboard: Current user from session context:', user);
     loadDashboardData();
   }, [refreshTrigger, user, activeFilter]);
 
@@ -106,7 +105,6 @@ export const WingApprovalDashboard: React.FC = () => {
 
       // For wing dashboard, we need to get approvals for all users in the wing
       const wingId = user?.wing_id;
-      console.log('🔍 Loading wing dashboard for wing:', wingId, 'with filter:', activeFilter);
 
       if (!wingId) {
         console.warn('⚠️ No wing ID found for user, falling back to assigned approvals');
@@ -134,7 +132,6 @@ export const WingApprovalDashboard: React.FC = () => {
         }
       }
 
-      console.log('📋 Wing approvals loaded:', approvalsData.length, 'for status:', activeFilter);
 
       const hasWingData =
         approvalsData.length > 0 ||
@@ -144,7 +141,6 @@ export const WingApprovalDashboard: React.FC = () => {
         Number(dashboardData?.forwarded_count || 0) > 0;
 
       if (!hasWingData) {
-        console.log('ℹ️ Wing dataset is empty, loading assigned approvals fallback');
         await loadAssignedApprovalsFallback();
       } else {
         setPendingApprovals(approvalsData);

@@ -101,9 +101,6 @@ const UserRoleAssignment: React.FC = () => {
 
       const queryString = params.toString();
       const urlToFetch = `${API_BASE_URL}/api/permissions/users${queryString ? '?' + queryString : ''}`;
-      console.log('🔍 FILTER DEBUG: Fetching users with URL:', urlToFetch);
-      console.log('🔍 FILTER DEBUG: Applied filters:', { appliedSearch, appliedOffice, appliedWing, appliedRole });
-      console.log('🔍 FILTER DEBUG: Query string:', queryString);
 
       const response = await fetch(urlToFetch, {
         credentials: 'include',
@@ -111,8 +108,6 @@ const UserRoleAssignment: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ FILTER DEBUG: Users data received - COUNT:', data.length);
-        console.log('✅ FILTER DEBUG: Users data:', data);
         setUsers(data);
       } else {
         console.error('❌ FILTER DEBUG: Failed to fetch users - Status:', response.status);

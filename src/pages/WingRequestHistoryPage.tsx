@@ -63,7 +63,6 @@ const WingRequestHistoryPage: React.FC = () => {
   const loadWingRequestHistory = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Making API call to /api/wing-inventory/requests');
       const response = await fetch('http://localhost:3001/api/wing-inventory/requests', {
         method: 'GET',
         credentials: 'include',
@@ -71,13 +70,10 @@ const WingRequestHistoryPage: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      console.log('📡 API Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📋 API Response data:', data);
         if (data.success) {
-          console.log(`✅ Setting ${data.requests.length} wing requests`);
           setRequests(data.requests || []);
           setWingName(data.wing_name || 'Your Wing');
         } else {
@@ -144,7 +140,6 @@ const WingRequestHistoryPage: React.FC = () => {
     setShowTracking(true);
 
     try {
-      console.log('🔍 Fetching tracking data for request:', request.request_id);
 
       // Create a comprehensive timeline with submitted, current, and future steps
       const completeTimeline = [];
@@ -175,7 +170,6 @@ const WingRequestHistoryPage: React.FC = () => {
           actualHistory = data.data || [];
         }
       } catch (apiError) {
-        console.log('Could not fetch API history, continuing with workflow');
       }
 
       // 3. Add actual approval actions that have happened
@@ -217,7 +211,6 @@ const WingRequestHistoryPage: React.FC = () => {
         });
       }
 
-      console.log('📋 Complete timeline created:', completeTimeline);
       setTrackingData(completeTimeline);
 
     } catch (error) {

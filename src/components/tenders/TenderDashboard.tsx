@@ -93,7 +93,6 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
       }
       
       const tender = await response.json();
-      console.log('📋 Tender details response:', tender);
       
       setSelectedTender(tender);
       setShowDetails(true);
@@ -117,7 +116,6 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
       }
       
       const data = await response.json();
-      console.log('📊 Tenders API response:', data);
       
       // Handle direct array response from backend
       if (Array.isArray(data)) {

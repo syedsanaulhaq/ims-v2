@@ -186,7 +186,6 @@ export const VendorAssignmentManager: React.FC = () => {
         vendorIds: vendorIds
       };
       
-      console.log('📤 Sending vendor assignment request:', {
         tenderId: selectedTender.id,
         categoryId: selectedCategory.id,
         vendorIds: vendorIds,
@@ -204,7 +203,6 @@ export const VendorAssignmentManager: React.FC = () => {
       );
 
       const responseData = await response.json();
-      console.log('📥 Response from server:', { 
         status: response.status, 
         statusText: response.statusText,
         data: responseData 

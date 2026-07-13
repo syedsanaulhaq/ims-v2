@@ -67,18 +67,14 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
         return;
       }
       
-      console.log('📋 Fetching forwarded verifications for store keeper:', user.user_id);
       
       const response = await fetch(`http://localhost:3001/api/inventory/my-forwarded-verifications?userId=${encodeURIComponent(user.user_id)}`);
       const data = await response.json();
       
-      console.log('📦 API Response:', data);
       
       if (data.success) {
-        console.log('✅ Loaded', data.data.length, 'forwarded verifications');
         setVerifications(data.data || []);
       } else if (Array.isArray(data)) {
-        console.log('✅ Loaded', data.length, 'forwarded verifications');
         setVerifications(data);
       } else {
         console.warn('Unexpected response format:', data);
@@ -168,7 +164,6 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
         verifiedByName: user?.user_name || 'System'
       };
 
-      console.log('📦 Submitting verification as store keeper:', verificationPayload);
 
       const response = await fetch('http://localhost:3001/api/inventory/update-verification', {
         method: 'POST',
@@ -178,7 +173,6 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
       const result = await response.json();
 
       if (result.success) {
-        console.log('✅ Verification submitted successfully by store keeper');
         setVerificationSubmitted(true);
         setSubmittedVerificationId(selectedVerification.id);
         

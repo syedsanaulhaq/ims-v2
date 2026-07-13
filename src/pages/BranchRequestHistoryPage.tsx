@@ -120,7 +120,6 @@ const BranchRequestHistoryPage: React.FC = () => {
   const loadBranchRequestHistory = async () => {
     try {
       setLoading(true);
-      console.log('Making API call to /api/branch-inventory/requests');
       const response = await fetch('http://localhost:3001/api/branch-inventory/requests', {
         method: 'GET',
         credentials: 'include',
@@ -128,14 +127,11 @@ const BranchRequestHistoryPage: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      console.log('📡 API Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📋 API Response data:', data);
         if (data.success) {
           const normalized = normalizeRequests(data.requests || []);
-          console.log(`Setting ${normalized.length} grouped branch requests`);
           setRequests(normalized);
           setBranchName(data.branch_name || 'Your Branch');
         } else {
@@ -202,7 +198,6 @@ const BranchRequestHistoryPage: React.FC = () => {
     setShowTracking(true);
 
     try {
-      console.log('🔍 Fetching tracking data for request:', request.request_id);
 
       // Create a comprehensive timeline with submitted, current, and future steps
       const completeTimeline = [];
@@ -233,7 +228,6 @@ const BranchRequestHistoryPage: React.FC = () => {
           actualHistory = data.data || [];
         }
       } catch (apiError) {
-        console.log('Could not fetch API history, continuing with workflow');
       }
 
       // 3. Add actual approval actions that have happened
@@ -279,7 +273,6 @@ const BranchRequestHistoryPage: React.FC = () => {
         });
       }
 
-      console.log('📋 Complete timeline created:', completeTimeline);
       setTrackingData(completeTimeline);
 
     } catch (error) {

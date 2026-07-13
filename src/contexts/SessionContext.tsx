@@ -26,7 +26,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setUser(sessionUser);
       
       // Debug logging
-      console.log('🎯 SessionContext - User loaded:', {
         userId: sessionUser?.user_id,
         userName: sessionUser?.user_name,
         imsRoles: sessionUser?.ims_roles?.length || 0,

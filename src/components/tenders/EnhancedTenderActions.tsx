@@ -25,7 +25,6 @@ const EnhancedTenderActions: React.FC<EnhancedTenderActionsProps> = ({
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   // Debug logging
-  console.log(`🔍 EnhancedTenderActions - Tender ${tenderId}:`, {
     tenderStatus,
     isFinalized,
     canFinalize: !isFinalized

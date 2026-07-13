@@ -132,7 +132,6 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
       // Refresh session to get latest user data
       const user = await sessionService.refreshSession();
       setCurrentUser(user);
-      console.log('👤 Current user after refresh:', user);
       
       const [approvalData, historyData, forwardersData] = await Promise.all([
         approvalForwardingService.getApprovalDetails(approvalId),
@@ -169,12 +168,9 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
             canForward: userInWorkflow.can_forward,
             canFinalize: userInWorkflow.can_finalize
           });
-          console.log('🔐 User permissions:', userInWorkflow, '| Is current approver: YES | Status: pending');
         } else {
           if (!isPending) {
-            console.log(`ℹ️ Request is ${approvalData.current_status} - read-only mode`);
           } else if (!isCurrentApprover) {
-            console.log('ℹ️ User is not the current approver - read-only mode');
           } else {
             console.warn('⚠️ Current user not found in workflow approvers');
           }
@@ -216,7 +212,6 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
           const data = await response.json();
           if (data.success && data.supervisor_id) {
             forwardToUserId = data.supervisor_id;
-            console.log('🔄 Auto-forwarding to logged-in user supervisor:', forwardToUserId, data.supervisor_name);
           } else {
             setActionLoading(false);
             alert('Could not find your supervisor. Please select Action (Admin) forwarding instead.');
@@ -263,7 +258,6 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
           // After approval, trigger issuance workflow if this is a stock issuance request
           if (approval.request_type === 'stock_issuance') {
             try {
-              console.log('📦 Starting issuance workflow for request:', approval.request_id);
               
               // Step 1: Determine issuance source for each approved item
               const itemsResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests/${approval.request_id}`);
@@ -334,7 +328,6 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
                   })
                 });
                 
-                console.log('✅ Issuance workflow completed successfully');
               }
             } catch (issuanceError) {
               console.error('⚠️ Issuance workflow error (non-blocking):', issuanceError);
@@ -538,11 +531,9 @@ export const ApprovalForwarding: React.FC<ApprovalForwardingProps> = ({
               onVerificationRequested={() => {
                 // Verification request sent - keep modal open to show success state
                 // Don't reload approval data - user can manually refresh if needed
-                console.log('✅ Verification request sent successfully');
               }}
               onConfirmAvailable={() => {
                 // Item confirmed available - supervisor can proceed with approval
-                console.log('Item confirmed available in wing store');
               }}
             />
           )}
@@ -919,7 +910,6 @@ const ItemsList: React.FC<{
   const loadItems = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Loading items for approval:', approvalId);
       
       // Fetch items from the backend API
       const response = await fetch(`${getApiBaseUrl()}/approval-items/${approvalId}`);
@@ -929,10 +919,8 @@ const ItemsList: React.FC<{
       }
       
       const data = await response.json();
-      console.log('📋 API Response:', data);
       
       if (data.success && data.data && data.data.length > 0) {
-        console.log('✅ Loaded', data.data.length, 'items from API');
         setItems(data.data);
       } else {
         console.warn('⚠️ No items found in API response');

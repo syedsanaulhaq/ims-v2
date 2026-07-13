@@ -141,14 +141,12 @@ const ItemMasterManagement = () => {
   // Load categories and subcategories
   const loadCategories = async () => {
     try {
-      console.log('🔄 Loading categories and subcategories...');
       
       // Load categories
       const categoriesResponse = await fetch('http://localhost:3001/api/categories');
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
         setCategories(categoriesData);
-        console.log('✅ Categories loaded:', categoriesData.length);
       }
 
       // Load all sub-categories
@@ -157,7 +155,6 @@ const ItemMasterManagement = () => {
         const subCategoriesData = await subCategoriesResponse.json();
         setSubCategories(subCategoriesData);
         setFilteredSubCategories(subCategoriesData);
-        console.log('✅ Sub-categories loaded:', subCategoriesData.length);
       }
     } catch (err) {
       console.error('❌ Load categories error:', err);
@@ -257,8 +254,6 @@ const ItemMasterManagement = () => {
 
       if (editingItem) {
         // Update existing item
-        console.log('🔄 Updating item:', payload);
-        console.log('📝 Editing item ID:', editingItem.id);
         const response = await fetch(`http://localhost:3001/api/item-masters/${editingItem.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -266,7 +261,6 @@ const ItemMasterManagement = () => {
         });
 
         if (response.ok) {
-          console.log('✅ Item updated successfully');
           closeModal();
           loadItems();
         } else {
@@ -276,7 +270,6 @@ const ItemMasterManagement = () => {
         }
       } else {
         // Create new item
-        console.log('🆕 Creating new item:', payload);
         const response = await fetch('http://localhost:3001/api/item-masters', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -284,7 +277,6 @@ const ItemMasterManagement = () => {
         });
 
         if (response.ok) {
-          console.log('✅ Item created successfully');
           closeModal();
           loadItems();
         } else {
@@ -303,17 +295,14 @@ const ItemMasterManagement = () => {
 
   // Handler functions for actions
   const handleAddNew = () => {
-    console.log('🆕 Add new item clicked');
     openAddModal();
   };
 
   const handleEdit = (item: ItemMaster) => {
-    console.log('✏️ Edit item:', item.id, item.nomenclature);
     openEditModal(item);
   };
 
   const handleDelete = async (item: ItemMaster) => {
-    console.log('🗑️ Delete item:', item.id, item.nomenclature);
     const confirmed = window.confirm(`Are you sure you want to delete "${item.nomenclature}" (${item.item_code})?`);
     if (confirmed) {
       try {
@@ -322,7 +311,6 @@ const ItemMasterManagement = () => {
         });
 
         if (response.ok) {
-          console.log('✅ Item deleted successfully');
           loadItems();
         } else {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -364,7 +352,6 @@ const ItemMasterManagement = () => {
 
       if (response.ok) {
         setUploadResult(data.results);
-        console.log('✅ CSV upload complete:', data);
         // Reload items after successful upload
         if (data.results.success.length > 0) {
           await loadItems();
@@ -413,7 +400,6 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
       if (response.ok) {
         const data = await response.json();
         setItems(data.items || []);
-        console.log('✅ Items loaded:', data.items?.length || 0);
       } else {
         setError(`HTTP Error: ${response.status}`);
       }

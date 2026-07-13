@@ -38,17 +38,13 @@ const TenderDashboard: React.FC = () => {
     const fetchTenders = async () => {
       try {
         setLoading(true);
-        console.log('🔄 Fetching tenders from http://localhost:3001/api/tenders?type=annual-tender');
         const response = await fetch('http://localhost:3001/api/tenders?type=annual-tender');
-        console.log('📊 Response status:', response.status);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
-        console.log('📋 Fetched tenders from DB:', data);
-        console.log('📈 Number of tenders:', data.length);
         
         setTenders(data.map((t: any) => ({
           id: t.id,
@@ -91,13 +87,11 @@ const TenderDashboard: React.FC = () => {
     }
 
     try {
-      console.log('🗑️ Deleting tender:', id);
       const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
-        console.log('✅ Tender deleted from DB');
         // Remove from UI
         setTenders(tenders.filter(t => t.id !== id));
         alert('Tender deleted successfully');
@@ -113,12 +107,9 @@ const TenderDashboard: React.FC = () => {
   const handleWizardComplete = async (data: any) => {
     try {
       const tenderId = data.id || editingId || generateUUID();
-      console.log('🔄 handleWizardComplete - tenderId:', tenderId, 'editingId:', editingId);
-      console.log('📦 Complete data:', data);
 
       if (editingId) {
         // Update existing tender
-        console.log('📝 Updating tender:', tenderId);
         setTenders(tenders.map(t => 
           t.id === tenderId
             ? {
@@ -134,7 +125,6 @@ const TenderDashboard: React.FC = () => {
         setEditingId(undefined);
       } else {
         // Add new tender to the list
-        console.log('📝 Adding new tender to list');
         const newTender: Tender = {
           id: tenderId,
           code: data.tender.code,

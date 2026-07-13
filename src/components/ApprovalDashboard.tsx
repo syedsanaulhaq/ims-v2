@@ -38,7 +38,6 @@ const ApprovalDashboard: React.FC = () => {
   const [requestLanes, setRequestLanes] = useState<Record<string, RequestLaneSummary>>({});
 
   useEffect(() => {
-    console.log('🔍 ApprovalDashboard: Current user from auth context:', user);
     loadDashboardData();
   }, [refreshTrigger, user, activeFilter]); // Reload when filter changes
 
@@ -49,7 +48,6 @@ const ApprovalDashboard: React.FC = () => {
       // Pass the current user's ID to get their approvals
       // Prefer `user.user_id` (normalized session shape) but fall back to legacy `Id`
       const userId = (user as any)?.user_id || (user as any)?.Id;
-      console.log('🔍 Loading dashboard for user:', user?.FullName, '(', userId, ') with filter:', activeFilter);
 
       const [approvalsResult, dashboardResult] = await Promise.allSettled([
         approvalForwardingService.getMyApprovalsByStatus(userId, activeFilter),
@@ -102,7 +100,6 @@ const ApprovalDashboard: React.FC = () => {
         }
       }
 
-      console.log('📋 Approvals loaded:', filteredApprovals.length, 'for status:', activeFilter);
       setPendingApprovals(filteredApprovals);
       setRequestLanes(lanesMap);
 

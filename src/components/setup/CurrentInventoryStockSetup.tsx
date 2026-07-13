@@ -30,7 +30,6 @@ interface CurrentInventoryStock {
 }
 
 const CurrentInventoryStockSetup: React.FC = () => {
-  console.log('🎯 Current Inventory Stock Setup - Using actual table structure');
 
   const [stockData, setStockData] = useState<CurrentInventoryStock[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,7 +45,6 @@ const CurrentInventoryStockSetup: React.FC = () => {
   const loadCurrentInventoryStock = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Loading data from current_inventory_stock table...');
 
       const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock');
       
@@ -55,7 +53,6 @@ const CurrentInventoryStockSetup: React.FC = () => {
       }
 
       const data: CurrentInventoryStock[] = await response.json();
-      console.log('✅ Loaded current_inventory_stock data:', data.length, 'records');
 
       // Initialize with current quantities as editable values
       const initializedData = data.map(item => ({
@@ -122,7 +119,6 @@ const CurrentInventoryStockSetup: React.FC = () => {
 
     try {
       setIsSaving(true);
-      console.log('🚀 Saving changes for', changedItems.length, 'items');
 
       const updates = changedItems.map(item => ({
         item_master_id: item.item_master_id,
@@ -143,7 +139,6 @@ const CurrentInventoryStockSetup: React.FC = () => {
       }
 
       const result = await response.json();
-      console.log('✅ Save successful:', result);
 
       toast({
         title: "Save Successful",

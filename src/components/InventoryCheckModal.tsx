@@ -64,7 +64,6 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       setLoading(true);
       setError(null);
 
-      console.log('📦 Checking inventory for item:', itemDetails);
 
       const response = await fetch('http://localhost:3001/api/inventory/check-availability', {
         method: 'POST',
@@ -80,14 +79,11 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       });
 
       const data = await response.json();
-      console.log('📦 Inventory check response:', data);
 
       if (response.ok && data.success) {
-        console.log('✅ Inventory data received:', data.data);
         setAvailability(data.data);
       } else if (response.ok && data.data) {
         // Even if success flag is not set, use the data if response is ok
-        console.log('✅ Inventory data received (no success flag):', data.data);
         setAvailability(data.data);
       } else {
         console.error('❌ Inventory check failed:', data.error || data.details);
@@ -115,7 +111,6 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
         userName = sessionUser?.user_name;
       }
       
-      console.log('🔵 Starting verification request with:', {
         stockIssuanceId,
         itemMasterId: itemDetails.item_master_id,
         requestedQuantity: itemDetails.requested_quantity,
@@ -142,11 +137,8 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       });
 
       const data = await response.json();
-      console.log('🟢 Verification response received:', data);
 
       if (data.success) {
-        console.log('✅ Verification request sent successfully, ID:', data.verificationId);
-        console.log('📍 Setting verificationRequested to true, ID:', data.verificationId);
         setVerificationRequested(true);
         setVerificationId(data.verificationId);
         if (onVerificationRequested) {

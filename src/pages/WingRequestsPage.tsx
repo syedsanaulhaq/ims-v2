@@ -66,7 +66,6 @@ const WingRequestsPage: React.FC = () => {
         const data = await response.json();
         if (data.success || Array.isArray(data)) {
           const requestsData = Array.isArray(data) ? data : (data.data || []);
-          console.log('All requests loaded:', requestsData.length);
           
           // Map the stock issuance data to our request format
           const mappedRequests = requestsData.map((request: any) => ({

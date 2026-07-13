@@ -72,7 +72,6 @@ const ReturnedRequestEditPage: React.FC = () => {
   const loadReturnedRequest = async (approvalId: string) => {
     try {
       setIsLoading(true);
-      console.log('📝 Loading returned request for editing:', approvalId);
 
       // First, load the returned request information to get the actual request_id
       const returnedResponse = await fetch('http://localhost:3001/api/approvals/my-returned-requests', {
@@ -88,7 +87,6 @@ const ReturnedRequestEditPage: React.FC = () => {
         if (returnedData.success && returnedData.data) {
           const returnedReq = returnedData.data.find((r: any) => r.id === approvalId);
           if (returnedReq) {
-            console.log('📝 Returned request info loaded:', returnedReq);
             setReturnedRequest(returnedReq);
 
             // Now load the stock issuance request using the correct request_id
@@ -104,7 +102,6 @@ const ReturnedRequestEditPage: React.FC = () => {
               const requestData = await requestResponse.json();
               if (requestData.success && requestData.data) {
                 const req = requestData.data;
-                console.log('📝 Stock issuance request loaded:', req);
 
                 setRequest(req);
                 setPurpose(req.purpose || '');
@@ -198,7 +195,6 @@ const ReturnedRequestEditPage: React.FC = () => {
     setSuccess('');
 
     try {
-      console.log('📝 Updating returned request:', id);
 
       const updateData = {
         purpose,

@@ -240,7 +240,6 @@ export default function EditPurchaseOrder() {
         }))
       };
       
-      console.log('📤 Sending update:', updateData);
       
       const response = await fetch(`http://localhost:3001/api/purchase-orders/${po.id}`, {
         method: 'PUT',
@@ -255,7 +254,6 @@ export default function EditPurchaseOrder() {
       }
 
       const result = await response.json();
-      console.log('✅ Update successful:', result);
       
       alert('✅ Purchase/Supply order updated successfully');
       navigate(`/dashboard/po/${po.id}`);

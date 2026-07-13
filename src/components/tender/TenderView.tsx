@@ -28,13 +28,9 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
   useEffect(() => {
     const fetchTenderDetails = async () => {
       try {
-        console.log('🔄 Fetching full tender details for:', tender.id);
         const response = await fetch(`http://localhost:3001/api/tenders/${tender.id}`);
         if (response.ok) {
           const data = await response.json();
-          console.log('✅ Fetched tender details:', data);
-          console.log('📦 Vendors in response:', data.vendors);
-          console.log('📦 Items in response:', data.items);
           setFullTender(data);
         } else {
           console.error('❌ Failed to fetch tender details:', response.status);
@@ -53,12 +49,9 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        console.log('🔄 Fetching categories for mapping...');
         const response = await fetch('http://localhost:3001/api/categories');
         const categories = await response.json();
         
-        console.log('📦 Raw categories response:', categories);
-        console.log('📦 First category structure:', categories[0]);
         
         // Create a map of category_id -> category_name
         const map: { [key: string]: string } = {};
@@ -70,10 +63,8 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
           // Try multiple possible property names for the category name
           const categoryName = cat.name || cat.category_name || cat.nomenclature || 'Unknown';
           map[cat.id] = categoryName;
-          console.log(`  📌 Mapped Category: ${cat.id} -> "${categoryName}" (properties: ${Object.keys(cat).join(', ')})`);
         });
         
-        console.log('✅ Category Map Complete:', map);
         setCategoryMap(map);
       } catch (error) {
         console.error('❌ Failed to fetch categories:', error);
@@ -184,7 +175,6 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
                 <tbody>
                   {fullTender.vendors && fullTender.vendors.length > 0 ? (
                     (() => {
-                      console.log('📋 Rendering vendors:', fullTender.vendors);
                       return fullTender.vendors.map((vendor, index) => (
                         <tr key={index} className="border-b hover:bg-gray-50">
                           <td className="py-2 px-3 font-medium">{vendor.vendor_name || vendor.name}</td>

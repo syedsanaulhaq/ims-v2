@@ -99,7 +99,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('sso_token');
       localStorage.removeItem('ims_session');
       
-      console.log('✅ IMS session cleared');
     }
   };
 

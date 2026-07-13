@@ -27,7 +27,6 @@ const ItemsMaster = () => {
       setLoading(true);
       setError('');
       
-      console.log('🔄 Fetching items from API...');
       const response = await fetch('http://localhost:3001/api/item-masters');
       
       if (!response.ok) {
@@ -35,7 +34,6 @@ const ItemsMaster = () => {
       }
       
       const data = await response.json();
-      console.log('✅ Items received:', data);
       setItems(data);
       
     } catch (err) {

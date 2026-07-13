@@ -122,11 +122,9 @@ export function StockIssuanceRequestForm({
         return;
       }
 
-      console.log('✅ Request created:', result.id);
 
       // NOW submit the items separately
       try {
-        console.log('📤 Submitting items...');
         const itemsResult = await stockIssuanceService.submitItems(
           result.id.toString(),
           data.items.map(item => ({
@@ -138,7 +136,6 @@ export function StockIssuanceRequestForm({
             custom_item_name: undefined
           }))
         );
-        console.log('✅ Items submitted:', itemsResult);
       } catch (itemsError) {
         console.error('Error submitting items:', itemsError);
         toast({
@@ -151,7 +148,6 @@ export function StockIssuanceRequestForm({
 
       // Auto-submit for approval using Stock Issuance workflow
       try {
-        console.log('📤 Submitting for approval...', result);
         
         await approvalForwardingService.submitForApproval(
           result.id.toString(),

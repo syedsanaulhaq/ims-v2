@@ -128,7 +128,6 @@ const TenderReportEnhanced: React.FC = () => {
       const wings = wingsRes.ok ? await wingsRes.json() : [];
       const decs = decsRes.ok ? await decsRes.json() : [];
 
-      console.log('📊 Fetched data:', { offices, wings, decs });
 
       // Parse the IDs from the tender
       if (tender?.office_ids && typeof tender.office_ids === 'string') {
@@ -148,7 +147,6 @@ const TenderReportEnhanced: React.FC = () => {
 
       if (tender?.wing_ids && typeof tender.wing_ids === 'string') {
         const wingIds = tender.wing_ids.split(',').map(id => id.trim());
-        console.log('🔍 Looking for wing IDs:', wingIds);
         const names = wingIds
           .map(id => {
             const wing = wings.find((w: any) => 
@@ -156,7 +154,6 @@ const TenderReportEnhanced: React.FC = () => {
               w.id?.toString() === id ||
               w.intWingID?.toString() === id
             );
-            console.log(`Wing ID ${id} matched:`, wing);
             return wing?.Name || wing?.name || wing?.strWingName || `Wing ID: ${id}`;
           })
           .filter(Boolean);
@@ -165,7 +162,6 @@ const TenderReportEnhanced: React.FC = () => {
 
       if (tender?.dec_ids && typeof tender.dec_ids === 'string') {
         const decIds = tender.dec_ids.split(',').map(id => id.trim());
-        console.log('🔍 Looking for DEC IDs:', decIds);
         const names = decIds
           .map(id => {
             const dec = decs.find((d: any) => 
@@ -174,7 +170,6 @@ const TenderReportEnhanced: React.FC = () => {
               d.Id?.toString() === id ||
               d.intDecID?.toString() === id
             );
-            console.log(`DEC ID ${id} matched:`, dec);
             return dec?.DECName || dec?.name || dec?.Name || dec?.strDecName || `DEC ID: ${id}`;
           })
           .filter(Boolean);
@@ -195,7 +190,6 @@ const TenderReportEnhanced: React.FC = () => {
       }
       
       const data = await response.json();
-      console.log('✅ Fetched tender details:', data);
       setTender(data);
       
       // Fetch bidders for this tender
@@ -203,7 +197,6 @@ const TenderReportEnhanced: React.FC = () => {
         const biddersResponse = await fetch(`http://localhost:3001/api/tenders/${id}/vendors`);
         if (biddersResponse.ok) {
           const biddersData = await biddersResponse.json();
-          console.log('✅ Fetched bidders:', biddersData);
           setBidders(biddersData);
         }
       } catch (err) {

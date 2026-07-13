@@ -87,10 +87,8 @@ const SubCategories = () => {
 
   // Create new sub-category
   const handleCreateSubCategory = async () => {
-    console.log('🔧 handleCreateSubCategory called with form data:', subCategoryForm);
     
     if (!subCategoryForm.category_id) {
-      console.log('❌ Validation failed: Parent category is required');
       toast({
         title: "Validation Error",
         description: "Please select a parent category",
@@ -100,7 +98,6 @@ const SubCategories = () => {
     }
 
     if (!subCategoryForm.sub_category_name.trim()) {
-      console.log('❌ Validation failed: Sub-category name is required');
       toast({
         title: "Validation Error",
         description: "Sub-category name is required",
@@ -110,19 +107,15 @@ const SubCategories = () => {
     }
 
     try {
-      console.log('🌐 Sending POST request to /api/sub-categories...');
       const response = await fetch('http://localhost:3001/api/sub-categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subCategoryForm)
       });
 
-      console.log('📡 Response status:', response.status);
       const data = await response.json();
-      console.log('📦 Response data:', data);
 
       if (response.ok) {
-        console.log('✅ Sub-category created successfully:', data);
         toast({
           title: "Success",
           description: "Sub-category created successfully"
@@ -130,7 +123,6 @@ const SubCategories = () => {
         fetchData();
         handleCancelEdit();
       } else {
-        console.log('❌ Failed to create sub-category:', data);
         throw new Error(data.error || 'Failed to create sub-category');
       }
     } catch (error) {
@@ -145,7 +137,6 @@ const SubCategories = () => {
 
   // Edit sub-category
   const handleEditSubCategory = (subCategory: SubCategory) => {
-    console.log('✏️ Editing sub-category:', subCategory);
     setEditingSubCategory(subCategory.id);
     setSubCategoryForm({
       category_id: subCategory.category_id,

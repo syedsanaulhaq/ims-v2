@@ -56,19 +56,15 @@ export function CsvUploadModal({ open, onClose, onItemsImported, bidders }: CsvU
     formData.append('bidders', JSON.stringify(bidders.filter(v => v.is_successful)));
 
     try {
-      console.log('📤 Uploading CSV file:', selectedFile.name);
-      console.log('👥 Sending bidders:', bidders.filter(v => v.is_successful).length);
       
       const response = await fetch('http://localhost:3001/api/tender-items/bulk-upload', {
         method: 'POST',
         body: formData,
       });
 
-      console.log('📡 Response status:', response.status, response.statusText);
       
       // Check if response is JSON
       const contentType = response.headers.get('content-type');
-      console.log('📋 Content-Type:', contentType);
       
       if (!contentType || !contentType.includes('application/json')) {
         const textResponse = await response.text();
@@ -80,7 +76,6 @@ export function CsvUploadModal({ open, onClose, onItemsImported, bidders }: CsvU
 
       if (response.ok) {
         setResult(data);
-        console.log('✅ CSV upload result:', data);
       } else {
         throw new Error(data.error || 'Failed to upload CSV');
       }

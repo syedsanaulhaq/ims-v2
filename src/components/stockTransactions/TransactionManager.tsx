@@ -196,7 +196,6 @@ const TransactionManager: React.FC = () => {
       if (response.success && response.data) {
         setSelectedTenderWithItems(response.data);
         setSelectedTenderId(tenderId);
-        console.log('✅ Loaded tender with items:', {
           tenderId,
           tenderNumber: response.data.tenderNumber,
           itemsCount: response.data.items?.length || 0,
@@ -247,7 +246,6 @@ const TransactionManager: React.FC = () => {
     
     setLoading(true);
     try {
-      console.log('🔄 Loading hybrid data for tender:', selectedTender.tenderNumber);
       
       // Always ensure all tender items have stock transactions
       if (!selectedTender.items || selectedTender.items.length === 0) {
@@ -257,7 +255,6 @@ const TransactionManager: React.FC = () => {
         return;
       }
       
-      console.log('🔍 Ensuring stock transactions for all tender items:', {
         tenderId: selectedTender.id,
         tenderItemsCount: selectedTender.items.length,
         tenderItems: selectedTender.items.map(item => ({
@@ -269,7 +266,6 @@ const TransactionManager: React.FC = () => {
       
       // Initialize/ensure stock transactions for all tender items
       const initResults = await stockTransactionsCleanLocalService.initializeFromTender(selectedTender.id, selectedTender.items);
-      console.log('📊 Stock transaction results:', {
         expectedItems: selectedTender.items.length,
         processedResults: initResults.length
       });
@@ -277,7 +273,6 @@ const TransactionManager: React.FC = () => {
       // Load all stock transactions
       let stockTransactions = await stockTransactionsCleanLocalService.getByTenderId(selectedTender.id);
       
-      console.log('📊 Current stock transactions status:', {
         existingTransactions: stockTransactions.length,
         tenderItemsCount: selectedTender.items?.length || 0,
         stockTransactionIds: stockTransactions.map(st => st.item_master_id),
@@ -301,7 +296,6 @@ const TransactionManager: React.FC = () => {
       );
       
       if (missingItems.length > 0 || stockTransactions.length !== selectedTender.items.length) {
-        console.log('🔧 Missing or incomplete stock transactions, initializing:', {
           missingItems: missingItems.map(item => ({
             itemMasterId: item.itemMasterId,
             nomenclature: item.nomenclature
@@ -315,7 +309,6 @@ const TransactionManager: React.FC = () => {
           selectedTender.items
         );
         
-        console.log('✅ Initialization completed:', {
           initialCount: stockTransactions.length,
           expectedCount: selectedTender.items.length,
           initResults: initResults.length
@@ -324,7 +317,6 @@ const TransactionManager: React.FC = () => {
         // Re-load after initialization to get complete data
         stockTransactions = await stockTransactionsCleanLocalService.getByTenderId(selectedTender.id);
         
-        console.log('📝 Final stock transactions after initialization:', {
           finalCount: stockTransactions.length,
           items: stockTransactions.map(st => ({
             itemMasterId: st.item_master_id,
@@ -337,7 +329,6 @@ const TransactionManager: React.FC = () => {
       const convertedItems = stockTransactions.map(item => {
         const matchingTenderItem = selectedTender.items.find(tItem => tItem.itemMasterId === item.item_master_id);
         
-        console.log('� Converting stock transaction item:', {
           stockTransactionId: item.id,
           itemMasterId: item.item_master_id,
           foundMatchingTenderItem: !!matchingTenderItem,
@@ -362,7 +353,6 @@ const TransactionManager: React.FC = () => {
         };
       });
       
-      console.log('🎯 Final converted items for display:', {
         totalItems: convertedItems.length,
         itemsWithQuantity: convertedItems.filter(item => item.quantity > 0).length,
         items: convertedItems.map(item => ({
@@ -402,7 +392,6 @@ const TransactionManager: React.FC = () => {
 
   // Get current items (hybrid approach)
   const currentItems = React.useMemo(() => {
-    console.log('🔍 Debug currentItems calculation:', {
       isStockTransactionInitialized,
       stockTransactionItemsLength: stockTransactionItems.length,
       selectedTender: selectedTender?.tenderNumber,
@@ -423,12 +412,10 @@ const TransactionManager: React.FC = () => {
           id: item.id || item.item_master_id,
           tenderId: selectedTender?.id || ''
         }));
-      console.log('📦 Using stock transaction items:', items);
       return items;
     } else {
       // Fallback to tender items (original approach)
       const items = selectedTender?.items || [];
-      console.log('📋 Using tender items fallback:', {
         selectedTenderId: selectedTender?.id,
         tenderNumber: selectedTender?.tenderNumber,
         itemsLength: items.length,
@@ -459,7 +446,6 @@ const TransactionManager: React.FC = () => {
   // Apply local deletions to current items and sort by priority
   const filteredItems = React.useMemo(() => {
     const items = currentItems.filter(item => !deletedItems.has(item.itemMasterId));
-    console.log('🗂️ filteredItems calculation:', {
       currentItemsLength: currentItems.length,
       deletedItemsSize: deletedItems.size,
       finalItemsLength: items.length,

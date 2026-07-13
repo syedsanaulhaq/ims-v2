@@ -127,7 +127,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
   // Load tender vendors if tender ID is provided (editing mode)
   useEffect(() => {
-    console.log('📍 TenderVendorManagement useEffect - tenderId:', tenderId, 'initialBidders:', initialBidders.length);
     
     if (tenderId && loadedTenderIdRef.current !== tenderId) {
       // Only load if we haven't loaded this tender yet
@@ -135,7 +134,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       loadTenderVendors();
     } else if (!tenderId && initialBidders.length > 0 && loadedTenderIdRef.current === null) {
       // If no tenderId but have initial bidders, use them (only once)
-      console.log('📍 Using initial bidders:', initialBidders);
       setTenderVendors(initialBidders);
       loadedTenderIdRef.current = 'initialized';
     }
@@ -158,7 +156,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
   // Upload all pending proposals after tender is saved
   useEffect(() => {
     if (tenderId && Object.keys(pendingProposals).length > 0) {
-      console.log(`📤 Tender saved! Uploading ${Object.keys(pendingProposals).length} pending proposals...`);
       uploadPendingProposals();
     }
   }, [tenderId]);
@@ -168,26 +165,21 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     
     for (const vendorId of vendorIds) {
       const file = pendingProposals[vendorId];
-      console.log(`📤 Uploading proposal for vendor ${vendorId}:`, file.name);
       await handleUploadProposal(vendorId, file);
     }
   };
 
   const loadTenderVendors = async () => {
     if (!tenderId) {
-      console.log('⚠️ No tenderId provided to TenderVendorManagement');
       return;
     }
     
     try {
       setLoading(true);
-      console.log(`📥 Loading vendors for tender: ${tenderId}`);
       const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
-      console.log(`📥 Response status: ${response.status}`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Loaded tender vendors from API:', data);
         const apiVendors = Array.isArray(data) ? data : data.vendors || data.data || [];
         
         // Merge API vendors with initial bidders (API takes priority if same vendor_id)
@@ -200,13 +192,11 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
           }
         }
         
-        console.log('✅ Merged vendors (API + initial):', mergedVendors);
         setTenderVendors(mergedVendors);
       } else {
         console.warn(`⚠️ Response not ok: ${response.status}`, await response.text());
         // Still use initial bidders if API fails
         if (initialBidders.length > 0) {
-          console.log('📍 Using initial bidders as fallback');
           setTenderVendors(initialBidders);
         }
         setError('Failed to load vendors');
@@ -215,7 +205,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
       console.error('❌ Error loading tender vendors:', err);
       // Still use initial bidders if fetch fails
       if (initialBidders.length > 0) {
-        console.log('📍 Using initial bidders as fallback');
         setTenderVendors(initialBidders);
       }
       setError(err instanceof Error ? err.message : 'Failed to load vendors');
@@ -340,7 +329,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         ...prev,
         [vendorId]: file
       }));
-      console.log(`📁 Proposal file stored temporarily for vendor ${vendorId}:`, file.name);
       return;
     }
 
@@ -359,7 +347,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Upload response:', data);
         
         // Update the vendor in local state immediately
         setTenderVendors(tenderVendors.map(tv => 
@@ -786,7 +773,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
               <TableBody>
                 {tenderVendors.map((vendor) => {
                   // Debug log for vendor data including is_successful
-                  console.log('Vendor data:', vendor.vendor_name, {
                     is_successful: vendor.is_successful,
                     is_selected: vendor.is_selected,
                     proposal_document_name: vendor.proposal_document_name,
@@ -998,7 +984,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         open={showAddVendorModal}
         onClose={() => setShowAddVendorModal(false)}
         onSuccess={(vendorData) => {
-          console.log('✅ Vendor created:', vendorData);
           // Notify parent to refresh vendors list
           if (onVendorAdded) {
             onVendorAdded();

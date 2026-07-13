@@ -74,7 +74,6 @@ const ReportsModule: React.FC<ReportsModuleProps> = ({ tab = 'overview' }) => {
 
   const handleDownloadReport = async (endpoint: string, reportName: string) => {
     try {
-      console.log(`Downloading report: ${reportName} from ${endpoint}`);
       // TODO: Implement actual report download using InvMIS API
       // const response = await invmisApi.reports.download(endpoint);
       alert(`Report download feature will be implemented: ${reportName}`);

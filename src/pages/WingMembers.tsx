@@ -89,7 +89,6 @@ const WingMembers: React.FC = () => {
           roles: user.roles
         }));
         setMembers(transformedMembers);
-        console.log('Fetched members:', transformedMembers);
       } else {
         console.error('Failed to fetch wing members:', membersRes.status);
       }

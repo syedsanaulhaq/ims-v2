@@ -180,7 +180,6 @@ const ItemsMaster: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('Fetched items:', data);
       setItems(data);
       setError(null);
     } catch (err) {
@@ -196,7 +195,6 @@ const ItemsMaster: React.FC = () => {
       const response = await fetch('http://localhost:3001/api/categories');
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      console.log('Fetched categories:', data);
       setCategories(data);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -209,7 +207,6 @@ const ItemsMaster: React.FC = () => {
       const response = await fetch('http://localhost:3001/api/sub-categories');
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      console.log('Fetched sub-categories:', data);
       setSubCategories(data);
     } catch (err) {
       console.error('Error fetching sub-categories:', err);

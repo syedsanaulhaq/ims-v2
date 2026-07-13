@@ -128,7 +128,6 @@ const TenderReport: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔍 Fetching tender data for ID:', tenderId);
       const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}`);
       
       if (!response.ok) {
@@ -136,7 +135,6 @@ const TenderReport: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log('✅ Tender data received:', data);
       setTenderData(data);
     } catch (err) {
       console.error('❌ Error fetching tender data:', err);

@@ -61,7 +61,6 @@ const StockAcquisitionReport: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      console.log('Fetching stock acquisition report for tender ID:', id);
 
       // Step 1: Get tender basic information
       const { data: tender, error: tenderError } = await supabase
@@ -75,7 +74,6 @@ const StockAcquisitionReport: React.FC = () => {
         throw new Error('Tender not found');
       }
 
-      console.log('Tender found:', tender);
 
       // Step 2: Get stock transactions for this tender
       const { data: stockTransactions, error: stockError } = await supabase
@@ -88,7 +86,6 @@ const StockAcquisitionReport: React.FC = () => {
         throw new Error('Failed to fetch stock transactions');
       }
 
-      console.log('Stock transactions found:', stockTransactions?.length || 0);
 
       if (!stockTransactions || stockTransactions.length === 0) {
         setTenderInfo(tender);
@@ -100,7 +97,6 @@ const StockAcquisitionReport: React.FC = () => {
       const enrichedItems: StockTransactionItem[] = [];
 
       for (const stockItem of stockTransactions) {
-        console.log('Processing stock item:', stockItem.item_master_id);
 
         let itemDetails = {
           nomenclature: 'Unknown Item',
@@ -119,7 +115,6 @@ const StockAcquisitionReport: React.FC = () => {
               .single();
 
             if (!itemError && itemMaster) {
-              console.log('Item master found:', itemMaster);
               itemDetails.nomenclature = itemMaster.nomenclature || 'Unknown Item';
               itemDetails.unit = itemMaster.unit || 'Units';
 
@@ -222,7 +217,6 @@ const StockAcquisitionReport: React.FC = () => {
       });
       setStockItems(enrichedItems);
 
-      console.log('Final enriched items:', enrichedItems);
 
     } catch (error: any) {
       console.error('Error fetching data:', error);
@@ -243,7 +237,6 @@ const StockAcquisitionReport: React.FC = () => {
   };
 
   const handleExport = () => {
-    console.log('Export functionality to be implemented');
   };
 
   if (isLoading) {

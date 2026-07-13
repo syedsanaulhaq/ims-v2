@@ -72,7 +72,6 @@ export default function PurchaseOrderDashboard() {
       // ✅ Filter by tenderId if provided in URL
       if (tenderId) {
         params.append('tenderId', tenderId);
-        console.log('🎯 Filtering POs by tenderId:', tenderId);
       }
 
       if (filters.status !== 'all') {

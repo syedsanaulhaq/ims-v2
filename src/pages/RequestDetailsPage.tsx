@@ -404,7 +404,6 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              console.log('Could not fetch approval items for request:', foundRequest.id);
             }
 
             try {
@@ -524,7 +523,6 @@ const RequestDetailsPage: React.FC = () => {
           }
         }
       } catch (error) {
-        console.log('Could not load approval history from legacy API, using minimal data', error);
       }
 
       // If no real data available, just show the basic submission info

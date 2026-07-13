@@ -48,7 +48,6 @@ interface TenderFormData {
 }
 
 const TenderForm: React.FC = () => {
-  console.log("⚠️ OLD TenderForm.tsx component loaded - THIS SHOULD NOT BE USED!");
   const navigate = useNavigate();
   const { id } = useParams();
   const { toast } = useToast();

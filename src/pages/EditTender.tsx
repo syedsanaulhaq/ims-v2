@@ -214,7 +214,6 @@ const EditTender: React.FC = () => {
         }
 
         const tender = await response.json();
-        console.log('📋 Loaded tender:', tender);
 
         setTenderData({
           reference_number: tender.reference_number || '',
@@ -269,7 +268,6 @@ const EditTender: React.FC = () => {
           const vendorsResponse = await fetch(`http://localhost:3001/api/tenders/${id}/vendors`);
           if (vendorsResponse.ok) {
             const vendorsData = await vendorsResponse.json();
-            console.log('📋 Loaded tender vendors:', vendorsData);
             const vendorsList = Array.isArray(vendorsData) ? vendorsData : vendorsData.vendors || [];
             setBidders(vendorsList);
             
@@ -331,7 +329,6 @@ const EditTender: React.FC = () => {
         const itemMastersResponse = await fetch('http://localhost:3001/api/item-masters');
         if (itemMastersResponse.ok) {
           const itemMastersData = await itemMastersResponse.json();
-          console.log('📦 Item Masters API response:', itemMastersData);
           // Handle the {success: true, items: [...]} format
           setItemMasters(itemMastersData.items || []);
         }
@@ -802,8 +799,6 @@ const EditTender: React.FC = () => {
         bidders: bidders
       };
 
-      console.log('🔍 Bidders being sent:', JSON.stringify(bidders, null, 2));
-      console.log('🔍 Submitting tender data:', JSON.stringify(tenderFormData, null, 2));
 
       const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
         method: 'PUT',
@@ -818,7 +813,6 @@ const EditTender: React.FC = () => {
       }
 
       const result = await response.json();
-      console.log('✅ Success response:', result);
 
       alert(`${tenderData.tender_type === 'spot-purchase' ? 'Petty Purchase' : tenderData.tender_type === 'annual-tender' ? 'Annual tender' : 'Contract tender'} updated successfully!`);
       
@@ -1224,18 +1218,15 @@ const EditTender: React.FC = () => {
             initialBidders={bidders}
             tenderItems={tenderItems}
             onVendorsChange={(updatedVendors) => {
-              console.log('Vendors updated:', updatedVendors);
               setBidders(updatedVendors);
             }}
             onSuccessfulVendorChange={(vendorId) => {
-              console.log('Selected successful vendor:', vendorId);
               setTenderData(prev => ({
                 ...prev,
                 vendor_id: vendorId || ''
               }));
             }}
             onItemsChange={(updatedItems) => {
-              console.log('Items updated from vendor deselection:', updatedItems);
               setTenderItems(groupTenderItems(updatedItems, tenderData.tender_type));
             }}
             maxVendors={tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'single_quotation' ? 1 : tenderData.tender_type === 'spot-purchase' && tenderData.procurement_method === 'multiple_quotation' ? 3 : undefined}

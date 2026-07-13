@@ -100,10 +100,8 @@ const Categories = () => {
 
   // Create new category
   const handleCreateCategory = async () => {
-    console.log('🔧 handleCreateCategory called with form data:', categoryForm);
     
     if (!categoryForm.category_name.trim()) {
-      console.log('❌ Validation failed: Category name is required');
       toast({
         title: "Validation Error",
         description: "Category name is required",
@@ -113,7 +111,6 @@ const Categories = () => {
     }
 
     try {
-      console.log('📡 Making POST request to create category...');
       const response = await fetch('http://localhost:3001/api/categories', {
         method: 'POST',
         headers: {
@@ -122,11 +119,9 @@ const Categories = () => {
         body: JSON.stringify(categoryForm)
       });
 
-      console.log('📊 Response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Category created successfully:', result);
         toast({
           title: "Success",
           description: result.message || "Category created successfully",
@@ -137,7 +132,6 @@ const Categories = () => {
         fetchData(); // Refresh data
       } else {
         const errorText = await response.text();
-        console.log('❌ Server error:', errorText);
         throw new Error('Failed to create category');
       }
     } catch (error) {
@@ -152,10 +146,8 @@ const Categories = () => {
 
   // Create new sub-category
   const handleCreateSubCategory = async () => {
-    console.log('🔧 handleCreateSubCategory called with form data:', subCategoryForm);
     
     if (!subCategoryForm.sub_category_name.trim()) {
-      console.log('❌ Validation failed: Sub-category name is required');
       toast({
         title: "Validation Error",
         description: "Sub-category name is required",
@@ -165,7 +157,6 @@ const Categories = () => {
     }
 
     if (!subCategoryForm.category_id) {
-      console.log('❌ Validation failed: Parent category not selected');
       toast({
         title: "Validation Error",
         description: "Please select a parent category",
@@ -175,7 +166,6 @@ const Categories = () => {
     }
 
     try {
-      console.log('📡 Making POST request to create sub-category...');
       const response = await fetch('http://localhost:3001/api/sub-categories', {
         method: 'POST',
         headers: {
@@ -184,11 +174,9 @@ const Categories = () => {
         body: JSON.stringify(subCategoryForm)
       });
 
-      console.log('📊 Response status:', response.status);
       
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Sub-category created successfully:', result);
         toast({
           title: "Success",
           description: result.message || "Sub-category created successfully",
@@ -199,7 +187,6 @@ const Categories = () => {
         fetchData(); // Refresh data
       } else {
         const errorText = await response.text();
-        console.log('❌ Server error:', errorText);
         throw new Error('Failed to create sub-category');
       }
     } catch (error) {
@@ -228,7 +215,6 @@ const Categories = () => {
   const handleUpdateCategory = async () => {
     if (!editingCategory) return;
     
-    console.log('🔧 handleUpdateCategory called with form data:', categoryForm);
     
     if (!categoryForm.category_name.trim()) {
       toast({
@@ -240,7 +226,6 @@ const Categories = () => {
     }
 
     try {
-      console.log('🔧 Sending PUT request:', {
         url: `http://localhost:3001/api/categories/${editingCategory}`,
         method: 'PUT',
         body: categoryForm,
@@ -256,7 +241,6 @@ const Categories = () => {
       });
 
       if (response.ok) {
-        console.log('✅ Category updated successfully');
         toast({
           title: "Success",
           description: "Category updated successfully",
@@ -269,7 +253,6 @@ const Categories = () => {
         fetchData(); // Refresh data
       } else {
         const errorText = await response.text();
-        console.log('❌ Server error response:', {
           status: response.status,
           statusText: response.statusText,
           body: errorText
@@ -298,7 +281,6 @@ const Categories = () => {
       });
 
       if (response.ok) {
-        console.log('✅ Category deleted successfully');
         toast({
           title: "Success",
           description: "Category deleted successfully",
@@ -334,7 +316,6 @@ const Categories = () => {
   const handleUpdateSubCategory = async () => {
     if (!editingSubCategory) return;
     
-    console.log('🔧 handleUpdateSubCategory called with form data:', subCategoryForm);
     
     if (!subCategoryForm.category_id || !subCategoryForm.sub_category_name.trim()) {
       toast({
@@ -355,7 +336,6 @@ const Categories = () => {
       });
 
       if (response.ok) {
-        console.log('✅ Sub-category updated successfully');
         toast({
           title: "Success",
           description: "Sub-category updated successfully",
@@ -368,7 +348,6 @@ const Categories = () => {
         fetchData(); // Refresh data
       } else {
         const errorText = await response.text();
-        console.log('❌ Server error:', errorText);
         throw new Error('Failed to update sub-category');
       }
     } catch (error) {
@@ -393,7 +372,6 @@ const Categories = () => {
       });
 
       if (response.ok) {
-        console.log('✅ Sub-category deleted successfully');
         toast({
           title: "Success",
           description: "Sub-category deleted successfully",

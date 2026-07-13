@@ -132,7 +132,6 @@ const InventoryManagementDashboard = () => {
         movementRes.json()
       ]);
 
-      console.log('Inventory Dashboard Data:', {
         dashboard: dashboardJson,
         stock: stockJson,
         movements: movementJson

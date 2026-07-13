@@ -120,11 +120,9 @@ export const ItemGroupsManager: React.FC = () => {
       const response = await fetch('http://localhost:3001/api/item-masters');
       if (response.ok) {
         const data = await response.json();
-        console.log('📦 Items loaded from API:', data);
         // Handle different possible response formats
         const processedItems = Array.isArray(data) ? data : (data.data || data.items || []);
         setItems(processedItems);
-        console.log('✅ Processed items:', processedItems);
       }
     } catch (error) {
       console.error('Error loading items:', error);
@@ -137,7 +135,6 @@ export const ItemGroupsManager: React.FC = () => {
       return;
     }
 
-    console.log('📝 Creating group with data:', formData);
 
     try {
       const response = await fetch('http://localhost:3001/api/item-groups', {

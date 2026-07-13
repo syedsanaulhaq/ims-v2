@@ -51,7 +51,6 @@ const NewProcurementRequest: React.FC = () => {
   // Debug: log user object
   useEffect(() => {
     // eslint-disable-next-line no-console
-    console.log('Session user:', user);
   }, [user]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -164,7 +163,6 @@ const NewProcurementRequest: React.FC = () => {
       setWings(wingsData);
       // Debug: log wings data
       // eslint-disable-next-line no-console
-      console.log('Wings data:', wingsData);
       // Try multiple possible user wing fields
       const wingId = resolvedWingId;
       if (wingId) {
@@ -202,7 +200,6 @@ const NewProcurementRequest: React.FC = () => {
           vUnitOfMeasure: item.unit
         }));
         // eslint-disable-next-line no-console
-        console.log('Items library:', mappedItems);
         setItemsLibrary(mappedItems);
         if (!mappedItems || mappedItems.length === 0) {
           setItemsError('No items found in the items library.');
@@ -317,7 +314,6 @@ const NewProcurementRequest: React.FC = () => {
         throw new Error('No request ID returned from server');
       }
 
-      console.log('✅ Request created with ID:', requestId);
 
       // Now add items to the request - send all items in one request
       if (selectedItems.length > 0) {
@@ -344,7 +340,6 @@ const NewProcurementRequest: React.FC = () => {
           const errorData = await itemResponse.json();
           console.warn('⚠️ Failed to add items:', errorData);
         } else {
-          console.log('✅ Items added successfully');
         }
       }
 

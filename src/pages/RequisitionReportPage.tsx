@@ -251,7 +251,6 @@ const RequisitionReportPage: React.FC = () => {
 
         if (!requestId) {
           const requestsToShow = myRequests.length > 0 ? myRequests : allRequests;
-          console.log(`Requisition report: showing ${requestsToShow.length} requests grouped by status (filtered: ${myRequests.length}, all: ${allRequests.length})`);
 
           const options = requestsToShow
             .sort((a: any, b: any) => {

@@ -61,10 +61,8 @@ const Dashboard = () => {
         const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/go-live-status`);
         if (response.ok) {
           const data = await response.json();
-          console.log('🔍 Opening Balance Status:', data);
           
           if (!data.opening_balance_completed) {
-            console.log('⚠️ Opening Balance not completed - redirecting admin to setup');
             setOpeningBalanceComplete(false);
             // Redirect to opening balance entry with message
             navigate('/dashboard/opening-balance-entry', { 
@@ -89,7 +87,6 @@ const Dashboard = () => {
   // Check if user has access to dashboard - if not, redirect to personal dashboard
   useEffect(() => {
     if (user && !canAccessDashboard && !canViewInventory && !canViewProcurement && !isWingSupervisor) {
-      console.log('⚠️ User does not have permission to access main dashboard, redirecting to personal dashboard');
       navigate('/personal-dashboard', { replace: true });
     }
   }, [user, canAccessDashboard, canViewInventory, canViewProcurement, isWingSupervisor, navigate]);
@@ -132,7 +129,6 @@ const Dashboard = () => {
           fetch(`${getApiBaseUrl()}/wings`).then(res => res.ok ? res.json() : [])
         ]);
 
-        console.log('Dashboard data loaded:', {
           tenders: tendersRes?.length || 0,
           deliveries: deliveriesRes?.length || 0,
           stockRequests: stockIssuanceRes?.length || 0,

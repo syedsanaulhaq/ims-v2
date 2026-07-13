@@ -52,7 +52,6 @@ const ProcurementDetails = () => {
         setTenders(Array.isArray(tendersData) ? tendersData : []);
         setDeliveries(Array.isArray(deliveriesData) ? deliveriesData : []);
         
-        console.log('Procurement data loaded:', {
           tenders: tendersData.length,
           deliveries: deliveriesData.length
         });

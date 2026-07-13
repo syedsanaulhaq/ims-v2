@@ -98,7 +98,6 @@ const EnhancedTenderDashboard: React.FC = () => {
       }
       
       const data = await response.json();
-      console.log('📊 Tenders API response:', data);
       setTenders(data);
     } catch (err) {
       console.error('❌ Error fetching tenders:', err);
@@ -131,7 +130,6 @@ const EnhancedTenderDashboard: React.FC = () => {
       }
 
       const result = await response.json();
-      console.log('✅ Tender finalized:', result);
       
       // Refresh the tenders list
       await fetchTenders();

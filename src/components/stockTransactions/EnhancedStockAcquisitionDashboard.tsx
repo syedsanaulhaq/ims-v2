@@ -125,7 +125,6 @@ const EnhancedStockAcquisitionDashboard: React.FC = () => {
         setTenderSummaries(summariesData);
       }
 
-      console.log('📊 Stock acquisition dashboard data loaded');
     } catch (err) {
       console.error('❌ Error loading stock acquisition data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');

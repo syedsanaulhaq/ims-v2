@@ -178,7 +178,6 @@ const UnifiedTenderManagement: React.FC = () => {
         setEditingPrices(prices);
         
         // Debug log to see what prices are being loaded
-        console.log('🔍 Loaded tender items with prices:', tender.items?.map(item => ({
           id: item.id,
           nomenclature: item.nomenclature,
           estimated_unit_price: item.estimated_unit_price,
@@ -253,7 +252,6 @@ const UnifiedTenderManagement: React.FC = () => {
 
   const updateItemPrice = async (itemId: string, newPrice: number) => {
     try {
-      console.log('💰 Updating item price:', { itemId, newPrice });
       
       const response = await fetch(`http://localhost:3001/api/stock-acquisition/update-price/${itemId}`, {
         method: 'PUT',
@@ -264,11 +262,9 @@ const UnifiedTenderManagement: React.FC = () => {
         })
       });
 
-      console.log('📡 Price update response status:', response.status);
 
       if (response.ok) {
         const responseData = await response.json();
-        console.log('✅ Price update successful:', responseData);
         
         setTenderItems(prev => prev.map(item => 
           item.id === itemId 
@@ -318,7 +314,6 @@ const UnifiedTenderManagement: React.FC = () => {
   };
 
   const openAddItemDialog = (deliveryId: string) => {
-    console.log('🚀 Opening add item dialog for delivery:', deliveryId);
     setAddItemDialog({
       isOpen: true,
       deliveryId,
@@ -380,7 +375,6 @@ const UnifiedTenderManagement: React.FC = () => {
         items: allItems
       };
 
-      console.log('🚀 Adding item to delivery with data:', requestData);
 
       const response = await fetch('http://localhost:3001/api/delivery-items', {
         method: 'POST',
@@ -388,10 +382,8 @@ const UnifiedTenderManagement: React.FC = () => {
         body: JSON.stringify(requestData)
       });
 
-      console.log('📡 Response status:', response.status);
 
       if (response.ok) {
-        console.log('✅ Item added successfully');
         await loadTenderData(); // Reload to show the new item
         setAddItemDialog({
           isOpen: false,
@@ -1336,7 +1328,6 @@ const UnifiedTenderManagement: React.FC = () => {
               <Select
                 value={addItemDialog.selectedItem}
                 onValueChange={(value) => {
-                  console.log('🔍 Selected item value:', value);
                   setAddItemDialog(prev => ({ ...prev, selectedItem: value }));
                 }}
               >

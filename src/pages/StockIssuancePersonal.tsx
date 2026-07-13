@@ -114,7 +114,6 @@ const StockIssuancePersonal: React.FC = () => {
     // Check if we're in edit mode
     if (id) {
       setIsEditMode(true);
-      console.log('✏️ Edit mode detected for request ID:', id);
       loadExistingRequest(id);
     } else {
       fetchInitialData();
@@ -213,16 +212,11 @@ const StockIssuancePersonal: React.FC = () => {
 
   const fetchInitialData = async () => {
     try {
-      console.log('🔄 Loading stock issuance form data (Personal Request)...');
       
       // Fetch inventory items using the local service
-      console.log('📦 Fetching inventory items...');
       const inventory = await inventoryLocalService.getAll();
-      console.log('📦 Inventory response:', inventory);
 
       if (inventory && inventory.length > 0) {
-        console.log('📦 First item structure:', JSON.stringify(inventory[0], null, 2));
-        console.log('📦 API returned item_master_id:', inventory[0].item_master_id);
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
           .map((item) => {
@@ -240,14 +234,10 @@ const StockIssuancePersonal: React.FC = () => {
           });
 
         setInventoryItems(transformedItems);
-        console.log('✅ Inventory items loaded:', transformedItems.length);
       } else {
         setInventoryItems([]);
-        console.log('⚠️ No inventory items found');
       }
 
-      console.log('✅ Personal stock issuance form data loaded successfully');
-      console.log('👤 Using session data:', { 
         user: user?.user_name, 
         office: selectedOfficeId, 
         wing: selectedWingId 
@@ -277,7 +267,6 @@ const StockIssuancePersonal: React.FC = () => {
 
   const loadExistingRequest = async (requestId: string) => {
     try {
-      console.log('📝 Loading existing request for editing:', requestId);
       setIsLoading(true);
       
       // Fetch the existing request data
@@ -294,7 +283,6 @@ const StockIssuancePersonal: React.FC = () => {
         const data = await response.json();
         if (data.success && data.data) {
           const request = data.data;
-          console.log('📝 Existing request loaded:', request);
           
           // Populate form with existing data
           setPurpose(request.purpose || '');
@@ -427,15 +415,10 @@ const StockIssuancePersonal: React.FC = () => {
   };
 
   const submitIssuanceRequest = async () => {
-    console.log('🚀 Starting submitIssuanceRequest...');
-    console.log('📋 Current issuanceItems:', issuanceItems);
-    console.log('📋 Current issuanceItems length:', issuanceItems.length);
 
     if (!validateForm()) {
-      console.log('❌ Form validation failed');
       return;
     }
-    console.log('✅ Form validation passed');
 
     setIsLoading(true);
     setError('');
@@ -444,7 +427,6 @@ const StockIssuancePersonal: React.FC = () => {
     try {
       if (isEditMode && id) {
         // Update existing request
-        console.log('📝 Updating existing request:', id);
         
         const apiBase = getApiBaseUrl();
         const updateData = {
@@ -488,9 +470,7 @@ const StockIssuancePersonal: React.FC = () => {
         }
       } else {
         // Create new request (existing logic)
-        console.log('📝 Creating new request...');
         const requestNumber = stockIssuanceService.generateRequestNumber();
-        console.log('🔢 Generated request number:', requestNumber);
         
         // Create issuance request using SQL Server API
         const requestData = {
@@ -507,15 +487,10 @@ const StockIssuancePersonal: React.FC = () => {
           is_returnable: isReturnable,
           request_status: 'Submitted'
         };
-        console.log('📋 Request data:', requestData);
 
         const requestResult = await stockIssuanceService.submitRequest(requestData);
-        console.log('✅ Request submitted successfully:', requestResult);
-        console.log('🔍 Request result id:', requestResult.id);
-        console.log('🔍 Request result type:', typeof requestResult.id);
 
       // Add issuance items
-      console.log('📦 Processing issuance items...');
       const requestItems = issuanceItems.map(item => {
         const itemData = {
           item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
@@ -525,18 +500,13 @@ const StockIssuancePersonal: React.FC = () => {
           item_type: item.item_type,
           custom_item_name: item.item_type === 'custom' ? item.custom_item_name : undefined
         };
-        console.log('📦 Submitting item:', itemData);
         return itemData;
       });
-      console.log('📦 All request items:', requestItems);
 
-      console.log('📦 Calling submitItems with requestId:', requestResult.id, 'and items:', requestItems);
       await stockIssuanceService.submitItems(requestResult.id, requestItems);
-      console.log('✅ Items submitted successfully');
 
       // Submit for approval workflow
       try {
-        console.log('🔄 Submitting for approval workflow...');
         
         // Get stock issuance workflow
         const workflows = await approvalForwardingService.getWorkflows();
@@ -548,7 +518,6 @@ const StockIssuancePersonal: React.FC = () => {
             'stock_issuance', 
             stockWorkflow.id
           );
-          console.log('✅ Successfully submitted for approval');
         } else {
           console.warn('⚠️ No stock issuance workflow found - request submitted without approval process');
         }
@@ -558,7 +527,6 @@ const StockIssuancePersonal: React.FC = () => {
       }
 
         const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${user?.user_name}!`;
-        console.log('🎉 Success message:', successMessage);
         
         setSuccess(successMessage);
         

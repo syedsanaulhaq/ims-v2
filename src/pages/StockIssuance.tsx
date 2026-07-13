@@ -111,7 +111,6 @@ const StockIssuance: React.FC = () => {
           ? parseInt(selectedBranchId) 
           : undefined;
         
-        console.log('🔄 Loading users for:', { 
           selectedOfficeId, 
           selectedWingId, 
           selectedBranchId_DECID: selectedBranchId,
@@ -194,12 +193,9 @@ const StockIssuance: React.FC = () => {
 
   const fetchInitialData = async () => {
     try {
-      console.log('🔄 Loading stock issuance form data...');
       
       // Fetch inventory items using the local service
-      console.log('📦 Fetching inventory items...');
       const inventory = await inventoryLocalService.getAll();
-      console.log('📦 Inventory response:', inventory);
 
       if (inventory && inventory.length > 0) {
         // Transform data to match the expected structure for StockIssuance
@@ -216,22 +212,18 @@ const StockIssuance: React.FC = () => {
           }));
 
         setInventoryItems(transformedItems);
-        console.log('✅ Inventory items loaded:', transformedItems.length);
       } else {
         setInventoryItems([]);
-        console.log('⚠️ No inventory items found');
       }
 
       // Fetch ERP data using ERP service
       try {
-        console.log('🏢 Fetching ERP data (offices, wings, decs)...');
         const [officesData, wingsData, decsData] = await Promise.all([
           erpDatabaseService.getActiveOffices(),
           erpDatabaseService.getActiveWings(),
           erpDatabaseService.getActiveDecs()
         ]);
 
-        console.log('🏢 ERP Data loaded:', { 
           offices: officesData.length, 
           wings: wingsData.length, 
           decs: decsData.length
@@ -246,7 +238,6 @@ const StockIssuance: React.FC = () => {
         setError('Failed to load office, wing, DEC, and user data');
       }
 
-      console.log('✅ Stock issuance form data loaded successfully');
     } catch (error: any) {
       console.error('❌ Error loading stock issuance form data:', error);
       setError('Failed to load data: ' + error.message);
@@ -410,7 +401,6 @@ const StockIssuance: React.FC = () => {
 
       // Submit for approval workflow
       try {
-        console.log('🔄 Submitting for approval workflow...');
         
         // Get stock issuance workflow
         const workflows = await approvalForwardingService.getWorkflows();
@@ -422,7 +412,6 @@ const StockIssuance: React.FC = () => {
             'stock_issuance', 
             stockWorkflow.id
           );
-          console.log('✅ Successfully submitted for approval');
         } else {
           console.warn('⚠️ No stock issuance workflow found - request submitted without approval process');
         }

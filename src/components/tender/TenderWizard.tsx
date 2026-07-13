@@ -60,7 +60,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
     const loadData = async () => {
       try {
         setLoading(true);
-        console.log('🔄 Loading vendors, categories, and items...');
 
         // Fetch vendors
         const vendorsRes = await fetch('http://localhost:3001/api/vendors');
@@ -72,7 +71,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
           email: (v.email || '').trim() || 'N/A'
         }));
         setVendors(vendorsList);
-        console.log('✅ Vendors loaded:', vendorsList.length);
 
         // Fetch categories
         const catsRes = await fetch('http://localhost:3001/api/categories');
@@ -81,7 +79,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
           (a.name || '').localeCompare(b.name || '')
         );
         setCategories(catsList);
-        console.log('✅ Categories loaded:', catsList.length);
 
         // Fetch all items
         const allItemsList: ItemData[] = [];
@@ -101,7 +98,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
           }
         }
         setAllItems(allItemsList);
-        console.log('✅ All items loaded:', allItemsList.length);
       } catch (error) {
         console.error('❌ Error loading data:', error);
       } finally {
@@ -117,11 +113,9 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
     if (editingId && editingId !== 'new') {
       const fetchTender = async () => {
         try {
-          console.log('📝 Loading tender for editing:', editingId);
           const res = await fetch(`http://localhost:3001/api/tenders/${editingId}`);
           if (res.ok) {
             const data = await res.json();
-            console.log('✅ Tender data loaded:', data);
 
             setTender({ code: data.code, name: data.name, date: data.date });
 
@@ -250,7 +244,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
       items
     };
 
-    console.log('📦 Submitting:', formData);
 
     try {
       const url = editingId && editingId !== 'new'
@@ -266,7 +259,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
       if (!response.ok) throw new Error(`API error: ${response.status}`);
 
       const result = await response.json();
-      console.log('✅ Tender saved:', result);
 
       onComplete({
         ...result,

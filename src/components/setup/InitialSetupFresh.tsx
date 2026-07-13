@@ -27,7 +27,6 @@ interface UpdatedStock {
 }
 
 const InitialSetupFresh: React.FC = () => {
-  console.log("🎯 BRAND NEW Initial Setup component - Built from scratch for CurrentStock!");
   
   const { toast } = useToast();
   
@@ -57,7 +56,6 @@ const InitialSetupFresh: React.FC = () => {
   const fetchCurrentStock = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching item masters and current stock...');
       
       // First try to get current stock, if that fails, get item masters
       let stockResponse;
@@ -68,7 +66,6 @@ const InitialSetupFresh: React.FC = () => {
         }
         const stockData = await stockResponse.json();
         if (stockData.length > 0) {
-          console.log('✅ Current stock loaded:', stockData.length, 'items');
           setStockItems(stockData);
           setFilteredItems(stockData);
           
@@ -82,7 +79,6 @@ const InitialSetupFresh: React.FC = () => {
           return;
         }
       } catch (error) {
-        console.log('Current stock not available, falling back to item masters');
       }
       
       // Fallback: Get item masters and create CurrentStock entries
@@ -118,7 +114,6 @@ const InitialSetupFresh: React.FC = () => {
         specifications: item.specifications
       }));
       
-      console.log('✅ Item masters loaded for initial setup:', transformedItems.length, 'items');
       
       setStockItems(transformedItems);
       setFilteredItems(transformedItems);
@@ -179,7 +174,6 @@ const InitialSetupFresh: React.FC = () => {
         return;
       }
 
-      console.log('🚀 Saving initial stock setup:', itemsToSave.length, 'items');
 
       // Try the update endpoint first, if it fails, use initial setup endpoint
       let response;
@@ -196,7 +190,6 @@ const InitialSetupFresh: React.FC = () => {
           }),
         });
       } catch (error) {
-        console.log('Update endpoint not available, using initial setup endpoint');
         
         // Fallback to initial setup endpoint
         const initialStocks = itemsToSave.map(item => ({
@@ -223,7 +216,6 @@ const InitialSetupFresh: React.FC = () => {
       }
 
       const result = await response.json();
-      console.log('✅ Stock quantities saved successfully:', result);
 
       toast({
         title: "Success",

@@ -48,7 +48,6 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
   const fetchDeliveries = async () => {
     try {
       setLoading(true);
-      console.log('📦 DeliveryListModal - Fetching deliveries for PO:', poId);
       const response = await fetch(`${getApiBaseUrl()}/deliveries/by-po/${poId}`);
       
       if (!response.ok) {
@@ -57,7 +56,6 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
       }
       
       const data = await response.json();
-      console.log('✅ Deliveries loaded:', data.length);
       setDeliveries(data);
       setError(null);
     } catch (err: any) {
@@ -89,7 +87,6 @@ export default function DeliveryListModal({ poId, poNumber, vendorName, onClose 
       }
 
       const result = await response.json();
-      console.log('✅ Delivery deleted successfully');
       alert(result.message || 'Delivery deleted. Items are now available for re-delivery.');
       setDeliveries(deliveries.filter(d => d.id !== deliveryId));
       setDeleteConfirm(null);

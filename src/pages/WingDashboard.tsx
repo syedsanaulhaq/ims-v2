@@ -113,7 +113,6 @@ const WingDashboard = () => {
             .catch(() => [])
         ]);
 
-        console.log('Wing Dashboard Data:', {
           requests: requestsRes,
           issuedItems: issuedItemsRes,
           approvals: approvalsRes,
