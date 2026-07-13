@@ -57,6 +57,7 @@ interface RequiredItem {
   item_code: string | null;
   category_name: string | null;
   created_by_name: string | null;
+  recommended_procurement_type: 'annual-tender' | 'contract' | 'spot-purchase' | null;
 }
 
 interface RequiredItemsSummary {
@@ -99,6 +100,11 @@ export default function RequiredItemsPage() {
   const [tenderActionType, setTenderActionType] = useState<'new' | 'existing'>('new');
   const [selectedTenderId, setSelectedTenderId] = useState<string>('');
   const [selectedTenderType, setSelectedTenderType] = useState<'annual-tender' | 'contract' | 'spot-purchase'>('contract');
+
+  // Per-item tender selection state (row-level routing)
+  const [itemTenderMap, setItemTenderMap] = useState<Record<string, string>>({});
+  const [itemTenderTypeMap, setItemTenderTypeMap] = useState<Record<string, 'annual-tender' | 'contract' | 'spot-purchase'>>({});
+  const [linkingItemIds, setLinkingItemIds] = useState<Set<string>>(new Set());
 
   // Stats
   const [stats, setStats] = useState({ Pending: 0, 'In Tender': 0, Procured: 0, Cancelled: 0 });
@@ -322,6 +328,114 @@ export default function RequiredItemsPage() {
     }
   };
 
+  const getTenderTypeLabel = (type: string | null) => {
+    switch (type) {
+      case 'spot-purchase': return 'Petty Cash';
+      case 'annual-tender': return 'Annual';
+      case 'contract': return 'Contract';
+      default: return 'Contract';
+    }
+  };
+
+  const handleItemTenderTypeChange = (itemId: string, type: 'annual-tender' | 'contract' | 'spot-purchase') => {
+    setItemTenderTypeMap(prev => ({ ...prev, [itemId]: type }));
+    // Clear any selected tender when type changes
+    setItemTenderMap(prev => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+  };
+
+  const handleItemTenderChange = (itemId: string, tenderId: string) => {
+    if (tenderId === '__new__') {
+      const item = items.find(i => i.id === itemId);
+      if (!item) return;
+      const selectedType = itemTenderTypeMap[itemId] || 'contract';
+      const itemsForNewTender = [{
+        item_master_id: item.item_master_id || '',
+        nomenclature: item.nomenclature,
+        quantity: item.quantity_needed,
+        unit: item.unit || '',
+        source_required_item_id: item.id,
+        source_request_id: item.source_request_id,
+        source_request_number: item.source_request_number,
+        requested_by_wing_name: item.requested_by_wing_name,
+        urgency_level: item.urgency_level,
+        remarks: item.notes || 'Imported from Out-of-Stock Pipeline'
+      }];
+      sessionStorage.setItem('prefilled_tender_items', JSON.stringify(itemsForNewTender));
+      sessionStorage.setItem('prefilled_tender_source_required_item_ids', JSON.stringify([item.id]));
+
+      let path = '/dashboard/create-tender';
+      if (selectedType === 'annual-tender') {
+        path += '?type=annual-tender';
+      } else if (selectedType === 'spot-purchase') {
+        path += '?type=spot-purchase';
+      }
+      navigate(path);
+      return;
+    }
+    setItemTenderMap(prev => ({ ...prev, [itemId]: tenderId }));
+  };
+
+  const tendersForType = (type: string | undefined) => {
+    if (!type) return [];
+    return openTenders.filter(t => (t.tender_type || 'contract') === type);
+  };
+
+  const handleAssignItemTender = async (itemId: string) => {
+    const tenderId = itemTenderMap[itemId];
+    if (!tenderId) {
+      alert('Please select a tender first.');
+      return;
+    }
+    const selectedTender = openTenders.find(t => t.id === tenderId);
+    if (!selectedTender) {
+      alert('Selected tender not found.');
+      return;
+    }
+
+    setLinkingItemIds(prev => {
+      const next = new Set(prev);
+      next.add(itemId);
+      return next;
+    });
+
+    try {
+      const res = await fetch('http://localhost:3001/api/required-items/link-tender', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_ids: [itemId],
+          tender_id: tenderId,
+          tender_type: selectedTender.tender_type || 'contract'
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to link item to tender');
+      }
+
+      alert('Item linked to tender successfully.');
+      setItemTenderMap(prev => {
+        const next = { ...prev };
+        delete next[itemId];
+        return next;
+      });
+      fetchRequiredItems();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to link item to tender');
+    } finally {
+      setLinkingItemIds(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  };
+
   // Filter individual list based on search term
   const filteredItems = items.filter(item => {
     const term = searchTerm.toLowerCase();
@@ -492,6 +606,7 @@ export default function RequiredItemsPage() {
                   <TableHead>Source Request</TableHead>
                   <TableHead>Urgency</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Tender Type</TableHead>
                   <TableHead>Tender Association</TableHead>
                   {filterStatus === 'Pending' && <TableHead className="w-[80px]">Actions</TableHead>}
                 </TableRow>
@@ -545,7 +660,63 @@ export default function RequiredItemsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {item.tender_reference ? (
+                        {item.status === 'Pending' ? (
+                          <Select
+                            value={itemTenderTypeMap[item.id] || ''}
+                            onValueChange={(val) => handleItemTenderTypeChange(item.id, val as any)}
+                          >
+                            <SelectTrigger className="w-[140px] text-xs">
+                              <SelectValue placeholder="Select type..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="contract" className="text-xs">Contract</SelectItem>
+                              <SelectItem value="annual-tender" className="text-xs">Annual</SelectItem>
+                              <SelectItem value="spot-purchase" className="text-xs">Petty Cash</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-xs text-muted-foreground capitalize">{item.tender_type?.replace('-', ' ') || '—'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.status === 'Pending' ? (
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={itemTenderMap[item.id] || ''}
+                              onValueChange={(val) => handleItemTenderChange(item.id, val)}
+                              disabled={!itemTenderTypeMap[item.id]}
+                            >
+                              <SelectTrigger className="w-[180px] text-xs">
+                                <SelectValue placeholder={itemTenderTypeMap[item.id] ? 'Select tender...' : 'Select type first...'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {tendersForType(itemTenderTypeMap[item.id]).map(tender => (
+                                  <SelectItem key={tender.id} value={tender.id} className="text-xs">
+                                    {tender.title} {tender.reference_number ? `(${tender.reference_number})` : ''}
+                                  </SelectItem>
+                                ))}
+                                {tendersForType(itemTenderTypeMap[item.id]).length === 0 && (
+                                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                    No {getTenderTypeLabel(itemTenderTypeMap[item.id])} tenders found.
+                                  </div>
+                                )}
+                                <SelectItem value="__new__" className="text-xs font-semibold text-emerald-600">
+                                  + Create new {getTenderTypeLabel(itemTenderTypeMap[item.id])} tender
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {itemTenderMap[item.id] && itemTenderMap[item.id] !== '__new__' && (
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-2 text-xs"
+                                onClick={() => handleAssignItemTender(item.id)}
+                                disabled={linkingItemIds.has(item.id)}
+                              >
+                                {linkingItemIds.has(item.id) ? 'Linking...' : 'Assign'}
+                              </Button>
+                            )}
+                          </div>
+                        ) : item.tender_reference ? (
                           <div className="text-xs">
                             <div className="font-semibold text-blue-600 dark:text-blue-400">{item.tender_reference}</div>
                             <div className="text-muted-foreground capitalize">({item.tender_type?.replace('-', ' ')})</div>

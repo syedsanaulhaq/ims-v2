@@ -159,7 +159,8 @@ router.post('/', upload.fields([
         const itemFields = [
           'item_master_id', 'nomenclature', 'quantity', 'quantity_received',
           'estimated_unit_price', 'actual_unit_price', 'total_amount',
-          'specifications', 'remarks', 'status'
+          'specifications', 'remarks', 'status',
+          'source_required_item_id', 'source_required_item_ids'
         ];
 
         for (const field of itemFields) {

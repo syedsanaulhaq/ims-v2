@@ -16,6 +16,79 @@ const {
   resolveItemMasterGroupNumber
 } = require('../utils/workflowEngine.cjs');
 
+let employeeBranchViewColumnsCache = null;
+
+async function getEmployeeBranchViewColumns(pool) {
+  if (employeeBranchViewColumnsCache) return employeeBranchViewColumnsCache;
+  const colsResult = await pool.request().query(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'vw_employee_branch'
+  `);
+  employeeBranchViewColumnsCache = new Set(
+    (colsResult.recordset || []).map(r => String(r.COLUMN_NAME || '').toLowerCase())
+  );
+  return employeeBranchViewColumnsCache;
+}
+
+function pickExistingColumn(columnsSet, candidates) {
+  for (const name of candidates) {
+    if (columnsSet.has(name.toLowerCase())) return name;
+  }
+  return null;
+}
+
+async function resolveBranchNameFromEmployeeView(pool, branchId) {
+  try {
+    if (!branchId) return null;
+    const result = await pool.request()
+      .input('branchId', sql.NVarChar(100), String(branchId))
+      .query(`
+        SELECT TOP 1 BranchName AS branch_name
+        FROM vw_employee_branch
+        WHERE CONVERT(NVARCHAR(100), BranchID) = @branchId
+      `);
+    return result.recordset?.[0]?.branch_name || null;
+  } catch (error) {
+    console.warn('⚠️ Could not resolve branch from vw_employee_branch:', error.message);
+    return null;
+  }
+}
+
+async function resolveRequesterNameFromEmployeeView(pool, userId) {
+  try {
+    if (!userId) return null;
+    const result = await pool.request()
+      .input('userId', sql.NVarChar(450), String(userId))
+      .query(`
+        SELECT TOP 1 FullName AS full_name
+        FROM vw_employee_branch
+        WHERE CONVERT(NVARCHAR(450), Id) = @userId
+      `);
+    return result.recordset?.[0]?.full_name || null;
+  } catch (error) {
+    console.warn('⚠️ Could not resolve requester name from vw_employee_branch:', error.message);
+    return null;
+  }
+}
+
+async function resolveWingNameFromEmployeeView(pool, wingId) {
+  try {
+    if (!wingId) return null;
+    const result = await pool.request()
+      .input('wingId', sql.NVarChar(100), String(wingId))
+      .query(`
+        SELECT TOP 1 WingName AS wing_name
+        FROM vw_employee_branch
+        WHERE CONVERT(NVARCHAR(100), WingID) = @wingId
+      `);
+    return result.recordset?.[0]?.wing_name || null;
+  } catch (error) {
+    console.warn('⚠️ Could not resolve wing from vw_employee_branch:', error.message);
+    return null;
+  }
+}
+
 const WORKFLOW_ROLE_FILTER_SQL = WORKFLOW_ROLE_NAMES
   .map((_, index) => `@role${index}`)
   .join(', ');
@@ -48,7 +121,11 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       SELECT
         sir.id AS request_id,
         sir.request_number,
+        sir.request_type,
+        sir.requester_user_id,
         sir.requester_wing_id,
+        sir.requester_office_id,
+        sir.requester_branch_id,
         sir.urgency_level,
         ai.item_master_id,
         COALESCE(ai.nomenclature, im.nomenclature, ai.custom_item_name) AS nomenclature,
@@ -58,11 +135,18 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
             THEN ISNULL(ai.requested_quantity, 0) - ISNULL(ai.allocated_quantity, 0)
           ELSE ISNULL(ai.requested_quantity, 0)
         END AS quantity_needed,
-        CAST(sir.requester_branch_id AS NVARCHAR(200)) AS branch_name
+        u.FullName AS requester_name,
+        w.Name AS wing_name,
+        o.strOfficeName AS office_name,
+        b.branch_name AS branch_name
       FROM request_approvals ra
       INNER JOIN stock_issuance_requests sir ON sir.id = ra.request_id
       INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
       LEFT JOIN item_masters im ON im.id = ai.item_master_id
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
+      LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
+      LEFT JOIN branches b ON sir.requester_branch_id = b.id
       WHERE ra.id = @approvalId
         AND sir.request_type = 'branch'
         AND ai.decision_type = 'FORWARD_TO_ADMIN'
@@ -72,6 +156,19 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
   for (const item of shortageResult.recordset || []) {
     const quantityNeeded = Math.max(1, Number(item.quantity_needed || 0));
 
+    // Prefer names from vw_employee_branch when available
+    const viewBranchName = await resolveBranchNameFromEmployeeView(pool, item.requester_branch_id);
+    const viewRequesterName = await resolveRequesterNameFromEmployeeView(pool, item.requester_user_id);
+    const viewWingName = await resolveWingNameFromEmployeeView(pool, item.requester_wing_id);
+
+    // Resolve the most meaningful requester label
+    let requestedByName = viewBranchName || item.branch_name || item.office_name || 'Branch';
+    if (String(item.request_type || '').toLowerCase() === 'individual' || String(item.request_type || '').toLowerCase() === 'personal') {
+      requestedByName = viewRequesterName || item.requester_name || 'Personal';
+    } else if (String(item.request_type || '').toLowerCase() === 'wing' || String(item.request_type || '').toLowerCase() === 'organizational') {
+      requestedByName = viewWingName || item.wing_name || item.office_name || 'Wing';
+    }
+
     await transaction.request()
       .input('sourceRequestId', sql.UniqueIdentifier, item.request_id)
       .input('sourceRequestNumber', sql.NVarChar(100), item.request_number)
@@ -80,7 +177,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       .input('quantityNeeded', sql.Int, quantityNeeded)
       .input('unit', sql.NVarChar(50), item.unit || 'units')
       .input('wingId', sql.Int, item.requester_wing_id || null)
-      .input('branchName', sql.NVarChar(200), item.branch_name || null)
+      .input('requestedByName', sql.NVarChar(200), requestedByName)
       .input('urgencyLevel', sql.NVarChar(50), item.urgency_level || 'Medium')
       .input('createdBy', sql.NVarChar(450), userId)
       .input('notes', sql.NVarChar(sql.MAX), 'Demand created from branch shortage forwarded to admin workflow')
@@ -101,6 +198,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
           SET quantity_needed = @quantityNeeded,
               unit = @unit,
               urgency_level = @urgencyLevel,
+              requested_by_wing_name = @requestedByName,
               notes = @notes,
               updated_at = GETDATE()
           WHERE source_request_id = @sourceRequestId
@@ -118,7 +216,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
              requested_by_wing_id, requested_by_wing_name, urgency_level, status, notes, created_by)
           VALUES
             (@itemMasterId, @nomenclature, @quantityNeeded, @unit, @sourceRequestId, @sourceRequestNumber,
-             @wingId, @branchName, @urgencyLevel, 'Pending', @notes, @createdBy);
+             @wingId, @requestedByName, @urgencyLevel, 'Pending', @notes, @createdBy);
         END
       `);
   }
@@ -133,17 +231,28 @@ const createProcurementRequestFromApproval = async (transaction, approvalId, use
       SELECT
         sir.id AS request_id,
         sir.request_number,
+        sir.request_type,
+        sir.requester_user_id,
         sir.requester_wing_id,
+        sir.requester_office_id,
+        sir.requester_branch_id,
         sir.urgency_level,
         ai.item_master_id,
         COALESCE(ai.nomenclature, im.nomenclature, ai.custom_item_name) AS nomenclature,
         COALESCE(im.unit, ai.unit, 'units') AS unit,
         ISNULL(ai.requested_quantity, 0) AS quantity_needed,
-        CAST(sir.requester_branch_id AS NVARCHAR(200)) AS branch_name
+        u.FullName AS requester_name,
+        w.Name AS wing_name,
+        o.strOfficeName AS office_name,
+        b.branch_name AS branch_name
       FROM request_approvals ra
       INNER JOIN stock_issuance_requests sir ON sir.id = ra.request_id
       INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
       LEFT JOIN item_masters im ON im.id = ai.item_master_id
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
+      LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
+      LEFT JOIN branches b ON sir.requester_branch_id = b.id
       WHERE ra.id = @approvalId
         AND ai.decision_type = 'FORWARD_TO_PROCUREMENT'
         AND ISNULL(ai.requested_quantity, 0) > 0
@@ -151,6 +260,19 @@ const createProcurementRequestFromApproval = async (transaction, approvalId, use
 
   for (const item of procurementResult.recordset || []) {
     const quantityNeeded = Math.max(1, Number(item.quantity_needed || 0));
+
+    // Prefer names from vw_employee_branch when available
+    const viewBranchName = await resolveBranchNameFromEmployeeView(pool, item.requester_branch_id);
+    const viewRequesterName = await resolveRequesterNameFromEmployeeView(pool, item.requester_user_id);
+    const viewWingName = await resolveWingNameFromEmployeeView(pool, item.requester_wing_id);
+
+    // Resolve the most meaningful requester label
+    let requestedByName = viewBranchName || item.branch_name || item.office_name || 'Branch';
+    if (String(item.request_type || '').toLowerCase() === 'individual' || String(item.request_type || '').toLowerCase() === 'personal') {
+      requestedByName = viewRequesterName || item.requester_name || 'Personal';
+    } else if (String(item.request_type || '').toLowerCase() === 'wing' || String(item.request_type || '').toLowerCase() === 'organizational') {
+      requestedByName = viewWingName || item.wing_name || item.office_name || 'Wing';
+    }
 
     await transaction.request()
       .input('sourceRequestId', sql.UniqueIdentifier, item.request_id)
@@ -160,7 +282,7 @@ const createProcurementRequestFromApproval = async (transaction, approvalId, use
       .input('quantityNeeded', sql.Int, quantityNeeded)
       .input('unit', sql.NVarChar(50), item.unit || 'units')
       .input('wingId', sql.Int, item.requester_wing_id || null)
-      .input('branchName', sql.NVarChar(200), item.branch_name || null)
+      .input('requestedByName', sql.NVarChar(200), requestedByName)
       .input('urgencyLevel', sql.NVarChar(50), item.urgency_level || 'Medium')
       .input('createdBy', sql.NVarChar(450), userId)
       .input('notes', sql.NVarChar(sql.MAX), 'Procurement request created from approval workflow')
@@ -181,6 +303,7 @@ const createProcurementRequestFromApproval = async (transaction, approvalId, use
           SET quantity_needed = @quantityNeeded,
               unit = @unit,
               urgency_level = @urgencyLevel,
+              requested_by_wing_name = @requestedByName,
               notes = @notes,
               updated_at = GETDATE()
           WHERE source_request_id = @sourceRequestId
@@ -198,7 +321,7 @@ const createProcurementRequestFromApproval = async (transaction, approvalId, use
              requested_by_wing_id, requested_by_wing_name, urgency_level, status, notes, created_by)
           VALUES
             (@itemMasterId, @nomenclature, @quantityNeeded, @unit, @sourceRequestId, @sourceRequestNumber,
-             @wingId, @branchName, @urgencyLevel, 'Pending', @notes, @createdBy);
+             @wingId, @requestedByName, @urgencyLevel, 'Pending', @notes, @createdBy);
         END
       `);
   }
