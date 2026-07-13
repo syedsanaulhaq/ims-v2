@@ -721,7 +721,6 @@ router.post('/request-verification', async (req, res) => {
       forwardToStoreKeeperId
     } = req.body;
 
-    console.log('📦 Verification request received:', { stockIssuanceId, itemMasterId, itemNomenclature, requestedByUserId, wingId });
 
     if (!stockIssuanceId || !itemMasterId || !requestedByUserId) {
       return res.status(400).json({ 
@@ -760,9 +759,7 @@ router.post('/request-verification', async (req, res) => {
       if (skSearchResult.recordset.length > 0) {
         storeKeeperUserId = skSearchResult.recordset[0].Id;
         storeKeeperName = skSearchResult.recordset[0].FullName;
-        console.log('✅ Store keeper auto-assigned:', { storeKeeperUserId, storeKeeperName });
       } else {
-        console.log('⚠️ No store keepers found for wing:', wingId);
       }
     }
 
@@ -805,7 +802,6 @@ router.post('/request-verification', async (req, res) => {
       `);
 
     const verificationId = result.recordset[0]?.id;
-    console.log('✅ Verification request created:', verificationId);
 
     res.json({
       success: true,
@@ -833,7 +829,6 @@ router.get('/my-forwarded-verifications', async (req, res) => {
     }
 
     const pool = getPool();
-    console.log('📋 My Forwarded Verifications - userId:', userId);
 
     const result = await pool.request()
       .input('userId', sql.NVarChar, userId)
@@ -868,7 +863,6 @@ router.get('/my-forwarded-verifications', async (req, res) => {
         ORDER BY ivr.forwarded_at DESC
       `);
 
-    console.log('✅ Found', result.recordset.length, 'forwarded verifications for store keeper', userId);
 
     res.json({
       success: true,
@@ -1092,7 +1086,6 @@ router.post('/update-verification', async (req, res) => {
       `);
     }
 
-    console.log('✅ Verification updated:', { verificationId, finalStatus, actionType });
 
     res.json({
       success: true,
@@ -1484,6 +1477,5 @@ router.get('/current-stock/:id/history', requireGlobalInventoryAccess, async (re
   }
 });
 
-console.log('✅ Inventory Routes Loaded');
 
 module.exports = router;

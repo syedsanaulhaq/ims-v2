@@ -54,7 +54,6 @@ router.get('/disposals', async (req, res) => {
   } catch (error) {
     // Return empty array if table doesn't exist (error 208)
     if (error.number === 208) {
-      console.log('⚠️  Disposals table does not exist - returning empty array');
       return res.json([]);
     }
     console.error('Error fetching disposals:', error);
@@ -113,7 +112,6 @@ router.post('/disposals', requireAuth, async (req, res) => {
   } catch (error) {
     // Return 501 Not Implemented if table doesn't exist (error 208)
     if (error.number === 208) {
-      console.log('⚠️  Disposals table does not exist - feature not implemented');
       return res.status(501).json({ error: 'Disposals feature not yet implemented' });
     }
     console.error('Error creating disposal:', error);
@@ -304,7 +302,6 @@ router.get('/offices/:officeId/wings', async (req, res) => {
         ORDER BY Name
       `);
 
-    console.log(`✅ Fetched ${result.recordset.length} wings for office ${officeId}`);
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching wings for office:', error);
@@ -345,7 +342,6 @@ router.get('/wings/:wingId/decs', async (req, res) => {
         ORDER BY DECName
       `);
 
-    console.log(`✅ Fetched ${result.recordset.length} DECs for wing ${wingId}`);
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching DECs for wing:', error);
@@ -382,7 +378,6 @@ router.get('/health', async (req, res) => {
 router.get('/my-notifications', requireAuth, async (req, res) => {
   try {
     const userId = req.session?.userId;
-    console.log(`📬 Fetching notifications for user: ${userId}`);
     
     const { unreadOnly = false, limit = 50 } = req.query;
     const pool = getPool();
@@ -512,11 +507,6 @@ router.get('/my-notifications', requireAuth, async (req, res) => {
     const requesterPendingCount = result.recordset.filter(n => n.SourceType === 'requester-pending').length;
     const regularCount = result.recordset.filter(n => n.SourceType === 'notification').length;
     
-    console.log(`✅ Returned ${result.recordset.length} total notifications for user ${userId}`);
-    console.log(`   - ${regularCount} regular notifications`);
-    console.log(`   - ${verificationCount} verification notifications`);
-    console.log(`   - ${supervisorPendingCount} supervisor pending notifications`);
-    console.log(`   - ${requesterPendingCount} requester pending notifications`);
   } catch (error) {
     console.error('❌ Error fetching my notifications:', error);
     res.status(500).json({ 
@@ -527,6 +517,5 @@ router.get('/my-notifications', requireAuth, async (req, res) => {
   }
 });
 
-console.log('✅ Disposals and Utility Routes Loaded');
 
 module.exports = router;

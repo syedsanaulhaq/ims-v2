@@ -282,6 +282,5 @@ router.post('/:id/restore', async (req, res) => {
   }
 });
 
-console.log('✅ Vendor Routes Loaded');
 
 module.exports = router;

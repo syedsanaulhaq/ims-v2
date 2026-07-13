@@ -58,7 +58,6 @@ router.get('/check', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Permission key is required' });
     }
 
-    console.log('🔐 Permission check for:', permission, 'userId:', req.session.userId);
 
     const result = await pool.request()
       .input('userId', sql.NVarChar(450), req.session.userId)
@@ -152,7 +151,6 @@ router.get('/roles', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
 
-    console.log('📋 Fetching IMS roles...');
 
     const result = await pool.request().query(`
       SELECT 
@@ -179,7 +177,6 @@ router.get('/roles', requireAuth, async (req, res) => {
         display_name
     `);
 
-    console.log(`✅ Found ${result.recordset.length} roles`);
     res.json(result.recordset);
   } catch (error) {
     console.error('Error getting roles:', error);
@@ -619,6 +616,5 @@ router.delete('/users/:userId/roles/:roleId', requireAuth, requirePermission('us
   }
 });
 
-console.log('✅ Permissions Routes Loaded');
 
 module.exports = router;

@@ -38,10 +38,6 @@ const upload = multer({
 // Middleware to wrap multer and ensure form fields are properly parsed
 const handleDeliveryUpload = (req, res, next) => {
   upload.single('challan_file')(req, res, function(err) {
-    console.log('🔧 handleDeliveryUpload middleware - Processing request');
-    console.log('   Content-Type:', req.headers['content-type']);
-    console.log('   req.body after multer:', req.body ? Object.keys(req.body) : 'undefined');
-    console.log('   req.file:', req.file ? req.file.filename : 'no file');
     
     if (err instanceof multer.MulterError) {
       console.error('❌ Multer error:', err.message);
@@ -293,11 +289,6 @@ router.put('/:id', async (req, res) => {
       delivery_items 
     } = bodyData;
 
-    console.log('🔄 Updating delivery:', id);
-    console.log('   PO ID:', po_id);
-    console.log('   Delivery Date:', delivery_date);
-    console.log('   Personnel:', delivery_personnel);
-    console.log('   Challan:', delivery_chalan);
 
     const transaction = new sql.Transaction(getPool());
     await transaction.begin();
@@ -355,7 +346,6 @@ router.put('/:id', async (req, res) => {
       }
 
       await transaction.commit();
-      console.log('✅ Delivery updated successfully');
       res.json({ success: true, message: 'Delivery updated successfully' });
     } catch (error) {
       await transaction.rollback();
@@ -385,7 +375,6 @@ router.delete('/:id', async (req, res) => {
     await transaction.begin();
 
     try {
-      console.log(`🗑️  Soft deleting delivery: ${id}`);
 
       // Step 1: Soft delete stock acquisitions (FK constraint)
       const stockResult = await transaction.request()
@@ -398,7 +387,6 @@ router.delete('/:id', async (req, res) => {
               deleted_by = @deletedBy
           WHERE delivery_id = @id
         `);
-      console.log(`   - Soft deleted ${stockResult.rowsAffected[0]} stock acquisition(s)`);
 
       // Step 2: Soft delete delivery items
       const itemsResult = await transaction.request()
@@ -411,7 +399,6 @@ router.delete('/:id', async (req, res) => {
               deleted_by = @deletedBy
           WHERE delivery_id = @id
         `);
-      console.log(`   - Soft deleted ${itemsResult.rowsAffected[0]} delivery item(s)`);
 
       // Step 3: Soft delete delivery
       const deliveryResult = await transaction.request()
@@ -424,10 +411,8 @@ router.delete('/:id', async (req, res) => {
               deleted_by = @deletedBy
           WHERE id = @id
         `);
-      console.log(`   - Soft deleted ${deliveryResult.rowsAffected[0]} delivery record(s)`);
 
       await transaction.commit();
-      console.log('✅ Delivery soft deleted successfully with all related records');
       res.json({ 
         success: true, 
         message: 'Delivery moved to trash. Can be restored later.' 
@@ -531,8 +516,6 @@ router.get('/by-po/:poId', async (req, res) => {
     const rawPoId = req.params.poId || '';
     const poId = rawPoId.trim();
     
-    console.log('🔍 Fetching deliveries for PO:', poId);
-    console.log('   PO ID raw:', rawPoId, 'length:', rawPoId.length);
     
     // Validate poId format
     if (!poId || !isValidUUID(poId)) {
@@ -582,7 +565,6 @@ router.get('/by-po/:poId', async (req, res) => {
         ORDER BY d.delivery_date DESC, d.created_at DESC
       `);
 
-    console.log('✅ Deliveries fetched successfully:', result.recordset.length);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching PO deliveries:', error.message);
@@ -610,12 +592,6 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
     const poId = rawPoId.trim();
     
     // Log incoming data for debugging
-    console.log('📦 POST /for-po/:poId - Delivery creation request');
-    console.log('   PO ID:', poId);
-    console.log('   PO ID raw:', rawPoId, 'length:', rawPoId.length);
-    console.log('   req.body:', req.body ? 'exists' : 'undefined');
-    console.log('   req.body keys:', req.body ? Object.keys(req.body) : []);
-    console.log('   req.file:', req.file ? req.file.filename : 'no file');
     
     // Validate poId format
     if (!poId || !isValidUUID(poId)) {
@@ -731,14 +707,6 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
       // Create delivery
       const deliveryId = require('uuid').v4();
       
-      console.log('📋 Delivery Details:');
-      console.log('   Delivery ID:', deliveryId);
-      console.log('   Delivery Number:', deliveryNumber);
-      console.log('   PO ID:', poId);
-      console.log('   PO Number:', po_number);
-      console.log('   Tender ID:', tender_id);
-      console.log('   Personnel:', delivery_personnel);
-      console.log('   Challan:', delivery_chalan);
       
       await transaction.request()
         .input('id', sql.UniqueIdentifier, deliveryId)
@@ -815,9 +783,6 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
 
       await transaction.commit();
       
-      console.log('✅ Delivery created successfully');
-      console.log('   ID:', deliveryId);
-      console.log('   PO ID saved:', poId);
       
       res.json({ 
         success: true, 

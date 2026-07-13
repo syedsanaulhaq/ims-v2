@@ -283,6 +283,5 @@ router.get('/dashboard', requireAuth, async (req, res) => {
   }
 });
 
-console.log('✅ Reports Routes Loaded');
 
 module.exports = router;

@@ -36,8 +36,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log('📤 Received CSV file:', req.file.originalname, `(${req.file.size} bytes)`);
-    console.log('📋 Request body:', req.body);
     
     // Get bidders list from request body (sent as JSON string)
     let bidders = [];
@@ -52,7 +50,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
         details: parseError.message 
       });
     }
-    console.log(`👥 Received ${bidders.length} bidders for vendor lookup`);
 
     // Parse CSV
     const csvContent = req.file.buffer.toString('utf-8');
@@ -73,7 +70,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       });
     }
 
-    console.log(`📝 Parsed ${records.length} records from CSV`);
 
     if (records.length === 0) {
       return res.status(400).json({ error: 'CSV file is empty' });
@@ -109,7 +105,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       }
     });
 
-    console.log(`📦 Loaded ${itemsByCode.size} item masters (by code), ${itemsByName.size} (by name)`);
     
     // Create vendor lookup map
     const vendorsByName = new Map();
@@ -124,7 +119,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       }
     });
 
-    console.log(`👥 Created vendor lookup: ${vendorsById.size} by ID, ${vendorsByName.size} by name`);
 
     // Process each record
     const items = [];
@@ -228,7 +222,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
         };
 
         items.push(tenderItem);
-        console.log(`✅ Row ${rowNum}: Processed item '${itemMaster.nomenclature}'`);
 
       } catch (error) {
         console.error(`❌ Row ${rowNum} error:`, error);
@@ -240,8 +233,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       }
     }
 
-    console.log(`✅ Successfully processed ${items.length} items`);
-    console.log(`⚠️ Errors: ${errors.length}`);
 
     res.json({
       success: true,

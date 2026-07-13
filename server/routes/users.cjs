@@ -485,6 +485,5 @@ router.get('/aspnet/filtered', async (req, res) => {
   }
 });
 
-console.log('✅ Users Routes Loaded');
 
 module.exports = router;

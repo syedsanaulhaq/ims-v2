@@ -111,7 +111,6 @@ router.put('/opening-balance-status', async (req, res) => {
           WHERE setting_key = 'opening_balance_completed';
         `);
       
-      console.log(`✅ Opening balance marked as COMPLETED. Go-live date: ${effectiveDate}`);
       
       res.json({
         success: true,
@@ -128,7 +127,6 @@ router.put('/opening-balance-status', async (req, res) => {
       `);
       // Note: We keep go_live_date so they can see what it was
       
-      console.log('⚠️ Opening balance marked as PENDING (reopened for edits)');
       
       res.json({
         success: true,
@@ -165,10 +163,6 @@ router.post('/opening-balance', async (req, res) => {
     // Get current user ID from session
     const entered_by = req.session?.userId;
     
-    console.log('🔐 Opening Balance Request:');
-    console.log('  - Session exists:', !!req.session);
-    console.log('  - User ID:', entered_by);
-    console.log('  - Financial Year:', financial_year);
     
     if (!entered_by) {
       console.error('❌ Authentication failed - no userId in session');
@@ -832,6 +826,5 @@ router.get('/yearwise-inventory', async (req, res) => {
   }
 });
 
-console.log('✅ Stock Acquisitions Routes Loaded (MILESTONE-1)');
 
 module.exports = router;

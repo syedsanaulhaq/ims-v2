@@ -797,7 +797,6 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
 
     if (!wingId) {
       // Return empty instead of error if no wing found
-      console.log('⚠️ No wing_id provided or found for user');
       return res.json({ requests: [], total: 0 });
     }
 
@@ -841,7 +840,6 @@ router.get('/supervisor/pending', requireAuth, requirePermission('stock_request.
           ${schemaFlags.has_submitted_at ? 'sir.submitted_at' : 'sir.created_at'} ASC
       `);
 
-    console.log(`📋 Found ${result.recordset.length} pending requests for wing ${wingId}`);
     res.json({ requests: result.recordset, total: result.recordset.length });
   } catch (error) {
     console.error('❌ Error fetching supervisor pending requests:', error);
@@ -884,7 +882,6 @@ router.get('/admin/pending', requireAuth, requirePermission('stock_request.view_
           sir.submitted_at ASC
       `);
 
-    console.log(`📋 Found ${result.recordset.length} pending requests for admin`);
     res.json({ requests: result.recordset, total: result.recordset.length });
   } catch (error) {
     console.error('❌ Error fetching admin pending requests:', error);
@@ -928,7 +925,6 @@ router.get('/my-pending', requireAuth, async (req, res) => {
         ORDER BY is_urgent DESC, pending_hours DESC
       `);
 
-    console.log(`📋 Found ${result.recordset.length} pending approvals for user ${userId}`);
     res.json({ 
       requests: result.recordset, 
       data: result.recordset,
@@ -1354,7 +1350,6 @@ router.post('/supervisor/approve', requireAuth, requirePermission('stock_request
         `);
 
       await transaction.commit();
-      console.log(`✅ Supervisor approved request ${requestId}`);
       res.json({ success: true, message: 'Request approved successfully', action: 'approved' });
     } catch (err) {
       await transaction.rollback();
@@ -1482,7 +1477,6 @@ router.post('/supervisor/forward', requireAuth, requirePermission('stock_request
         `);
 
       await transaction.commit();
-      console.log(`✅ Supervisor forwarded request ${requestId} to admin`);
       res.json({
         success: true,
         message: 'Request forwarded through workflow successfully',
@@ -1545,7 +1539,6 @@ router.post('/supervisor/reject', requireAuth, requirePermission('stock_request.
         `);
 
       await transaction.commit();
-      console.log(`✅ Supervisor rejected request ${requestId}`);
       res.json({ success: true, message: 'Request rejected', action: 'rejected' });
     } catch (err) {
       await transaction.rollback();
@@ -1621,7 +1614,6 @@ router.post('/admin/approve', requireAuth, requirePermission('stock_request.appr
         `);
 
       await transaction.commit();
-      console.log(`✅ Admin approved request ${requestId}`);
       res.json({ success: true, message: 'Request approved successfully', action: 'approved' });
     } catch (err) {
       await transaction.rollback();
@@ -1679,7 +1671,6 @@ router.post('/admin/reject', requireAuth, requirePermission('stock_request.rejec
         `);
 
       await transaction.commit();
-      console.log(`✅ Admin rejected request ${requestId}`);
       res.json({ success: true, message: 'Request rejected', action: 'rejected' });
     } catch (err) {
       await transaction.rollback();
@@ -1886,7 +1877,6 @@ router.get('/my-approvals', async (req, res) => {
           `);
         items = itemsResult.recordset || [];
       } catch (itemError) {
-        console.log('Could not load items for approval', approval.id, ':', itemError.message);
       }
 
       approvals.push({
@@ -1910,7 +1900,6 @@ router.get('/my-approvals', async (req, res) => {
       });
     }
 
-    console.log(`📋 Found ${approvals.length} ${status} approvals for user ${userId}`);
     res.json({
       success: true,
       data: approvals,
@@ -1970,7 +1959,6 @@ router.post('/:approvalId/approve', async (req, res) => {
         actualApproverDesignation = currentUserRoles.join(', ');
       }
     } catch (e) {
-      console.log('⚠️ Could not get user info, using request body values');
     }
 
     const transaction = pool.transaction();
@@ -2369,7 +2357,6 @@ router.post('/:approvalId/approve', async (req, res) => {
               WHERE id = @requestId
             `);
 
-          console.log('✅ Stock deducted from admin stock and issuance records updated for request:', requestId);
         }
       }
 
@@ -2422,7 +2409,6 @@ router.post('/:approvalId/approve', async (req, res) => {
               WHERE id = @syncRequestId
             `);
           
-          console.log(`📋 Synced stock_issuance_requests approval_status to '${sirApprovalStatus}' for request:`, syncRequestId);
         }
       }
 
@@ -2519,7 +2505,6 @@ router.get('/:approvalId', async (req, res, next) => {
 
     // Self-healing: if no approval_items exist, create them from stock_issuance_items
     if (itemsResult.recordset.length === 0 && approval.request_id) {
-      console.log(`⚠️ Self-healing: No approval_items for approval ${approvalId}, creating from stock_issuance_items`);
       const stockItems = await pool.request()
         .input('requestId', sql.UniqueIdentifier, approval.request_id)
         .query(`SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity FROM stock_issuance_items WHERE request_id = @requestId`);
@@ -2577,6 +2562,5 @@ router.get('/:approvalId', async (req, res, next) => {
   }
 });
 
-console.log('✅ Approvals Routes Loaded');
 
 module.exports = router;

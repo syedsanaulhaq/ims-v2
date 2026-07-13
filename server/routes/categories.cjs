@@ -15,7 +15,6 @@ router.get('/', async (req, res) => {
   try {
     const pool = getPool();
     const { includeDeleted } = req.query;
-    console.log('📋 GET /api/categories called');
 
     let filter = "WHERE c.status = 'Active'";
     if (includeDeleted !== 'true') {
@@ -41,7 +40,6 @@ router.get('/', async (req, res) => {
       ORDER BY c.category_name
     `);
 
-    console.log(`✅ Found ${result.recordset.length} categories`);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching categories:', error);
@@ -97,7 +95,6 @@ router.get('/:categoryId/items', async (req, res) => {
     const { categoryId } = req.params;
     const pool = getPool();
 
-    console.log(`📦 Fetching items for category ${categoryId}...`);
 
     const result = await pool.request()
       .input('categoryId', sql.UniqueIdentifier, categoryId)
@@ -113,7 +110,6 @@ router.get('/:categoryId/items', async (req, res) => {
         ORDER BY nomenclature
       `);
 
-    console.log(`✅ Found ${result.recordset.length} items in category`);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching category items:', error);
@@ -139,13 +135,6 @@ router.post('/', async (req, res) => {
     const categoryId = uuidv4();
     const now = new Date();
 
-    console.log('🔧 Creating category with data:', {
-      category_name,
-      description,
-      status: status || 'Active',
-      item_type: item_type || 'Dispensable'
-    });
-
     const result = await pool.request()
       .input('id', sql.UniqueIdentifier, categoryId)
       .input('category_name', sql.NVarChar, category_name)
@@ -160,7 +149,6 @@ router.post('/', async (req, res) => {
         VALUES (@id, @category_name, @description, @status, @item_type, @created_at, @updated_at)
       `);
 
-    console.log('✅ Category created:', result.recordset[0]);
     res.status(201).json(result.recordset[0]);
   } catch (error) {
     console.error('❌ Error creating category:', error);
@@ -201,7 +189,6 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    console.log('✅ Category updated:', result.recordset[0]);
     res.json({
       message: 'Category updated successfully',
       data: result.recordset[0]
@@ -265,7 +252,6 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    console.log('✅ Category deleted:', result.recordset[0]);
     res.json({ message: 'Category deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting category:', error);
@@ -287,7 +273,6 @@ router.get('/list/all', async (req, res) => {
   try {
     const pool = getPool();
     const { includeDeleted } = req.query;
-    console.log('🔍 Fetching all sub-categories...');
 
     let filter = '';
     if (includeDeleted !== 'true') {
@@ -313,7 +298,6 @@ router.get('/list/all', async (req, res) => {
       ORDER BY sc.sub_category_name
     `);
 
-    console.log(`✅ Sub-categories fetched: ${result.recordset.length}`);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching sub-categories:', error);
@@ -332,7 +316,6 @@ router.get('/by-category/:categoryId', async (req, res) => {
     const { categoryId } = req.params;
     const pool = getPool();
 
-    console.log(`🔍 Fetching sub-categories for category: ${categoryId}`);
 
     const result = await pool.request()
       .input('categoryId', sql.UniqueIdentifier, categoryId)
@@ -350,7 +333,6 @@ router.get('/by-category/:categoryId', async (req, res) => {
         ORDER BY sub_category_name
       `);
 
-    console.log(`✅ Sub-categories fetched for category ${categoryId}: ${result.recordset.length}`);
     res.json(result.recordset);
   } catch (error) {
     console.error('❌ Error fetching sub-categories by category:', error);
@@ -387,7 +369,6 @@ router.post('/', async (req, res) => {
         VALUES (@category_id, @sub_category_name, @description, @status, GETDATE(), GETDATE())
       `);
 
-    console.log('✅ Sub-category created:', result.recordset[0]);
     res.status(201).json({
       message: 'Sub-category created successfully',
       data: result.recordset[0]
@@ -431,7 +412,6 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Sub-category not found' });
     }
 
-    console.log('✅ Sub-category updated:', result.recordset[0]);
     res.json({
       message: 'Sub-category updated successfully',
       data: result.recordset[0]
@@ -471,7 +451,6 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Sub-category not found' });
     }
 
-    console.log('✅ Sub-category deleted:', result.recordset[0]);
     res.json({ message: 'Sub-category deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting sub-category:', error);
@@ -552,6 +531,5 @@ router.post('/sub/:id/restore', async (req, res) => {
   }
 });
 
-console.log('✅ Categories Routes Loaded');
 
 module.exports = router;

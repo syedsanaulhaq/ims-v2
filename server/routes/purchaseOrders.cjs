@@ -16,7 +16,6 @@ router.get('/', async (req, res) => {
     const pool = getPool();
     
     // Debug: Log incoming parameters
-    console.log('🔍 GET /api/purchase-orders params:', { tenderId, vendorId, status, startDate, endDate });
     
     // Validate UUID format
     const isValidUUID = (uuid) => {
@@ -202,13 +201,6 @@ router.post('/', async (req, res) => {
     await transaction.begin();
     const { tenderId, selectedItems, poDate, fileNumber, poDetail, itemVendors, itemPrices, itemQuantities, itemSpecifications } = req.body;
 
-    console.log('📦 PO CREATION REQUEST RECEIVED:');
-    console.log('   - tenderId:', tenderId);
-    console.log('   - selectedItems count:', selectedItems?.length);
-    console.log('   - poDate:', poDate);
-    console.log('   - fileNumber:', fileNumber);
-    console.log('   - poDetail length:', poDetail?.length);
-    console.log('   - itemSpecifications:', itemSpecifications ? Object.keys(itemSpecifications).length + ' items' : 'none');
 
     if (!tenderId || !selectedItems || selectedItems.length === 0 || !poDate) {
       return res.status(400).json({ error: 'Missing required fields: tenderId, selectedItems, poDate' });
@@ -367,7 +359,6 @@ router.post('/', async (req, res) => {
         total_amount: vendorTotal
       });
 
-      console.log(`✅ Created PO ${poNumber} for vendor ${vendorId} with ${vendorItems.length} items`);
     }
 
     await transaction.commit();
@@ -393,7 +384,6 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { status, remarks, po_date, file_number, po_detail, items, total_amount } = req.body;
 
-    console.log('📝 Updating PO:', { id, status, remarks, po_date, file_number, po_detail: po_detail ? 'Present' : 'Empty', items: items ? items.length : 'No items' });
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
@@ -483,7 +473,6 @@ router.put('/:id', async (req, res) => {
     }
 
     await transaction.commit();
-    console.log('✅ PO updated successfully');
 
     res.json({ message: '✅ Purchase order updated successfully' });
   } catch (error) {
@@ -523,7 +512,6 @@ router.put('/:id/finalize', async (req, res) => {
         WHERE id = @id
       `);
 
-    console.log(`✅ Purchase order ${id} finalized`);
     res.json({ message: '✅ Purchase order finalized successfully', status: 'finalized' });
   } catch (error) {
     console.error('❌ Error finalizing PO:', error);
@@ -781,7 +769,6 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-console.log('✅ Purchase Orders Routes Loaded');
 
 // ============================================================================
 // POST /api/purchase-orders/:id/restore - Restore deleted purchase order

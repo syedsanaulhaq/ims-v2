@@ -96,7 +96,6 @@ router.get('/', async (req, res) => {
     const searchTerm = req.query.search;
     const includeDeleted = req.query.includeDeleted;
 
-    console.log(`🔄 GET /api/items-master called with categoryId:`, categoryId);
 
     let request = pool.request();
     let query = `
@@ -126,7 +125,6 @@ router.get('/', async (req, res) => {
     }
 
     if (categoryId) {
-      console.log(`📌 Filtering by category_id: ${categoryId}`);
       query += ` AND (im.category_id = @categoryId OR CAST(im.category_id AS VARCHAR(MAX)) = @categoryId)`;
       request = request.input('categoryId', sql.VarChar, categoryId);
     }
@@ -138,11 +136,9 @@ router.get('/', async (req, res) => {
 
     query += ` ORDER BY im.nomenclature`;
 
-    console.log('📋 Executing query for items');
     const result = await request.query(query);
     const items = result.recordset;
 
-    console.log(`✅ Found ${items.length} items`);
 
     res.json({
       success: true,
@@ -217,7 +213,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       trim: true
     });
 
-    console.log(`📤 Bulk upload: Processing ${records.length} items from CSV`);
 
     const pool = getPool();
     const results = {
@@ -402,7 +397,6 @@ router.post('/bulk-upload', upload.single('file'), async (req, res) => {
       }
     }
 
-    console.log(`✅ Bulk upload complete: ${results.success.length} success, ${results.errors.length} errors`);
 
     res.status(200).json({
       success: true,
@@ -607,7 +601,6 @@ router.post('/cleanup/remove-without-codes', async (req, res) => {
     const pool = getPool();
     const deletedBy = req.user?.id || null;
 
-    console.log('🧹 Starting cleanup: removing items without item_code...');
 
     // Step 1: Find items without item_code
     const itemsResult = await pool.request().query(`
@@ -668,7 +661,6 @@ router.post('/cleanup/remove-without-codes', async (req, res) => {
           AND is_deleted = 0
       `);
 
-    console.log(`✅ Soft-deleted ${deleteResult.rowsAffected[0]} items`);
 
     res.json({
       success: true,
@@ -689,6 +681,5 @@ router.post('/cleanup/remove-without-codes', async (req, res) => {
   }
 });
 
-console.log('✅ Item Master Routes Loaded');
 
 module.exports = router;

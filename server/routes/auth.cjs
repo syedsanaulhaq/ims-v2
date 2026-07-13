@@ -209,10 +209,8 @@ async function assignDefaultPermissionsToSSOUser(userId) {
             VALUES (NEWID(), @userId, @roleId, 'GLOBAL', 1, GETDATE())
           `);
         
-        console.log(`✅ Assigned default GENERAL_USER role to new user: ${userId}`);
       }
     } else {
-      console.log(`ℹ️  User ${userId} has ${roleCheck.recordset.length} IMS role(s) pre-assigned by IMS Super Admin`);
     }
   } catch (error) {
     console.error('Error assigning default permissions:', error);
@@ -227,11 +225,8 @@ router.post('/login', async (req, res) => {
     const { username, password } = req.body;
     const pool = getPool();
 
-    console.log(`\n📥 LOGIN REQUEST RECEIVED`);
-    console.log(`   Username: ${username}`);
 
     if (!username || !password) {
-      console.log(`❌ Missing credentials`);
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
@@ -247,7 +242,6 @@ router.post('/login', async (req, res) => {
       `);
 
     if (result.recordset.length === 0) {
-      console.log(`❌ User not found: ${username}`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -279,16 +273,13 @@ router.post('/login', async (req, res) => {
 
     // Strategy 4: Plain text Password field (legacy fallback)
     if (!isPasswordValid && user.Password && user.Password === password) {
-      console.log('✅ Password matched in plain text');
       isPasswordValid = true;
     }
 
     if (!isPasswordValid) {
-      console.log(`❌ LOGIN FAILED - Invalid credentials`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    console.log(`✅ PASSWORD VALIDATION SUCCESSFUL`);
 
     const resolvedBranch = await resolveBranchDetailsFromEmployeeView(pool, {
       userId: user.Id,
@@ -376,7 +367,6 @@ router.get('/session', async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    console.log('📊 /api/session request - Session found');
 
     // Get IMS data
     const imsData = await getUserImsData(req.session.userId);
@@ -485,7 +475,6 @@ router.get('/designation/:userId', async (req, res) => {
 // ============================================================================
 // This endpoint is called by the .NET Digital System application for SSO
 router.post('/ds-authenticate', async (req, res) => {
-  console.log('🔐 DS Authentication Request Received');
   
   try {
     if (!req.body || typeof req.body !== 'object') {
@@ -499,14 +488,12 @@ router.post('/ds-authenticate', async (req, res) => {
     const pool = getPool();
 
     if (!UserName || !Password) {
-      console.log('❌ Missing UserName or Password');
       return res.status(400).json({
         success: false,
         message: 'Missing username or password'
       });
     }
 
-    console.log(`🔍 Authenticating user: ${UserName}`);
 
     // Query user from AspNetUsers
     const userResult = await pool.request()
@@ -523,7 +510,6 @@ router.post('/ds-authenticate', async (req, res) => {
       `);
 
     if (userResult.recordset.length === 0) {
-      console.log('❌ User not found or inactive');
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
@@ -537,14 +523,12 @@ router.post('/ds-authenticate', async (req, res) => {
       cnic: user.CNIC,
       fallbackBranchId: user.intBranchID
     });
-    console.log(`✅ User found: ${user.FullName} (${user.UserName})`);
 
     // Password verification with multiple strategies
     let isPasswordValid = false;
     const passwordToCheck = user.PasswordHash || user.Password;
 
     if (!passwordToCheck) {
-      console.log('❌ No password hash found');
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
@@ -553,28 +537,19 @@ router.post('/ds-authenticate', async (req, res) => {
 
     // Strategy 1: Check plain text Password field
     if (user.Password && user.Password === Password) {
-      console.log('✅ Password matched (plain text)');
       isPasswordValid = true;
     }
 
     // Strategy 2: ASP.NET Identity hash
     if (!isPasswordValid && (passwordToCheck.startsWith('AQA') || passwordToCheck.length > 60)) {
       try {
-        console.log('🔍 Attempting ASP.NET Identity verification...');
-        console.log(`   Hash length: ${passwordToCheck.length}`);
-        console.log(`   Hash full value: ${passwordToCheck}`);
-        console.log(`   Password: ${Password}`);
-        console.log(`   Password length: ${Password.length}`);
-        console.log(`   Calling custom hasher...'`);
         
         // Try custom ASP.NET Identity V3 hasher (supports both UTF-8 and UTF-16LE)
         isPasswordValid = aspnetHasher.verifyPassword(Password, passwordToCheck);
-        console.log(`   Custom hasher result: ${isPasswordValid ? '✅ Password matched!' : '❌ Password did not match'}`);
         
         // If library fails, try alternative: check if Password field matches
         if (!isPasswordValid && user.Password) {
           if (user.Password === Password) {
-            console.log(`   ✅ Plain Password field matched!`);
             isPasswordValid = true;
           }
         }
@@ -588,9 +563,7 @@ router.post('/ds-authenticate', async (req, res) => {
     if (!isPasswordValid && passwordToCheck.startsWith('$2')) {
       try {
         isPasswordValid = await bcrypt.compare(Password, passwordToCheck);
-        console.log(`Bcrypt verification: ${isPasswordValid ? '✅' : '❌'}`);
       } catch (err) {
-        console.log(`⚠️ Bcrypt error: ${err.message}`);
       }
     }
 
@@ -600,14 +573,12 @@ router.post('/ds-authenticate', async (req, res) => {
     }
 
     if (!isPasswordValid) {
-      console.log('❌ Invalid password - verification failed');
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password'
       });
     }
 
-    console.log('✅ Password verified successfully');
 
     // Update last login
     await pool.request()
@@ -642,7 +613,6 @@ router.post('/ds-authenticate', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    console.log('✅ Token generated (legacy JWT)');
 
     // Return token (Capital 'T' matches .NET TokenResponse class)
     res.status(200).json({
@@ -672,7 +642,6 @@ router.post('/ds-authenticate', async (req, res) => {
 router.get('/sso-login', async (req, res) => {
   try {
     const { token } = req.query;
-    console.log('🔐 SSO Login attempt received');
     const pool = getPool();
     const config = require('../config/env.cjs');
 
@@ -685,7 +654,6 @@ router.get('/sso-login', async (req, res) => {
     let decoded;
     try {
       decoded = jwt.verify(token, config.JWT_SECRET);
-      console.log('✅ JWT token verified successfully');
     } catch (jwtError) {
       console.error('❌ JWT verification failed:', jwtError.message);
       return res.status(401).json({ error: 'Invalid or expired token' });
@@ -778,7 +746,6 @@ router.get('/sso-login', async (req, res) => {
       req.session.user.is_super_admin = imsData.is_super_admin;
     }
 
-    console.log('✅ SSO Session created for:', req.session.user.FullName);
 
     // Redirect to IMS dashboard (legacy behavior)
     res.redirect('/dashboard');
@@ -788,6 +755,5 @@ router.get('/sso-login', async (req, res) => {
   }
 });
 
-console.log('✅ Auth Routes Loaded');
 
 module.exports = router;

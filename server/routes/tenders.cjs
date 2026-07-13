@@ -56,14 +56,9 @@ router.post('/', upload.fields([
     tenderData.wing_ids = normalizeIdList(tenderData.wing_ids);
     tenderData.dec_ids = normalizeIdList(tenderData.dec_ids);
 
-    console.log('✅ POST /api/tenders - Creating new tender');
-    console.log('📊 Tender type:', tenderData.tender_type);
-    console.log('📋 Total items to create:', items?.length || 0);
 
     if (items && items.length > 0) {
-      console.log('📦 Items received:');
       items.forEach((item, idx) => {
-        console.log(`  Item ${idx}: ${item.nomenclature}`);
       });
     }
 
@@ -134,10 +129,8 @@ router.post('/', upload.fields([
       const tender_type = tenderData.tender_type || 'contract';
       const awardedVendorId = tenderData.vendor_id || tenderData.awarded_vendor_id;
 
-      console.log('📦 Processing items for tender type:', tender_type);
 
       for (const item of items) {
-        console.log(`📝 Processing item: ${item.nomenclature}`);
         const itemRequest = transaction.request();
         itemRequest.input('id', sql.UniqueIdentifier, uuidv4());
         itemRequest.input('tender_id', sql.UniqueIdentifier, tenderId);
@@ -503,7 +496,6 @@ router.post('/:id/vendors', async (req, res) => {
           WHERE tender_id = @tenderId AND vendor_id = @vendorId
         `);
 
-      console.log('✅ Vendor updated:', vendor_name);
       return res.json({ 
         success: true, 
         message: 'Bidder updated successfully',
@@ -536,7 +528,6 @@ router.post('/:id/vendors', async (req, res) => {
           )
         `);
 
-      console.log('✅ Vendor added:', vendor_name);
       return res.status(201).json({ 
         success: true,
         message: 'Bidder added successfully',
@@ -681,7 +672,6 @@ router.put('/:id', async (req, res) => {
     // Update bidders' is_successful status if bidders are provided
     const bidders = tenderData.bidders;
     if (Array.isArray(bidders) && bidders.length > 0) {
-      console.log('📋 Updating bidders is_successful status for tender:', id);
       for (const bidder of bidders) {
         if (bidder.vendor_id) {
           try {
@@ -695,7 +685,6 @@ router.put('/:id', async (req, res) => {
               SET is_successful = @is_successful, updated_at = GETDATE()
               WHERE tender_id = @tender_id AND vendor_id = @vendor_id
             `);
-            console.log(`✅ Updated bidder ${bidder.vendor_name || bidder.vendor_id}: is_successful = ${bidder.is_successful ? 1 : 0}`);
           } catch (bidderErr) {
             console.warn(`⚠️ Could not update bidder ${bidder.vendor_id}:`, bidderErr.message);
           }
@@ -747,7 +736,6 @@ router.put('/:id/finalize', async (req, res) => {
         WHERE id = @id
       `);
 
-    console.log(`✅ Tender ${id} finalized successfully`);
     res.json({ 
       success: true, 
       message: '✅ Tender finalized successfully',
@@ -801,7 +789,6 @@ router.put('/:id/vendors/:vendorId', async (req, res) => {
         WHERE tender_id = @tenderId AND vendor_id = @vendorId
       `);
 
-    console.log('✅ Bidder updated successfully');
     res.json({ 
       success: true,
       message: 'Bidder updated successfully',
@@ -855,7 +842,6 @@ router.delete('/:id/vendors/:vendorId', async (req, res) => {
         WHERE tender_id = @tenderId AND vendor_id = @vendorId
       `);
 
-    console.log('✅ Bidder removed successfully');
     res.json({ 
       success: true,
       message: 'Bidder removed successfully'
@@ -997,6 +983,5 @@ router.post('/:id/restore', async (req, res) => {
   }
 });
 
-console.log('✅ Tender Routes Loaded');
 
 module.exports = router;

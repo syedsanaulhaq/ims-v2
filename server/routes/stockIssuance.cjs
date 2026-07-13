@@ -304,7 +304,6 @@ router.get('/requests', requireAuth, async (req, res) => {
         if (skCheck.recordset.length > 0) {
           conditions.push('CONVERT(NVARCHAR(100), sir.requester_wing_id) = @autoWingId');
           request = request.input('autoWingId', sql.NVarChar(100), String(userWingId));
-          console.log(`🏢 Store keeper wing filter: wing ${userWingId} for user ${userId}`);
         }
       }
     }
@@ -1471,7 +1470,6 @@ const createStockIssuanceRequest = async (req, res) => {
             console.warn(`⚠️ No stock_issuance_items found for request ${requestId} - approval_items not created`);
           }
 
-          console.log(`✅ Created approval record ${approvalId} for request ${requestId}, assigned to ${approverId}`);
         } else {
           const missingScope = normalizedRequestType === 'branch' ? `branch ${requester_branch_id}` : `wing ${wingId}`;
           console.warn(`⚠️ No supervisor found for ${missingScope} - approval record not created`);
@@ -1622,7 +1620,6 @@ router.post('/items', requireAuth, async (req, res) => {
               console.error(`❌ Failed to create approval_item for ${item.nomenclature}:`, itemErr.message);
             }
           }
-          console.log(`✅ Created ${insertedItems.recordset.length} approval_items for request ${request_id}`);
         }
       } catch (approvalErr) {
         console.error('❌ Failed to create approval_items after item submission:', approvalErr.message);
@@ -2564,7 +2561,6 @@ router.post('/historical', async (req, res) => {
   }
 });
 
-console.log('✅ Stock Issuance Routes Loaded');
 
 // ============================================================================
 // POST /api/stock-issuance/:id/restore - Restore deleted stock issuance
