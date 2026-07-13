@@ -356,7 +356,9 @@ router.put('/:id/mark-procured', requireAuth, async (req, res) => {
 //
 // Visibility:
 //   - procurement managers see all forwarded requests
-//   - other users see only requests they personally forwarded
+//   - other users see only requests they are allowed to track:
+//       * requests they personally forwarded, OR
+//       * requests where they are the original requester
 // ============================================================================
 router.get('/forwarded', requireAuth, async (req, res) => {
   try {
@@ -370,7 +372,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     // Build base WHERE clause for required_items
     let baseWhere = `ri.is_deleted = 0 AND ri.source_request_id IS NOT NULL`;
     if (!isProcurementManager) {
-      baseWhere += ` AND ri.created_by = @userId`;
+      baseWhere += ` AND (ri.created_by = @userId OR sir.requester_user_id = @userId)`;
     }
     if (status && status !== 'all') {
       baseWhere += ` AND ri.status = @status`;
@@ -399,6 +401,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     const countResult = await applyInputs(pool.request()).query(`
       SELECT COUNT(DISTINCT ri.source_request_id) AS total
       FROM required_items ri
+      LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
       WHERE ${baseWhere}
     `);
 
@@ -410,6 +413,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         COUNT(ri.id) AS item_count,
         SUM(ri.quantity_needed) AS total_qty
       FROM required_items ri
+      LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
       WHERE ${baseWhere}
       GROUP BY ri.status
     `);
@@ -438,6 +442,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       WITH DistinctRequests AS (
         SELECT DISTINCT ri.source_request_id
         FROM required_items ri
+        LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
         WHERE ${baseWhere}
       ),
       RankedRequests AS (
@@ -447,8 +452,9 @@ router.get('/forwarded', requireAuth, async (req, res) => {
           ROW_NUMBER() OVER (ORDER BY MIN(ri.created_at) DESC) AS rn
         FROM DistinctRequests dr
         INNER JOIN required_items ri ON dr.source_request_id = ri.source_request_id
+        INNER JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
         WHERE ri.is_deleted = 0
-          ${!isProcurementManager ? `AND ri.created_by = @userId` : ''}
+          ${!isProcurementManager ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
         GROUP BY dr.source_request_id
@@ -476,7 +482,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       LEFT JOIN offices o ON sir.requester_office_id = o.id
       LEFT JOIN required_items ri ON rr.source_request_id = ri.source_request_id
         AND ri.is_deleted = 0
-        ${!isProcurementManager ? `AND ri.created_by = @userId` : ''}
+        ${!isProcurementManager ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
         AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
         AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
       WHERE rr.rn > @offset AND rr.rn <= (@offset + @limit)
@@ -514,10 +520,11 @@ router.get('/forwarded', requireAuth, async (req, res) => {
           ri.created_at,
           im.item_code
         FROM required_items ri
+        LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
         LEFT JOIN item_masters im ON ri.item_master_id = im.id
         WHERE ri.is_deleted = 0
           AND ri.source_request_id IN (${inClause})
-          ${!isProcurementManager ? `AND ri.created_by = @userId` : ''}
+          ${!isProcurementManager ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
         ORDER BY ri.created_at DESC
