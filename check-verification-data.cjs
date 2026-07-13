@@ -18,10 +18,7 @@ async function main() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     // Check inventory_verification_requests structure
-    console.log("📋 inventory_verification_requests columns:");
     const verifySchema = await pool
       .request()
       .query(
@@ -30,22 +27,16 @@ async function main() {
          ORDER BY ORDINAL_POSITION`
       );
     verifySchema.recordset.forEach((col) => {
-      console.log(`  - ${col.COLUMN_NAME} (${col.DATA_TYPE})`);
-    });
+      });
 
     // Check all records
-    console.log("\n📋 All inventory_verification_requests records:");
     const allRecords = await pool
       .request()
       .query(`SELECT id, item_master_id, item_nomenclature, verification_status FROM inventory_verification_requests`);
     allRecords.recordset.forEach((row) => {
-      console.log(
-        `  ID: ${row.id}, item_master_id: ${row.item_master_id}, nomenclature: "${row.item_nomenclature || "NULL"}", status: ${row.verification_status}`
-      );
-    });
+      });
 
     // Check stock_issuance_items columns
-    console.log("\n📋 stock_issuance_items columns:");
     const siiSchema = await pool
       .request()
       .query(
@@ -55,11 +46,9 @@ async function main() {
       );
     if (siiSchema.recordset.length > 0) {
       siiSchema.recordset.forEach((col) => {
-        console.log(`  - ${col.COLUMN_NAME} (${col.DATA_TYPE})`);
-      });
+        });
     } else {
-      console.log("  Table does not exist");
-    }
+      }
 
   } catch (error) {
     console.error("❌ Error:", error.message);

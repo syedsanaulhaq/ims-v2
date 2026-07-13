@@ -18,8 +18,6 @@ async function checkSchema() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Check all columns in AspNetUsers
     const result = await pool.request().query(`
       SELECT COLUMN_NAME, DATA_TYPE
@@ -28,10 +26,8 @@ async function checkSchema() {
       ORDER BY ORDINAL_POSITION
     `);
 
-    console.log("📋 AspNetUsers Columns:\n");
     result.recordset.forEach(row => {
-      console.log(`- ${row.COLUMN_NAME} (${row.DATA_TYPE})`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

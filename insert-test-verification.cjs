@@ -18,8 +18,6 @@ async function insertTestData() {
   try {
     const pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log('✅ Connected to database\n');
-
     // Get a sample user ID from AspNetUsers
     const userResult = await pool.request().query(`
       SELECT TOP 1 Id as user_id, FullName FROM AspNetUsers WHERE ISACT = 1
@@ -32,8 +30,6 @@ async function insertTestData() {
     }
 
     const testUser = userResult.recordset[0];
-    console.log(`📝 Using test user: ${testUser.FullName} (${testUser.user_id})\n`);
-
     // Insert test verification request with nomenclature
     const testId = uuidv4();
     const stockIssuanceId = uuidv4();
@@ -63,11 +59,7 @@ async function insertTestData() {
         )
       `);
 
-    console.log('✅ Test record inserted!');
-
     // Now retrieve it from the view
-    console.log('\n📋 Retrieving from View_Pending_Inventory_Verifications:');
-    console.log('=====================================');
     const viewResult = await pool.request()
       .input('userId', sql.NVarChar, testUser.user_id)
       .query(`
@@ -77,23 +69,11 @@ async function insertTestData() {
 
     if (viewResult.recordset.length > 0) {
       const record = viewResult.recordset[0];
-      console.log('\nRetrieved from view:');
-      console.log(`  ID: ${record.id}`);
-      console.log(`  item_nomenclature: "${record.item_nomenclature}"`);
-      console.log(`  requested_quantity: ${record.requested_quantity}`);
-      console.log(`  status: ${record.status}`);
-      console.log(`  verification_status: ${record.verification_status}`);
-      console.log(`  requested_by_name: ${record.requested_by_name}`);
-      console.log(`  created_at: ${record.created_at}`);
-      
-      console.log('\n✅ View is returning correct nomenclature!');
-    } else {
-      console.log('⚠️  No records returned from view');
-    }
+      } else {
+      }
 
     await pool.close();
-    console.log('\n✅ Test complete!');
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
   }
 }

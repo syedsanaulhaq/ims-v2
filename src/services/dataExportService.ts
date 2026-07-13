@@ -48,7 +48,7 @@ export class DataExportService {
         `${config.filename} has been downloaded successfully`,
         {
           label: 'Export More',
-          onClick: () => console.log('Open export dialog'),
+          onClick: () => ,
         }
       );
     } catch (error) {

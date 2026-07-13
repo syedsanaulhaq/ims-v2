@@ -27,7 +27,6 @@ interface UpdatedStock {
 }
 
 const InitialSetupFresh: React.FC = () => {
-  
   const { toast } = useToast();
   
   // State management
@@ -56,7 +55,6 @@ const InitialSetupFresh: React.FC = () => {
   const fetchCurrentStock = async () => {
     try {
       setLoading(true);
-      
       // First try to get current stock, if that fails, get item masters
       let stockResponse;
       try {
@@ -79,7 +77,7 @@ const InitialSetupFresh: React.FC = () => {
           return;
         }
       } catch (error) {
-      }
+        }
       
       // Fallback: Get item masters and create CurrentStock entries
       const [itemMastersResponse, categoriesResponse] = await Promise.all([
@@ -113,7 +111,6 @@ const InitialSetupFresh: React.FC = () => {
         maximum_stock_level: item.maximum_stock_level || 0,
         specifications: item.specifications
       }));
-      
       
       setStockItems(transformedItems);
       setFilteredItems(transformedItems);
@@ -174,7 +171,6 @@ const InitialSetupFresh: React.FC = () => {
         return;
       }
 
-
       // Try the update endpoint first, if it fails, use initial setup endpoint
       let response;
       try {
@@ -190,7 +186,6 @@ const InitialSetupFresh: React.FC = () => {
           }),
         });
       } catch (error) {
-        
         // Fallback to initial setup endpoint
         const initialStocks = itemsToSave.map(item => ({
           ItemMasterID: item.item_master_id,
@@ -216,7 +211,6 @@ const InitialSetupFresh: React.FC = () => {
       }
 
       const result = await response.json();
-
       toast({
         title: "Success",
         description: `Initial setup completed for ${itemsToSave.length} items`,

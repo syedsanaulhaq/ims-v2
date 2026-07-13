@@ -15,12 +15,9 @@ async function diagnoseDashboard() {
   const pool = new sql.ConnectionPool(config);
   try {
     await pool.connect();
-    console.log('✓ Connected to database\n');
-
     // Ehtisham's ID
     const ehtishamId = '4dae06b7-17cd-480b-81eb-da9c76ad5728';
 
-    console.log('=== CHECKING REQUEST_APPROVALS TABLE ===\n');
     const approvals = await pool.request()
       .input('approverId', sql.NVarChar, ehtishamId)
       .query(`
@@ -38,20 +35,12 @@ async function diagnoseDashboard() {
         WHERE ra.current_approver_id = @approverId
       `);
 
-    console.log(`Found ${approvals.recordset.length} approval records assigned to Ehtisham:\n`);
     approvals.recordset.forEach(row => {
-      console.log(`Approval ID: ${row.ApprovalId}`);
-      console.log(`  Request ID: ${row.RequestId}`);
-      console.log(`  Requester: ${row.RequesterName}`);
-      console.log(`  Approval Status: ${row.ApprovalStatus}`);
-      console.log(`  Submitted By: ${row.submitted_by}`);
-      console.log('');
-    });
+      });
 
     // Now check if approval_items exist
     if (approvals.recordset.length > 0) {
       const firstApprovalId = approvals.recordset[0].ApprovalId;
-      console.log('\n=== CHECKING APPROVAL_ITEMS FOR FIRST APPROVAL ===\n');
       const items = await pool.request()
         .input('approvalId', sql.UniqueIdentifier, firstApprovalId)
         .query(`
@@ -63,22 +52,14 @@ async function diagnoseDashboard() {
           WHERE request_approval_id = @approvalId
         `);
 
-      console.log(`Found ${items.recordset.length} items for this approval:\n`);
       items.recordset.forEach(item => {
-        console.log(`Item: ${item.nomenclature}`);
-        console.log(`  ID: ${item.ItemId}`);
-        console.log(`  Decision Type: ${item.decision_type || 'PENDING'}`);
-        console.log('');
-      });
+        });
 
       if (items.recordset.length === 0) {
-        console.log('❌ ERROR: No items found in approval_items table!');
-        console.log('This is why the request is not showing in the dashboard.');
-      }
+        }
     }
 
     // Check dashboard query logic
-    console.log('\n=== TESTING DASHBOARD QUERY ===\n');
     const dashboardResult = await pool.request()
       .input('userId', sql.NVarChar, ehtishamId)
       .query(`
@@ -94,16 +75,8 @@ async function diagnoseDashboard() {
       `);
 
     const counts = dashboardResult.recordset[0];
-    console.log(`Dashboard Query Results:`);
-    console.log(`  Pending Count: ${counts.pending_count}`);
-    console.log(`  Approved Count: ${counts.approved_count}`);
-
     if (counts.pending_count === 0) {
-      console.log('\n⚠️  ISSUE FOUND: Dashboard query returns 0 pending items!');
-      console.log('This means either:');
-      console.log('  1. No approval_items exist for requests assigned to Ehtisham');
-      console.log('  2. Items exist but have NULL/wrong decision_type');
-    }
+      }
 
     await pool.close();
   } catch (error) {

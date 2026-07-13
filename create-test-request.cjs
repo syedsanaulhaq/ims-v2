@@ -14,8 +14,6 @@ const config = {
   try {
     const pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log('✅ Connected to database');
-
     // Get user IDs
     const users = await pool.request().query(`
       SELECT id, FullName FROM AspNetUsers 
@@ -29,10 +27,6 @@ const config = {
       console.error('❌ Users not found');
       return;
     }
-
-    console.log('✅ Found users:');
-    console.log('  Asad ur Rehman:', asadId);
-    console.log('  Muhammad Ehtesham Siddiqui:', ehteshamId);
 
     // Create a test request
     const requestId = uuidv4();
@@ -50,8 +44,6 @@ const config = {
         VALUES (@id, @requester_id, @title, @purpose, GETDATE(), @status, GETDATE(), GETDATE(), GETDATE())
       `);
 
-    console.log('✅ Created request:', requestId);
-
     // Insert approval record with approved status
     await pool.request()
       .input('request_id', sql.UniqueIdentifier, requestId)
@@ -62,8 +54,6 @@ const config = {
         INSERT INTO request_approvals (request_id, request_type, workflow_id, current_approver_id, current_status, submitted_by)
         VALUES (@request_id, 'stock_issuance', 'D806EC95-FB78-4187-8FC2-87B897C124A4', @approver_id, @status, @submitted_by)
       `);
-
-    console.log('✅ Created approval:', approvalId);
 
     // Add approval history
     const historyId = uuidv4();
@@ -78,8 +68,6 @@ const config = {
         WHERE ra.request_id = @request_id
       `);
 
-    console.log('✅ Created approval history record');
-
     // Add a test item
     const itemId = uuidv4();
     await pool.request()
@@ -91,13 +79,8 @@ const config = {
         VALUES (@id, @request_id, @quantity, 'custom', 'Test Item', GETDATE(), GETDATE())
       `);
 
-    console.log('✅ Created test item');
-
     await pool.close();
-    console.log('\n✅ Test data created successfully!');
-    console.log('📋 Now the "Future Request (approved request)" section should appear on the Request History page.');
-
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
   }
 })();

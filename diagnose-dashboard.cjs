@@ -17,9 +17,6 @@ async function diagnose() {
 
     const requestId = 'FB1A19AD-FB56-4304-A98F-8484089C4899';
 
-    console.log('\n📋 DIAGNOSTIC CHECK');
-    console.log('='.repeat(60));
-
     // Check approval and its items
     const approvalResult = await pool.request()
       .input('requestId', sql.VarChar, requestId)
@@ -38,18 +35,10 @@ async function diagnose() {
       `);
 
     if (approvalResult.recordset.length === 0) {
-      console.log('❌ NO APPROVAL FOUND');
       return;
     }
 
     const approval = approvalResult.recordset[0];
-    console.log(`\n✅ APPROVAL FOUND:`);
-    console.log(`   Approval ID: ${approval.id}`);
-    console.log(`   Request ID: ${approval.request_id}`);
-    console.log(`   Current Approver ID: ${approval.current_approver_id}`);
-    console.log(`   Current Approver: ${approval.FullName} (${approval.Email})`);
-    console.log(`   Status: ${approval.current_status}`);
-
     // Check approval items
     const itemsResult = await pool.request()
       .input('approvalId', sql.VarChar, approval.id)
@@ -63,13 +52,10 @@ async function diagnose() {
         ORDER BY nomenclature
       `);
 
-    console.log(`\n✅ APPROVAL ITEMS (${itemsResult.recordset.length} found):`);
     itemsResult.recordset.forEach((item) => {
-      console.log(`   - ${item.nomenclature}: ${item.decision_type || 'NULL'}`);
-    });
+      });
 
     // Check what the dashboard query would return
-    console.log(`\n📊 DASHBOARD COUNTS FOR THIS APPROVER:`);
     const countResult = await pool.request()
       .input('userId', sql.NVarChar(450), approval.current_approver_id)
       .query(`
@@ -97,12 +83,6 @@ async function diagnose() {
       `);
 
     const counts = countResult.recordset[0];
-    console.log(`   Pending: ${counts.pending_count}`);
-    console.log(`   Approved: ${counts.approved_count}`);
-    console.log(`   Rejected: ${counts.rejected_count}`);
-    console.log(`   Returned: ${counts.returned_count}`);
-    console.log(`   Forwarded: ${counts.forwarded_count}`);
-
     await pool.close();
   } catch (error) {
     console.error('❌ Error:', error.message);

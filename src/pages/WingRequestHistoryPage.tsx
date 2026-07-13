@@ -70,7 +70,6 @@ const WingRequestHistoryPage: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -140,7 +139,6 @@ const WingRequestHistoryPage: React.FC = () => {
     setShowTracking(true);
 
     try {
-
       // Create a comprehensive timeline with submitted, current, and future steps
       const completeTimeline = [];
 
@@ -170,7 +168,7 @@ const WingRequestHistoryPage: React.FC = () => {
           actualHistory = data.data || [];
         }
       } catch (apiError) {
-      }
+        }
 
       // 3. Add actual approval actions that have happened
       actualHistory.forEach((action, index) => {

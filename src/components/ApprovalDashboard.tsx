@@ -48,7 +48,6 @@ const ApprovalDashboard: React.FC = () => {
       // Pass the current user's ID to get their approvals
       // Prefer `user.user_id` (normalized session shape) but fall back to legacy `Id`
       const userId = (user as any)?.user_id || (user as any)?.Id;
-
       const [approvalsResult, dashboardResult] = await Promise.allSettled([
         approvalForwardingService.getMyApprovalsByStatus(userId, activeFilter),
         approvalForwardingService.getApprovalDashboard(userId)

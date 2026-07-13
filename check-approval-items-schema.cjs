@@ -25,10 +25,8 @@ async function checkSchema() {
       ORDER BY ORDINAL_POSITION
     `);
     
-    console.log('📋 approval_items table schema:');
     schema.recordset.forEach(col => {
-      console.log(`   ${col.COLUMN_NAME}: ${col.DATA_TYPE} (nullable: ${col.IS_NULLABLE}, default: ${col.COLUMN_DEFAULT || 'N/A'})`);
-    });
+      });
     
     // Check if there are constraints
     const constraints = await pool.request().query(`
@@ -37,10 +35,8 @@ async function checkSchema() {
       WHERE TABLE_NAME = 'approval_items'
     `);
     
-    console.log('\n🔐 Constraints:');
     constraints.recordset.forEach(c => {
-      console.log(`   ${c.CONSTRAINT_NAME} (${c.CONSTRAINT_TYPE})`);
-    });
+      });
     
   } catch (err) {
     console.error('Error:', err.message);

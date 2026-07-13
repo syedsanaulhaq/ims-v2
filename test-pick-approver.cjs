@@ -11,9 +11,6 @@ async function main() {
   const result = await advanceWorkflow(pool, reqId, actorId, {
     touchedGroups: [1, 3, 5]
   });
-  console.log('Result of advanceWorkflow:');
-  console.log(JSON.stringify(result, null, 2));
-  
   process.exit(0);
 }
 

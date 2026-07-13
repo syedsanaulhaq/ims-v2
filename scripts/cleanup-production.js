@@ -215,13 +215,7 @@ class ProductionCleaner {
   }
 
   async cleanProductionEnvironment() {
-    console.log(`
-🧹 PRODUCTION CLEANUP STARTING...
-🎯 Target: ${this.rootDir}
-`);
-
     // 1. Remove test and debug files
-    console.log('📂 Removing test and debug files...');
     const filesToRemove = await this.findMatchingFiles(this.getFilesToRemove());
     
     for (const file of filesToRemove) {
@@ -229,7 +223,6 @@ class ProductionCleaner {
     }
 
     // 2. Remove development directories
-    console.log('📁 Removing development directories...');
     const dirsToRemove = this.getDirectoriesToRemove();
     
     for (const dirPattern of dirsToRemove) {
@@ -251,7 +244,6 @@ class ProductionCleaner {
     }
 
     // 3. Clean console logs from production files
-    console.log('🧽 Cleaning console logs from production files...');
     const filesToClean = await this.findMatchingFiles(this.getFilesToCleanConsoles());
     
     for (const file of filesToClean) {
@@ -294,41 +286,11 @@ COMPRESSION_ENABLED=true
     const envPath = path.join(this.rootDir, '.env.production');
     if (!fs.existsSync(envPath)) {
       await fs.promises.writeFile(envPath, productionEnv, 'utf8');
-      console.log('✅ Created production environment configuration');
-    }
+      }
   }
 
   generateCleanupReport() {
-    console.log(`
-✅ PRODUCTION CLEANUP COMPLETED!
-
-📊 CLEANUP SUMMARY:
-   🗑️  Files removed: ${this.removedFiles.length}
-   📁 Directories removed: ${this.removedDirectories.length}
-   🧽 Files cleaned of console logs: ${this.cleanedConsoles.length}
-
-🎯 PRODUCTION READY FEATURES:
-   ✅ No test files or debug scripts
-   ✅ No console logs or debug output
-   ✅ No development utilities
-   ✅ No demo data or sample files
-   ✅ Clean, professional codebase
-   ✅ Optimized for performance
-
-🚀 NEXT STEPS:
-   1. Review the cleaned codebase
-   2. Test the production build
-   3. Deploy with confidence!
-
-📝 REMOVED FILES:
-${this.removedFiles.slice(0, 10).map(f => `   - ${path.relative(this.rootDir, f)}`).join('\n')}
-${this.removedFiles.length > 10 ? `   ... and ${this.removedFiles.length - 10} more files` : ''}
-
-📝 CONSOLE LOGS CLEANED FROM:
-${this.cleanedConsoles.slice(0, 5).map(f => `   - ${path.relative(this.rootDir, f)}`).join('\n')}
-${this.cleanedConsoles.length > 5 ? `   ... and ${this.cleanedConsoles.length - 5} more files` : ''}
-`);
-  }
+    }
 }
 
 // Run the cleanup

@@ -6,39 +6,31 @@ const http = require('http');
   const ehteshamId = '4dae06b7-17cd-480b-81eb-da9c76ad5728';  // Supervisor (corrected from DB)
   const sanaId = '869dd81b-d8ac-4e76-93e7-e4878e109fae';      // Requester
 
-  console.log('=== ADMIN (Maqsood) Dashboard ===');
   for (const status of ['pending', 'forwarded', 'approved', 'rejected', 'returned']) {
     const url = `http://localhost:3001/api/approvals/my-approvals?userId=${maqsoodId}&status=${status}`;
     try {
       const response = await fetch(url);
       const data = await response.json();
       const items = data.data || [];
-      console.log(`  ${status}: ${items.length} items`);
       for (const item of items) {
-        console.log(`    ${item.request_number} | current_status: ${item.current_status}`);
-      }
+        }
     } catch (e) {
       console.error(`  Error for ${status}:`, e.message);
     }
   }
   
-  console.log('\n=== SUPERVISOR (Ehtesham) Dashboard ===');
   for (const status of ['pending', 'forwarded', 'approved', 'rejected', 'returned']) {
     const url = `http://localhost:3001/api/approvals/my-approvals?userId=${ehteshamId}&status=${status}`;
     try {
       const response = await fetch(url);
       const data = await response.json();
       const items = data.data || [];
-      console.log(`  ${status}: ${items.length} items`);
       for (const item of items) {
-        console.log(`    ${item.request_number} | current_status: ${item.current_status}`);
-      }
+        }
     } catch (e) {
       console.error(`  Error for ${status}:`, e.message);
     }
   }
-  
-  console.log('\n=== REQUESTER (Sana) - Request Status ===');
   
   const { getPool, sql, initializePool } = require('./server/db/connection.cjs');
   await initializePool();
@@ -52,8 +44,6 @@ const http = require('http');
     WHERE sir.request_number = 'ISS-20260417-9441'
   `);
   const actualSanaId = sanaUser.recordset[0]?.requester_user_id;
-  console.log('  Sana user ID:', actualSanaId, '- Name:', sanaUser.recordset[0]?.FullName);
-  
   const requests = await pool.request()
     .input('userId', sql.NVarChar, actualSanaId || sanaId)
     .query(`
@@ -69,11 +59,9 @@ const http = require('http');
     `);
   
   for (const r of requests.recordset) {
-    console.log(`  ${r.request_number} | sir.status: ${r.request_status} | sir.approval: ${r.approval_status} | ra.status: ${r.ra_status} | approver: ${r.current_approver_name}`);
-  }
+    }
 
   // Check why Ehtesham sees 0 pending
-  console.log('\n=== DEBUG: All request_approvals for Ehtesham ===');
   const ehteshamApprovals = await pool.request()
     .input('eid', sql.NVarChar, ehteshamId)
     .query(`
@@ -85,11 +73,9 @@ const http = require('http');
       ORDER BY ra.submitted_date DESC
     `);
   for (const r of ehteshamApprovals.recordset) {
-    console.log(`  ${r.request_number} | status: ${r.current_status} | approver: ${r.current_approver_id} | mine: ${r.is_my_approval}`);
-  }
+    }
 
   // Check approval_history for forwarded items
-  console.log('\n=== DEBUG: approval_history entries ===');
   const history = await pool.request().query(`
     SELECT ah.request_approval_id, ah.action_type, ah.action_by, ah.forwarded_to, 
            u.FullName as action_by_name, sir.request_number
@@ -100,8 +86,7 @@ const http = require('http');
     ORDER BY ah.step_number DESC
   `);
   for (const r of history.recordset) {
-    console.log(`  ${r.request_number} | action: ${r.action_type} | by: ${r.action_by_name} | forwarded_to: ${r.forwarded_to}`);
-  }
+    }
   
   process.exit();
 })();

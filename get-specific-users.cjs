@@ -15,9 +15,6 @@ async function main() {
       WHERE u.FullName IN ('Muhammad Ehtesham Siddiqui', 'Asad ur Rehman', 'Haseeb Faryad', 'Aqsa Noreen')
     `);
   
-  console.log('Target Users and Roles:');
-  console.log(JSON.stringify(result.recordset, null, 2));
-  
   process.exit(0);
 }
 

@@ -15,10 +15,7 @@ const { getPool, sql, initializePool } = require('./server/db/connection.cjs');
       AND sir.is_deleted = 0 AND sii.nomenclature IS NOT NULL
     `);
     
-    console.log('Missing approval_items:', missing.recordset.length);
-    
     for (const m of missing.recordset) {
-      console.log(`  Fixing ${m.request_number} - ${m.nomenclature}`);
       await pool.request()
         .input('iid', sql.UniqueIdentifier, m.item_id)
         .input('aid', sql.UniqueIdentifier, m.approval_id)
@@ -31,8 +28,7 @@ const { getPool, sql, initializePool } = require('./server/db/connection.cjs');
           INSERT INTO approval_items (id, request_approval_id, item_master_id, nomenclature, custom_item_name, requested_quantity, decision_type, created_at, updated_at) 
           VALUES (@iid, @aid, @mid, @n, @cn, @q, 'PENDING', GETDATE(), GETDATE())
         `);
-      console.log('  Done');
-    }
+      }
     
     // Verify Ehtesham's approvals
     const result = await pool.request()
@@ -46,10 +42,8 @@ const { getPool, sql, initializePool } = require('./server/db/connection.cjs');
         WHERE ra.current_approver_id = @uid AND sir.is_deleted = 0
         ORDER BY ra.submitted_date DESC
       `);
-    console.log('\nEhtesham approvals:');
     for (const r of result.recordset) {
-      console.log(`  ${r.request_number} | items: ${r.items} | pending: ${r.pending_items}`);
-    }
+      }
     
     process.exit(0);
   } catch (e) {

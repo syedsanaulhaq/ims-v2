@@ -12,7 +12,6 @@ async function main() {
     WHERE name LIKE '%issue%' OR name LIKE '%deliver%' OR name LIKE '%receive%' OR name LIKE '%dispatch%' OR name LIKE '%nq%' OR name LIKE '%driver%' OR name LIKE '%confirm%'
     ORDER BY name
   `);
-  console.log('stock_issuance_requests delivery columns:');
   console.table(sirCols.recordset);
 
   // 2. What is the full check constraint
@@ -22,7 +21,6 @@ async function main() {
     INNER JOIN sys.tables t ON t.object_id = cc.parent_object_id
     WHERE t.name = 'stock_issuance_requests'
   `);
-  console.log('\nAll CHECK constraints on stock_issuance_requests:');
   console.table(ck.recordset);
 
   // 3. All columns in stock_issuance_requests
@@ -34,7 +32,6 @@ async function main() {
     WHERE t.name = 'stock_issuance_requests'
     ORDER BY c.column_id
   `);
-  console.log('\nAll columns in stock_issuance_requests:');
   console.table(allCols.recordset);
 
   process.exit(0);

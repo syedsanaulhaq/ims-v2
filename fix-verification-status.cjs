@@ -18,8 +18,6 @@ async function fixVerificationStatus() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Update verification status from 'pending' to 'forwarded' if it has been forwarded
     const result = await pool.request().query(`
       UPDATE inventory_verification_requests
@@ -27,8 +25,6 @@ async function fixVerificationStatus() {
       WHERE forwarded_to_user_id IS NOT NULL
         AND verification_status = 'pending'
     `);
-
-    console.log(`✅ Updated ${result.rowsAffected[0]} verification records\n`);
 
     // Verify the update
     const verify = await pool.request().query(`
@@ -42,12 +38,8 @@ async function fixVerificationStatus() {
       ORDER BY created_at DESC
     `);
 
-    console.log(`📋 Updated verification statuses:\n`);
     verify.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. Item: ${row.item_nomenclature}`);
-      console.log(`   Status: '${row.verification_status}'`);
-      console.log(`   Forwarded: ${row.forwarded_to_user_id ? '✅ Yes' : '❌ No'}\n`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

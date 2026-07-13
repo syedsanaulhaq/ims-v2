@@ -32,10 +32,10 @@ window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<R
   // If URL is relative (starts with /), prepend the base URL
   if (typeof url === 'string' && url.startsWith('/')) {
     url = BASE_URL + url;
-  } else if (url.includes('localhost:3001')) {
+    } else if (url.includes('localhost:3001')) {
     // Replace localhost:3001 with the configured base URL
     url = url.replace('http://localhost:3001', BASE_URL);
-  }
+    }
 
   // Ensure session cookies are sent to backend API unless explicitly overridden.
   // This prevents accidental 401s on protected routes when callers omit credentials.
@@ -51,6 +51,5 @@ window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<R
   // Call original fetch with modified URL
   return originalFetch(url, requestInit);
 };
-
 
 export {};

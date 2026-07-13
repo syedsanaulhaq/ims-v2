@@ -16,8 +16,6 @@ async function checkSupervisor() {
   const pool = new sql.ConnectionPool(config);
   try {
     await pool.connect();
-    console.log('✓ Connected to database\n');
-
     // Get all users with their supervisors
     const result = await pool.request().query(`
       SELECT 
@@ -35,15 +33,10 @@ async function checkSupervisor() {
       ORDER BY emp.FullName
     `);
 
-    console.log('=== USER SUPERVISOR HIERARCHY ===\n');
     result.recordset.forEach(row => {
-      console.log(`Employee: ${row.EmployeeName} (ID: ${row.UserId})`);
-      console.log(`  → Supervisor: ${row.SupervisorName} (ID: ${row.SupervisorUserId})`);
-      console.log('');
-    });
+      });
 
     // Specifically check for Muhammad Ehtesham Siddiqui
-    console.log('\n=== CHECKING FOR EHTISHAM ===\n');
     const ehtishamCheck = await pool.request().query(`
       SELECT 
         Id as UserId,
@@ -56,14 +49,9 @@ async function checkSupervisor() {
 
     if (ehtishamCheck.recordset.length > 0) {
       ehtishamCheck.recordset.forEach(user => {
-        console.log(`Found: ${user.Name}`);
-        console.log(`  ID: ${user.UserId}`);
-        console.log(`  Email: ${user.Email}`);
-        console.log(`  EmployeeID: ${user.EmployeeID}\n`);
-      });
+        });
     } else {
-      console.log('❌ Ehtisham not found in users');
-    }
+      }
 
     await pool.close();
   } catch (error) {

@@ -100,7 +100,6 @@ const Categories = () => {
 
   // Create new category
   const handleCreateCategory = async () => {
-    
     if (!categoryForm.category_name.trim()) {
       toast({
         title: "Validation Error",
@@ -119,7 +118,6 @@ const Categories = () => {
         body: JSON.stringify(categoryForm)
       });
 
-      
       if (response.ok) {
         const result = await response.json();
         toast({
@@ -146,7 +144,6 @@ const Categories = () => {
 
   // Create new sub-category
   const handleCreateSubCategory = async () => {
-    
     if (!subCategoryForm.sub_category_name.trim()) {
       toast({
         title: "Validation Error",
@@ -174,7 +171,6 @@ const Categories = () => {
         body: JSON.stringify(subCategoryForm)
       });
 
-      
       if (response.ok) {
         const result = await response.json();
         toast({
@@ -215,7 +211,6 @@ const Categories = () => {
   const handleUpdateCategory = async () => {
     if (!editingCategory) return;
     
-    
     if (!categoryForm.category_name.trim()) {
       toast({
         title: "Validation Error",
@@ -226,12 +221,6 @@ const Categories = () => {
     }
 
     try {
-        url: `http://localhost:3001/api/categories/${editingCategory}`,
-        method: 'PUT',
-        body: categoryForm,
-        editingCategoryId: editingCategory
-      });
-      
       const response = await fetch(`http://localhost:3001/api/categories/${editingCategory}`, {
         method: 'PUT',
         headers: {
@@ -253,10 +242,6 @@ const Categories = () => {
         fetchData(); // Refresh data
       } else {
         const errorText = await response.text();
-          status: response.status,
-          statusText: response.statusText,
-          body: errorText
-        });
         throw new Error(`Failed to update category: ${response.status} ${errorText}`);
       }
     } catch (error) {
@@ -315,7 +300,6 @@ const Categories = () => {
   // Update sub-category
   const handleUpdateSubCategory = async () => {
     if (!editingSubCategory) return;
-    
     
     if (!subCategoryForm.category_id || !subCategoryForm.sub_category_name.trim()) {
       toast({

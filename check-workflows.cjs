@@ -21,13 +21,8 @@ async function checkWorkflows() {
       SELECT * FROM approval_workflows
     `);
     
-    console.log('📋 Approval workflows:');
     result.recordset.forEach(w => {
-      console.log(`   ID: ${w.id}`);
-      console.log(`   Name: ${w.name}`);
-      console.log(`   Type: ${w.request_type}`);
-      console.log('   ---');
-    });
+      });
     
   } catch (err) {
     console.error('Error:', err.message);

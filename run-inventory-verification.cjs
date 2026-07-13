@@ -28,20 +28,9 @@ async function runVerification() {
   let pool;
   
   try {
-    console.log('\n╔════════════════════════════════════════════════════════════════╗');
-    console.log('║     Inventory Verification - Checking Database Updates        ║');
-    console.log('╚════════════════════════════════════════════════════════════════╝\n');
-    
     // Connect to database
-    console.log('📡 Connecting to database...');
     pool = await sql.connect(dbConfig);
-    console.log('✅ Connected to:', process.env.SQL_SERVER_DATABASE, '\n');
-    
     // Query 1: Current Inventory Stock Overview
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log('📊 QUERY 1: Current Inventory Stock Overview');
-    console.log('═══════════════════════════════════════════════════════════════\n');
-    
     const inventoryResult = await pool.request().query(`
       SELECT TOP 20
           cis.id,
@@ -60,24 +49,12 @@ async function runVerification() {
     `);
     
     if (inventoryResult.recordset.length === 0) {
-      console.log('⚠️  NO INVENTORY RECORDS FOUND!');
-      console.log('   This means NO items have been added to inventory yet.\n');
-    } else {
-      console.log(`✅ Found ${inventoryResult.recordset.length} items in inventory:\n`);
+      } else {
       inventoryResult.recordset.forEach((row, idx) => {
-        console.log(`${idx + 1}. ${row.nomenclature} (${row.item_code})`);
-        console.log(`   Category: ${row.category_name || 'N/A'}`);
-        console.log(`   Quantity: ${row.current_quantity}`);
-        console.log(`   Last Transaction: ${row.last_transaction_type} on ${row.last_transaction_date?.toLocaleDateString() || 'N/A'}`);
-        console.log('');
-      });
+        });
     }
     
     // Query 2: Stock Acquisitions Audit Trail
-    console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log('📋 QUERY 2: Stock Acquisitions Audit Trail');
-    console.log('═══════════════════════════════════════════════════════════════\n');
-    
     const acquisitionsResult = await pool.request().query(`
       SELECT TOP 10
           sa.id,
@@ -99,25 +76,12 @@ async function runVerification() {
     `);
     
     if (acquisitionsResult.recordset.length === 0) {
-      console.log('⚠️  NO STOCK ACQUISITIONS FOUND!');
-      console.log('   This means no deliveries have been processed yet.\n');
-    } else {
-      console.log(`✅ Found ${acquisitionsResult.recordset.length} stock acquisitions:\n`);
+      } else {
       acquisitionsResult.recordset.forEach((row, idx) => {
-        console.log(`${idx + 1}. ${row.acquisition_number}`);
-        console.log(`   PO: ${row.po_number} | Delivery: ${row.delivery_number}`);
-        console.log(`   Total Items: ${row.total_items} | Total Qty: ${row.total_quantity} | Value: ${row.total_value || 'N/A'}`);
-        console.log(`   Date: ${row.acquisition_date?.toLocaleDateString()} | Processed by ID: ${row.processed_by || 'Unknown'}`);
-        console.log(`   Status: ${row.status}`);
-        console.log('');
-      });
+        });
     }
     
     // Query 3: Delivery to Inventory Trace
-    console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log('🔍 QUERY 3: Delivery to Inventory Trace');
-    console.log('═══════════════════════════════════════════════════════════════\n');
-    
     const deliveryTraceResult = await pool.request().query(`
       SELECT TOP 20
           d.delivery_number,
@@ -151,31 +115,16 @@ async function runVerification() {
     `);
     
     if (deliveryTraceResult.recordset.length === 0) {
-      console.log('⚠️  NO COMPLETED DELIVERIES FOUND!');
-      console.log('   No deliveries have been received yet.\n');
-    } else {
-      console.log(`✅ Found ${deliveryTraceResult.recordset.length} delivery items:\n`);
+      } else {
       let currentDelivery = '';
       deliveryTraceResult.recordset.forEach((row) => {
         if (currentDelivery !== row.delivery_number) {
           currentDelivery = row.delivery_number;
-          console.log(`\n📦 ${row.delivery_number} (PO: ${row.po_number}, Tender: ${row.tender_number || 'N/A'})`);
-          console.log(`   Personnel: ${row.delivery_personnel || 'N/A'} | Challan: ${row.delivery_chalan || 'N/A'}`);
-          console.log(`   Received: ${row.receiving_date?.toLocaleDateString() || 'N/A'}`);
-          console.log(`   Acquisition: ${row.acquisition_number || 'N/A'}`);
-          console.log('   Items:');
-        }
-        console.log(`   - ${row.nomenclature} (${row.item_code})`);
-        console.log(`     Qty: ${row.delivery_qty} | Quality: ${row.quality_status} | ${row.inventory_status}`);
-      });
-      console.log('');
-    }
+          }
+        });
+      }
     
     // Query 4: Summary Statistics
-    console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log('📈 QUERY 4: Summary Statistics');
-    console.log('═══════════════════════════════════════════════════════════════\n');
-    
     const statsResult = await pool.request().query(`
       SELECT 
           (SELECT COUNT(*) FROM current_inventory_stock) as total_inventory_items,
@@ -187,18 +136,7 @@ async function runVerification() {
     `);
     
     const stats = statsResult.recordset[0];
-    console.log(`📊 Inventory Items: ${stats.total_inventory_items}`);
-    console.log(`📦 Total Inventory Quantity: ${stats.total_inventory_quantity}`);
-    console.log(`📝 Total Acquisitions: ${stats.total_acquisitions}`);
-    console.log(`✅ Completed Deliveries: ${stats.completed_deliveries}`);
-    console.log(`⏳ Pending Deliveries: ${stats.pending_deliveries}`);
-    console.log(`🛒 POs with Deliveries: ${stats.pos_with_deliveries}`);
-    
     // Query 5: Check for issues (items that should be in inventory but aren't)
-    console.log('\n\n═══════════════════════════════════════════════════════════════');
-    console.log('⚠️  QUERY 5: Potential Issues Check');
-    console.log('═══════════════════════════════════════════════════════════════\n');
-    
     const issuesResult = await pool.request().query(`
       SELECT 
           im.nomenclature,
@@ -225,33 +163,18 @@ async function runVerification() {
     `);
     
     if (issuesResult.recordset.length === 0) {
-      console.log('✅ NO ISSUES FOUND!');
-      console.log('   All good-quality items from completed deliveries are in inventory.\n');
-    } else {
-      console.log(`❌ FOUND ${issuesResult.recordset.length} POTENTIAL ISSUES:\n`);
-      console.log('   These items were marked as "good" in completed deliveries but are NOT in inventory:\n');
+      } else {
       issuesResult.recordset.forEach((row, idx) => {
-        console.log(`${idx + 1}. ${row.nomenclature} (${row.item_code})`);
-        console.log(`   Delivery: ${row.delivery_number} | PO: ${row.po_number}`);
-        console.log(`   Qty: ${row.delivery_qty} | Quality: ${row.quality_status}`);
-        console.log(`   Received: ${row.receiving_date?.toLocaleDateString()}`);
-        console.log(`   Issue: ${row.inventory_presence}`);
-        console.log('');
-      });
+        });
     }
     
-    console.log('\n╔════════════════════════════════════════════════════════════════╗');
-    console.log('║                 Verification Complete ✅                        ║');
-    console.log('╚════════════════════════════════════════════════════════════════╝\n');
-    
-  } catch (err) {
+    } catch (err) {
     console.error('\n❌ Error running verification:', err.message);
     console.error(err);
   } finally {
     if (pool) {
       await pool.close();
-      console.log('📡 Database connection closed.\n');
-    }
+      }
   }
 }
 

@@ -10,9 +10,6 @@ async function main() {
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_NAME = 'ims_dynamic_workflow_steps'
     `);
-  console.log('Columns:');
-  console.log(result.recordset.map(r => r.COLUMN_NAME));
-  
   process.exit(0);
 }
 

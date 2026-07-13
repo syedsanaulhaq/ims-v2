@@ -13,7 +13,6 @@ async function main() {
   await initializePool();
   const pool = getPool();
 
-  console.log('\n========== Storekeeper Issuance Queue (approval_status LIKE Approved%) ==========');
   const res = await pool.request()
     .input('wingId', sql.NVarChar(100), String(STOREKEEPER_WING_ID))
     .query(`
@@ -28,12 +27,9 @@ async function main() {
   console.table(res.recordset);
 
   if (res.recordset.length > 0) {
-    console.log('✅ SUCCESS: Storekeeper will see', res.recordset.length, 'request(s) in issuance queue!');
-  } else {
-    console.log('❌ No requests visible to Storekeeper in issuance queue.');
-  }
+    } else {
+    }
 
-  console.log('\n========== request_approvals current state ==========');
   const raRes = await pool.request()
     .query(`
       SELECT ra.id, ra.request_id, ra.current_status,

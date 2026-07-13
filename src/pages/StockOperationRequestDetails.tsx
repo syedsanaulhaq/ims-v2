@@ -148,7 +148,7 @@ const StockOperationRequestDetails: React.FC = () => {
           }
         }
       } catch (error) {
-      }
+        }
 
       // If no real data available, just show the basic submission info
       const approvalHistory: ApprovalHistoryItem[] = [];
@@ -467,4 +467,5 @@ const StockOperationRequestDetails: React.FC = () => {
 };
 
 export default StockOperationRequestDetails;
+
 

@@ -87,7 +87,6 @@ const SubCategories = () => {
 
   // Create new sub-category
   const handleCreateSubCategory = async () => {
-    
     if (!subCategoryForm.category_id) {
       toast({
         title: "Validation Error",
@@ -114,7 +113,6 @@ const SubCategories = () => {
       });
 
       const data = await response.json();
-
       if (response.ok) {
         toast({
           title: "Success",

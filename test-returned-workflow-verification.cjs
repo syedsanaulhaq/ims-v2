@@ -49,23 +49,13 @@ async function makeRequest(method, path, data = null, sessionId = null) {
 
 async function runTest() {
   try {
-    console.log('📋 ========================================');
-    console.log('🧪 RETURNED STATUS WORKFLOW TEST (via API)');
-    console.log('========================================\n');
-
     // STEP 1: Login as supervisor
-    console.log('📍 STEP 1: Getting approval dashboard...');
     const dashboardResponse = await makeRequest('GET', '/approvals/my-pending');
     
     if (dashboardResponse.status !== 200) {
-      console.log('ℹ️  Dashboard returned status', dashboardResponse.status);
-      console.log('Note: Full API test requires session management');
-      console.log('Will verify database logic instead...\n');
-    }
+      }
 
     // STEP 2: Check if we have any approvals with items to verify the structure
-    console.log('📍 STEP 2: Verifying approval table structure...');
-    
     const sql = require('mssql');
     const config = {
       server: 'SYED-FAZLI-LAPT',
@@ -93,15 +83,9 @@ async function runTest() {
       ORDER BY ORDINAL_POSITION
     `);
 
-    console.log('✅ request_approvals table structure:');
     for (const col of schemaResult.recordset) {
-      console.log(`   - ${col.COLUMN_NAME} (${col.DATA_TYPE})`);
-    }
-    console.log();
-
+      }
     // STEP 3: Check for existing approvals with different statuses
-    console.log('📍 STEP 3: Checking existing approvals by status...\n');
-
     const statusCounts = await pool.request().query(`
       SELECT current_status, COUNT(*) as count
       FROM request_approvals
@@ -109,15 +93,9 @@ async function runTest() {
       ORDER BY current_status
     `);
 
-    console.log('Approvals by status:');
     for (const row of statusCounts.recordset) {
-      console.log(`   - ${row.current_status}: ${row.count} approvals`);
-    }
-    console.log();
-
+      }
     // STEP 4: Check an approval with 'returned' status
-    console.log('📍 STEP 4: Looking for a "returned" approval...\n');
-
     const returnedApprovals = await pool.request().query(`
       SELECT TOP 1
         ra.id,
@@ -135,15 +113,7 @@ async function runTest() {
 
     if (returnedApprovals.recordset.length > 0) {
       const approval = returnedApprovals.recordset[0];
-      console.log(`✅ Found returned approval:`);
-      console.log(`   - ID: ${approval.id}`);
-      console.log(`   - Request ID: ${approval.request_id}`);
-      console.log(`   - Status: ${approval.current_status}`);
-      console.log(`   - Items: ${approval.item_count}`);
-      console.log();
-
       // Get details of items in this approval
-      console.log('📍 STEP 5: Items in this approval:\n');
       const itemsResult = await pool.request()
         .input('approvalId', sql.NVarChar, approval.id)
         .query(`
@@ -156,30 +126,17 @@ async function runTest() {
       for (const item of itemsResult.recordset) {
         const status = item.decision_type || 'Pending';
         const reason = item.rejection_reason ? ` - ${item.rejection_reason}` : '';
-        console.log(`   - ${item.nomenclature}: ${status}${reason}`);
-      }
-      console.log();
-
+        }
       // Verify the logic: if ANY item is returned, entire approval is 'returned'
       const hasReturnedItems = itemsResult.recordset.some(
         i => i.decision_type === 'RETURN' || 
              (i.decision_type === 'REJECT' && i.rejection_reason?.includes('returned'))
       );
 
-      console.log('✅ WORKFLOW VERIFICATION:');
-      console.log(`   - Has returned items: ${hasReturnedItems}`);
-      console.log(`   - Approval status: ${approval.current_status}`);
-      console.log(`   - ${hasReturnedItems && approval.current_status === 'returned' ? '✅ CORRECT' : '❌ INCORRECT'} - When ANY item is returned, entire approval is 'returned'`);
-      console.log();
-
-    } else {
-      console.log('⚠️  No returned approvals found in database');
-      console.log('This is expected if this is the first test\n');
-    }
+      } else {
+      }
 
     // STEP 6: Test the filtering logic
-    console.log('📍 STEP 6: Testing status filter logic...\n');
-
     // Get a user who is an approver
     const approverResult = await pool.request().query(`
       SELECT TOP 1 Id FROM AspNetUsers WHERE FullName IS NOT NULL ORDER BY Id
@@ -198,46 +155,22 @@ async function runTest() {
           GROUP BY current_status
         `);
 
-      console.log(`Approvals for user ${approverId}:`);
       for (const row of filterTest.recordset) {
-        console.log(`   - ${row.current_status}: ${row.count} approvals`);
-      }
-      console.log();
-
+        }
       // Test the WHERE clause filter
-      console.log('✅ Filter Test Results:');
-      console.log(`   - WHERE current_approver_id = userId AND current_status = 'pending'`);
       const pendingCount = await pool.request()
         .input('userId', sql.NVarChar, approverId)
         .query(`
           SELECT COUNT(*) as count FROM request_approvals
           WHERE current_approver_id = @userId AND current_status = 'pending'
         `);
-      console.log(`     Returns: ${pendingCount.recordset[0].count} approvals ✅`);
-
-      console.log(`   - WHERE current_approver_id = userId AND current_status = 'returned'`);
       const returnedCount = await pool.request()
         .input('userId', sql.NVarChar, approverId)
         .query(`
           SELECT COUNT(*) as count FROM request_approvals
           WHERE current_approver_id = @userId AND current_status = 'returned'
         `);
-      console.log(`     Returns: ${returnedCount.recordset[0].count} approvals ✅`);
-    }
-
-    console.log();
-    console.log('📋 ========================================');
-    console.log('✅ DATABASE VERIFICATION COMPLETE');
-    console.log('========================================\n');
-
-    console.log('Summary:');
-    console.log('✅ request_approvals table has current_status column');
-    console.log('✅ Status values are properly stored in database');
-    console.log('✅ Filtering logic works: WHERE current_status = @status');
-    console.log('✅ Approvals are marked as "returned" when items are returned');
-    console.log();
-    console.log('The workflow is working correctly! 🎉');
-    console.log();
+      }
 
     await pool.close();
 

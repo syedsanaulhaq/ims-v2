@@ -48,7 +48,7 @@ class SqlServerService {
     if (this.pool) {
       await this.pool.close();
       this.pool = null;
-    }
+      }
   }
 
   async query<T = any>(queryString: string, params?: any[]): Promise<T[]> {

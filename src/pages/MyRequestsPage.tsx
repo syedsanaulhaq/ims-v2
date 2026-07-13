@@ -178,7 +178,7 @@ const MyRequestsPage: React.FC = () => {
                   }
                 }
               } catch (err) {
-              }
+                }
 
               // Also try to get the request_approvals status directly
               let currentApproverName = '';

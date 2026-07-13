@@ -24,10 +24,7 @@ async function checkUsersAndWings() {
   
   try {
     await pool.connect();
-    console.log('✅ Connected to database\n');
-    
     // Check both users and their wings
-    console.log('1️⃣  Users and their wings:');
     const userResult = await pool.request().query(`
       SELECT 
         u.Id,
@@ -40,16 +37,9 @@ async function checkUsersAndWings() {
     `);
     
     userResult.recordset.forEach(u => {
-      console.log(`
-  Name: ${u.FullName}
-  User ID: ${u.Id}
-  Wing ID: ${u.intWingID}
-  Wing Name: ${u.WingName}
-      `);
-    });
+      });
 
     // Check if all organizational requests from wing 19 appear
-    console.log('\n2️⃣  All Organizational requests from Wing 19:');
     const reqResult = await pool.request().query(`
       SELECT 
         sir.id,
@@ -68,18 +58,10 @@ async function checkUsersAndWings() {
       ORDER BY sir.submitted_at DESC
     `);
     
-    console.log(`Found ${reqResult.recordset.length} organizational requests from wing 19:`);
     reqResult.recordset.forEach(r => {
-      console.log(`
-  ID: ${r.id}
-  Number: ${r.request_number}
-  Requester: ${r.FullName}
-  Submitted: ${r.submitted_at}
-      `);
-    });
+      });
 
     // Specifically check the request in question
-    console.log('\n3️⃣  Check specific request 74536345-1888-4524-B422-133B85FC6708:');
     const specificResult = await pool.request().query(`
       SELECT 
         sir.id,
@@ -97,18 +79,8 @@ async function checkUsersAndWings() {
     
     if (specificResult.recordset.length > 0) {
       const r = specificResult.recordset[0];
-      console.log(`
-  ✅ Request found
-  ID: ${r.id}
-  Number: ${r.request_number}
-  Type: ${r.request_type}
-  Requester: ${r.FullName}
-  Wing ID: ${r.intWingID}
-  Wing: ${r.WingName}
-      `);
-    } else {
-      console.log('  ❌ Request NOT found');
-    }
+      } else {
+      }
     
     await pool.close();
   } catch (err) {

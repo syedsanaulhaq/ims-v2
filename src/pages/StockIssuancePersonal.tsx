@@ -136,8 +136,7 @@ const StockIssuancePersonal: React.FC = () => {
         });
         setLastIssuedByItemId(map);
       } catch (err) {
-        console.warn('Failed to load last issued summary:', err);
-      }
+        }
     };
 
     loadLastIssuedSummary();
@@ -212,10 +211,8 @@ const StockIssuancePersonal: React.FC = () => {
 
   const fetchInitialData = async () => {
     try {
-      
       // Fetch inventory items using the local service
       const inventory = await inventoryLocalService.getAll();
-
       if (inventory && inventory.length > 0) {
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
@@ -234,15 +231,11 @@ const StockIssuancePersonal: React.FC = () => {
           });
 
         setInventoryItems(transformedItems);
-      } else {
+        } else {
         setInventoryItems([]);
-      }
+        }
 
-        user: user?.user_name, 
-        office: selectedOfficeId, 
-        wing: selectedWingId 
-      });
-    } catch (error: any) {
+      } catch (error: any) {
       console.error('❌ Error loading stock issuance form data:', error);
       setError('Failed to load data: ' + error.message);
     }
@@ -283,7 +276,6 @@ const StockIssuancePersonal: React.FC = () => {
         const data = await response.json();
         if (data.success && data.data) {
           const request = data.data;
-          
           // Populate form with existing data
           setPurpose(request.purpose || '');
           setUrgencyLevel(request.urgency_level || 'Normal');
@@ -415,11 +407,9 @@ const StockIssuancePersonal: React.FC = () => {
   };
 
   const submitIssuanceRequest = async () => {
-
     if (!validateForm()) {
       return;
     }
-
     setIsLoading(true);
     setError('');
     setSuccess('');
@@ -427,7 +417,6 @@ const StockIssuancePersonal: React.FC = () => {
     try {
       if (isEditMode && id) {
         // Update existing request
-        
         const apiBase = getApiBaseUrl();
         const updateData = {
           purpose,
@@ -471,7 +460,6 @@ const StockIssuancePersonal: React.FC = () => {
       } else {
         // Create new request (existing logic)
         const requestNumber = stockIssuanceService.generateRequestNumber();
-        
         // Create issuance request using SQL Server API
         const requestData = {
           request_number: requestNumber,
@@ -487,10 +475,8 @@ const StockIssuancePersonal: React.FC = () => {
           is_returnable: isReturnable,
           request_status: 'Submitted'
         };
-
         const requestResult = await stockIssuanceService.submitRequest(requestData);
-
-      // Add issuance items
+        // Add issuance items
       const requestItems = issuanceItems.map(item => {
         const itemData = {
           item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
@@ -502,12 +488,9 @@ const StockIssuancePersonal: React.FC = () => {
         };
         return itemData;
       });
-
       await stockIssuanceService.submitItems(requestResult.id, requestItems);
-
       // Submit for approval workflow
       try {
-        
         // Get stock issuance workflow
         const workflows = await approvalForwardingService.getWorkflows();
         const stockWorkflow = workflows.find(w => w.request_type === 'stock_issuance');
@@ -518,16 +501,14 @@ const StockIssuancePersonal: React.FC = () => {
             'stock_issuance', 
             stockWorkflow.id
           );
-        } else {
-          console.warn('⚠️ No stock issuance workflow found - request submitted without approval process');
-        }
+          } else {
+          }
       } catch (approvalError: any) {
         console.error('❌ Error submitting for approval:', approvalError);
         // Don't fail the entire submission if approval fails
       }
 
         const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${user?.user_name}!`;
-        
         setSuccess(successMessage);
         
         // Reset form

@@ -313,18 +313,9 @@ app.post('/api/annual-tenders/:tenderId/assign-vendors', async (req, res) => {
     const { tenderId } = req.params;
     const { categoryId, vendorIds, created_by } = req.body; // NEW FORMAT: categoryId, vendorIds array
 
-    console.log('📥 Assign vendors request received:');
-    console.log('  tenderId:', tenderId);
-    console.log('  categoryId:', categoryId);
-    console.log('  vendorIds:', vendorIds);
-    console.log('  Full body:', req.body);
-
     if (!tenderId || !categoryId || !vendorIds || !Array.isArray(vendorIds)) {
-      console.log('❌ Validation failed');
       return res.status(400).json({ error: 'Missing required fields: tenderId, categoryId, vendorIds' });
     }
-
-    console.log('✅ Validation passed');
 
     // Delete existing assignments for this tender and category
     await pool.request()
@@ -517,4 +508,3 @@ app.get('/api/annual-tenders/:tenderId/groups/:groupId/proposals', async (req, r
   }
 });
 
-console.log('✅ Annual Tender System APIs loaded');

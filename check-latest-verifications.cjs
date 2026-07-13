@@ -18,8 +18,6 @@ async function checkVerifications() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     const result = await pool.request().query(`
       SELECT TOP 10
         id,
@@ -34,17 +32,8 @@ async function checkVerifications() {
       ORDER BY created_at DESC
     `);
 
-    console.log(`📋 Found ${result.recordset.length} verification requests:\n`);
-    
     result.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. Item: ${row.item_nomenclature}`);
-      console.log(`   Status: ${row.verification_status}`);
-      console.log(`   Requested by: ${row.requested_by_name}`);
-      console.log(`   Forwarded to: ${row.forwarded_to_name || 'NOT SET'}`);
-      console.log(`   Forwarded ID: ${row.forwarded_to_user_id || 'NULL'}`);
-      console.log(`   Forwarded at: ${row.forwarded_at || 'NOT SET'}`);
-      console.log(`   Created: ${row.created_at}\n`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

@@ -22,6 +22,5 @@ const { getPool, sql, initializePool } = require('./server/db/connection.cjs');
     AND ra.current_status NOT IN ('pending')
   `);
   
-  console.log('Updated', result.rowsAffected[0], 'rows');
   process.exit();
 })();

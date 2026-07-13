@@ -72,11 +72,9 @@ export const PendingVerificationsPage: React.FC = () => {
         return;
       }
       
-      
       // Use the same endpoint as WingDashboard - fetches verification requests made BY the user
       const response = await fetch(`http://localhost:3001/api/inventory/my-verification-requests?userId=${encodeURIComponent(user.user_id)}`);
       const data = await response.json();
-      
       
       if (data.success) {
         setVerificationRequests(data.data || []);
@@ -87,7 +85,6 @@ export const PendingVerificationsPage: React.FC = () => {
         // Fallback if response has data property
         setVerificationRequests(data.data);
       } else {
-        console.warn('Unexpected response format:', data);
         setVerificationRequests([]);
       }
     } catch (error) {
@@ -219,7 +216,7 @@ export const PendingVerificationsPage: React.FC = () => {
       const skData = await skResponse.json();
       if (skData.success && Array.isArray(skData.data)) {
         setStoreKeepers(skData.data);
-      } else {
+        } else {
         setStoreKeepers([]);
       }
     } catch (error) {
@@ -251,7 +248,6 @@ export const PendingVerificationsPage: React.FC = () => {
         forwardedByName: user?.user_name || 'System',
         forwardNotes: verificationNotes || 'Please verify item availability from the store.'
       };
-
 
       const response = await fetch('http://localhost:3001/api/inventory/forward-verification-to-storekeeper', {
         method: 'POST',

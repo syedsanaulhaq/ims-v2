@@ -5,7 +5,5 @@ const filePath = path.join(__dirname, 'server', 'routes', 'stockIssuance.cjs');
 const fileContent = fs.readFileSync(filePath, 'utf8');
 
 const lines = fileContent.split('\n');
-console.log('Lines 200 to 270 of stockIssuance.cjs:');
 for (let i = 199; i < Math.min(lines.length, 270); i++) {
-  console.log(`${i+1}: ${lines[i]}`);
-}
+  }

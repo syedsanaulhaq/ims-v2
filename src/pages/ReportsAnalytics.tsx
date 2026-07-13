@@ -175,7 +175,6 @@ const ReportsAnalytics: React.FC = () => {
   const loadReportsFromDatabase = async () => {
     try {
       // In a real implementation, this would call actual APIs
-      
       // For now, set empty array until proper report APIs are implemented
       setReports([]);
       
@@ -192,7 +191,6 @@ const ReportsAnalytics: React.FC = () => {
 
   const loadMetricsFromDatabase = async () => {
     try {
-      
       // Use real APIs to get financial metrics
       const [tendersResponse, deliveriesResponse, stockResponse] = await Promise.all([
         fetch(`${getApiBaseUrl()}/tenders`).catch(() => ({ json: () => [] })),
@@ -251,8 +249,7 @@ const ReportsAnalytics: React.FC = () => {
         monthlyTenders: [] // Would need monthly aggregated data
       });
 
-      
-    } catch (error) {
+      } catch (error) {
       console.error('Error loading metrics from database:', error);
       // Set empty/default values on error
       setFinancialMetrics({ totalProcurement: 0, totalTenders: 0, averageTenderValue: 0, costSavings: 0, budgetUtilization: 0, pendingPayments: 0, monthlySpend: [] });

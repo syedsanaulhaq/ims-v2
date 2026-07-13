@@ -16,20 +16,11 @@ const config = {
 async function testStockIssuanceTables() {
   try {
     await sql.connect(config);
-    console.log('✅ Connected to database\n');
-
     // Test stock_issuance_requests table
-    console.log('Testing stock_issuance_requests table...');
     const requestsResult = await sql.query`SELECT COUNT(*) as count FROM stock_issuance_requests`;
-    console.log(`✅ stock_issuance_requests exists: ${requestsResult.recordset[0].count} rows\n`);
-
     // Test stock_issuance_items table
-    console.log('Testing stock_issuance_items table...');
     const itemsResult = await sql.query`SELECT COUNT(*) as count FROM stock_issuance_items`;
-    console.log(`✅ stock_issuance_items exists: ${itemsResult.recordset[0].count} rows\n`);
-
     // Test the full query from the endpoint
-    console.log('Testing full query from API endpoint...');
     const fullQuery = `
       SELECT TOP 1
         sir.id,
@@ -45,10 +36,7 @@ async function testStockIssuanceTables() {
     `;
     
     const fullResult = await sql.query(fullQuery);
-    console.log('✅ Full query works!');
-    console.log('   Result:', fullResult.recordset[0] || 'No data');
-
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Error:', error.message);
     console.error('   Details:', error);
   } finally {

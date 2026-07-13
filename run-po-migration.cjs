@@ -20,31 +20,22 @@ const sqlConfig = {
 async function runMigration() {
   let pool;
   try {
-    console.log('🔗 Connecting to SQL Server...');
     pool = await sql.connect(sqlConfig);
-    console.log('✅ Connected to SQL Server');
-
     // Split by CREATE TRIGGER to execute triggers separately
     const query = fs.readFileSync('add-purchase-orders.sql', 'utf8');
     const triggerSplit = query.split('CREATE TRIGGER');
     
     // First, execute everything before triggers
     if (triggerSplit[0].trim()) {
-      console.log('📝 Creating tables and indexes...');
       await pool.request().batch(triggerSplit[0].trim());
     }
     
     // Then execute each trigger separately (triggers need to be in their own batch)
     for (let i = 1; i < triggerSplit.length; i++) {
-      console.log(`📝 Creating trigger ${i}/${triggerSplit.length - 1}...`);
       await pool.request().batch('CREATE TRIGGER' + triggerSplit[i]);
     }
     
-    console.log('✅ Migration completed successfully!');
-    console.log('📊 Purchase Orders tables created:');
-    console.log('   - purchase_orders');
-    console.log('   - purchase_order_items');
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Migration failed:', error.message);
     process.exit(1);
   } finally {

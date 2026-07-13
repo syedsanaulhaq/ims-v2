@@ -21,10 +21,9 @@ async function findTables() {
       SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME
     `);
 
-    console.log('Tables containing "item" or "master":');
     tables.recordset
       .filter(t => t.TABLE_NAME.toLowerCase().includes('item') || t.TABLE_NAME.toLowerCase().includes('master'))
-      .forEach(t => console.log(`  - ${t.TABLE_NAME}`));
+      .forEach(t => );
 
     await pool.close();
   } catch (error) {

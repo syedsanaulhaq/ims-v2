@@ -17,8 +17,6 @@ async function runTest() {
   const pool = new sql.ConnectionPool(config);
   try {
     await pool.connect();
-    console.log('✅ Connected to SQL Server\n');
-
     // 1. Create a stock issuance request
     const { recordset: requestRecordset } = await pool.request()
       .input('requester_user_id', sql.NVarChar(450), requesterUserId)
@@ -30,8 +28,6 @@ async function runTest() {
       `);
 
     const requestId = requestRecordset[0].request_id;
-    console.log('📋 Created request:', requestId);
-
     // 2. Get first 3 items from item_masters
     const { recordset: itemsRecordset } = await pool.request()
       .query(`SELECT TOP 3 id, nomenclature FROM item_masters ORDER BY nomenclature`);
@@ -40,8 +36,6 @@ async function runTest() {
       console.error('❌ Need at least 3 items in item_masters');
       return;
     }
-
-    console.log('📦 Found 3 items:');
 
     // 3. Create stock issuance items
     const itemIds = [];
@@ -65,8 +59,7 @@ async function runTest() {
 
       const siItemId = itemResultset[0].item_id;
       itemIds.push({ id: siItemId, name: itemName, masterId: itemMasterId });
-      console.log(`   ${i + 1}. ${itemName} (${siItemId})`);
-    }
+      }
 
     // 4. Create approval record
     const { recordset: approvalRecordset } = await pool.request()
@@ -82,8 +75,6 @@ async function runTest() {
       `);
 
     const approvalId = approvalRecordset[0].approval_id;
-    console.log('\n✅ Created approval:', approvalId);
-
     // 5. Mark items with different decisions
     const decisions = [
       { itemId: itemIds[0].id, decision: 'APPROVE_FROM_STOCK', name: itemIds[0].name },
@@ -91,7 +82,6 @@ async function runTest() {
       { itemId: itemIds[2].id, decision: 'RETURN', name: itemIds[2].name }
     ];
 
-    console.log('\n🎯 Setting item decisions:');
     for (const decision of decisions) {
       await pool.request()
         .input('item_id', sql.UniqueIdentifier, decision.itemId)
@@ -101,11 +91,9 @@ async function runTest() {
           SET decision_type = @decision_type 
           WHERE id = @item_id
         `);
-      console.log(`   • ${decision.name}: ${decision.decision}`);
-    }
+      }
 
     // 6. Create approval_items records with item details
-    console.log('\n📝 Creating approval_items records:');
     for (let i = 0; i < itemIds.length; i++) {
       const decision = decisions[i];
 
@@ -122,21 +110,9 @@ async function runTest() {
           SELECT @id as approval_item_id;
         `);
       const approvalItemId = itemRecordset[0].approval_item_id;
-      console.log(`   ✓ ${decision.name} (${approvalItemId})`);
-    }
+      }
 
-    console.log('\n✅ Test data created successfully!');
-    console.log('\n📊 Summary:');
-    console.log(`   Request ID: ${requestId}`);
-    console.log(`   Approval ID: ${approvalId}`);
-    console.log(`   Approver: ${approverUserId}`);
-    console.log(`   Status: returned (because item 3 is RETURN)`);
-    console.log(`\n🧪 To test:`);
-    console.log(`   1. Click "Approved" card - should show 1 request with 1 item (${itemIds[0].name})`);
-    console.log(`   2. Click "Rejected" card - should show 1 request with 1 item (${itemIds[1].name})`);
-    console.log(`   3. Click "Returned" card - should show 1 request with 1 item (${itemIds[2].name})`);
-
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
     console.error(err);
   } finally {

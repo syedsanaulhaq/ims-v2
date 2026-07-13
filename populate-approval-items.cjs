@@ -16,8 +16,6 @@ async function fixApprovalItems() {
   const pool = new sql.ConnectionPool(config);
   try {
     await pool.connect();
-    console.log('✓ Connected to database\n');
-
     const requestId = '0DC79EAB-02F8-41AA-BF10-F1944567070A';
 
     // Get the approval record
@@ -26,19 +24,14 @@ async function fixApprovalItems() {
       .query(`SELECT id FROM request_approvals WHERE request_id = @requestId`);
 
     if (approvalCheck.recordset.length === 0) {
-      console.log('❌ No approval record found');
       return;
     }
 
     const approvalId = approvalCheck.recordset[0].id;
-    console.log(`✓ Found approval ID: ${approvalId}\n`);
-
     // Get items
     const items = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`SELECT id, item_master_id, nomenclature, custom_item_name, requested_quantity, unit_price FROM stock_issuance_items WHERE request_id = @requestId`);
-
-    console.log(`✓ Found ${items.recordset.length} items\n`);
 
     for (const item of items.recordset) {
       await pool.request()
@@ -53,11 +46,7 @@ async function fixApprovalItems() {
           VALUES (@approvalId, @itemId, @itemMasterId, @nomenclature, @customItemName, @requestedQuantity, 'PENDING')
         `);
 
-      console.log(`✓ Added to approval_items: ${item.nomenclature}`);
-    }
-
-    console.log('\n✓ Successfully populated approval_items!');
-    console.log('✓ Request is now visible to Muhammad Ehtesham Siddiqui');
+      }
 
     await pool.close();
   } catch (error) {

@@ -292,8 +292,7 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              console.warn('Failed to fetch request group details:', err);
-            }
+              }
 
             try {
               const filters: { user_id?: string; wing_id?: string | number } = {};
@@ -316,8 +315,7 @@ const RequestDetailsPage: React.FC = () => {
                 });
               }
             } catch (err) {
-              console.warn('Failed to fetch last issued summary for request details:', err);
-            }
+              }
 
             // Try to load detailed request info (including approval history and supervisor) from stock-issuance/:id
             try {
@@ -347,8 +345,7 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              console.warn('Failed to fetch /api/stock-issuance/:id:', err);
-            }
+              }
             
             // If no approval history yet, try the request-details endpoint
             if (!mappedRequest.approval_history || mappedRequest.approval_history.length === 0) {
@@ -386,7 +383,6 @@ const RequestDetailsPage: React.FC = () => {
                   await loadApprovalHistory(foundRequest.id, mappedRequest);
                 }
               } catch (err) {
-                console.warn('Failed to fetch /api/request-details, falling back to approvals history', err);
                 await loadApprovalHistory(foundRequest.id, mappedRequest);
               }
             }
@@ -404,7 +400,7 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-            }
+              }
 
             try {
               const lanesResp = await fetch(`${getApiBaseUrl()}/approvals/request/${foundRequest.id}/lanes`, {
@@ -418,8 +414,7 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              console.warn('Could not fetch lane summary for request:', foundRequest.id, err);
-            }
+              }
             
             // Normalize approval history entries - preserve all fields
             mappedRequest.approval_history = (mappedRequest.approval_history || []).map((ah: any) => {
@@ -489,7 +484,6 @@ const RequestDetailsPage: React.FC = () => {
             }
           }
         } catch (err) {
-          console.warn('Failed to fetch approval history via /api/request-details:', err);
           // fallthrough to try legacy endpoint as a last resort
         }
       }
@@ -523,7 +517,7 @@ const RequestDetailsPage: React.FC = () => {
           }
         }
       } catch (error) {
-      }
+        }
 
       // If no real data available, just show the basic submission info
       const approvalHistory: ApprovalHistoryItem[] = [];

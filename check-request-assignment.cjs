@@ -17,9 +17,6 @@ async function checkRequestAssignment() {
 
     const requestId = 'FB1A19AD-FB56-4304-A98F-8484089C4899';
 
-    console.log('\n🔍 CHECKING REQUEST ASSIGNMENT');
-    console.log('='.repeat(60));
-
     // Get the request approval details
     const result = await pool.request()
       .input('requestId', sql.VarChar, requestId)
@@ -36,18 +33,11 @@ async function checkRequestAssignment() {
       `);
 
     if (result.recordset.length === 0) {
-      console.log('❌ No approval found for this request');
       await pool.close();
       return;
     }
 
     const approval = result.recordset[0];
-    console.log(`\nRequest ID: ${requestId}`);
-    console.log(`Approval ID: ${approval.approval_id}`);
-    console.log(`Current Approver ID: ${approval.current_approver_id}`);
-    console.log(`Current Approver: ${approval.UserName} (${approval.Email})`);
-    console.log(`Status: ${approval.current_status}`);
-
     // Get the supervisor details
     const supervisorId = '4dae06b7-17cd-480b-81eb-da9c76ad5728';
     const supervisorResult = await pool.request()
@@ -56,9 +46,7 @@ async function checkRequestAssignment() {
 
     if (supervisorResult.recordset.length > 0) {
       const supervisor = supervisorResult.recordset[0];
-      console.log(`\nExpected Supervisor: ${supervisor.UserName} (${supervisor.Email})`);
-      console.log(`Supervisor ID: ${supervisorId}`);
-    }
+      }
 
     // Get all items and their decisions
     const itemsResult = await pool.request()
@@ -73,10 +61,8 @@ async function checkRequestAssignment() {
         ORDER BY ai.nomenclature
       `);
 
-    console.log(`\nItems in request:`);
     itemsResult.recordset.forEach(item => {
-      console.log(`  - ${item.nomenclature}: ${item.decision_type || 'NULL (pending)'}`);
-    });
+      });
 
     await pool.close();
   } catch (error) {

@@ -24,10 +24,7 @@ async function debugWingRequests() {
   
   try {
     await pool.connect();
-    console.log('✅ Connected to database');
-    
     // Query 1: All stock_issuance_requests
-    console.log('\n📋 All Stock Issuance Requests:');
     const reqResult = await pool.request().query(`
       SELECT 
         sir.id,
@@ -47,20 +44,10 @@ async function debugWingRequests() {
       ORDER BY sir.created_at DESC
     `);
     
-    console.log(`Found ${reqResult.recordset.length} requests:`);
     reqResult.recordset.forEach(r => {
-      console.log(`
-  ID: ${r.id}
-  Request #: ${r.request_number}
-  Type: ${r.request_type}
-  User: ${r.FullName} (ID: ${r.requester_user_id})
-  Wing: ${r.WingName} (ID: ${r.intWingID})
-  Submitted: ${r.submitted_at}
-      `);
-    });
+      });
 
     // Query 2: Check request_approvals
-    console.log('\n📋 Request Approvals:');
     const approvalResult = await pool.request().query(`
       SELECT 
         ra.id,
@@ -72,13 +59,10 @@ async function debugWingRequests() {
       ORDER BY ra.submitted_date DESC
     `);
     
-    console.log(`Found ${approvalResult.recordset.length} approval records`);
     approvalResult.recordset.forEach(a => {
-      console.log(`  ID: ${a.id}, Request: ${a.request_id}, Status: ${a.current_status}`);
-    });
+      });
 
     // Query 3: Check stock_issuance_items
-    console.log('\n📋 Stock Issuance Items:');
     const itemResult = await pool.request().query(`
       SELECT 
         sii.id,
@@ -88,8 +72,6 @@ async function debugWingRequests() {
       FROM stock_issuance_items sii
       ORDER BY sii.created_at DESC
     `);
-    
-    console.log(`Found ${itemResult.recordset.length} items`);
     
     await pool.close();
   } catch (err) {

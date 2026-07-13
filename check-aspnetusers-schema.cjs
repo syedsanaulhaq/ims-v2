@@ -18,8 +18,6 @@ async function checkSchema() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     const result = await pool.request().query(`
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
       FROM INFORMATION_SCHEMA.COLUMNS 
@@ -27,11 +25,9 @@ async function checkSchema() {
       ORDER BY ORDINAL_POSITION
     `);
 
-    console.log("📋 AspNetUsers table columns:\n");
     result.recordset.forEach(row => {
       const nullable = row.IS_NULLABLE === 'YES' ? '(nullable)' : '';
-      console.log(`  ${row.COLUMN_NAME} [${row.DATA_TYPE}] ${nullable}`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

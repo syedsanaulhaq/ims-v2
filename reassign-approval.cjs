@@ -17,9 +17,6 @@ async function reassignApproval() {
     const requestId = 'FB1A19AD-FB56-4304-A98F-8484089C4899';
     const supervisorId = '869dd81b-a782-494d-b8c2-695369b5ebb6'; // Your supervisor user
 
-    console.log('\n🔄 REASSIGNING APPROVAL TO SUPERVISOR');
-    console.log('='.repeat(60));
-
     // Update the approval to assign to supervisor
     const updateResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -36,17 +33,10 @@ async function reassignApproval() {
     const rowsUpdated = updateResult.recordset[0].rows_updated;
     
     if (rowsUpdated > 0) {
-      console.log('\n✅ SUCCESS: Approval reassigned to supervisor!');
-      console.log('   Request ID:', requestId);
-      console.log('   New Approver:', supervisorId);
-      console.log('   Rows updated:', rowsUpdated);
-    } else {
-      console.log('\n❌ No rows updated - request not found');
-    }
+      } else {
+      }
 
-    console.log('\n' + '='.repeat(60));
-
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
   } finally {
     await pool.close();

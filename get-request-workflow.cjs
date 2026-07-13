@@ -13,9 +13,6 @@ async function main() {
       FROM stock_issuance_requests
       WHERE id = @reqId
     `);
-  console.log('Stock Issuance Request:');
-  console.log(JSON.stringify(requestInfo.recordset, null, 2));
-
   const workflowState = await pool.request()
     .input('reqId', reqId)
     .query(`
@@ -23,9 +20,6 @@ async function main() {
       FROM ims_request_workflow_state
       WHERE request_id = @reqId
     `);
-  console.log('Workflow States:');
-  console.log(JSON.stringify(workflowState.recordset, null, 2));
-
   const requestApprovals = await pool.request()
     .input('reqId', reqId)
     .query(`
@@ -33,9 +27,6 @@ async function main() {
       FROM request_approvals
       WHERE request_id = @reqId
     `);
-  console.log('Request Approvals Table:');
-  console.log(JSON.stringify(requestApprovals.recordset, null, 2));
-
   const history = await pool.request()
     .input('reqId', reqId)
     .query(`
@@ -45,9 +36,6 @@ async function main() {
       WHERE h.request_approval_id IN (SELECT id FROM request_approvals WHERE request_id = @reqId)
       ORDER BY h.action_date DESC, h.step_number DESC
     `);
-  console.log('Approval History Table:');
-  console.log(JSON.stringify(history.recordset, null, 2));
-
   process.exit(0);
 }
 

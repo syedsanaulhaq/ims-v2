@@ -7,5 +7,4 @@ const fileContent = fs.readFileSync(filePath, 'utf8');
 const lines = fileContent.split('\n');
 // Find lines around line 109
 for (let i = 80; i < 160; i++) {
-  console.log(`${i + 1}: ${lines[i]}`);
-}
+  }

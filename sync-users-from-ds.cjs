@@ -44,15 +44,9 @@ async function syncUsers() {
   let dsPool, imsPool;
   
   try {
-    console.log('🔄 Starting user sync from DS to IMS...\n');
-    
     // Connect to DS database
-    console.log(`🔗 Connecting to DS database: ${dsConfig.database}`);
     dsPool = await sql.connect(dsConfig);
-    console.log('✅ Connected to DS database\n');
-    
     // Get all users from DS
-    console.log('📥 Fetching users from DS database...');
     const dsUsers = await dsPool.request().query(`
       SELECT 
         Id,
@@ -101,15 +95,9 @@ async function syncUsers() {
       WHERE ISACT = 1
     `);
     
-    console.log(`✅ Found ${dsUsers.recordset.length} users in DS database\n`);
-    
     // Connect to IMS database
-    console.log(`🔗 Connecting to IMS database: ${imsConfig.database}`);
     imsPool = await new sql.ConnectionPool(imsConfig).connect();
-    console.log('✅ Connected to IMS database\n');
-    
     // Sync each user
-    console.log('🔄 Syncing users to IMS database...');
     let newUsers = 0;
     let updatedUsers = 0;
     let errors = 0;
@@ -188,7 +176,6 @@ async function syncUsers() {
               )
             `);
           
-          console.log(`  ✅ Added new user: ${user.UserName}`);
           newUsers++;
         } else {
           // Update existing user
@@ -281,7 +268,6 @@ async function syncUsers() {
               WHERE Id = @Id
             `);
           
-          console.log(`  ♻️  Updated user: ${user.UserName}`);
           updatedUsers++;
         }
       } catch (err) {
@@ -290,17 +276,7 @@ async function syncUsers() {
       }
     }
     
-    console.log('\n' + '='.repeat(60));
-    console.log('✅ User sync completed!');
-    console.log('='.repeat(60));
-    console.log(`📊 Summary:`);
-    console.log(`   • Total users in DS: ${dsUsers.recordset.length}`);
-    console.log(`   • New users added: ${newUsers}`);
-    console.log(`   • Existing users updated: ${updatedUsers}`);
-    console.log(`   • Errors: ${errors}`);
-    console.log('='.repeat(60) + '\n');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('\n❌ Sync failed:', error.message);
     console.error('Stack:', error.stack);
     process.exit(1);
@@ -309,16 +285,14 @@ async function syncUsers() {
     if (dsPool) {
       try {
         await dsPool.close();
-        console.log('🔌 DS database connection closed');
-      } catch (err) {
+        } catch (err) {
         console.error('Error closing DS connection:', err.message);
       }
     }
     if (imsPool) {
       try {
         await imsPool.close();
-        console.log('🔌 IMS database connection closed');
-      } catch (err) {
+        } catch (err) {
         console.error('Error closing IMS connection:', err.message);
       }
     }
@@ -326,13 +300,8 @@ async function syncUsers() {
 }
 
 // Run the sync
-console.log('\n' + '='.repeat(60));
-console.log('  AspNetUsers Sync: DS → IMS');
-console.log('='.repeat(60) + '\n');
-
 syncUsers()
   .then(() => {
-    console.log('✅ Script completed successfully\n');
     process.exit(0);
   })
   .catch((error) => {

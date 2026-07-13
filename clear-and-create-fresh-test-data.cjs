@@ -23,15 +23,9 @@ const pool = new sql.ConnectionPool(config);
 
 async function clearAndCreate() {
   try {
-    console.log('📋 ========================================');
-    console.log('🔄 CLEAR OLD REQUESTS & CREATE NEW TEST DATA');
-    console.log('========================================\n');
-
     await pool.connect();
 
     // STEP 1: Delete old test approvals (keep last 2 days)
-    console.log('📍 STEP 1: Clearing old test data (older than 2 days)...\n');
-
     const deleteApprovals = await pool.request().query(`
       DELETE FROM approval_items 
       WHERE request_approval_id IN (
@@ -66,10 +60,7 @@ async function clearAndCreate() {
       WHERE created_date < DATEADD(day, -2, GETDATE())
     `);
 
-    console.log('✅ Cleared old test data\n');
-
     // STEP 2: Get test users
-    console.log('📍 STEP 2: Getting test users...');
     const usersResult = await pool.request().query(`
       SELECT TOP 2 Id, FullName FROM AspNetUsers WHERE FullName IS NOT NULL ORDER BY Id
     `);
@@ -77,12 +68,7 @@ async function clearAndCreate() {
     const requester = usersResult.recordset[0];
     const approver = usersResult.recordset[1];
 
-    console.log(`✅ Requester: ${requester.FullName}`);
-    console.log(`✅ Approver: ${approver.FullName}\n`);
-
     // STEP 3: Create new request with 4 items
-    console.log('📍 STEP 3: Creating new request with 4 items...');
-
     const items = [
       { name: 'Dell Laptop', quantity: 2 },
       { name: 'Office Chair', quantity: 5 },
@@ -105,8 +91,6 @@ async function clearAndCreate() {
         VALUES (@id, @requester_user_id, @justification, 'PENDING', GETDATE(), GETDATE(), 1)
       `);
 
-    console.log(`✅ Created request: ${requestId}`);
-
     // Add items to request
     for (const item of items) {
       const itemIdResult = await pool.request().query(`SELECT NEWID() as newId`);
@@ -125,11 +109,7 @@ async function clearAndCreate() {
         `);
     }
 
-    console.log(`✅ Added ${items.length} items\n`);
-
     // STEP 4: Create approval record
-    console.log('📍 STEP 4: Creating approval record with status=pending...');
-
     const approvalIdResult = await pool.request().query(`SELECT NEWID() as newId`);
     const approvalId = approvalIdResult.recordset[0].newId;
     
@@ -149,11 +129,7 @@ async function clearAndCreate() {
         VALUES (CAST(@id AS uniqueidentifier), CAST(@request_id AS uniqueidentifier), @request_type, @current_approver_id, @submitted_by, CAST(@workflow_id AS uniqueidentifier), 'pending', GETDATE(), GETDATE(), GETDATE())
       `);
 
-    console.log(`✅ Created approval: ${approvalId}\n`);
-
     // STEP 5: Create approval_items
-    console.log('📍 STEP 5: Creating approval items (all initially pending)...');
-
     for (const item of items) {
       await pool.request()
         .input('request_approval_id', sql.NVarChar, approvalId)
@@ -166,28 +142,9 @@ async function clearAndCreate() {
         `);
     }
 
-    console.log(`✅ Created ${items.length} approval_items\n`);
-
     // STEP 6: Summary
-    console.log('📋 ========================================');
-    console.log('✅ FRESH TEST DATA READY');
-    console.log('========================================\n');
-
-    console.log('Request ID:', requestId);
-    console.log('Approval ID:', approvalId);
-    console.log('Requester:', requester.FullName);
-    console.log('Approver:', approver.FullName);
-    console.log('\nItems (ready for approval):');
     for (const item of items) {
-      console.log(`  - ${item.name} x${item.quantity}`);
-    }
-    console.log('\nNext steps:');
-    console.log('1. Go to http://localhost:8080/dashboard/approval-dashboard');
-    console.log('2. See the request in the Pending Approvals');
-    console.log('3. Approve first 2 items');
-    console.log('4. Return last 2 items');
-    console.log('5. Verify status changes correctly\n');
-
+      }
     await pool.close();
 
   } catch (error) {

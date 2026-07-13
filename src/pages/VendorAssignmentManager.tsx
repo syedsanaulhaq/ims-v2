@@ -186,13 +186,6 @@ export const VendorAssignmentManager: React.FC = () => {
         vendorIds: vendorIds
       };
       
-        tenderId: selectedTender.id,
-        categoryId: selectedCategory.id,
-        vendorIds: vendorIds,
-        vendorCount: vendorIds.length,
-        payload
-      });
-
       const response = await fetch(
         `http://localhost:3001/api/annual-tenders/${selectedTender.id}/assign-vendors`,
         {
@@ -203,11 +196,6 @@ export const VendorAssignmentManager: React.FC = () => {
       );
 
       const responseData = await response.json();
-        status: response.status, 
-        statusText: response.statusText,
-        data: responseData 
-      });
-
       if (!response.ok) {
         const errorMsg = responseData.error || responseData.message || 'Failed to assign vendors';
         throw new Error(errorMsg);

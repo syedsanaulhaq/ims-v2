@@ -166,8 +166,7 @@ const RequisitionReportPage: React.FC = () => {
             }
           }
         } catch (sessionOrDesignationError) {
-          console.warn('Requisition report: failed to resolve current user session/designation', sessionOrDesignationError);
-        }
+          }
 
         if (!currentUserId) {
           throw new Error('Unable to resolve logged-in user session');
@@ -193,8 +192,7 @@ const RequisitionReportPage: React.FC = () => {
             });
           }
         } catch (requestsError) {
-          console.warn('Requisition report: primary list load failed', requestsError);
-        }
+          }
 
         if (Object.keys(byId).length === 0) {
           try {
@@ -215,8 +213,7 @@ const RequisitionReportPage: React.FC = () => {
               });
             }
           } catch (legacyError) {
-            console.warn('Requisition report: fallback list load from /stock-issuance failed', legacyError);
-          }
+            }
         }
 
         if (Object.keys(byId).length === 0) {
@@ -238,8 +235,7 @@ const RequisitionReportPage: React.FC = () => {
               }
             }
           } catch (myReqError) {
-            console.warn('Requisition report: fallback list load from /approvals/my-requests failed', myReqError);
-          }
+            }
         }
 
         const allRequests = Object.values(byId);
@@ -251,7 +247,6 @@ const RequisitionReportPage: React.FC = () => {
 
         if (!requestId) {
           const requestsToShow = myRequests.length > 0 ? myRequests : allRequests;
-
           const options = requestsToShow
             .sort((a: any, b: any) => {
               const dateA = new Date(a.submitted_at || a.created_at || 0).getTime();
@@ -325,8 +320,7 @@ const RequisitionReportPage: React.FC = () => {
                 requesterDesignation = pickDesignation(designationData?.designation);
               }
             } catch (designationError) {
-              console.warn('Requisition report: failed to load requester designation from auth endpoint', designationError);
-            }
+              }
           }
         }
 
@@ -351,8 +345,7 @@ const RequisitionReportPage: React.FC = () => {
             }
           }
         } catch (detailError) {
-          console.warn('Requisition report: failed to load detailed items, using base request data', detailError);
-        }
+          }
 
         try {
           const historyRows: any[] = [];
@@ -441,8 +434,7 @@ const RequisitionReportPage: React.FC = () => {
             }
           }
         } catch (historyError) {
-          console.warn('Requisition report: failed to load signatory names from history', historyError);
-        }
+          }
 
         try {
           const params = new URLSearchParams();
@@ -483,8 +475,7 @@ const RequisitionReportPage: React.FC = () => {
             }
           }
         } catch (summaryError) {
-          console.warn('Requisition report: failed to load last-issued summary, using default values', summaryError);
-        }
+          }
 
         setReport({
           id: found.id,

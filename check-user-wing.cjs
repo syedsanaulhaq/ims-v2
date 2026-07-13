@@ -18,8 +18,6 @@ async function checkUserWing() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Find the current user
     const userId = '4dae06b7-17cd-480b-81eb-da9c76ad5728';  // Muhammad Ehtesham Siddiqui
     
@@ -37,11 +35,7 @@ async function checkUserWing() {
 
     if (result.recordset.length > 0) {
       const user = result.recordset[0];
-      console.log(`📌 User: ${user.UserName}`);
-      console.log(`   ID: ${user.Id}`);
-      console.log(`   Wing ID (intWingID): ${user.intWingID}`);
-      console.log(`   Office ID: ${user.intOfficeID}\n`);
-    }
+      }
 
   } catch (error) {
     console.error("❌ Error:", error.message);

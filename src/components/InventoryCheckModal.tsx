@@ -64,7 +64,6 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       setLoading(true);
       setError(null);
 
-
       const response = await fetch('http://localhost:3001/api/inventory/check-availability', {
         method: 'POST',
         credentials: 'include',
@@ -79,7 +78,6 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       });
 
       const data = await response.json();
-
       if (response.ok && data.success) {
         setAvailability(data.data);
       } else if (response.ok && data.data) {
@@ -111,13 +109,6 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
         userName = sessionUser?.user_name;
       }
       
-        stockIssuanceId,
-        itemMasterId: itemDetails.item_master_id,
-        requestedQuantity: itemDetails.requested_quantity,
-        userId,
-        userName
-      });
-
       const response = await fetch('http://localhost:3001/api/inventory/request-verification', {
         method: 'POST',
         credentials: 'include',
@@ -137,7 +128,6 @@ export const InventoryCheckModal: React.FC<InventoryCheckModalProps> = ({
       });
 
       const data = await response.json();
-
       if (data.success) {
         setVerificationRequested(true);
         setVerificationId(data.verificationId);

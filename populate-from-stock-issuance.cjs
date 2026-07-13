@@ -18,10 +18,7 @@ async function main() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     // Get records with NULL nomenclature and their stock issuance nomenclature
-    console.log("📋 Finding NULL nomenclature records...\n");
     const nullRecords = await pool
       .request()
       .query(`
@@ -34,8 +31,6 @@ async function main() {
         WHERE ivr.item_nomenclature IS NULL
         ORDER BY ivr.id
       `);
-
-    console.log(`Found ${nullRecords.recordset.length} records with NULL nomenclature\n`);
 
     let updated = 0;
     let failed = 0;
@@ -53,24 +48,16 @@ async function main() {
                SET item_nomenclature = @nomenclature
                WHERE id = @id`
             );
-          console.log(`✅ ID ${record.id}: Updated with "${record.nomenclature}"`);
           updated++;
         } catch (error) {
-          console.log(`❌ ID ${record.id}: Update failed - ${error.message}`);
           failed++;
         }
       } else {
-        console.log(`❌ ID ${record.id}: No nomenclature found in stock_issuance_items`);
         failed++;
       }
     }
 
-    console.log(`\n📊 Migration Summary:`);
-    console.log(`   ✅ Updated: ${updated}`);
-    console.log(`   ❌ Failed: ${failed}`);
-
     // Verify final state
-    console.log(`\n📋 Final state of records:`);
     const finalResult = await pool
       .request()
       .query(
@@ -80,14 +67,9 @@ async function main() {
       );
 
     finalResult.recordset.forEach((row) => {
-      console.log(
-        `   ${row.id}. "${row.item_nomenclature || "Unknown Item"}" - ${row.verification_status}`
-      );
-    });
+      });
 
-    console.log(`\n✅ Population from stock_issuance_items complete!`);
-
-  } catch (error) {
+    } catch (error) {
     console.error("❌ Error:", error.message);
   } finally {
     await pool.close();

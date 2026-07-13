@@ -18,10 +18,7 @@ async function main() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     // Get verification records that have NULL nomenclature and try to find nomenclature from stock_issuance_items
-    console.log("📋 Checking stock_issuance_items for nomenclature...\n");
     const result = await pool
       .request()
       .query(`
@@ -39,15 +36,7 @@ async function main() {
       `);
 
     result.recordset.forEach((row) => {
-      console.log(`📌 Verification ID: ${row.id}`);
-      console.log(`   stock_issuance_id: ${row.stock_issuance_id}`);
-      console.log(`   item_master_id: ${row.item_master_id}`);
-      console.log(`   Current nomenclature: "${row.item_nomenclature || "NULL"}"`);
-      console.log(`   Stock issuance nomenclature: "${row.sii_nomenclature || "NULL"}"`);
-      console.log(`   Custom item name: "${row.custom_item_name || "NULL"}"`);
-      console.log(`   Item type: "${row.item_type || "NULL"}"`);
-      console.log("");
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

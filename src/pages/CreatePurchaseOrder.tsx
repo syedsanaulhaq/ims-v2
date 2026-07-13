@@ -41,7 +41,6 @@ interface ItemPrice {
 
 export default function CreatePurchaseOrder() {
   // VERSION CHECK: PO with Vendor+Specification in summary - Feb 11, 2026 - v1.2.0
-  
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tenderIdFromUrl = searchParams.get('tenderId');
@@ -100,7 +99,6 @@ export default function CreatePurchaseOrder() {
           if (!response.ok) throw new Error('Failed to fetch vendors');
           let data = await response.json();
           
-          
           // Extract vendors array from the response
           let vendorsArray: Vendor[] = [];
           if (data && typeof data === 'object') {
@@ -121,7 +119,7 @@ export default function CreatePurchaseOrder() {
               };
               // Store using original ID only (no duplicates)
               vendorMap[String(v.id)] = vendorData;
-            }
+              }
           });
           
           setVendors(vendorMap);
@@ -158,18 +156,12 @@ export default function CreatePurchaseOrder() {
       // Auto-select all items (user can deselect if needed)
       const allItemIds = data.map((item: TenderItem) => item.id);
       setSelectedItems(new Set(allItemIds));
-      
       // Initialize quantities and prices from tender items
       const initialQuantities: { [key: string]: number } = {};
       const initialPrices: { [key: string]: number } = {};
       const initialVendors: { [key: string]: string } = {};
       
       data.forEach((item: TenderItem) => {
-
-          vendor_id: item.vendor_id,
-          nomenclature: item.nomenclature
-        });
-        
         initialQuantities[item.id] = item.quantity || 1;
         // For annual tenders, use unit_price from item; otherwise use estimated_unit_price
         initialPrices[item.id] = item.unit_price || item.estimated_unit_price || 0;
@@ -180,13 +172,12 @@ export default function CreatePurchaseOrder() {
         if (item.vendor_id) {
           // Single vendor per item
           selectedVendorId = item.vendor_id;
-        }
+          }
         
         if (selectedVendorId) {
           initialVendors[item.id] = selectedVendorId;
-        } else {
-          console.warn(`⚠️ No vendor found for item ${item.id}`);
-        }
+          } else {
+          }
       });
       
       setItemQuantities(initialQuantities);
@@ -428,12 +419,7 @@ export default function CreatePurchaseOrder() {
                       />
                     </div>
                     {/* Debug: Log vendor state */}
-                    {console.log('📦 Rendering items table. Vendor state:', {
-                      vendorCount: Object.keys(vendors).length,
-                      vendorIds: Object.keys(vendors),
-                      vendors: vendors,
-                      itemVendors: itemVendors
-                    })}
+                    {}
                     <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="flex items-center gap-3">
                         <Checkbox
@@ -493,12 +479,6 @@ export default function CreatePurchaseOrder() {
                                       (() => {
                                         const vendorId = itemVendors[item.id];
                                         const vendor = vendors[vendorId];
-                                        
-                                          vendorId,
-                                          vendor,
-                                          totalVendors: Object.keys(vendors).length,
-                                          allVendorIds: Object.keys(vendors)
-                                        });
                                         
                                         if (vendor?.vendor_name) {
                                           return <span className="text-green-700 font-medium">✅ {vendor.vendor_name}</span>;

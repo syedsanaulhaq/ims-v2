@@ -528,7 +528,6 @@ const CreateTender: React.FC = () => {
 
   // Handle adding new item to tender
   const handleAddItem = () => {
-    
     if (!newItem.item_master_id || !newItem.nomenclature || newItem.quantity <= 0) {
       alert('Please fill in all required item fields');
       return;
@@ -772,10 +771,9 @@ const CreateTender: React.FC = () => {
         }))
       };
 
-      
       // Log each item's vendor info specifically
       tenderFormData.items.forEach((item, idx) => {
-      });
+        });
 
       // Add tender data as JSON string
       formData.append('tenderData', JSON.stringify(tenderFormData));
@@ -821,11 +819,9 @@ const CreateTender: React.FC = () => {
 
           if (!attachResponse.ok) {
             const attachError = await attachResponse.json().catch(() => ({}));
-            console.warn('⚠️ Tender created but failed to attach source required items:', attachError.error || attachResponse.statusText);
-          }
+            }
         } catch (attachErr) {
-          console.warn('⚠️ Tender created but failed to attach source required items:', attachErr);
-        }
+          }
       }
       
       // Save bidders to the newly created tender
@@ -848,7 +844,7 @@ const CreateTender: React.FC = () => {
             if (!bidderResponse.ok) {
               console.error('⚠️ Failed to save bidder:', bidder.vendor_name);
             } else {
-            }
+              }
           } catch (bidderErr) {
             console.error('❌ Error saving bidder:', bidderErr);
           }

@@ -165,7 +165,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      
       // Transform the data to match the expected interface
       const transformedRequests = (result.data || []).map((request: any) => {
         const items = request.items || [];
@@ -246,7 +245,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      
       // Use same transformation logic as pending requests
       return this.transformRequestsData(result.data || []);
     } catch (error) {
@@ -386,7 +384,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      
       return result;
     } catch (error) {
       console.error('❌ Error fetching inventory matches:', error);
@@ -412,7 +409,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      
       return result;
     } catch (error) {
       console.error('❌ Error approving with allocations:', error);

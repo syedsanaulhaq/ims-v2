@@ -13,18 +13,9 @@ const testPasswords = [
   'Admin@123'
 ];
 
-console.log('Testing password hash verification...\n');
-console.log('Hash:', passwordHash);
-console.log('Hash length:', passwordHash.length);
-console.log('\n');
-
 testPasswords.forEach(password => {
-  console.log(`Testing password: "${password}"`);
   try {
     const result = aspnetHasher.verifyPassword(password, passwordHash);
-    console.log(`   Result: ${result ? '✅ MATCH' : '❌ NO MATCH'}`);
-  } catch (error) {
-    console.log(`   Error: ${error.message}`);
-  }
-  console.log('');
-});
+    } catch (error) {
+    }
+  });

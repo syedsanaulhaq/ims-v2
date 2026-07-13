@@ -16,11 +16,7 @@ async function fixRequestStatus() {
     await pool.connect();
     const requestId = 'FB1A19AD-FB56-4304-A98F-8484089C4899';
 
-    console.log('\n🔧 FIXING REQUEST STATUS');
-    console.log('='.repeat(60));
-
     // Check current state
-    console.log('\n📋 Current State:');
     const checkResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`
@@ -35,17 +31,11 @@ async function fixRequestStatus() {
       `);
 
     if (checkResult.recordset.length === 0) {
-      console.log('❌ Request approval not found');
       return;
     }
 
     const approval = checkResult.recordset[0];
-    console.log('   Current Status: ' + approval.current_status);
-    console.log('   Approval Items: ' + approval.item_count);
-    console.log('   Pending Items: ' + approval.pending_items);
-
     // Update status to pending
-    console.log('\n🔄 Updating status to PENDING...');
     const updateResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
       .query(`
@@ -55,8 +45,6 @@ async function fixRequestStatus() {
         SELECT @@ROWCOUNT as rows_updated;
       `);
 
-    console.log('   ✅ Rows updated: ' + updateResult.recordset[0].rows_updated);
-
     // Verify
     const verifyResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -64,10 +52,7 @@ async function fixRequestStatus() {
         SELECT current_status FROM request_approvals WHERE request_id = @requestId
       `);
 
-    console.log('\n✅ NEW STATUS: ' + verifyResult.recordset[0].current_status);
-    console.log('\n' + '='.repeat(60));
-
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
   } finally {
     await pool.close();

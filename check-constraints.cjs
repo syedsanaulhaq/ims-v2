@@ -18,8 +18,6 @@ async function checkConstraints() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Get check constraints
     const result = await pool.request().query(`
       SELECT 
@@ -29,11 +27,8 @@ async function checkConstraints() {
       WHERE parent_object_id = OBJECT_ID('inventory_verification_requests')
     `);
 
-    console.log(`📋 CHECK Constraints:\n`);
     result.recordset.forEach(row => {
-      console.log(`Constraint: ${row.CONSTRAINT_NAME}`);
-      console.log(`Clause: ${row.CHECK_CLAUSE}\n`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

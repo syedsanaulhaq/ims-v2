@@ -1319,8 +1319,7 @@ const createStockIssuanceRequest = async (req, res) => {
               approverId = dynamicWorkflowResult.approverId;
             }
           } catch (dynamicError) {
-            console.warn(`⚠️ Dynamic workflow init failed for request ${requestId}:`, dynamicError.message);
-          }
+            }
         }
 
         // Fallback to legacy routing if dynamic workflow is not configured/resolvable.
@@ -1467,13 +1466,11 @@ const createStockIssuanceRequest = async (req, res) => {
               }
             }
           } else {
-            console.warn(`⚠️ No stock_issuance_items found for request ${requestId} - approval_items not created`);
-          }
+            }
 
         } else {
           const missingScope = normalizedRequestType === 'branch' ? `branch ${requester_branch_id}` : `wing ${wingId}`;
-          console.warn(`⚠️ No supervisor found for ${missingScope} - approval record not created`);
-        }
+          }
       } catch (approvalError) {
         // Don't fail the request creation, just log the error
         console.error('❌ Failed to create approval record:', approvalError.message);
@@ -1591,8 +1588,7 @@ router.post('/items', requireAuth, async (req, res) => {
                   WHERE id = @requestId
                 `);
             } else {
-              console.warn(`⚠️ Branch supervisor admin workflow init failed for request ${request_id}:`, dynamicWorkflowResult?.code || 'unknown');
-            }
+              }
           }
           
           // Get the items we just inserted

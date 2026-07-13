@@ -51,7 +51,7 @@ const NewProcurementRequest: React.FC = () => {
   // Debug: log user object
   useEffect(() => {
     // eslint-disable-next-line no-console
-  }, [user]);
+    }, [user]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -314,7 +314,6 @@ const NewProcurementRequest: React.FC = () => {
         throw new Error('No request ID returned from server');
       }
 
-
       // Now add items to the request - send all items in one request
       if (selectedItems.length > 0) {
         const itemsPayload = {
@@ -338,9 +337,8 @@ const NewProcurementRequest: React.FC = () => {
 
         if (!itemResponse.ok) {
           const errorData = await itemResponse.json();
-          console.warn('⚠️ Failed to add items:', errorData);
-        } else {
-        }
+          } else {
+          }
       }
 
       setSuccess('Wing request submitted successfully!');

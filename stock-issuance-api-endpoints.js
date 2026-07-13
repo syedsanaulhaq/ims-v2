@@ -203,8 +203,6 @@ app.post('/api/stock-issuance/issue/:requestId', async (req, res) => {
       .input('issuance_notes', sql.NVarChar, issuance_notes || null)
       .execute('sp_IssueStockItems');
 
-    console.log(`✅ Stock issued successfully for request: ${requestId}`);
-
     res.json({
       success: true,
       message: 'Stock items issued successfully and inventory updated',
@@ -359,8 +357,6 @@ app.post('/api/issued-items/return/:ledgerId', async (req, res) => {
       .input('item_condition', sql.NVarChar, item_condition || 'Good')
       .execute('sp_ReturnIssuedItems');
 
-    console.log(`✅ Item returned successfully: ${ledgerId}`);
-
     res.json({
       success: true,
       message: 'Item returned successfully',
@@ -474,4 +470,3 @@ app.get('/api/issued-items/pending-returns', async (req, res) => {
      - /api/issued-items/pending-returns - Overdue items alert
 */
 
-console.log('✅ Stock Issuance Workflow API endpoints loaded');

@@ -127,7 +127,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
   // Load tender vendors if tender ID is provided (editing mode)
   useEffect(() => {
-    
     if (tenderId && loadedTenderIdRef.current !== tenderId) {
       // Only load if we haven't loaded this tender yet
       loadedTenderIdRef.current = tenderId;
@@ -177,7 +176,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
     try {
       setLoading(true);
       const response = await fetch(`http://localhost:3001/api/tenders/${tenderId}/vendors`);
-      
       if (response.ok) {
         const data = await response.json();
         const apiVendors = Array.isArray(data) ? data : data.vendors || data.data || [];
@@ -194,7 +192,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
         
         setTenderVendors(mergedVendors);
       } else {
-        console.warn(`⚠️ Response not ok: ${response.status}`, await response.text());
         // Still use initial bidders if API fails
         if (initialBidders.length > 0) {
           setTenderVendors(initialBidders);
@@ -347,7 +344,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        
         // Update the vendor in local state immediately
         setTenderVendors(tenderVendors.map(tv => 
           tv.vendor_id === vendorId 
@@ -773,12 +769,6 @@ const TenderVendorManagement: React.FC<TenderVendorManagementProps> = ({
               <TableBody>
                 {tenderVendors.map((vendor) => {
                   // Debug log for vendor data including is_successful
-                    is_successful: vendor.is_successful,
-                    is_selected: vendor.is_selected,
-                    proposal_document_name: vendor.proposal_document_name,
-                    proposal_document_path: vendor.proposal_document_path
-                  });
-                  
                   return (
                   <TableRow key={vendor.vendor_id}>
                     <TableCell className="font-medium">

@@ -19,9 +19,6 @@ const config = {
       SELECT DISTINCT request_type FROM stock_issuance_requests
     `);
 
-    console.log('Request types in database:');
-    console.log(result.recordset);
-
     // Also check a sample organizational request
     const sample = await pool.request().query(`
       SELECT TOP 5
@@ -33,9 +30,6 @@ const config = {
       WHERE request_type = 'Organizational'
       ORDER BY created_date DESC
     `);
-
-    console.log('\nSample Organizational Requests:');
-    console.log(sample.recordset);
 
     pool.close();
   } catch (error) {

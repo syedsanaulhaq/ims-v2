@@ -72,7 +72,6 @@ const ReturnedRequestEditPage: React.FC = () => {
   const loadReturnedRequest = async (approvalId: string) => {
     try {
       setIsLoading(true);
-
       // First, load the returned request information to get the actual request_id
       const returnedResponse = await fetch('http://localhost:3001/api/approvals/my-returned-requests', {
         method: 'GET',
@@ -102,7 +101,6 @@ const ReturnedRequestEditPage: React.FC = () => {
               const requestData = await requestResponse.json();
               if (requestData.success && requestData.data) {
                 const req = requestData.data;
-
                 setRequest(req);
                 setPurpose(req.purpose || '');
                 setUrgencyLevel(req.urgency_level || 'Normal');
@@ -195,7 +193,6 @@ const ReturnedRequestEditPage: React.FC = () => {
     setSuccess('');
 
     try {
-
       const updateData = {
         purpose,
         urgency_level: urgencyLevel,

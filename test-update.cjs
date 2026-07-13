@@ -15,8 +15,7 @@ async function testUpdateRequest() {
       }
     });
 
-    console.log('✅ Update successful:', response.data);
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Update failed:', error.response?.data || error.message);
   }
 }

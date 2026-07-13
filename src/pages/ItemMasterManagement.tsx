@@ -42,7 +42,7 @@ const ItemMasterManagement = () => {
       if (response.ok) {
         const data = await response.json();
         setItems(Array.isArray(data) ? data : (data.items || []));
-      } else {
+        } else {
         setError(`HTTP Error: ${response.status}`);
       }
     } catch (err) {

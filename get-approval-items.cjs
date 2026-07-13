@@ -14,9 +14,6 @@ async function main() {
       LEFT JOIN item_masters im ON im.id = ai.item_master_id
       WHERE ai.request_approval_id = @approvalId
     `);
-  console.log('Approval Items:');
-  console.log(JSON.stringify(result.recordset, null, 2));
-  
   process.exit(0);
 }
 

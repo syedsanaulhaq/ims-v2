@@ -15,13 +15,9 @@ async function revertChanges() {
 
   try {
     await pool.connect();
-    console.log('🔄 REVERTING APPROVAL CHANGES');
-    console.log('============================================================\n');
-
     const approvalId = '2107FA18-C511-483D-A1D8-7F7B030C7AC3';
 
     // Revert approval status from 'pending' back to 'returned'
-    console.log('1️⃣  Reverting approval status back to "returned"...');
     await pool.request()
       .input('approvalId', sql.VarChar, approvalId)
       .query(`
@@ -29,11 +25,7 @@ async function revertChanges() {
         SET current_status = 'returned'
         WHERE id = @approvalId;
       `);
-    console.log('   ✅ Status reverted to "returned"\n');
-
     // Revert approval_items decision_type to original values
-    console.log('2️⃣  Reverting approval_items decision_type to original values...');
-    
     // Get the items first to show what we're reverting
     const items = await pool.request()
       .input('approvalId', sql.VarChar, approvalId)
@@ -44,10 +36,8 @@ async function revertChanges() {
         ORDER BY nomenclature;
       `);
 
-    console.log('   Current state before revert:');
     items.recordset.forEach((item, idx) => {
-      console.log(`   ${idx + 1}. ${item.nomenclature} - decision_type: ${item.decision_type}`);
-    });
+      });
 
     // Revert to original: A4 Paper = RETURN, HP ENVY 6 = APPROVE_FROM_STOCK, UPS = REJECT
     await pool.request()
@@ -61,8 +51,6 @@ async function revertChanges() {
         END
         WHERE request_approval_id = @approvalId;
       `);
-    console.log('   ✅ Decision types reverted\n');
-
     // Show final state
     const finalItems = await pool.request()
       .input('approvalId', sql.VarChar, approvalId)
@@ -73,18 +61,12 @@ async function revertChanges() {
         ORDER BY nomenclature;
       `);
 
-    console.log('✅ AFTER REVERT:');
     finalItems.recordset.forEach((item, idx) => {
-      console.log(`   ${idx + 1}. ${item.nomenclature} - decision_type: ${item.decision_type}`);
-    });
+      });
 
     const approvalStatus = await pool.request()
       .input('approvalId', sql.VarChar, approvalId)
       .query(`SELECT current_status FROM request_approvals WHERE id = @approvalId;`);
-
-    console.log(`   Approval Status: ${approvalStatus.recordset[0].current_status}`);
-    console.log('\n============================================================');
-    console.log('✅ Changes reverted successfully!');
 
     await pool.close();
   } catch (error) {

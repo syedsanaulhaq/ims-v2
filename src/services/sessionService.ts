@@ -62,8 +62,7 @@ class SessionService {
         this.sessionId = data.session_id || 'default-session';
         return this.currentUser;
       } else {
-        console.warn('⚠️ Session response success was false or no session data');
-      }
+        }
     } catch (error) {
       console.error('❌ Failed to initialize session:', error);
     }

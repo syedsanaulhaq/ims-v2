@@ -24,15 +24,10 @@ async function debugWingHistoryQuery() {
   
   try {
     await pool.connect();
-    console.log('✅ Connected to database\n');
-    
     // Check specific request
     const requestId = '74536345-1888-4524-B422-133B85FC6708';
     
-    console.log(`📋 Checking request: ${requestId}\n`);
-    
     // Query 1: Direct request lookup
-    console.log('1️⃣  Direct request lookup:');
     const directResult = await pool.request().query(`
       SELECT 
         sir.id,
@@ -53,20 +48,10 @@ async function debugWingHistoryQuery() {
     
     if (directResult.recordset.length > 0) {
       const r = directResult.recordset[0];
-      console.log(`  Request found:
-  - Requester User ID: ${r.requester_user_id}
-  - Requester Wing ID (from sir): ${r.requester_wing_id}
-  - User Full Name: ${r.FullName}
-  - User's intWingID: ${r.intWingID}
-  - Wing Name: ${r.WingName}
-  - Request Type: ${r.request_type}
-      `);
-    } else {
-      console.log('  ❌ Request not found');
-    }
+      } else {
+      }
 
     // Query 2: Test the actual wing history query with wing ID 19
-    console.log('\n2️⃣  Test wing history query (with wing ID = 19):');
     const historyResult = await pool.request().query(`
       SELECT 
         COALESCE(ra.id, sir.id) as id,
@@ -102,26 +87,13 @@ async function debugWingHistoryQuery() {
       ORDER BY COALESCE(ra.submitted_date, sir.submitted_at) DESC
     `);
     
-    console.log(`  Found ${historyResult.recordset.length} wing requests`);
     historyResult.recordset.forEach(r => {
-      console.log(`
-  - Request ID: ${r.request_id}
-  - Requester: ${r.requester_name}
-  - Wing: ${r.requester_wing_name}
-  - Status: ${r.current_status}
-  - Type: ${r.request_type}
-      `);
-    });
+      });
 
     // Query 3: Check if the specific request appears
-    console.log(`\n3️⃣  Is the specific request in the results?`);
     const found = historyResult.recordset.find(r => r.request_id === requestId);
     if (found) {
-      console.log('  ✅ YES - Request is showing!');
-    } else {
-      console.log('  ❌ NO - Request is NOT in the results');
-      console.log('\n  Checking why...');
-      
+      } else {
       // Check each condition
       const checkResult = await pool.request().query(`
         SELECT 
@@ -139,13 +111,7 @@ async function debugWingHistoryQuery() {
       
       if (checkResult.recordset.length > 0) {
         const c = checkResult.recordset[0];
-        console.log(`
-  - Has Wing ID: ${c.HasWingId} (${c.intWingID})
-  - Wing ID = 19: ${c.WingMatches}
-  - Is Organizational: ${c.IsOrganizational}
-  - Request Type: ${c.request_type}
-        `);
-      }
+        }
     }
     
     await pool.close();

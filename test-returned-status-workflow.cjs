@@ -30,14 +30,9 @@ const pool = new sql.ConnectionPool(config);
 
 async function runTest() {
   try {
-    console.log('📋 ========================================');
-    console.log('🧪 RETURNED STATUS WORKFLOW TEST');
-    console.log('========================================\n');
-
     await pool.connect();
 
     // STEP 1: Get test users
-    console.log('📍 STEP 1: Getting test users...');
     const usersResult = await pool.request().query(`
       SELECT TOP 2 Id, FullName FROM AspNetUsers WHERE FullName IS NOT NULL ORDER BY Id
     `);
@@ -49,11 +44,7 @@ async function runTest() {
     const requester = usersResult.recordset[0];
     const approver = usersResult.recordset[1];
 
-    console.log(`✅ Requester: ${requester.FullName} (${requester.Id})`);
-    console.log(`✅ Approver: ${approver.FullName} (${approver.Id})\n`);
-
     // STEP 2: Create a stock issuance request
-    console.log('📍 STEP 2: Creating stock issuance request...');
     const requestId = `TEST-RETURNED-${Date.now()}`;
     const insertRequestResult = await pool.request()
       .input('request_id', sql.NVarChar, requestId)
@@ -68,10 +59,7 @@ async function runTest() {
         VALUES (@request_id, @office_id, @requester_id, @request_type, @description, @justification, DATEADD(day, 30, GETDATE()), @requester_id, GETDATE(), 'PENDING')
       `);
 
-    console.log(`✅ Created request: ${requestId}\n`);
-
     // STEP 3: Add 4 items to the request
-    console.log('📍 STEP 3: Adding 4 items to request...');
     const items = [
       { name: 'Network Switch', quantity: 2 },
       { name: 'Ethernet Cable', quantity: 50 },
@@ -116,10 +104,7 @@ async function runTest() {
         `);
     }
 
-    console.log(`✅ Added ${items.length} items to request\n`);
-
     // STEP 4: Create approval record
-    console.log('📍 STEP 4: Creating approval record...');
     const approvalResult = await pool.request()
       .input('request_id', sql.NVarChar, requestId)
       .input('current_approver_id', sql.NVarChar, approver.Id)
@@ -133,10 +118,7 @@ async function runTest() {
       `);
 
     const approvalId = approvalResult.recordset[0].id;
-    console.log(`✅ Created approval: ${approvalId}\n`);
-
     // STEP 5: Create approval_items records
-    console.log('📍 STEP 5: Creating approval_items...');
     for (let i = 0; i < itemIds.length; i++) {
       await pool.request()
         .input('request_approval_id', sql.NVarChar, approvalId)
@@ -149,15 +131,7 @@ async function runTest() {
           VALUES (@request_approval_id, @item_master_id, @nomenclature, @requested_quantity)
         `);
     }
-    console.log(`✅ Created ${itemIds.length} approval_items\n`);
-
     // STEP 6: Approve first 2 items, return last 2 items
-    console.log('📍 STEP 6: Supervisor making mixed decisions...');
-    console.log(`   - Item 1 (${items[0].name}): APPROVE_FROM_STOCK`);
-    console.log(`   - Item 2 (${items[1].name}): APPROVE_FROM_STOCK`);
-    console.log(`   - Item 3 (${items[2].name}): RETURN`);
-    console.log(`   - Item 4 (${items[3].name}): RETURN\n`);
-
     const decisions = [
       { index: 0, type: 'APPROVE_FROM_STOCK', reason: null },
       { index: 1, type: 'APPROVE_FROM_STOCK', reason: null },
@@ -178,17 +152,10 @@ async function runTest() {
         `);
     }
 
-    console.log(`✅ All decisions recorded\n`);
-
     // STEP 7: Update approval status (simulating what backend does)
-    console.log('📍 STEP 7: Updating approval status based on decisions...');
-    
     const hasReturnActions = decisions.some(d => d.type === 'RETURN');
     const finalStatus = hasReturnActions ? 'returned' : 'pending';
     
-    console.log(`   - Has RETURN actions: ${hasReturnActions}`);
-    console.log(`   - Final approval status: ${finalStatus}\n`);
-
     await pool.request()
       .input('approvalId', sql.NVarChar, approvalId)
       .input('status', sql.NVarChar, finalStatus)
@@ -198,11 +165,7 @@ async function runTest() {
         WHERE id = @approvalId
       `);
 
-    console.log(`✅ Updated approval status to: ${finalStatus}\n`);
-
     // STEP 8: Verify the approval appears in 'returned' view, NOT in 'pending' view
-    console.log('📍 STEP 8: Verifying status filtering...\n');
-
     // Check 'pending' view
     const pendingResult = await pool.request()
       .input('userId', sql.NVarChar, approver.Id)
@@ -215,8 +178,6 @@ async function runTest() {
       `);
 
     const approvalInPending = pendingResult.recordset.some(r => r.id === approvalId);
-    console.log(`   - Approval in 'pending' view: ${approvalInPending ? '❌ WRONG' : '✅ CORRECT (not shown)'}`);
-
     // Check 'returned' view
     const returnedResult = await pool.request()
       .input('userId', sql.NVarChar, approver.Id)
@@ -229,11 +190,7 @@ async function runTest() {
       `);
 
     const approvalInReturned = returnedResult.recordset.some(r => r.id === approvalId);
-    console.log(`   - Approval in 'returned' view: ${approvalInReturned ? '✅ CORRECT (shown)' : '❌ WRONG'}\n`);
-
     // STEP 9: Verify individual approval_items decisions
-    console.log('📍 STEP 9: Verifying individual item decisions...\n');
-    
     const itemsResult = await pool.request()
       .input('approvalId', sql.NVarChar, approvalId)
       .query(`
@@ -244,26 +201,9 @@ async function runTest() {
       `);
 
     for (const item of itemsResult.recordset) {
-      console.log(`   - ${item.nomenclature}: ${item.decision_type}${item.rejection_reason ? ` (${item.rejection_reason})` : ''}`);
-    }
-    console.log();
-
+      }
     // STEP 10: Summary
-    console.log('📋 ========================================');
-    console.log('✅ TEST SUMMARY');
-    console.log('========================================\n');
-
-    console.log(`Request ID: ${requestId}`);
-    console.log(`Approval ID: ${approvalId}`);
-    console.log(`Current Status: ${finalStatus}`);
-    console.log(`\nResults:`);
-    console.log(`  ✅ Approval has status='returned' (because ANY item was returned)`);
-    console.log(`  ${approvalInReturned ? '✅' : '❌'} Approval appears in 'returned' filter`);
-    console.log(`  ${!approvalInPending ? '✅' : '❌'} Approval does NOT appear in 'pending' filter`);
-    console.log(`  ✅ 2 items approved, 2 items returned`);
-    console.log(`\n✅ WORKFLOW VERIFICATION COMPLETE!\n`);
-
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Test failed:', error);
     process.exit(1);
   } finally {

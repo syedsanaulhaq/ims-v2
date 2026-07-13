@@ -10,16 +10,6 @@ const app = express();
 const PORT = process.env.API_PORT || 5001;
 
 // 🚧 Staging banner
-console.log(`
-🚧 ========================================
-   InvMIS STAGING API Server
-   Environment: ${process.env.NODE_ENV}
-   Port: ${PORT}
-   Database: ${process.env.DB_NAME}
-   Date: ${new Date().toISOString()}
-🚧 ========================================
-`);
-
 // Enhanced CORS for staging
 const corsOptions = {
   origin: [
@@ -40,7 +30,6 @@ app.use(express.json({ limit: '10mb' }));
 // 🚧 Staging middleware for logging
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
-  console.log(`🚧 [${timestamp}] ${req.method} ${req.path} - ${req.ip}`);
   next();
 });
 
@@ -64,14 +53,6 @@ const dbConfig = {
     idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 30000
   }
 };
-
-console.log('🚧 Database Config:', {
-  server: dbConfig.server,
-  database: dbConfig.database,
-  user: dbConfig.user,
-  encrypt: dbConfig.options.encrypt,
-  trustServerCertificate: dbConfig.options.trustServerCertificate
-});
 
 // 🏥 Enhanced Health Check for Staging
 app.get('/health', async (req, res) => {
@@ -130,7 +111,6 @@ app.get('/api/health', async (req, res) => {
 
 // 📊 Dashboard Summary with staging indicators
 app.get('/api/dashboard/summary', async (req, res) => {
-  console.log('🚧 [STAGING] Dashboard Summary requested');
   try {
     const pool = await sql.connect(dbConfig);
     
@@ -146,7 +126,6 @@ app.get('/api/dashboard/summary', async (req, res) => {
       itemsCount = itemsResult.recordset[0].count;
       stockValue = stockResult.recordset[0].totalValue || 0;
     } catch (error) {
-      console.log('🚧 Using fallback for items/stock data');
       itemsCount = 150;
       stockValue = 2500000;
     }
@@ -168,7 +147,6 @@ app.get('/api/dashboard/summary', async (req, res) => {
       stagingNote: 'This is STAGING data - not for production use'
     };
 
-    console.log('🚧 [STAGING] Summary generated:', summary);
     res.json(summary);
   } catch (error) {
     console.error('🚧 Dashboard Summary Error:', error.message);
@@ -189,14 +167,12 @@ try {
   // Read the main API server to extract routes
   const mainApiPath = path.join(__dirname, 'invmis-api.cjs');
   if (fs.existsSync(mainApiPath)) {
-    console.log('🚧 Loading main API routes for staging...');
     // Import the main API configuration
     delete require.cache[require.resolve('./invmis-api.cjs')];
     
     // Add all the existing API routes here
     // Users endpoint
     app.get('/api/users', async (req, res) => {
-      console.log('🚧 [STAGING] Users endpoint called');
       try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().query(`
@@ -216,7 +192,6 @@ try {
 
     // Offices endpoint
     app.get('/api/offices', async (req, res) => {
-      console.log('🚧 [STAGING] Offices endpoint called');
       try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().query(`
@@ -236,8 +211,7 @@ try {
     
   }
 } catch (error) {
-  console.log('🚧 Could not load main API routes, using basic endpoints');
-}
+  }
 
 // 🚧 Staging-specific endpoints
 app.get('/api/staging-info', (req, res) => {
@@ -274,18 +248,4 @@ app.use((error, req, res, next) => {
 
 // Start staging server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`
-🚧 =======================================
-   InvMIS STAGING API Server Running!
-   
-   🌐 URL: http://localhost:${PORT}
-   🏥 Health: http://localhost:${PORT}/health
-   📊 API Health: http://localhost:${PORT}/api/health
-   🚧 Staging Info: http://localhost:${PORT}/api/staging-info
-   
-   Environment: ${process.env.NODE_ENV}
-   Database: ${process.env.DB_NAME}
-   Time: ${new Date().toLocaleString()}
-🚧 =======================================
-  `);
-});
+  });

@@ -50,7 +50,6 @@ async function resolveBranchNameFromEmployeeView(pool, branchId) {
       `);
     return result.recordset?.[0]?.branch_name || null;
   } catch (error) {
-    console.warn('⚠️ Could not resolve branch from vw_employee_branch:', error.message);
     return null;
   }
 }
@@ -67,7 +66,6 @@ async function resolveRequesterNameFromEmployeeView(pool, userId) {
       `);
     return result.recordset?.[0]?.full_name || null;
   } catch (error) {
-    console.warn('⚠️ Could not resolve requester name from vw_employee_branch:', error.message);
     return null;
   }
 }
@@ -84,7 +82,6 @@ async function resolveWingNameFromEmployeeView(pool, wingId) {
       `);
     return result.recordset?.[0]?.wing_name || null;
   } catch (error) {
-    console.warn('⚠️ Could not resolve wing from vw_employee_branch:', error.message);
     return null;
   }
 }
@@ -2486,8 +2483,7 @@ router.get('/:approvalId', async (req, res, next) => {
         `);
       hasForwardedToAdminHistory = historyFlagResult.recordset.length > 0;
     } catch (historyFlagError) {
-      console.warn('Could not resolve forwarded_to_admin history flag:', historyFlagError.message);
-    }
+      }
 
     // Get approval items
     let itemsResult = await pool.request()

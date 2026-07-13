@@ -14,7 +14,6 @@ async function run() {
         FROM ims_dynamic_workflow_steps
         ORDER BY group_number ASC, step_order ASC
       `);
-    console.log('Dynamic Workflow Steps:');
     console.table(steps.recordset);
 
     await pool.close();

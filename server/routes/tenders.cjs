@@ -686,8 +686,7 @@ router.put('/:id', async (req, res) => {
               WHERE tender_id = @tender_id AND vendor_id = @vendor_id
             `);
           } catch (bidderErr) {
-            console.warn(`⚠️ Could not update bidder ${bidder.vendor_id}:`, bidderErr.message);
-          }
+            }
         }
       }
     }

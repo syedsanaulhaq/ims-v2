@@ -60,7 +60,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
     const loadData = async () => {
       try {
         setLoading(true);
-
         // Fetch vendors
         const vendorsRes = await fetch('http://localhost:3001/api/vendors');
         const vendorsData = await vendorsRes.json();
@@ -71,7 +70,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
           email: (v.email || '').trim() || 'N/A'
         }));
         setVendors(vendorsList);
-
         // Fetch categories
         const catsRes = await fetch('http://localhost:3001/api/categories');
         const catsData = await catsRes.json();
@@ -79,7 +77,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
           (a.name || '').localeCompare(b.name || '')
         );
         setCategories(catsList);
-
         // Fetch all items
         const allItemsList: ItemData[] = [];
         for (const cat of catsList) {
@@ -98,7 +95,7 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
           }
         }
         setAllItems(allItemsList);
-      } catch (error) {
+        } catch (error) {
         console.error('❌ Error loading data:', error);
       } finally {
         setLoading(false);
@@ -116,7 +113,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
           const res = await fetch(`http://localhost:3001/api/tenders/${editingId}`);
           if (res.ok) {
             const data = await res.json();
-
             setTender({ code: data.code, name: data.name, date: data.date });
 
             // Map vendors
@@ -244,7 +240,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
       items
     };
 
-
     try {
       const url = editingId && editingId !== 'new'
         ? `http://localhost:3001/api/tenders/${editingId}`
@@ -259,7 +254,6 @@ const TenderWizard: React.FC<TenderWizardProps> = ({ onComplete, onCancel, editi
       if (!response.ok) throw new Error(`API error: ${response.status}`);
 
       const result = await response.json();
-
       onComplete({
         ...result,
         tender,

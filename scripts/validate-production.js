@@ -45,8 +45,6 @@ class ProductionValidator {
   }
 
   async validateFileStructure() {
-    console.log('🏗️  Validating production file structure...');
-    
     const requiredFiles = this.getRequiredFiles();
     for (const file of requiredFiles) {
       const filePath = path.join(this.rootDir, file);
@@ -59,8 +57,6 @@ class ProductionValidator {
   }
 
   async validateNoTestFiles() {
-    console.log('🧪 Checking for test files...');
-    
     const testPatterns = [
       /test-.*\.(js|ts|sql|html)$/i,
       /debug-.*\.(js|ts|sql)$/i,
@@ -83,8 +79,6 @@ class ProductionValidator {
   }
 
   async validateNoConsoleLogs() {
-    console.log('🔍 Checking for console logs...');
-    
     const sourceFiles = [];
     this.walkDirectory(path.join(this.rootDir, 'src'), (filePath, relativePath) => {
       if (/\.(ts|tsx|js|jsx)$/.test(relativePath)) {
@@ -115,8 +109,6 @@ class ProductionValidator {
   }
 
   async validatePackageJson() {
-    console.log('📦 Validating package.json...');
-    
     try {
       const packageJson = JSON.parse(fs.readFileSync(path.join(this.rootDir, 'package.json'), 'utf8'));
       
@@ -151,8 +143,6 @@ class ProductionValidator {
   }
 
   async validateEnvironmentConfig() {
-    console.log('🌍 Validating environment configuration...');
-    
     const envFile = path.join(this.rootDir, '.env.production');
     if (fs.existsSync(envFile)) {
       this.passed.push('✅ Production environment file exists');
@@ -195,11 +185,6 @@ class ProductionValidator {
   }
 
   async runValidation() {
-    console.log(`
-🎯 PRODUCTION ENVIRONMENT VALIDATION
-📍 Target: ${this.rootDir}
-`);
-
     await this.validateFileStructure();
     await this.validateNoTestFiles();
     await this.validateNoConsoleLogs();
@@ -210,49 +195,6 @@ class ProductionValidator {
   }
 
   generateReport() {
-    console.log(`
-📊 VALIDATION RESULTS:
-
-✅ PASSED (${this.passed.length}):
-${this.passed.map(p => `   ${p}`).join('\n')}
-
-${this.warnings.length > 0 ? `⚠️  WARNINGS (${this.warnings.length}):
-${this.warnings.map(w => `   ${w}`).join('\n')}
-` : ''}
-
-${this.issues.length > 0 ? `❌ ISSUES (${this.issues.length}):
-${this.issues.map(i => `   ${i}`).join('\n')}
-` : ''}
-
-🎯 PRODUCTION READINESS: ${this.issues.length === 0 ? '✅ READY' : '❌ NEEDS ATTENTION'}
-
-${this.issues.length === 0 ? 
-`🚀 Your production environment is clean and ready for deployment!
-
-🔧 DEPLOYMENT CHECKLIST:
-   - [ ] Database configured and migrated
-   - [ ] Environment variables set
-   - [ ] SSL certificates installed
-   - [ ] Domain/subdomain configured
-   - [ ] Monitoring and logging set up
-   - [ ] Backup strategy implemented
-   
-🎬 RECOMMENDED NEXT STEPS:
-   1. Run: npm run build
-   2. Test: npm run preview
-   3. Deploy to production server
-   4. Configure reverse proxy (nginx/IIS)
-   5. Set up monitoring and alerts` :
-
-`🔧 RECOMMENDED FIXES:
-   1. Remove any remaining test/debug files
-   2. Clean console logs from source code
-   3. Update package.json scripts
-   4. Configure production environment properly
-   5. Re-run validation: node scripts/validate-production.js`
-}
-`);
-
     return this.issues.length === 0;
   }
 }

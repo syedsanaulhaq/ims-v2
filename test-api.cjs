@@ -16,8 +16,6 @@ async function testStockIssuanceAPI() {
       request_status: 'Submitted'
     };
 
-    console.log('📤 Sending request data:', requestData);
-
     const response = await fetch('http://localhost:3001/api/stock-issuance/requests', {
       method: 'POST',
       headers: {
@@ -27,12 +25,7 @@ async function testStockIssuanceAPI() {
     });
 
     const result = await response.json();
-    console.log('📥 API Response status:', response.status);
-    console.log('📥 API Response:', JSON.stringify(result, null, 2));
-    console.log('📥 Response data:', result.data);
-    console.log('📥 Response data id:', result.data?.id);
-
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Error:', error);
   }
 }

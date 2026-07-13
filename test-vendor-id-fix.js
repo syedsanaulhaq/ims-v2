@@ -29,9 +29,6 @@ const testTenderWithVendor = async () => {
   };
 
   try {
-    console.log('🧪 Testing tender creation with vendor_id...');
-    console.log('📋 Sending data:', JSON.stringify(tenderData, null, 2));
-    
     const response = await fetch('http://localhost:3001/api/tenders', {
       method: 'POST',
       headers: {
@@ -42,12 +39,9 @@ const testTenderWithVendor = async () => {
 
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ Success! Tender created with vendor_id');
-      console.log('📄 Response:', result);
-    } else {
+      } else {
       const errorText = await response.text();
-      console.log('❌ Error:', response.status, errorText);
-    }
+      }
   } catch (error) {
     console.error('❌ Network error:', error);
   }

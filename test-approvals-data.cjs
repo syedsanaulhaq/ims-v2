@@ -21,10 +21,7 @@ const req = http.request(options, (res) => {
   });
 
   res.on('end', () => {
-    console.log('Response Status:', res.statusCode);
-    console.log('\nFull Response:');
-    console.log(JSON.stringify(JSON.parse(data), null, 2));
-  });
+    });
 });
 
 req.on('error', (error) => {

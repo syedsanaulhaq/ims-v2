@@ -6,8 +6,6 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function createTable() {
-  console.log('🗄️ Creating delivery_item_serial_numbers table...');
-  
   const sql = `
 -- Create delivery_item_serial_numbers table
 CREATE TABLE IF NOT EXISTS delivery_item_serial_numbers (
@@ -73,7 +71,6 @@ USING (true);
     process.exit(1);
   }
   
-  console.log('✅ delivery_item_serial_numbers table created successfully');
-}
+  }
 
 createTable().catch(console.error);

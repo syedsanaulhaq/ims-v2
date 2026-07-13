@@ -39,13 +39,11 @@ const TenderDashboard: React.FC = () => {
       try {
         setLoading(true);
         const response = await fetch('http://localhost:3001/api/tenders?type=annual-tender');
-        
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
-        
         setTenders(data.map((t: any) => ({
           id: t.id,
           code: t.code,
@@ -107,7 +105,6 @@ const TenderDashboard: React.FC = () => {
   const handleWizardComplete = async (data: any) => {
     try {
       const tenderId = data.id || editingId || generateUUID();
-
       if (editingId) {
         // Update existing tender
         setTenders(tenders.map(t => 

@@ -17,10 +17,7 @@ async function addNomenclatureColumn() {
   try {
     const pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log('✅ Connected to InventoryManagementDB\n');
-
     // Check if column already exists
-    console.log('📋 Checking if item_nomenclature column exists...');
     const checkResult = await pool.request().query(`
       SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = 'inventory_verification_requests' 
@@ -28,21 +25,15 @@ async function addNomenclatureColumn() {
     `);
 
     if (checkResult.recordset[0].count > 0) {
-      console.log('✅ Column item_nomenclature already exists!');
-    } else {
-      console.log('❌ Column does not exist, adding it...');
-      
+      } else {
       await pool.request().query(`
         ALTER TABLE inventory_verification_requests
         ADD item_nomenclature NVARCHAR(500) NULL;
       `);
       
-      console.log('✅ Column item_nomenclature added successfully!');
-    }
+      }
 
     // Now update the view
-    console.log('\n📋 Updating View_Pending_Inventory_Verifications...');
-    
     // Drop existing view if it exists
     await pool.request().query(`
       IF EXISTS (SELECT * FROM sys.views WHERE name = 'View_Pending_Inventory_Verifications')
@@ -81,10 +72,7 @@ async function addNomenclatureColumn() {
       FROM dbo.inventory_verification_requests ivr;
     `);
 
-    console.log('✅ View updated successfully!');
-
     // Test the view
-    console.log('\n📋 Testing view...');
     const testResult = await pool.request().query(`
       SELECT TOP 5 
         id,
@@ -96,18 +84,13 @@ async function addNomenclatureColumn() {
       ORDER BY created_at DESC
     `);
 
-    console.log(`✅ View test successful! Found ${testResult.recordset.length} records`);
-    
     if (testResult.recordset.length > 0) {
-      console.log('\nSample records:');
       testResult.recordset.forEach((row, idx) => {
-        console.log(`${idx + 1}. ${row.item_nomenclature} (${row.verification_status})`);
-      });
+        });
     }
 
     await pool.close();
-    console.log('\n✅ Migration complete!');
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
     console.error('Stack:', err.stack);
   }

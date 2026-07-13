@@ -113,14 +113,6 @@ const WingDashboard = () => {
             .catch(() => [])
         ]);
 
-          requests: requestsRes,
-          issuedItems: issuedItemsRes,
-          approvals: approvalsRes,
-          notifications: notificationsRes,
-          verifications: verificationsRes,
-          userId: user?.user_id
-        });
-
         setWingRequests(Array.isArray(requestsRes) ? requestsRes : (requestsRes?.requests || requestsRes?.data || []));
         setWingIssuedItems(Array.isArray(issuedItemsRes) ? issuedItemsRes : (issuedItemsRes?.data || []));
         setWingPendingApprovals(Array.isArray(approvalsRes) ? approvalsRes : (approvalsRes?.data || []));

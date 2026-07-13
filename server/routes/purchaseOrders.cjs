@@ -75,8 +75,7 @@ router.get('/', async (req, res) => {
           request.input('startDate', sql.DateTime, parsedDate);
         }
       } catch (e) {
-        console.warn('⚠️ Invalid startDate format:', startDate);
-      }
+        }
     }
 
     if (endDate && typeof endDate === 'string' && endDate.trim() && endDate.trim() !== 'undefined') {
@@ -87,8 +86,7 @@ router.get('/', async (req, res) => {
           request.input('endDate', sql.DateTime, parsedDate);
         }
       } catch (e) {
-        console.warn('⚠️ Invalid endDate format:', endDate);
-      }
+        }
     }
 
     query += ' ORDER BY po.created_at DESC';
@@ -104,7 +102,6 @@ router.get('/', async (req, res) => {
 
     // If table doesn't exist or there's a schema issue, return empty array
     if (error.message && (error.message.includes('Invalid object name') || error.message.includes('purchase_orders'))) {
-      console.warn('⚠️ Purchase orders table may not exist or has schema issues. Returning empty array.');
       res.json([]);
     } else {
       res.status(500).json({ error: 'Failed to fetch purchase orders', details: error.message });
@@ -272,7 +269,6 @@ router.post('/', async (req, res) => {
         }
 
         if (!itemVendorId) {
-          console.warn(`⚠️ No vendor_id found for item ${itemId}`);
           await transaction.rollback();
           return res.status(400).json({ error: `No vendor selected for item ${itemId}` });
         }

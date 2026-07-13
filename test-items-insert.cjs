@@ -16,17 +16,13 @@ async function testItemsInsert() {
   };
 
   try {
-    console.log('Testing items insert with data:', JSON.stringify(testData, null, 2));
-
     const response = await axios.post('http://localhost:3001/api/stock-issuance/items', testData, {
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    console.log('Response:', response.data);
-
-  } catch (error) {
+    } catch (error) {
     console.error('Error:', error.response ? error.response.data : error.message);
   }
 }

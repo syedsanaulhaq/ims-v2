@@ -12,9 +12,6 @@ async function main() {
       LEFT JOIN ims_roles r ON r.id = ur.role_id
       ORDER BY u.FullName
     `);
-  console.log('Users and Roles:');
-  console.log(JSON.stringify(result.recordset, null, 2));
-  
   process.exit(0);
 }
 

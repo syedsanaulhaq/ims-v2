@@ -18,8 +18,6 @@ async function findDesignationTables() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Find all tables with 'designation' in name
     const result = await pool.request().query(`
       SELECT TABLE_NAME
@@ -28,17 +26,13 @@ async function findDesignationTables() {
       ORDER BY TABLE_NAME
     `);
 
-    console.log("📋 Tables with 'designation':\n");
     if (result.recordset.length === 0) {
-      console.log("No designation tables found\n");
-    } else {
+      } else {
       result.recordset.forEach(row => {
-        console.log(`- ${row.TABLE_NAME}`);
-      });
+        });
     }
 
     // Get designation data for the user
-    console.log("\n🔍 Checking user designations:\n");
     const userResult = await pool.request().query(`
       SELECT TOP 5
         u.Id,
@@ -50,9 +44,7 @@ async function findDesignationTables() {
     `);
 
     userResult.recordset.forEach(row => {
-      console.log(`User: ${row.FullName} (${row.UserName})`);
-      console.log(`  Designation ID: ${row.intDesignationID}`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

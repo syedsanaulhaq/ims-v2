@@ -11,11 +11,9 @@ function searchDir(dir, query) {
     } else if (file.endsWith('.cjs') || file.endsWith('.js')) {
       const content = fs.readFileSync(filePath, 'utf8');
       if (content.toLowerCase().includes(query.toLowerCase())) {
-        console.log(`Found in ${filePath}`);
-      }
+        }
     }
   }
 }
 
-console.log('Searching for APPROVE_FOR_PROCUREMENT in server/:');
 searchDir(path.join(__dirname, 'server'), 'APPROVE_FOR_PROCUREMENT');

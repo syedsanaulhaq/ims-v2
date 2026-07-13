@@ -25,11 +25,6 @@ const EnhancedTenderActions: React.FC<EnhancedTenderActionsProps> = ({
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   // Debug logging
-    tenderStatus,
-    isFinalized,
-    canFinalize: !isFinalized
-  });
-
   const handleFinalize = async () => {
     if (window.confirm('Are you sure you want to finalize this tender? This action cannot be undone.')) {
       try {

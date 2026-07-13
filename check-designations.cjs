@@ -18,8 +18,6 @@ async function checkDesignations() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Check designation table
     const result = await pool.request().query(`
       SELECT TOP 5
@@ -33,13 +31,8 @@ async function checkDesignations() {
       WHERE u.UserName IN ('4dae06b7-17cd-480b-81eb-da9c76ad5728', '3740506012171')
     `);
 
-    console.log("📋 User Designations:\n");
     result.recordset.forEach(row => {
-      console.log(`User: ${row.UserName}`);
-      console.log(`  Designation ID: ${row.intDesignationID}`);
-      console.log(`  Name: ${row.designation_name || 'N/A'}`);
-      console.log(`  Title: ${row.designation_title || 'N/A'}\n`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

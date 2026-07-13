@@ -41,7 +41,6 @@ export class InventoryService {
       }
 
       const rawData = await response.json();
-      
       // Transform the View_Current_Inv_Stock data to InventoryItem format
       const transformedData: InventoryItem[] = rawData.map((item: any) => ({
         id: item.item_master_id?.toString() || '',
@@ -75,7 +74,6 @@ export class InventoryService {
         normalStockItems,
         overstockItems
       };
-
 
       return {
         data: transformedData,

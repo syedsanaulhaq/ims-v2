@@ -18,18 +18,12 @@ async function fixWingNames() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Find all verifications with "Unknown" wing and fix them
-    console.log("🔍 Finding verifications with 'Unknown' wing...\n");
-    
     const findResult = await pool.request().query(`
       SELECT id, wing_id, wing_name
       FROM inventory_verification_requests
       WHERE wing_name = 'Unknown' OR wing_name IS NULL
     `);
-
-    console.log(`Found ${findResult.recordset.length} records with Unknown wing\n`);
 
     for (const record of findResult.recordset) {
       let wingName = 'Unknown';
@@ -66,10 +60,8 @@ async function fixWingNames() {
           WHERE id = @id
         `);
 
-      console.log(`✅ Updated ID ${record.id}: wing_id=${record.wing_id} → wing_name='${wingName}'`);
-    }
+      }
 
-    console.log("\n📋 Verifying updates...\n");
     const verify = await pool.request().query(`
       SELECT id, wing_id, wing_name, item_nomenclature
       FROM inventory_verification_requests
@@ -77,8 +69,7 @@ async function fixWingNames() {
     `);
 
     verify.recordset.forEach(row => {
-      console.log(`ID ${row.id}: ${row.item_nomenclature} | Wing: ${row.wing_name}`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

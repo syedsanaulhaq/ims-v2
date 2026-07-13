@@ -127,18 +127,7 @@ async function startServer() {
     
     // Start listening
     app.listen(config.PORT, () => {
-      console.log(`
-╔════════════════════════════════════════════════════════════╗
-║           Inventory Management System (IMS) API             ║
-║                     Version 2.0 (Refactored)                ║
-╚════════════════════════════════════════════════════════════╝
-
-✅ Server running on port ${config.PORT}
-📊 Database: ${config.DB_NAME}
-📍 Environment: ${config.NODE_ENV}
-🔐 CORS Enabled
-      `);
-    });
+      });
   } catch (err) {
     console.error('❌ Failed to start server:', err);
     process.exit(1);

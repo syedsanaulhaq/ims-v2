@@ -18,8 +18,6 @@ async function testFrontendLogic() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     const storeKeeperId = 'a84bbf7a-dfb7-45ca-b603-e2313c57033b';
     
     // This is what the frontend fetches
@@ -38,8 +36,6 @@ async function testFrontendLogic() {
         ORDER BY forwarded_at DESC
       `);
 
-    console.log(`📋 Verifications for store keeper (${result.recordset.length} total):\n`);
-    
     const verifications = result.recordset;
     
     // Frontend logic - getPendingCount
@@ -48,30 +44,17 @@ async function testFrontendLogic() {
       return status === 'pending';
     }).length;
     
-    console.log(`Status Counts:`);
-    console.log(`  - Pending: ${pendingCount}`);
-    console.log(`  - Total: ${verifications.length}\n`);
-    
     // Frontend logic - getFilteredVerifications when no filter is set
     const filtered = verifications.filter(r => {
       const status = (r.verification_status || '').toLowerCase();
       return status === 'pending';
     });
     
-    console.log(`Filtered Results (when statusFilter=null):`);
-    console.log(`  - Count: ${filtered.length}\n`);
-    
     if (filtered.length > 0) {
       filtered.forEach((v, i) => {
-        console.log(`${i + 1}. ${v.item_nomenclature}`);
-        console.log(`   Requested: ${v.requested_quantity} units`);
-        console.log(`   By: ${v.requested_by_name}`);
-        console.log(`   Status: ${v.verification_status}\n`);
-      });
-      console.log('✅ Frontend should NOW display these verifications!');
-    } else {
-      console.log('❌ Still no verifications shown (status mismatch)');
-    }
+        });
+      } else {
+      }
 
   } catch (error) {
     console.error("❌ Error:", error.message);

@@ -132,11 +132,6 @@ const InventoryManagementDashboard = () => {
         movementRes.json()
       ]);
 
-        dashboard: dashboardJson,
-        stock: stockJson,
-        movements: movementJson
-      });
-
       setDashboardData(dashboardJson);
       setCurrentStock(stockJson.data || []);
       setMovementHistory(movementJson.data || []);

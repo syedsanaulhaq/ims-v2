@@ -27,7 +27,6 @@ async function initializePool() {
   try {
     pool = new sql.ConnectionPool(dbConfig);
     await pool.connect();
-    console.log('✅ Database pool connected successfully');
     return pool;
   } catch (err) {
     console.error('❌ Database connection error:', err);
@@ -47,8 +46,7 @@ function getPool() {
 async function closePool() {
   if (pool) {
     await pool.close();
-    console.log('Database pool closed');
-  }
+    }
 }
 
 module.exports = {

@@ -33,15 +33,11 @@ async function checkTables() {
       WHERE TABLE_NAME = 'stock_return_items'
     `);
     
-    console.log('stock_returns table exists:', stockReturnsCheck.recordset[0].count > 0);
-    console.log('stock_return_items table exists:', stockReturnItemsCheck.recordset[0].count > 0);
-    
     // If tables don't exist, create them
     const stockReturnsExists = stockReturnsCheck.recordset[0].count > 0;
     const stockReturnItemsExists = stockReturnItemsCheck.recordset[0].count > 0;
     
     if (!stockReturnsExists) {
-      console.log('Creating stock_returns table...');
       await sql.query(`
         CREATE TABLE stock_returns (
           id INT IDENTITY(1,1) PRIMARY KEY,
@@ -54,11 +50,9 @@ async function checkTables() {
           updated_at DATETIME2 DEFAULT GETDATE()
         )
       `);
-      console.log('stock_returns table created successfully');
-    }
+      }
     
     if (!stockReturnItemsExists) {
-      console.log('Creating stock_return_items table...');
       await sql.query(`
         CREATE TABLE stock_return_items (
           id INT IDENTITY(1,1) PRIMARY KEY,
@@ -72,12 +66,10 @@ async function checkTables() {
           FOREIGN KEY (return_id) REFERENCES stock_returns(id) ON DELETE CASCADE
         )
       `);
-      console.log('stock_return_items table created successfully');
-    }
+      }
     
     await sql.close();
-    console.log('Table check completed');
-  } catch (err) {
+    } catch (err) {
     console.error('Error:', err.message);
   }
 }

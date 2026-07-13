@@ -24,12 +24,8 @@ async function testWingHistoryQuery() {
   
   try {
     await pool.connect();
-    console.log('✅ Connected to database\n');
-    
     // Simulate the backend query with Muhammad's wing ID (19)
     const userWingId = 19;
-    
-    console.log(`Testing wing history query for wing ID: ${userWingId}\n`);
     
     const wingRequestsQuery = `
       SELECT 
@@ -64,38 +60,19 @@ async function testWingHistoryQuery() {
       AND sir.request_type = 'Organizational'
       ORDER BY COALESCE(ra.submitted_date, sir.submitted_at) DESC`;
     
-    console.log('📊 Executing query...\n');
-    
     const result = await pool.request()
       .input('wingId', sql.Int, userWingId)
       .query(wingRequestsQuery);
     
-    console.log(`Found ${result.recordset.length} requests:\n`);
-    
     result.recordset.forEach((r, idx) => {
-      console.log(`${idx + 1}. ${r.title || 'Untitled'}`);
-      console.log(`   ID: ${r.request_id}`);
-      console.log(`   Requester: ${r.requester_name}`);
-      console.log(`   Status: ${r.current_status}`);
-      console.log(`   Submitted: ${r.submitted_date}`);
-      console.log(`   Type: ${r.request_type}`);
-      console.log(`   Wing: ${r.requester_wing_name}`);
-      console.log();
-    });
+      });
     
     // Check if the specific request is in there
     const targetId = '74536345-1888-4524-B422-133B85FC6708';
     const found = result.recordset.find(r => r.request_id === targetId);
     
-    console.log('-----------------------------------');
     if (found) {
-      console.log(`✅ REQUEST ${targetId} IS IN RESULTS`);
-      console.log(`   Title: ${found.title}`);
-      console.log(`   Requester: ${found.requester_name}`);
-    } else {
-      console.log(`❌ REQUEST ${targetId} NOT IN RESULTS`);
-      console.log('\nDebugging: Checking why...');
-      
+      } else {
       // Check if it matches the filters
       const debugQuery = `
         SELECT 
@@ -115,11 +92,7 @@ async function testWingHistoryQuery() {
       const debugResult = await pool.request().query(debugQuery);
       if (debugResult.recordset.length > 0) {
         const d = debugResult.recordset[0];
-        console.log(`   Has Wing: ${d.HasWing}`);
-        console.log(`   Wing = 19: ${d.Wing19}`);
-        console.log(`   Is Organizational: ${d.IsOrg}`);
-        console.log(`   Type Value: "${d.request_type}"`);
-      }
+        }
     }
     
     await pool.close();

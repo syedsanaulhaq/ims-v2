@@ -22,10 +22,7 @@ async function diagnoseApprovalDashboard() {
   
   try {
     await pool.connect();
-    console.log('✓ Connected to database\n');
-
     // Find all pending requests
-    console.log('📋 STEP 1: Check all requests');
     const requestsCheck = await pool.request()
       .query(`
         SELECT 
@@ -44,24 +41,14 @@ async function diagnoseApprovalDashboard() {
         ORDER BY ra.id DESC
       `);
 
-    console.log(`Found ${requestsCheck.recordset.length} requests\n`);
-    
     if (requestsCheck.recordset.length === 0) {
-      console.log('❌ No requests found!');
       return;
     }
 
     requestsCheck.recordset.slice(0, 5).forEach((req, i) => {
-      console.log(`${i+1}. Request: ${req.request_id?.toString().slice(0, 12)}`);
-      console.log(`   Approver: ${req.approver_name}`);
-      console.log(`   Requester: ${req.requester_name}`);
-      console.log(`   Items in stock_issuance_items: ${req.item_count_in_stock}`);
-      console.log(`   Items in approval_items: ${req.item_count_in_approval}`);
-      console.log('');
-    });
+      });
 
     // Check approval_items with PENDING status
-    console.log('\n📋 STEP 2: Check PENDING items');
     const pendingItems = await pool.request()
       .query(`
         SELECT 
@@ -77,17 +64,12 @@ async function diagnoseApprovalDashboard() {
         ORDER BY ai.created_at DESC
       `);
 
-    console.log(`Found ${pendingItems.recordset.length} PENDING items`);
-    
     if (pendingItems.recordset.length > 0) {
       pendingItems.recordset.slice(0, 5).forEach((item, i) => {
-        console.log(`${i+1}. Item: ${item.nomenclature} (${item.decision_type})`);
-        console.log(`   Approver: ${item.approver_name}`);
-      });
+        });
     }
 
     // Check a specific approver
-    console.log('\n📋 STEP 3: Check a specific approver');
     const approverCheck = await pool.request()
       .query(`
         SELECT DISTINCT ra.current_approver_id, u.FullName as approver_name, u.Id
@@ -99,8 +81,6 @@ async function diagnoseApprovalDashboard() {
 
     if (approverCheck.recordset.length > 0) {
       const approver = approverCheck.recordset[0];
-      console.log(`Checking approver: ${approver.approver_name} (${approver.current_approver_id})\n`);
-
       const approverRequests = await pool.request()
         .input('userId', sql.NVarChar(450), approver.current_approver_id)
         .query(`
@@ -114,9 +94,7 @@ async function diagnoseApprovalDashboard() {
         `);
 
       const counts = approverRequests.recordset[0];
-      console.log(`Total requests assigned: ${counts.total_requests}`);
-      console.log(`Pending requests (with PENDING items): ${counts.pending_requests}`);
-    }
+      }
 
   } catch (error) {
     console.error('❌ Error:', error.message);

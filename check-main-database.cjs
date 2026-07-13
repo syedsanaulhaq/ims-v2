@@ -17,8 +17,6 @@ async function checkMainDatabase() {
   try {
     const pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log('✅ Connected to InventoryManagementDB (main database)\n');
-
     // Check if the table exists
     const tableCheckResult = await pool.request().query(`
       SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.TABLES 
@@ -26,10 +24,7 @@ async function checkMainDatabase() {
     `);
 
     if (tableCheckResult.recordset[0].count === 0) {
-      console.log('❌ Table inventory_verification_requests does NOT exist in main database');
-    } else {
-      console.log('✅ Table inventory_verification_requests EXISTS in main database\n');
-
+      } else {
       // Get all verification records
       const allResult = await pool.request().query(`
         SELECT TOP 20
@@ -45,16 +40,9 @@ async function checkMainDatabase() {
         ORDER BY created_at DESC
       `);
 
-      console.log(`📋 Total verification requests: ${allResult.recordset.length}\n`);
-
       if (allResult.recordset.length > 0) {
         allResult.recordset.forEach((row, idx) => {
-          console.log(`${idx + 1}. ID: ${row.id}`);
-          console.log(`   item_nomenclature: "${row.item_nomenclature || '(NULL)'}"`);
-          console.log(`   requested_by: ${row.requested_by_name}`);
-          console.log(`   status: ${row.verification_status}`);
-          console.log('');
-        });
+          });
       }
     }
 

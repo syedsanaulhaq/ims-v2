@@ -131,7 +131,6 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       }
       
       const data = await response.json();
-      
       // Filter by tender type if needed
       let filteredTenders;
       if (isSpotPurchase) {
@@ -179,7 +178,6 @@ const ContractTender: React.FC<ContractTenderProps> = ({ initialType }) => {
       }
 
       const result = await response.json();
-
       // Refresh the tender list to show updated status
       await fetchTenders();
       

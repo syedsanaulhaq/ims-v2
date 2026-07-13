@@ -24,10 +24,8 @@ async function checkSchema() {
       ORDER BY ORDINAL_POSITION
     `);
     
-    console.log('📋 approval_workflows columns:');
     result.recordset.forEach(col => {
-      console.log(`   ${col.COLUMN_NAME}: ${col.DATA_TYPE}`);
-    });
+      });
     
   } catch (err) {
     console.error('Error:', err.message);

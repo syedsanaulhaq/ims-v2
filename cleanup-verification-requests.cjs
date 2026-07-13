@@ -18,21 +18,13 @@ async function cleanup() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     // Delete old verifications that don't have a forwarded_to_user_id
-    console.log("📋 Deleting old verification requests without forwarding info...\n");
-    
     const deleteResult = await pool.request().query(`
       DELETE FROM inventory_verification_requests
       WHERE forwarded_to_user_id IS NULL
     `);
 
-    console.log(`✅ Deleted ${deleteResult.rowsAffected[0]} old verification requests\n`);
-
     // Show remaining verifications
-    console.log("📌 Remaining verification requests:\n");
-    
     const result = await pool.request().query(`
       SELECT TOP 10
         id,
@@ -47,17 +39,10 @@ async function cleanup() {
     `);
 
     if (result.recordset.length > 0) {
-      console.log(`Found ${result.recordset.length} verification requests:\n`);
       result.recordset.forEach((row, i) => {
-        console.log(`${i + 1}. ${row.item_nomenclature}`);
-        console.log(`   Requested by: ${row.requested_by_name}`);
-        console.log(`   Forwarded to: ${row.forwarded_to_name}`);
-        console.log(`   Status: ${row.verification_status}`);
-        console.log();
-      });
+        });
     } else {
-      console.log("✅ All verification requests cleaned up!\n");
-    }
+      }
 
   } catch (error) {
     console.error("❌ Error:", error.message);

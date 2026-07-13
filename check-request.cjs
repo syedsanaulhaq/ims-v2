@@ -26,14 +26,10 @@ async function checkRequest() {
     `);
     
     if (result.recordset.length === 0) {
-      console.log('❌ Request not found with ID like %987358A8%');
       return;
     }
     
     const req = result.recordset[0];
-    console.log('✅ Found request:', req.request_number, 'Status:', req.approval_status);
-    console.log('   Request ID:', req.id);
-    
     // Get items in this request
     const itemsResult = await pool.request().query(`
       SELECT id, nomenclature, requested_quantity, approved_quantity
@@ -41,10 +37,8 @@ async function checkRequest() {
       WHERE request_id = '${req.id}'
     `);
     
-    console.log('\n📦 Items in request:');
     itemsResult.recordset.forEach((item, idx) => {
-      console.log(`  ${idx + 1}. ${item.nomenclature}: requested=${item.requested_quantity}, approved=${item.approved_quantity}`);
-    });
+      });
     
     // Check for approval_items table that tracks per-item decisions
     const approvalResult = await pool.request().query(`
@@ -54,10 +48,8 @@ async function checkRequest() {
     `);
     
     if (approvalResult.recordset.length > 0) {
-      console.log('\n📋 Approval tables found:');
       approvalResult.recordset.forEach(t => {
-        console.log(`  - ${t.TABLE_NAME}`);
-      });
+        });
       
       // Check for approval items - first let's see what columns exist
       try {
@@ -67,30 +59,23 @@ async function checkRequest() {
           WHERE TABLE_NAME = 'approval_items'
         `);
         
-        console.log('\n📌 Approval_items columns:', colsResult.recordset.map(c => c.COLUMN_NAME).join(', '));
-        
         // Now check actual approval items
         const approvalItemsResult = await pool.request().query(`
           SELECT TOP 5 *
           FROM approval_items
         `);
         
-        console.log('\n✅ Sample approval items (first 5):');
         if (approvalItemsResult.recordset.length === 0) {
-          console.log('  (none found)');
-        } else {
+          } else {
           approvalItemsResult.recordset.forEach((item, idx) => {
-            console.log(`  ${idx + 1}. Decision: ${item.decision_type || 'N/A'}, Reason: ${item.rejection_reason || 'N/A'}`);
-          });
+            });
         }
       } catch (err) {
-        console.log('  Error:', err.message);
-      }
+        }
     }
     
     // Check request_approvals table to find this request's approval record
     try {
-      console.log('\n📋 Checking request_approvals table:');
       const raResult = await pool.request().query(`
         SELECT TOP 10 id, request_id, current_status, submitted_date 
         FROM request_approvals
@@ -98,16 +83,12 @@ async function checkRequest() {
       `);
       
       if (raResult.recordset.length === 0) {
-        console.log('  No approval records found for this request');
-      } else {
-        console.log(`  Found ${raResult.recordset.length} approval record(s):`);
+        } else {
         raResult.recordset.forEach((app, idx) => {
-          console.log(`    ${idx + 1}. Approval ID: ${app.id}, Status: ${app.current_status}`);
-        });
+          });
       }
     } catch (err) {
-      console.log('  Error checking request_approvals:', err.message);
-    }
+      }
   } catch (err) {
     console.error('Error:', err.message);
   } finally {

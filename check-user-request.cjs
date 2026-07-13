@@ -7,13 +7,9 @@ dotenv.config();
 async function run() {
   try {
     const pool = await initializePool();
-    console.log('Connected!');
-
     // Get the user details
     const userResult = await pool.request()
       .query(`SELECT Id, FullName, UserName, Email, intWingID FROM AspNetUsers WHERE UserName = '1730115698727'`);
-    console.log('User Details:', userResult.recordset);
-
     if (userResult.recordset.length > 0) {
       const userId = userResult.recordset[0].Id;
       
@@ -26,7 +22,6 @@ async function run() {
           WHERE sir.requester_user_id = @userId
           ORDER BY sir.created_at DESC
         `);
-      console.log('Requests for this user:');
       console.table(requests.recordset);
 
       if (requests.recordset.length > 0) {
@@ -40,7 +35,6 @@ async function run() {
             FROM stock_issuance_items sii
             WHERE sii.request_id = @requestId
           `);
-        console.log('Items for request ' + requests.recordset[0].request_number + ' (ID: ' + firstRequestId + '):');
         console.table(items.recordset);
 
         // Let's also check the workflow/approval status for this request
@@ -52,7 +46,6 @@ async function run() {
             LEFT JOIN AspNetUsers u ON ra.current_approver_id = u.Id
             WHERE ra.request_id = @requestId
           `);
-        console.log('Approval workflows:');
         console.table(approval.recordset);
 
         if (approval.recordset.length > 0) {
@@ -68,7 +61,6 @@ async function run() {
               WHERE ah.request_approval_id = @approvalId
               ORDER BY ah.step_number ASC
             `);
-          console.log('History:');
           console.table(history.recordset);
 
           // Let's check ims_request_workflow_state
@@ -80,7 +72,6 @@ async function run() {
               LEFT JOIN AspNetUsers u ON ws.current_approver_id = u.Id
               WHERE ws.request_id = @requestId
             `);
-          console.log('Workflow state states (per group):');
           console.table(state.recordset);
         }
       }

@@ -19,13 +19,9 @@ function loadEnvironmentConfig(env = currentEnv) {
   const envFile = `.env.${env}`;
   const envPath = path.join(process.cwd(), envFile);
   
-  console.log(`🔧 Loading environment config: ${envFile}`);
-  
   try {
     require('dotenv').config({ path: envPath });
-    console.log(`✅ Environment config loaded successfully: ${env}`);
-  } catch (error) {
-    console.warn(`⚠️ Could not load ${envFile}, falling back to default .env`);
+    } catch (error) {
     require('dotenv').config();
   }
 }
@@ -59,7 +55,6 @@ function switchEnvironment(env) {
     throw new Error(`Invalid environment: ${env}. Valid options: ${Object.values(ENVIRONMENTS).join(', ')}`);
   }
   
-  console.log(`🔄 Switching to ${env} environment...`);
   process.env.ENV_STAGE = env;
   loadEnvironmentConfig(env);
   

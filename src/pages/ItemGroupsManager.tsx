@@ -123,7 +123,7 @@ export const ItemGroupsManager: React.FC = () => {
         // Handle different possible response formats
         const processedItems = Array.isArray(data) ? data : (data.data || data.items || []);
         setItems(processedItems);
-      }
+        }
     } catch (error) {
       console.error('Error loading items:', error);
     }
@@ -134,7 +134,6 @@ export const ItemGroupsManager: React.FC = () => {
       alert('Group code and name are required');
       return;
     }
-
 
     try {
       const response = await fetch('http://localhost:3001/api/item-groups', {

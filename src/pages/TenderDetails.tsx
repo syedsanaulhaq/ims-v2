@@ -131,7 +131,6 @@ const TenderDetails: React.FC = () => {
       const wings = await wingsRes.json();
       const decs = await decsRes.json();
 
-
       // Parse the IDs from the tender
       if (tender?.office_ids) {
         const officeIds = tender.office_ids.split(',').map(id => id.trim());
@@ -193,7 +192,6 @@ const TenderDetails: React.FC = () => {
       }
       
       const data = await response.json();
-      
       // Calculate total_amount for items if missing
       if (data.items && Array.isArray(data.items)) {
         data.items = data.items.map((item: TenderItem) => ({

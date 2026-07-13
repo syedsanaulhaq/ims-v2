@@ -122,7 +122,6 @@ export function StockIssuanceRequestForm({
         return;
       }
 
-
       // NOW submit the items separately
       try {
         const itemsResult = await stockIssuanceService.submitItems(
@@ -136,7 +135,7 @@ export function StockIssuanceRequestForm({
             custom_item_name: undefined
           }))
         );
-      } catch (itemsError) {
+        } catch (itemsError) {
         console.error('Error submitting items:', itemsError);
         toast({
           title: 'Error',
@@ -148,7 +147,6 @@ export function StockIssuanceRequestForm({
 
       // Auto-submit for approval using Stock Issuance workflow
       try {
-        
         await approvalForwardingService.submitForApproval(
           result.id.toString(),
           'stock_issuance',

@@ -11,11 +11,9 @@ function searchDir(dir, pattern) {
     } else if (file.endsWith('.js') || file.endsWith('.cjs') || file.endsWith('.ts')) {
       const content = fs.readFileSync(fullPath, 'utf8');
       if (content.includes(pattern)) {
-        console.log(`Found in: ${fullPath}`);
-      }
+        }
     }
   }
 }
 
 searchDir(path.join(__dirname, 'server'), '/forward');
-console.log('Done searching server.');

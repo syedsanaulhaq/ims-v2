@@ -20,8 +20,6 @@ async function addOrganizationalColumns() {
       }
     });
     
-    console.log('Connected to database');
-    
     // Check if columns exist and add them if they don't
     const checkColumns = await pool.request().query(`
       SELECT COLUMN_NAME 
@@ -31,31 +29,23 @@ async function addOrganizationalColumns() {
     `);
     
     const existingColumns = checkColumns.recordset.map(row => row.COLUMN_NAME);
-    console.log('Existing organizational columns:', existingColumns);
-    
     // Add office_ids if it doesn't exist
     if (!existingColumns.includes('office_ids')) {
       await pool.request().query('ALTER TABLE tenders ADD office_ids NVARCHAR(500) NULL');
-      console.log('✅ Added office_ids column');
-    } else {
-      console.log('office_ids column already exists');
-    }
+      } else {
+      }
     
     // Add wing_ids if it doesn't exist  
     if (!existingColumns.includes('wing_ids')) {
       await pool.request().query('ALTER TABLE tenders ADD wing_ids NVARCHAR(500) NULL');
-      console.log('✅ Added wing_ids column');
-    } else {
-      console.log('wing_ids column already exists');
-    }
+      } else {
+      }
     
     // Add dec_ids if it doesn't exist
     if (!existingColumns.includes('dec_ids')) {
       await pool.request().query('ALTER TABLE tenders ADD dec_ids NVARCHAR(500) NULL');
-      console.log('✅ Added dec_ids column');
-    } else {
-      console.log('dec_ids column already exists');
-    }
+      } else {
+      }
     
     // Migrate existing data
     await pool.request().query(`
@@ -67,8 +57,6 @@ async function addOrganizationalColumns() {
       WHERE office_ids IS NULL OR wing_ids IS NULL OR dec_ids IS NULL
     `);
     
-    console.log('✅ Migrated existing organizational data');
-    
     // Show final column structure
     const finalCheck = await pool.request().query(`
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE 
@@ -78,13 +66,10 @@ async function addOrganizationalColumns() {
       ORDER BY COLUMN_NAME
     `);
     
-    console.log('\\nFinal organizational columns in tenders table:');
     console.table(finalCheck.recordset);
     
     await pool.close();
-    console.log('\\n🎉 Database migration completed successfully!');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Error:', error.message);
   }
 }

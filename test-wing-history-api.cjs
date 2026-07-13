@@ -21,14 +21,10 @@ const req = http.request(options, (res) => {
   });
 
   res.on('end', () => {
-    console.log('Response Status:', res.statusCode);
     try {
       const parsed = JSON.parse(data);
-      console.log('\nResponse:');
-      console.log(JSON.stringify(parsed, null, 2));
-    } catch (e) {
-      console.log('Raw response:', data);
-    }
+      } catch (e) {
+      }
   });
 });
 

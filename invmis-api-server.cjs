@@ -69,13 +69,9 @@ let pool;
 async function initializeDatabase() {
   try {
     pool = await sql.connect(config);
-    console.log(`✅ Connected to SQL Server: ${config.database}`);
-    
     // Test query
     const result = await pool.request().query('SELECT COUNT(*) as userCount FROM AspNetUsers');
-    console.log(`📊 Database has ${result.recordset[0].userCount} users`);
-    
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Database connection failed:', err.message);
     pool = null;
   }
@@ -184,7 +180,6 @@ app.post('/api/auth/login', async (req, res) => {
         // Try bcrypt comparison for hashed passwords
         isValidPassword = await bcrypt.compare(password, user.PasswordHash);
       } catch (err) {
-        console.log('Bcrypt comparison failed, trying development passwords');
         isValidPassword = false;
       }
     }
@@ -214,8 +209,6 @@ app.post('/api/auth/login', async (req, res) => {
 
     req.session.userId = user.Id;
     req.session.user = userSession;
-
-    console.log(`✅ User ${user.UserName} logged in successfully`);
 
     res.json({
       success: true,
@@ -490,10 +483,7 @@ async function startServer() {
   await initializeDatabase();
   
   app.listen(PORT, () => {
-    console.log(`🚀 InvMIS API Server running on port ${PORT}`);
-    console.log(`📊 Database: ${config.database}`);
-    console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
-  });
+    });
 }
 
 startServer().catch(err => {

@@ -22,7 +22,6 @@ interface CurrentInventoryStock {
 }
 
 const InitialSetupFromScratch: React.FC = () => {
-
   const [stockData, setStockData] = useState<CurrentInventoryStock[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -37,7 +36,6 @@ const InitialSetupFromScratch: React.FC = () => {
   const loadCurrentInventoryStock = async () => {
     try {
       setIsLoading(true);
-
       const response = await fetch('http://localhost:3001/api/inventory/current-inventory-stock');
       
       if (!response.ok) {
@@ -45,7 +43,6 @@ const InitialSetupFromScratch: React.FC = () => {
       }
 
       const data: CurrentInventoryStock[] = await response.json();
-
       // Initialize with current quantities as editable values
       const initializedData = data.map(item => ({
         ...item,
@@ -109,7 +106,6 @@ const InitialSetupFromScratch: React.FC = () => {
 
     try {
       setIsSaving(true);
-
       const updates = changedItems.map(item => ({
         id: item.id,
         current_quantity: item.editedQuantity
@@ -129,7 +125,6 @@ const InitialSetupFromScratch: React.FC = () => {
       }
 
       const result = await response.json();
-
       toast({
         title: "Save Successful",
         description: `Updated ${changedItems.length} inventory records.`,

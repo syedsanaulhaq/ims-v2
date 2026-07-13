@@ -15,9 +15,6 @@ async function findAndReassign() {
   try {
     await pool.connect();
 
-    console.log('\n🔍 FINDING SUPERVISOR: Muhammad Ehtesham Siddiqui');
-    console.log('='.repeat(60));
-
     // Find the supervisor by name
     const userResult = await pool.request()
       .input('name', sql.NVarChar, '%Muhammad Ehtesham Siddiqui%')
@@ -27,8 +24,6 @@ async function findAndReassign() {
       `);
 
     if (userResult.recordset.length === 0) {
-      console.log('\n❌ User NOT FOUND');
-      console.log('\nSearching for similar names...');
       const similarResult = await pool.request()
         .query(`
           SELECT Id, FullName, Email FROM AspNetUsers
@@ -36,19 +31,12 @@ async function findAndReassign() {
           ORDER BY FullName
         `);
       
-      console.log('\nPossible matches:');
       similarResult.recordset.forEach((u, i) => {
-        console.log(`   ${i + 1}. ${u.FullName} (${u.Id})`);
-      });
+        });
       return;
     }
 
     const supervisor = userResult.recordset[0];
-    console.log('\n✅ Found Supervisor:');
-    console.log('   Name: ' + supervisor.FullName);
-    console.log('   ID: ' + supervisor.Id);
-    console.log('   Email: ' + supervisor.Email);
-
     // Reassign the request to this supervisor
     const requestId = 'FB1A19AD-FB56-4304-A98F-8484089C4899';
     const updateResult = await pool.request()
@@ -63,14 +51,7 @@ async function findAndReassign() {
 
     const rowsUpdated = updateResult.recordset[0].rows_updated;
     
-    console.log('\n✅ Request reassigned to ' + supervisor.FullName);
-    console.log('   Request ID: ' + requestId);
-    console.log('   New Approver: ' + supervisor.FullName + ' (' + supervisor.Id + ')');
-    console.log('   Rows updated: ' + rowsUpdated);
-
-    console.log('\n' + '='.repeat(60));
-
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
   } finally {
     await pool.close();

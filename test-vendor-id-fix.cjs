@@ -29,9 +29,6 @@ const testTenderWithVendor = async () => {
   };
 
   try {
-    console.log('🚀 Testing tender creation with vendor_id...');
-    console.log('📋 Sending data with vendor_id:', tenderData.vendor_id);
-    
     const response = await fetch('http://localhost:3001/api/tenders', {
       method: 'POST',
       headers: {
@@ -43,12 +40,8 @@ const testTenderWithVendor = async () => {
     const result = await response.json();
     
     if (response.ok) {
-      console.log('✅ SUCCESS: Tender created successfully');
-      console.log('📄 Response:', result);
-    } else {
-      console.log('❌ FAILED: Error creating tender');
-      console.log('📄 Error:', result);
-    }
+      } else {
+      }
   } catch (error) {
     console.error('❌ Network error:', error.message);
   }
@@ -95,9 +88,6 @@ const testTenderWithNewVendor = async () => {
   };
 
   try {
-    console.log('\n🚀 Testing tender creation with new vendor...');
-    console.log('📋 Sending data with vendor object:', tenderData.vendor.vendorName);
-    
     const response = await fetch('http://localhost:3001/api/tenders', {
       method: 'POST',
       headers: {
@@ -109,12 +99,8 @@ const testTenderWithNewVendor = async () => {
     const result = await response.json();
     
     if (response.ok) {
-      console.log('✅ SUCCESS: Tender created successfully');
-      console.log('📄 Response:', result);
-    } else {
-      console.log('❌ FAILED: Error creating tender');
-      console.log('📄 Error:', result);
-    }
+      } else {
+      }
   } catch (error) {
     console.error('❌ Network error:', error.message);
   }
@@ -122,13 +108,10 @@ const testTenderWithNewVendor = async () => {
 
 // Run tests
 const runTests = async () => {
-  console.log('🧪 Starting vendor_id fix tests...\n');
-  
   await testTenderWithVendor();
   await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
   await testTenderWithNewVendor();
   
-  console.log('\n✅ Tests completed!');
-};
+  };
 
 runTests();

@@ -16,10 +16,7 @@ async function checkPermissionAssignment() {
   try {
     const pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log('✅ Connected\n');
-
     // 1. Check if WING_SUPERVISOR role has inventory.manage permission
-    console.log('=== CHECKING WING_SUPERVISOR ROLE ===');
     const rolePermResult = await pool.request()
       .query(`
         SELECT 
@@ -35,23 +32,15 @@ async function checkPermissionAssignment() {
       `);
 
     if (rolePermResult.recordset.length === 0) {
-      console.log('❌ WING_SUPERVISOR role not found!');
-    } else {
+      } else {
       const roleId = rolePermResult.recordset[0].role_id;
       const totalPerms = rolePermResult.recordset[0].total_permissions;
-      console.log(`✓ Found WING_SUPERVISOR role (ID: ${roleId})`);
-      console.log(`✓ Total permissions assigned: ${totalPerms}`);
-      
       const hasInventoryManage = rolePermResult.recordset.some(r => r.permission_key === 'inventory.manage');
-      console.log(`\n  inventory.manage: ${hasInventoryManage ? '✓ YES' : '❌ NO'}`);
-      
       if (!hasInventoryManage) {
-        console.log('\n⚠️  Need to add inventory.manage permission to WING_SUPERVISOR role');
-      }
+        }
     }
 
     // 2. Check direct permissions for user 3730207514595
-    console.log('\n=== CHECKING USER 3730207514595 PERMISSIONS ===');
     const userPermResult = await pool.request()
       .query(`
         SELECT DISTINCT p.permission_key
@@ -62,17 +51,10 @@ async function checkPermissionAssignment() {
         ORDER BY p.permission_key
       `);
 
-    console.log(`✓ Total permissions: ${userPermResult.recordset.length}`);
-    
     const userHasInventoryManage = userPermResult.recordset.some(p => p.permission_key === 'inventory.manage');
-    console.log(`\n  inventory.manage: ${userHasInventoryManage ? '✓ YES' : '❌ NO'}`);
-
     if (!userHasInventoryManage) {
-      console.log('\n❌ PROBLEM: User does not have inventory.manage permission!');
-    } else {
-      console.log('\n✅ User HAS inventory.manage permission');
-      console.log('   Solution: User needs to LOG OUT and LOG IN again to reload permissions');
-    }
+      } else {
+      }
 
     await pool.close();
 

@@ -141,13 +141,12 @@ const ItemMasterManagement = () => {
   // Load categories and subcategories
   const loadCategories = async () => {
     try {
-      
       // Load categories
       const categoriesResponse = await fetch('http://localhost:3001/api/categories');
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
         setCategories(categoriesData);
-      }
+        }
 
       // Load all sub-categories
       const subCategoriesResponse = await fetch('http://localhost:3001/api/sub-categories');
@@ -155,7 +154,7 @@ const ItemMasterManagement = () => {
         const subCategoriesData = await subCategoriesResponse.json();
         setSubCategories(subCategoriesData);
         setFilteredSubCategories(subCategoriesData);
-      }
+        }
     } catch (err) {
       console.error('❌ Load categories error:', err);
       // Set empty arrays if API fails - no fallback to mock data
@@ -400,7 +399,7 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
       if (response.ok) {
         const data = await response.json();
         setItems(data.items || []);
-      } else {
+        } else {
         setError(`HTTP Error: ${response.status}`);
       }
     } catch (err) {

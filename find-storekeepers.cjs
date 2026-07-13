@@ -16,7 +16,6 @@ async function run() {
         INNER JOIN ims_roles r ON ur.role_id = r.id
         WHERE r.role_name LIKE '%STORE%'
       `);
-    console.log('Storekeepers:');
     console.table(storekeepers.recordset);
 
     await pool.close();

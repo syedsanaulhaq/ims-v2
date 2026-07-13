@@ -34,7 +34,6 @@ export default function SSOLogin() {
 
   const authenticateWithToken = async (token: string) => {
     try {
-
       // Validate token with backend
       const response = await fetch(`${getApiBaseUrl()}/auth/sso-validate`, {
         method: 'POST',
@@ -52,7 +51,6 @@ export default function SSOLogin() {
       const data = await response.json();
 
       if (data.success && data.user) {
-        
         // Store user in auth context
         await login(data.user);
         
@@ -61,7 +59,6 @@ export default function SSOLogin() {
         
         // Store token in localStorage for API calls
         localStorage.setItem('sso_token', token);
-        
         
         // Immediately redirect to personal dashboard (no delay)
         navigate('/personal-dashboard', { replace: true });

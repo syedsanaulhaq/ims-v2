@@ -49,14 +49,12 @@ const handleDeliveryUpload = (req, res, next) => {
     
     // Ensure req.body exists and contains form fields
     if (!req.body) {
-      console.warn('⚠️  req.body is undefined, initializing as empty object');
       req.body = {};
     }
     
     // If no body data and no file, warn the caller
     if ((!req.body || Object.keys(req.body).length === 0) && !req.file) {
-      console.warn('⚠️  No form data or file received in request');
-    }
+      }
     
     next();
   });
@@ -519,7 +517,6 @@ router.get('/by-po/:poId', async (req, res) => {
     
     // Validate poId format
     if (!poId || !isValidUUID(poId)) {
-      console.warn('⚠️  Invalid PO ID format:', poId);
       return res.status(400).json({ 
         error: 'Invalid PO ID format', 
         details: 'PO ID must be a valid UUID' 
@@ -595,7 +592,6 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
     
     // Validate poId format
     if (!poId || !isValidUUID(poId)) {
-      console.warn('⚠️  Invalid PO ID format:', poId);
       return res.status(400).json({ 
         error: 'Invalid PO ID format', 
         details: 'PO ID must be a valid UUID' 

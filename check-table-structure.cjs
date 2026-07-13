@@ -24,10 +24,8 @@ async function checkTableStructure() {
       ORDER BY ORDINAL_POSITION
     `);
 
-    console.log('Columns in stock_issuance_requests:');
     result.recordset.forEach(col => {
-      console.log(`${col.COLUMN_NAME}: ${col.DATA_TYPE}`);
-    });
+      });
 
   } catch (err) {
     console.error('Error:', err);

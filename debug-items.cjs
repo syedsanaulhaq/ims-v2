@@ -24,12 +24,9 @@ async function checkItems() {
   
   try {
     await pool.connect();
-    console.log('✅ Connected to database\n');
-    
     // Check if items exist for our request
     const requestId = '74536345-1888-4524-B422-133B85FC6708';
     
-    console.log(`1️⃣  Checking stock_issuance_items for request: ${requestId}\n`);
     const itemsResult = await pool.request().query(`
       SELECT 
         id,
@@ -44,21 +41,10 @@ async function checkItems() {
       WHERE request_id = '${requestId}'
     `);
     
-    console.log(`Found ${itemsResult.recordset.length} items:`);
     itemsResult.recordset.forEach(item => {
-      console.log(`
-  ID: ${item.id}
-  Item Master ID: ${item.item_master_id}
-  Type: ${item.item_type}
-  Custom Name: ${item.custom_item_name}
-  Requested: ${item.requested_quantity}
-  Approved: ${item.approved_quantity}
-  Created: ${item.created_at}
-      `);
-    });
+      });
 
     // Check item_masters table structure and data
-    console.log(`\n2️⃣  Checking item_masters table structure\n`);
     const columnResult = await pool.request().query(`
       SELECT COLUMN_NAME, DATA_TYPE
       FROM INFORMATION_SCHEMA.COLUMNS
@@ -66,14 +52,11 @@ async function checkItems() {
       ORDER BY ORDINAL_POSITION
     `);
     
-    console.log('item_masters columns:');
     columnResult.recordset.forEach(col => {
-      console.log(`  - ${col.COLUMN_NAME} (${col.DATA_TYPE})`);
-    });
+      });
 
     // Check if the item_master_id references exist
     if (itemsResult.recordset.length > 0) {
-      console.log(`\n3️⃣  Checking if item_master records exist\n`);
       const itemMasterIds = itemsResult.recordset
         .map(i => i.item_master_id)
         .filter(id => id != null);
@@ -89,20 +72,12 @@ async function checkItems() {
           WHERE id IN (${itemMasterIds.map(id => `'${id}'`).join(',')})
         `);
         
-        console.log(`Found ${masterResult.recordset.length} item masters:`);
         masterResult.recordset.forEach(im => {
-          console.log(`
-  ID: ${im.id}
-  Nomenclature: ${im.nomenclature}
-  Code: ${im.item_code}
-  Unit: ${im.unit}
-          `);
-        });
+          });
       }
     }
 
     // Test the actual backend query
-    console.log(`\n4️⃣  Testing actual backend query\n`);
     const backendQueryResult = await pool.request().query(`
       SELECT 
         si_items.item_master_id as item_id,
@@ -124,16 +99,8 @@ async function checkItems() {
         END
     `);
     
-    console.log(`Backend query returns ${backendQueryResult.recordset.length} items:`);
     backendQueryResult.recordset.forEach(item => {
-      console.log(`
-  Name: ${item.item_name}
-  Quantity: ${item.requested_quantity}
-  Approved: ${item.approved_quantity}
-  Unit: ${item.unit}
-  Type: ${item.item_type}
-      `);
-    });
+      });
     
     await pool.close();
   } catch (err) {

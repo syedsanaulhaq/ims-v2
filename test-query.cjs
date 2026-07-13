@@ -13,8 +13,6 @@ const config = {
   try {
     const pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log('✅ Connected to database');
-
     const userId = '4dae06b7-17cd-480b-81eb-da9c76ad5728'; // Muhammad Ehtesham Siddiqui
 
     // Check what's in request_approvals
@@ -24,10 +22,8 @@ const config = {
       ORDER BY submitted_date DESC
     `);
 
-    console.log('\n📋 All Approvals in Database:');
     approvalsResult.recordset.forEach((ra, i) => {
-      console.log(`  ${i + 1}. ID: ${ra.id.substring(0, 8)}... | Request: ${ra.request_id.substring(0, 8)}... | Approver: ${ra.current_approver_id.substring(0, 8)}... | Status: ${ra.current_status}`);
-    });
+      });
 
     // Check what the query returns for Muhammad Ehtesham Siddiqui
     const queryResult = await pool.request()
@@ -48,10 +44,8 @@ const config = {
         ORDER BY ra.submitted_date DESC
       `);
 
-    console.log(`\n✅ Requests for Muhammad Ehtesham Siddiqui (${userId.substring(0, 8)}...):`, queryResult.recordset.length);
     queryResult.recordset.forEach((req, i) => {
-      console.log(`  ${i + 1}. Title: ${req.title} | Status: ${req.current_status}`);
-    });
+      });
 
     await pool.close();
   } catch (err) {

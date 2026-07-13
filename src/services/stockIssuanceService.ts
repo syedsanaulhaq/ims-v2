@@ -119,9 +119,7 @@ class StockIssuanceService {
       if (pagination?.limit) queryParams.append('limit', pagination.limit.toString());
       
       const url = `${this.baseUrl}/requests${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-      
       const response = await fetch(url, { credentials: 'include' });
-      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API Error Response:', errorText);
@@ -129,7 +127,6 @@ class StockIssuanceService {
       }
 
       const result = await response.json();
-      
       // Extract data from the new API response structure with summary
       const summary = result.summary || {};
       return {

@@ -52,10 +52,7 @@ const ProcurementDetails = () => {
         setTenders(Array.isArray(tendersData) ? tendersData : []);
         setDeliveries(Array.isArray(deliveriesData) ? deliveriesData : []);
         
-          tenders: tendersData.length,
-          deliveries: deliveriesData.length
-        });
-      } catch (error) {
+        } catch (error) {
         console.error('Error fetching procurement data:', error);
         setTenders([]);
         setDeliveries([]);

@@ -18,10 +18,6 @@ async function checkDashboard() {
     // Muhammad Ehtesham Siddiqui supervisor ID
     const supervisorId = '4dae06b7-17cd-480b-81eb-da9c76ad5728';
 
-    console.log('\n📊 CHECKING DASHBOARD LOGIC');
-    console.log('='.repeat(60));
-    console.log(`Supervisor ID: ${supervisorId}\n`);
-
     // Check approval items for this supervisor
     const approvalResult = await pool.request()
       .input('userId', sql.NVarChar(450), supervisorId)
@@ -38,26 +34,18 @@ async function checkDashboard() {
       `);
 
     if (approvalResult.recordset.length === 0) {
-      console.log('❌ No approvals found for this supervisor');
       await pool.close();
       return;
     }
 
-    console.log('📋 APPROVALS AND ITEMS:');
     let currentApprovalId = null;
     approvalResult.recordset.forEach((row) => {
       if (currentApprovalId !== row.approval_id) {
-        console.log(`\n  Approval: ${row.approval_id}`);
-        console.log(`  Status: ${row.current_status}`);
         currentApprovalId = row.approval_id;
       }
-      console.log(`    - ${row.nomenclature}: ${row.decision_type || 'NULL (pending)'}`);
-    });
+      });
 
     // Now check the dashboard counts
-    console.log('\n\n📊 DASHBOARD COUNTS:');
-    console.log('='.repeat(60));
-
     const countQueries = {
       pending: `(ai.decision_type IS NULL OR ai.decision_type = '')`,
       approved: `ai.decision_type IN ('APPROVE_FROM_STOCK', 'APPROVE_FOR_PROCUREMENT')`,
@@ -78,8 +66,7 @@ async function checkDashboard() {
         `);
       
       const count = result.recordset[0]?.count || 0;
-      console.log(`  ${status.toUpperCase()}: ${count}`);
-    }
+      }
 
     await pool.close();
   } catch (error) {

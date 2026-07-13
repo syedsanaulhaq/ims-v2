@@ -67,7 +67,6 @@ const StockAcquisitionReport: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-
       // Step 1: Get tender basic information from SQL Server
       const tenderResponse = await fetch(`http://localhost:3001/api/tenders/${id}`);
       
@@ -77,9 +76,7 @@ const StockAcquisitionReport: React.FC = () => {
       
       const tender = await tenderResponse.json();
 
-
       // Step 2: Get stock transactions with all joined data from the SQL Server view
-      
       const stockResponse = await fetch(`http://localhost:3001/api/view-stock-transactions-clean?tender_id=${id}`);
       
       if (!stockResponse.ok) {
@@ -88,12 +85,11 @@ const StockAcquisitionReport: React.FC = () => {
       
       const stockTransactions = await stockResponse.json();
 
-      
       // Debug: Show all field names and values in the first record from the view
       if (stockTransactions && stockTransactions.length > 0) {
         const firstRecord = stockTransactions[0];
         Object.keys(firstRecord).forEach(key => {
-        });
+          });
       }
 
       if (!stockTransactions || stockTransactions.length === 0) {
@@ -106,8 +102,6 @@ const StockAcquisitionReport: React.FC = () => {
       const enrichedItems: StockTransactionItem[] = [];
 
       for (const stockItem of stockTransactions) {
-
-
         const processedItem: StockTransactionItem = {
           id: stockItem.id,
           item_master_id: stockItem.item_master_id,
@@ -121,13 +115,11 @@ const StockAcquisitionReport: React.FC = () => {
           unit: 'Units' // You can add unit to the view if needed
         };
 
-
         enrichedItems.push(processedItem);
       }
 
       // Step 4: Get vendor and office information - names are already resolved in View_tenders
       // Debug: Log the entire tender object
-
       // Use vendor information from tender data or set default
       let vendorName = tender.vendor_name || 'Unknown Vendor';
 
@@ -146,8 +138,7 @@ const StockAcquisitionReport: React.FC = () => {
       });
       setStockItems(enrichedItems);
 
-
-    } catch (error: any) {
+      } catch (error: any) {
       console.error('Error fetching data:', error);
       setError(error.message || 'Failed to load data');
     } finally {
@@ -166,7 +157,7 @@ const StockAcquisitionReport: React.FC = () => {
   };
 
   const handleExport = () => {
-  };
+    };
 
   if (isLoading) {
     return (

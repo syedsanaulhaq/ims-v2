@@ -61,7 +61,6 @@ const StockAcquisitionReport: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-
       // Step 1: Get tender basic information
       const { data: tender, error: tenderError } = await supabase
         .from('tenders')
@@ -74,7 +73,6 @@ const StockAcquisitionReport: React.FC = () => {
         throw new Error('Tender not found');
       }
 
-
       // Step 2: Get stock transactions for this tender
       const { data: stockTransactions, error: stockError } = await supabase
         .from('stock_transactions_clean')
@@ -86,7 +84,6 @@ const StockAcquisitionReport: React.FC = () => {
         throw new Error('Failed to fetch stock transactions');
       }
 
-
       if (!stockTransactions || stockTransactions.length === 0) {
         setTenderInfo(tender);
         setStockItems([]);
@@ -97,7 +94,6 @@ const StockAcquisitionReport: React.FC = () => {
       const enrichedItems: StockTransactionItem[] = [];
 
       for (const stockItem of stockTransactions) {
-
         let itemDetails = {
           nomenclature: 'Unknown Item',
           category_name: 'Unknown',
@@ -131,8 +127,7 @@ const StockAcquisitionReport: React.FC = () => {
                     itemDetails.category_name = category.category_name;
                   }
                 } catch (catErr) {
-                  console.warn('Category lookup failed:', catErr);
-                }
+                  }
               }
 
               // Get subcategory name if exists
@@ -148,12 +143,10 @@ const StockAcquisitionReport: React.FC = () => {
                     itemDetails.subcategory_name = subcategory.subcategory_name;
                   }
                 } catch (subErr) {
-                  console.warn('Subcategory lookup failed:', subErr);
-                }
+                  }
               }
             } else {
-              console.warn('Item master not found for ID:', stockItem.item_master_id);
-            }
+              }
           } catch (err) {
             console.error('Error fetching item master:', err);
           }
@@ -190,8 +183,7 @@ const StockAcquisitionReport: React.FC = () => {
             vendorName = vendor.vendor_name;
           }
         } catch (err) {
-          console.warn('Vendor lookup failed:', err);
-        }
+          }
       }
 
       if (tender.office_ids && tender.office_ids.length > 0) {
@@ -205,8 +197,7 @@ const StockAcquisitionReport: React.FC = () => {
             officeNames = offices.map(office => office.strOfficeName).join(', ');
           }
         } catch (err) {
-          console.warn('Office lookup failed:', err);
-        }
+          }
       }
 
       // Set final data
@@ -217,8 +208,7 @@ const StockAcquisitionReport: React.FC = () => {
       });
       setStockItems(enrichedItems);
 
-
-    } catch (error: any) {
+      } catch (error: any) {
       console.error('Error fetching data:', error);
       setError(error.message || 'Failed to load data');
     } finally {
@@ -237,7 +227,7 @@ const StockAcquisitionReport: React.FC = () => {
   };
 
   const handleExport = () => {
-  };
+    };
 
   if (isLoading) {
     return (

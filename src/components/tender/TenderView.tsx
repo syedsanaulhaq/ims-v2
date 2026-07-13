@@ -52,7 +52,6 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
         const response = await fetch('http://localhost:3001/api/categories');
         const categories = await response.json();
         
-        
         // Create a map of category_id -> category_name
         const map: { [key: string]: string } = {};
         
@@ -63,7 +62,7 @@ const TenderView: React.FC<TenderViewProps> = ({ tender, onClose }) => {
           // Try multiple possible property names for the category name
           const categoryName = cat.name || cat.category_name || cat.nomenclature || 'Unknown';
           map[cat.id] = categoryName;
-        });
+          });
         
         setCategoryMap(map);
       } catch (error) {

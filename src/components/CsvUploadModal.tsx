@@ -56,16 +56,13 @@ export function CsvUploadModal({ open, onClose, onItemsImported, bidders }: CsvU
     formData.append('bidders', JSON.stringify(bidders.filter(v => v.is_successful)));
 
     try {
-      
       const response = await fetch('http://localhost:3001/api/tender-items/bulk-upload', {
         method: 'POST',
         body: formData,
       });
 
-      
       // Check if response is JSON
       const contentType = response.headers.get('content-type');
-      
       if (!contentType || !contentType.includes('application/json')) {
         const textResponse = await response.text();
         console.error('❌ Non-JSON response:', textResponse.substring(0, 200));
@@ -76,7 +73,7 @@ export function CsvUploadModal({ open, onClose, onItemsImported, bidders }: CsvU
 
       if (response.ok) {
         setResult(data);
-      } else {
+        } else {
         throw new Error(data.error || 'Failed to upload CSV');
       }
     } catch (error: any) {

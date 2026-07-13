@@ -18,7 +18,6 @@ const { getPool, sql, initializePool } = require('./server/db/connection.cjs');
       JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
       WHERE i.object_id = OBJECT_ID('approval_items')
     `);
-    console.log('Indexes:');
     console.table(idx.recordset);
     
     // Check for FK constraints
@@ -30,7 +29,6 @@ const { getPool, sql, initializePool } = require('./server/db/connection.cjs');
       JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
       WHERE fk.parent_object_id = OBJECT_ID('approval_items')
     `);
-    console.log('Foreign Keys:');
     console.table(fk.recordset);
     
     process.exit(0);

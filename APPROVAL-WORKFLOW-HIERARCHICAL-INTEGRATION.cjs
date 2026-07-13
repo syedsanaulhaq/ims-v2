@@ -18,11 +18,6 @@ async function approveWingRequest(req, res) {
       userName
     } = req.body;
 
-    console.log(`\n👨‍⚕️ WING SUPERVISOR APPROVING REQUEST`);
-    console.log(`   Wing: ${wingId}`);
-    console.log(`   Item: ${itemMasterId}`);
-    console.log(`   Quantity: ${quantityNeeded}`);
-
     // Step 1: Update request status to approved
     await pool.request()
       .input('id', sql.UniqueIdentifier, stockIssuanceId)
@@ -38,11 +33,7 @@ async function approveWingRequest(req, res) {
       .input('userId', sql.NVarChar(450), userId)
       .input('userName', sql.NVarChar(255), userName);
 
-    console.log(`   ✅ Request marked as APPROVED`);
-
     // Step 2: Call hierarchical deduction endpoint
-    console.log(`   📍 Calling hierarchical inventory deduction...`);
-
     const deductionResponse = await fetch('http://localhost:3000/api/hierarchical-inventory/deduct-hierarchical', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -66,9 +57,6 @@ async function approveWingRequest(req, res) {
     }
 
     const deductionResult = await deductionResponse.json();
-
-    console.log(`   ✅ Deducted from ${deductionResult.location}`);
-    console.log(`   ✅ New quantity: ${deductionResult.new_quantity}`);
 
     // Step 3: Update stock issuance status
     await pool.request()
@@ -108,10 +96,6 @@ async function approveAdminRequest(req, res) {
       userName
     } = req.body;
 
-    console.log(`\n👔 ADMIN APPROVING REQUEST`);
-    console.log(`   Item: ${itemMasterId}`);
-    console.log(`   Quantity: ${quantityNeeded}`);
-
     // Step 1: Update request status
     await pool.request()
       .input('id', sql.UniqueIdentifier, stockIssuanceId)
@@ -127,11 +111,7 @@ async function approveAdminRequest(req, res) {
       .input('userId', sql.NVarChar(450), userId)
       .input('userName', sql.NVarChar(255), userName);
 
-    console.log(`   ✅ Request marked as ADMIN_APPROVED`);
-
     // Step 2: Call hierarchical deduction (wingId = null for admin)
-    console.log(`   📍 Calling admin-level inventory deduction...`);
-
     const deductionResponse = await fetch('http://localhost:3000/api/hierarchical-inventory/deduct-hierarchical', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -155,9 +135,6 @@ async function approveAdminRequest(req, res) {
     }
 
     const deductionResult = await deductionResponse.json();
-
-    console.log(`   ✅ Deducted from ${deductionResult.location}`);
-    console.log(`   ✅ New quantity: ${deductionResult.new_quantity}`);
 
     res.json({
       success: true,
@@ -186,10 +163,6 @@ async function forwardRequestToAdmin(req, res) {
       userName
     } = req.body;
 
-    console.log(`\n📤 FORWARDING REQUEST FROM WING TO ADMIN`);
-    console.log(`   Wing: ${wingId}`);
-    console.log(`   Needed: ${quantityNeeded}, Available: ${wingAvailableQuantity}`);
-
     // Check if wing really doesn't have enough
     if (wingAvailableQuantity >= quantityNeeded) {
       return res.status(400).json({
@@ -198,8 +171,6 @@ async function forwardRequestToAdmin(req, res) {
     }
 
     // Step 1: Call forwarding endpoint
-    console.log(`   📍 Updating request source to Admin inventory...`);
-
     const forwardResponse = await fetch('http://localhost:3000/api/hierarchical-inventory/forward-request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -219,9 +190,6 @@ async function forwardRequestToAdmin(req, res) {
     }
 
     const forwardResult = await forwardResponse.json();
-
-    console.log(`   ✅ Request forwarded to admin`);
-    console.log(`   📋 Now awaiting admin approval...`);
 
     // Step 2: Update request status
     await pool.request()
@@ -265,20 +233,12 @@ async function smartApprovalWorkflow(req, res) {
       userName
     } = req.body;
 
-    console.log(`\n🤖 SMART APPROVAL WORKFLOW`);
-    console.log(`   Wing: ${wingId}`);
-    console.log(`   Item: ${itemMasterId}`);
-    console.log(`   Quantity Needed: ${quantityNeeded}`);
-
     if (!wingId) {
       // Admin request - approve directly
-      console.log(`   📌 Admin request - approving from admin inventory`);
       return await approveAdminRequest(req, res);
     }
 
     // Wing request - check availability
-    console.log(`   🔍 Checking wing inventory...`);
-
     const stockResult = await pool.request()
       .input('wingId', sql.Int, wingId)
       .input('itemId', sql.UniqueIdentifier, itemMasterId)
@@ -295,15 +255,11 @@ async function smartApprovalWorkflow(req, res) {
       ? stockResult.recordset[0].available_quantity 
       : 0;
 
-    console.log(`   📊 Available in wing: ${availableQuantity} units`);
-
     if (availableQuantity >= quantityNeeded) {
       // Approve from wing
-      console.log(`   ✅ Sufficient inventory - approving from wing`);
       return await approveWingRequest(req, res);
     } else {
       // Forward to admin
-      console.log(`   ⚠️  Insufficient inventory - forwarding to admin`);
       req.body.wingAvailableQuantity = availableQuantity;
       return await forwardRequestToAdmin(req, res);
     }
@@ -322,8 +278,6 @@ app.post('/api/approval/wing-approve', approveWingRequest);
 app.post('/api/approval/admin-approve', approveAdminRequest);
 app.post('/api/approval/forward-to-admin', forwardRequestToAdmin);
 app.post('/api/approval/smart-workflow', smartApprovalWorkflow);
-
-console.log('✅ Hierarchical inventory approval endpoints registered');
 
 // ============================================================================
 // USAGE EXAMPLES

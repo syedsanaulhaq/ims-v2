@@ -27,8 +27,6 @@ app.get('/api/sso-login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
-    console.log('🔐 SSO Token decoded:', decoded);
-
     // Extract user info from token
     const userId = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || decoded.sub || decoded.userId;
     const email = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] || decoded.email;
@@ -83,8 +81,6 @@ app.get('/api/sso-login', async (req, res) => {
     // If using express-session:
     req.session.user = sessionData;
     req.session.authenticated = true;
-
-    console.log('✅ SSO login successful for user:', user.user_name);
 
     // Redirect to IMS dashboard
     res.redirect('/dashboard');

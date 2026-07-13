@@ -9,8 +9,6 @@ async function main() {
     WHERE group_number IN (1, 3, 5) AND is_active = 1
     ORDER BY group_number, step_order
   `);
-  console.log('Workflow Steps:');
-  console.log(JSON.stringify(result.recordset, null, 2));
   process.exit(0);
 }
 

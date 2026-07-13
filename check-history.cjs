@@ -12,14 +12,10 @@ require('dotenv').config({ path: '.env.sqlserver' });
 
   // Check current stock
   const sa = await p.query(`SELECT * FROM stock_admin WHERE item_master_id = '${itemMasterId}'`);
-  console.log('stock_admin:', sa.recordset[0]?.available_quantity);
-
   // Restore stock: add 1 back
   await p.query(`UPDATE stock_admin SET available_quantity = available_quantity + 1 WHERE item_master_id = '${itemMasterId}'`);
   
   // Verify
   const sa2 = await p.query(`SELECT available_quantity FROM stock_admin WHERE item_master_id = '${itemMasterId}'`);
-  console.log('stock_admin after restore:', sa2.recordset[0]?.available_quantity);
-
   p.close();
 })().catch(e => console.error(e));

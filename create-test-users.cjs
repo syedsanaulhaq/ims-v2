@@ -23,10 +23,7 @@ const config = {
 
 async function createTestUsers() {
   try {
-    console.log('🔄 Connecting to database...');
     await sql.connect(config);
-    
-    console.log('🔐 Creating password hashes...');
     
     // Create test users with bcrypt hashed passwords
     const testUsers = [
@@ -97,8 +94,6 @@ async function createTestUsers() {
       }
     ];
     
-    console.log('📝 Creating test users...\n');
-    
     for (const user of testUsers) {
       // Hash the password with bcrypt
       const hashedPassword = await bcrypt.hash(user.password, 10);
@@ -110,8 +105,6 @@ async function createTestUsers() {
         `;
         
         if (existingUser.recordset.length > 0) {
-          console.log(`⚠️  User ${user.username} already exists, updating password...`);
-          
           // Update existing user with new password
           await sql.query`
             UPDATE AspNetUsers 
@@ -122,8 +115,6 @@ async function createTestUsers() {
             WHERE UserName = ${user.username}
           `;
         } else {
-          console.log(`✅ Creating new user: ${user.username}`);
-          
           // Insert new user
           await sql.query`
             INSERT INTO AspNetUsers (
@@ -143,40 +134,19 @@ async function createTestUsers() {
           `;
         }
         
-        console.log(`   📧 Email: ${user.email}`);
-        console.log(`   🔑 Password: ${user.password}`);
-        console.log(`   👤 Role: ${user.role}`);
-        console.log('');
-        
-      } catch (error) {
+        } catch (error) {
         console.error(`❌ Error creating user ${user.username}:`, error.message);
       }
     }
     
-    console.log('🎉 Test users created successfully!\n');
-    console.log('📋 LOGIN CREDENTIALS FOR TESTING:');
-    console.log('='.repeat(50));
-    
     testUsers.forEach(user => {
-      console.log(`👤 ${user.fullName} (${user.role})`);
-      console.log(`   Username: ${user.username}`);
-      console.log(`   Password: ${user.password}`);
-      console.log(`   CNIC: ${user.cnic}`);
-      console.log('');
-    });
+      });
     
-    console.log('💡 TESTING NOTES:');
-    console.log('- All passwords are bcrypt hashed and will work with your current system');
-    console.log('- You can login with either username or CNIC');
-    console.log('- The "admin/admin" login still works as before');
-    console.log('- These users have different roles for testing approval workflows');
-    
-  } catch (error) {
+    } catch (error) {
     console.error('❌ Database error:', error);
   } finally {
     await sql.close();
-    console.log('\n🔌 Database connection closed');
-  }
+    }
 }
 
 // Run the script

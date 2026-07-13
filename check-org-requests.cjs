@@ -34,10 +34,6 @@ const config = {
 
     const result = await pool.request().query(orgQuery);
 
-    console.log('Organizational Requests in Database:');
-    console.log(JSON.stringify(result.recordset, null, 2));
-    console.log(`\nTotal: ${result.recordset.length}`);
-
     pool.close();
   } catch (error) {
     console.error('Error:', error.message);

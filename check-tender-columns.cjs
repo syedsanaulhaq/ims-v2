@@ -28,7 +28,6 @@ async function checkTenderColumns() {
       ORDER BY COLUMN_NAME
     `);
     
-    console.log('Tender table organizational columns:');
     console.table(result.recordset);
     
     await pool.close();

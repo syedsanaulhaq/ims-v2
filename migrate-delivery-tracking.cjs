@@ -10,8 +10,6 @@ async function main() {
   await initializePool();
   const pool = getPool();
 
-  console.log('🚀 Running delivery tracking migration...\n');
-
   // 1. Add delivery columns to stock_issuance_requests
   const alterCols = [
     { name: 'dispatch_method',       ddl: "NVARCHAR(20) NULL" },         // 'Direct','NQ','Driver'
@@ -37,10 +35,8 @@ async function main() {
         ALTER TABLE stock_issuance_requests
         ADD [${col.name}] ${col.ddl}
       `);
-      console.log(`  ✅ Added column: stock_issuance_requests.${col.name}`);
-    } else {
-      console.log(`  ⏭️  Column already exists: ${col.name}`);
-    }
+      } else {
+      }
   }
 
   // 2. Update CHECK constraint on approval_status to include 'Dispatched'
@@ -56,8 +52,7 @@ async function main() {
   if (ck.recordset.length > 0) {
     const constraintName = ck.recordset[0].name;
     await pool.request().query(`ALTER TABLE stock_issuance_requests DROP CONSTRAINT [${constraintName}]`);
-    console.log(`\n  ✅ Dropped old CHECK constraint: ${constraintName}`);
-  }
+    }
 
   await pool.request().query(`
     ALTER TABLE stock_issuance_requests
@@ -77,8 +72,6 @@ async function main() {
       )
     )
   `);
-  console.log('  ✅ Recreated CHECK constraint with Dispatched / Delivered / Completed values');
-
   // 3. Create uploads directory record table (issuance_delivery_proofs)
   const tableExists = await pool.request().query(`
     SELECT 1 FROM sys.tables WHERE name = 'issuance_delivery_proofs'
@@ -98,12 +91,9 @@ async function main() {
           REFERENCES stock_issuance_requests(id)
       )
     `);
-    console.log('  ✅ Created table: issuance_delivery_proofs');
-  } else {
-    console.log('  ⏭️  Table already exists: issuance_delivery_proofs');
-  }
+    } else {
+    }
 
-  console.log('\n✅ Migration complete!');
   process.exit(0);
 }
 

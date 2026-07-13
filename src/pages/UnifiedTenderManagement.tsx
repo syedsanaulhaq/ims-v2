@@ -178,15 +178,7 @@ const UnifiedTenderManagement: React.FC = () => {
         setEditingPrices(prices);
         
         // Debug log to see what prices are being loaded
-          id: item.id,
-          nomenclature: item.nomenclature,
-          estimated_unit_price: item.estimated_unit_price,
-          actual_unit_price: item.actual_unit_price,
-          using_price: (item.actual_unit_price !== null && item.actual_unit_price !== undefined) 
-            ? item.actual_unit_price 
-            : item.estimated_unit_price
-        })));
-      }
+        }
 
       // Load deliveries
       const deliveryResponse = await fetch(`http://localhost:3001/api/deliveries/by-tender/${tenderId}`);
@@ -252,7 +244,6 @@ const UnifiedTenderManagement: React.FC = () => {
 
   const updateItemPrice = async (itemId: string, newPrice: number) => {
     try {
-      
       const response = await fetch(`http://localhost:3001/api/stock-acquisition/update-price/${itemId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -262,10 +253,8 @@ const UnifiedTenderManagement: React.FC = () => {
         })
       });
 
-
       if (response.ok) {
         const responseData = await response.json();
-        
         setTenderItems(prev => prev.map(item => 
           item.id === itemId 
             ? { ...item, actual_unit_price: newPrice }
@@ -375,13 +364,11 @@ const UnifiedTenderManagement: React.FC = () => {
         items: allItems
       };
 
-
       const response = await fetch('http://localhost:3001/api/delivery-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
       });
-
 
       if (response.ok) {
         await loadTenderData(); // Reload to show the new item

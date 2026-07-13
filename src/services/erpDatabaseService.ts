@@ -216,7 +216,6 @@ class ERPDatabaseService {
     } catch (error) {
       console.error('❌ Error fetching active offices from API:', error);
       // Fallback to mock data if API fails
-      console.warn('🔄 Falling back to mock office data');
       await new Promise(resolve => setTimeout(resolve, 200));
       return this.mockOffices.filter(office => office.IS_ACT && !office.IS_DELETED);
     }
@@ -244,7 +243,6 @@ class ERPDatabaseService {
     } catch (error) {
       console.error('❌ Error fetching active wings from API:', error);
       // Fallback to mock data if API fails
-      console.warn('🔄 Falling back to mock wing data');
       await new Promise(resolve => setTimeout(resolve, 200));
       return this.mockWings.filter(wing => wing.IS_ACT);
     }
@@ -287,7 +285,6 @@ class ERPDatabaseService {
     } catch (error) {
       console.error('❌ Error fetching active DECs from SQL Server:', error);
       // Fallback to mock data if SQL Server fails
-      console.warn('🔄 Falling back to mock DEC data');
       await new Promise(resolve => setTimeout(resolve, 200));
       return this.mockDECs.filter(dec => dec.IS_ACT);
     }
@@ -329,7 +326,6 @@ class ERPDatabaseService {
     } catch (error) {
       console.error('❌ Error fetching active users from AspNetUsers API:', error);
       // Fallback to mock data if API fails
-      console.warn('🔄 Falling back to mock user data');
       await new Promise(resolve => setTimeout(resolve, 200));
       
       const mockUsers = [

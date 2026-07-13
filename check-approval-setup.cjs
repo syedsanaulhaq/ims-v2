@@ -15,8 +15,6 @@ const config = {
     await pool.connect();
 
     // Check workflow_approvers
-    console.log('=== Checking Workflow Approvers ===\n');
-    
     const workflowId = 'D806EC95-FB78-4187-8FC2-87B897C124A4'; // Stock Issuance Approval workflow
     
     const approversQuery = `
@@ -36,12 +34,7 @@ const config = {
       .input('workflowId', sql.UniqueIdentifier, workflowId)
       .query(approversQuery);
 
-    console.log('Workflow Approvers for Stock Issuance Workflow:');
-    console.log(JSON.stringify(result.recordset, null, 2));
-
     // Also check wing-specific approvers
-    console.log('\n\n=== Checking Wing Supervisor Setup ===\n');
-    
     const wingQuery = `
       SELECT 
         Id,
@@ -55,9 +48,6 @@ const config = {
     `;
 
     const wingResult = await pool.request().query(wingQuery);
-    console.log('Wing 19 (Project Management Unit):');
-    console.log(JSON.stringify(wingResult.recordset, null, 2));
-
     pool.close();
   } catch (error) {
     console.error('Error:', error.message);

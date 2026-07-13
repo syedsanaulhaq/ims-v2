@@ -8,8 +8,6 @@ async function main() {
     FROM AspNetUsers
     WHERE FullName LIKE '%Haseeb%' OR FullName LIKE '%Aqsa%' OR FullName LIKE '%Asad%' OR FullName LIKE '%Ehtesham%'
   `);
-  console.log('Users:');
-  console.log(JSON.stringify(result.recordset, null, 2));
   process.exit(0);
 }
 

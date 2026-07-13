@@ -23,11 +23,7 @@ const config = {
 
     const wingResult = await pool.request().query(wingQuery);
     if (wingResult.recordset.length > 0) {
-      console.log('Wing 19 structure:');
-      console.log(Object.keys(wingResult.recordset[0]));
-      console.log('\nWing 19 data:');
-      console.log(wingResult.recordset[0]);
-    }
+      }
 
     // Also check users in wing 19
     const usersQuery = `
@@ -42,9 +38,6 @@ const config = {
     `;
 
     const usersResult = await pool.request().query(usersQuery);
-    console.log(`\n\nUsers in Wing 19 (${usersResult.recordset.length} users):`);
-    console.log(JSON.stringify(usersResult.recordset, null, 2));
-
     pool.close();
   } catch (error) {
     console.error('Error:', error.message);

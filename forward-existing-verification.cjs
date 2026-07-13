@@ -18,15 +18,11 @@ async function forwardExistingVerification() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // The store keeper in wing 19
     const storeKeeperId = 'a84bbf7a-dfb7-45ca-b603-e2313c57033b';
     const storeKeeperName = '3740506012171';
 
     // Update the existing verification to forward it to the store keeper
-    console.log("📝 Forwarding SAN Switches verification to store keeper...\n");
-    
     const result = await pool.request()
       .input('storeKeeperId', sql.NVarChar, storeKeeperId)
       .input('storeKeeperName', sql.NVarChar, storeKeeperName)
@@ -39,8 +35,6 @@ async function forwardExistingVerification() {
           updated_at = GETDATE()
         WHERE item_nomenclature = 'SAN Switches'
       `);
-
-    console.log(`✅ Updated ${result.rowsAffected[0]} verification requests\n`);
 
     // Show the updated verification
     const checkResult = await pool.request().query(`
@@ -57,13 +51,7 @@ async function forwardExistingVerification() {
 
     if (checkResult.recordset.length > 0) {
       const ver = checkResult.recordset[0];
-      console.log("✅ Updated verification:");
-      console.log(`   Item: ${ver.item_nomenclature}`);
-      console.log(`   Forwarded to: ${ver.forwarded_to_name}`);
-      console.log(`   Forwarded ID: ${ver.forwarded_to_user_id}`);
-      console.log(`   Forwarded at: ${ver.forwarded_at}`);
-      console.log(`   Status: ${ver.verification_status}\n`);
-    }
+      }
 
   } catch (error) {
     console.error("❌ Error:", error.message);

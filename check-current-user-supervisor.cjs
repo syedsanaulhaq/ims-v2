@@ -15,8 +15,6 @@ async function checkCurrentUserSupervisor() {
   const pool = new sql.ConnectionPool(config);
   try {
     await pool.connect();
-    console.log('✓ Connected to database\n');
-
     // Check latest request created and who created it
     const latestRequest = await pool.request().query(`
       SELECT TOP 1
@@ -35,14 +33,6 @@ async function checkCurrentUserSupervisor() {
 
     if (latestRequest.recordset.length > 0) {
       const req = latestRequest.recordset[0];
-      console.log('=== LATEST REQUEST ===\n');
-      console.log(`Request ID: ${req.RequestId}`);
-      console.log(`Requester: ${req.RequesterName || 'Unknown'}`);
-      console.log(`Requester User ID: ${req.RequesterUserId}`);
-      console.log(`Submitted: ${req.submitted_at}`);
-      console.log(`\nAssigned Approver: ${req.AssignedApproverName || 'Not assigned'}`);
-      console.log(`Approver ID: ${req.AssignedApproverId || 'None'}\n`);
-
       // Now check the supervisor of this requester
       if (req.RequesterUserId) {
         const supervisorCheck = await pool.request()
@@ -60,22 +50,13 @@ async function checkCurrentUserSupervisor() {
 
         if (supervisorCheck.recordset.length > 0) {
           const sup = supervisorCheck.recordset[0];
-          console.log('=== REQUESTER SUPERVISOR LOOKUP ===\n');
-          console.log(`Employee: ${sup.EmployeeName}`);
-          console.log(`Supervisor: ${sup.SupervisorName || '❌ NO SUPERVISOR FOUND'}`);
-          console.log(`Supervisor ID: ${sup.SupervisorId || 'N/A'}`);
-          
           if (sup.SupervisorId) {
-            console.log(`\n✓ Supervisor is correctly assigned: ${sup.SupervisorName}`);
-          } else {
-            console.log(`\n❌ ERROR: This requester has NO SUPERVISOR in the hierarchy!`);
-            console.log(`This is why the request is not being assigned to Ehtisham.`);
-          }
+            } else {
+            }
         }
       }
     } else {
-      console.log('No requests found in database');
-    }
+      }
 
     await pool.close();
   } catch (error) {

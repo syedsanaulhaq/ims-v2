@@ -18,11 +18,7 @@ async function checkVerifications() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     // Check verification requests with forwarding info
-    console.log("📋 Checking verification requests with forwarding info...\n");
-    
     const result = await pool.request().query(`
       SELECT TOP 10
         id,
@@ -40,21 +36,10 @@ async function checkVerifications() {
       ORDER BY created_at DESC
     `);
 
-    console.log(`Found ${result.recordset.length} verification requests:\n`);
-    
     result.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. Item: ${row.item_nomenclature}`);
-      console.log(`   Requested by: ${row.requested_by_name} (${row.requested_by_user_id})`);
-      console.log(`   Forwarded to: ${row.forwarded_to_name || 'NOT SET'} (${row.forwarded_to_user_id || 'NULL'})`);
-      console.log(`   Forwarded at: ${row.forwarded_at || 'NOT SET'}`);
-      console.log(`   Status: ${row.verification_status}`);
-      console.log(`   Wing: ${row.wing_id}`);
-      console.log();
-    });
+      });
 
     // Check if there are store keepers in the database
-    console.log("\n📌 Checking for store keepers in the database...\n");
-    
     const skResult = await pool.request().query(`
       SELECT DISTINCT 
         u.Id, 
@@ -66,14 +51,8 @@ async function checkVerifications() {
       ORDER BY u.wing_id, u.UserName
     `);
 
-    console.log(`Found ${skResult.recordset.length} store keepers:\n`);
-    
     skResult.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. ${row.UserName} (${row.Id})`);
-      console.log(`   Wing: ${row.wing_id}`);
-      console.log(`   Role: ${row.aspNetRole}`);
-      console.log();
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error);

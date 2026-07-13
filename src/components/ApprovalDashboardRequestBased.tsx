@@ -155,7 +155,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             );
             return { status, approvals };
           } catch (statusError) {
-            console.warn(`Skipping approvals status '${status}' due to fetch error:`, statusError);
             return { status, approvals: [] as RequestApproval[] };
           }
         })
@@ -204,7 +203,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           });
 
           if (!detailResponse.ok) {
-            console.warn(`Failed to fetch details for approval ${approval.id}`);
             return null;
           }
 

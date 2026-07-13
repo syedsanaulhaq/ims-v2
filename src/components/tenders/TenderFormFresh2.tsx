@@ -87,7 +87,6 @@ const procurementMethods = [
 ];
 
 const TenderFormFresh2: React.FC = () => {
-  
   const { id } = useParams<{ id: string }>();
   const isEditing = !!id;
   const navigate = useNavigate();
@@ -155,13 +154,11 @@ const TenderFormFresh2: React.FC = () => {
     const loadHierarchyData = async () => {
       try {
         setHierarchyLoading(true);
-        
         const [officesData, wingsData, decsData] = await Promise.all([
           officeApi.getOffices(),    // From tblOffices
           officeApi.getWings(),      // From WingsInformation
           officeApi.getDecs()        // From DEC_MST
         ]);
-        
         
         setOffices(officesData);
         setWings(wingsData);
@@ -284,7 +281,6 @@ const TenderFormFresh2: React.FC = () => {
         rfp_file_path: data.rfp_file_path,
       };
 
-
       const url = isEditing 
         ? `${API_BASE_URL}/api/tenders/${id}`
         : `${API_BASE_URL}/api/tenders`;
@@ -305,7 +301,6 @@ const TenderFormFresh2: React.FC = () => {
       }
 
       const result = await response.json();
-
       toast({
         title: "Success",
         description: `Tender ${isEditing ? 'updated' : 'created'} successfully!`,

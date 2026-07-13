@@ -22,7 +22,6 @@ async function main() {
       WHERE request_id = @reqId
     `);
 
-  console.log('Current workflow state:');
   console.table(stateRes.recordset);
 
   const allAtStep3 = stateRes.recordset.every(r => r.current_step_order === 3);
@@ -32,8 +31,6 @@ async function main() {
     console.error('❌ Not all lanes are at step 3/pending — cannot patch safely. Aborting.');
     process.exit(1);
   }
-
-  console.log('\n✅ All lanes confirmed at step 3 (Storekeeper). Patching approval_status...');
 
   // Patch the request
   await pool.request()
@@ -58,8 +55,6 @@ async function main() {
 
   if (storekeeperRes.recordset.length > 0) {
     const sk = storekeeperRes.recordset[0];
-    console.log('Storekeeper found:', sk.FullName, '(', sk.user_id, ')');
-
     await pool.request()
       .input('reqId', sql.UniqueIdentifier, REQ_ID)
       .input('skId', sql.NVarChar(450), sk.user_id)
@@ -70,18 +65,14 @@ async function main() {
             updated_date = GETDATE()
         WHERE request_id = @reqId
       `);
-    console.log('✅ request_approvals updated — current approver is now Storekeeper:', sk.FullName);
-  }
+    }
 
   // Verify patch
   const afterRes = await pool.request()
     .input('reqId', sql.UniqueIdentifier, REQ_ID)
     .query(`SELECT approval_status, request_status FROM stock_issuance_requests WHERE id = @reqId`);
 
-  console.log('\nAfter patch:');
   console.table(afterRes.recordset);
-  console.log('\n✅ Done! Aqsa Noreen (Storekeeper) should now see this request in the issuance queue.');
-
   process.exit(0);
 }
 

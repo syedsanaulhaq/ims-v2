@@ -15,7 +15,6 @@ async function main() {
   await initializePool();
   const pool = getPool();
 
-  console.log('\n========== 1. Current ims_request_workflow_state ==========');
   const stateRes = await pool.request()
     .input('reqId', sql.UniqueIdentifier, REQ_ID)
     .query(`
@@ -28,7 +27,6 @@ async function main() {
     `);
   console.table(stateRes.recordset);
 
-  console.log('\n========== 2. Current approval_items decision_type ==========');
   const itemsRes = await pool.request()
     .input('approvalId', sql.UniqueIdentifier, APPROVAL_ID)
     .query(`
@@ -39,13 +37,10 @@ async function main() {
     `);
   console.table(itemsRes.recordset);
 
-  console.log('\n========== 3. Simulating advanceWorkflow as Haseeb Faryad ==========');
   const transaction = pool.transaction();
   await transaction.begin();
   try {
     const result = await advanceWorkflow(transaction, REQ_ID, ACTOR_ID, {});
-    console.log('advanceWorkflow result:', JSON.stringify(result, null, 2));
-
     // Determine what sirApprovalStatus would be set to
     let sirApprovalStatus = 'Pending Supervisor Review';
     const isDynamicStepTransition = result?.ok && !result?.completed;
@@ -53,26 +48,20 @@ async function main() {
 
     if (isDynamicStepTransition && newApproverId) {
       const nextRoles = await getUserWorkflowRoles(pool, newApproverId);
-      console.log('\nNext approver roles:', nextRoles);
       if (nextRoles.includes('Storekeeper')) {
         sirApprovalStatus = 'Approved by Workflow';
-        console.log('✅ sirApprovalStatus would be set to:', sirApprovalStatus);
-        console.log('✅ Storekeeper WILL see this request in the issuance queue!');
-      } else {
+        } else {
         sirApprovalStatus = 'Forwarded to Admin';
-        console.log('⚠️ sirApprovalStatus would be:', sirApprovalStatus);
-      }
+        }
     } else if (result?.completed) {
       sirApprovalStatus = 'Approved by Workflow';
-      console.log('✅ All lanes complete. sirApprovalStatus:', sirApprovalStatus);
-    }
+      }
     await transaction.rollback(); // Don't actually advance — just testing
   } catch (err) {
     await transaction.rollback();
     console.error('Error in advanceWorkflow:', err.message);
   }
 
-  console.log('\n========== 4. Current request approval_status ==========');
   const reqRes = await pool.request()
     .input('reqId', sql.UniqueIdentifier, REQ_ID)
     .query(`SELECT approval_status, request_status FROM stock_issuance_requests WHERE id = @reqId`);

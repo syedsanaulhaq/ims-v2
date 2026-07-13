@@ -130,7 +130,6 @@ const EnhancedTenderDashboard: React.FC = () => {
       }
 
       const result = await response.json();
-      
       // Refresh the tenders list
       await fetchTenders();
       

@@ -119,7 +119,6 @@ export const tendersLocalService = {
           }));
         }
       } catch (error) {
-        console.warn('Failed to fetch tender items:', error);
         // Continue with empty items array
       }
       
@@ -213,7 +212,6 @@ export const tendersLocalService = {
           status: 'Active'
         })) : []
       };
-
 
       const response = await fetch(`${API_BASE_URL}/api/tenders`, {
         method: 'POST',

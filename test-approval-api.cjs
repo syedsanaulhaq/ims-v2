@@ -31,7 +31,6 @@ async function initializePool() {
   try {
     pool = new sql.ConnectionPool(sqlConfig);
     await pool.connect();
-    console.log('✅ Connected to SQL Server');
     return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
@@ -42,9 +41,6 @@ async function initializePool() {
 // Get pending approvals for a user
 app.get('/api/approvals/my-approvals', async (req, res) => {
   try {
-    console.log('🔍 API CALLED: /api/approvals/my-approvals');
-    console.log('Query params:', req.query);
-
     const userId = req.query.userId;
 
     if (!userId) {
@@ -53,8 +49,6 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         error: 'userId query parameter is required'
       });
     }
-
-    console.log('Fetching approvals for userId:', userId);
 
     // Get pending approvals for this user
     const approvalsResult = await pool.request()
@@ -89,8 +83,6 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
         ORDER BY ra.submitted_date DESC
       `);
 
-    console.log('✅ Found', approvalsResult.recordset.length, 'pending approvals for user', userId);
-
     const approvals = [];
 
     for (const approval of approvalsResult.recordset) {
@@ -122,7 +114,6 @@ app.get('/api/approvals/my-approvals', async (req, res) => {
 
         items = stockItemsResult.recordset || [];
       } catch (itemError) {
-        console.log('Could not load items for approval', approval.id, ':', itemError.message);
         items = [];
       }
 
@@ -175,8 +166,7 @@ async function start() {
 
   const PORT = 3002; // Using different port
   app.listen(PORT, () => {
-    console.log(`✅ Test API server running on http://localhost:${PORT}`);
-  });
+    });
 }
 
 start();

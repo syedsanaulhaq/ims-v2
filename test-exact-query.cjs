@@ -68,22 +68,13 @@ const config = {
                         AND ah.action_type = 'forwarded'))
       ORDER BY ra.submitted_date DESC`;
 
-    console.log('🔍 Running query...');
     const historyResult = await pool.request()
       .input('userId', sql.NVarChar(450), userId)
       .query(approvalHistoryQuery);
 
-    console.log(`✅ Found ${historyResult.recordset.length} records`);
-    
     if (historyResult.recordset.length > 0) {
       const first = historyResult.recordset[0];
-      console.log('\n📋 First Record:');
-      console.log('  ID:', first.id?.substring(0, 8));
-      console.log('  Title:', first.title);
-      console.log('  Status:', first.current_status);
-      console.log('  My Action:', first.my_action);
-      console.log('  Total Items:', first.total_items);
-    }
+      }
 
     await pool.close();
   } catch (err) {

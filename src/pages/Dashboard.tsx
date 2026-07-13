@@ -61,7 +61,6 @@ const Dashboard = () => {
         const response = await fetch(`${getApiBaseUrl()}/stock-acquisitions/go-live-status`);
         if (response.ok) {
           const data = await response.json();
-          
           if (!data.opening_balance_completed) {
             setOpeningBalanceComplete(false);
             // Redirect to opening balance entry with message
@@ -128,16 +127,6 @@ const Dashboard = () => {
           fetch(`${getApiBaseUrl()}/users`).then(res => res.ok ? res.json() : []),
           fetch(`${getApiBaseUrl()}/wings`).then(res => res.ok ? res.json() : [])
         ]);
-
-          tenders: tendersRes?.length || 0,
-          deliveries: deliveriesRes?.length || 0,
-          stockRequests: stockIssuanceRes?.length || 0,
-          inventoryItems: inventoryStockRes?.data?.length || 0,
-          inventoryStats: inventoryStatsRes?.success ? 'loaded' : 'failed',
-          offices: officesRes?.length || 0,
-          users: usersRes?.length || 0,
-          wings: wingsRes?.length || 0
-        });
 
         setTenders(Array.isArray(tendersRes) ? tendersRes : []);
         setDeliveries(Array.isArray(deliveriesRes) ? deliveriesRes : []);

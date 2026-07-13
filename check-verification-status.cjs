@@ -18,8 +18,6 @@ async function checkVerificationStatus() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     const result = await pool.request().query(`
       SELECT 
         id,
@@ -31,13 +29,8 @@ async function checkVerificationStatus() {
       ORDER BY created_at DESC
     `);
 
-    console.log(`📋 Verification statuses:\n`);
     result.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. Item: ${row.item_nomenclature}`);
-      console.log(`   Status: '${row.verification_status}' (type: ${typeof row.verification_status})`);
-      console.log(`   Forwarded to: ${row.forwarded_to_user_id ? '✅ Yes' : '❌ No'}`);
-      console.log(`   Forwarded at: ${row.forwarded_at}\n`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

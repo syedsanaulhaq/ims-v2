@@ -380,8 +380,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
             setWorkflowByGroup(workflowMap);
           }
         } catch (ctxErr) {
-          console.warn('Failed to load workflow lane context for approval panel:', ctxErr);
-        }
+          }
       }
       
       // Initialize item decisions from database values for highlighting
@@ -898,7 +897,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         const data = await response.json();
         const available = Number(data?.data?.available_quantity ?? data?.available_quantity ?? 0);
         setStockAvailable(available);
-      } else {
+        } else {
         setStockAvailable(0);
       }
     } catch (err) {
@@ -925,14 +924,8 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       // Get wing ID - use current user's wing or fallback to 19
       let wingId = currentUser?.wing_id;
       if (!wingId) {
-        console.warn('⚠️ Wing ID not found in session, using fallback');
         wingId = 19;  // Fallback to wing 19
       }
-      
-        requestedByUserId,
-        requestedByName,
-        wingId
-      });
       
       const apiUrl = getApiUrl();
       const endpoint = `${apiUrl}/api/inventory/request-verification`;
@@ -948,14 +941,12 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         wingId: wingId
       };
       
-
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(payload)
       });
-      
       
       let data;
       const responseText = await response.text();
@@ -969,7 +960,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         return;
       }
       
-
       if (response.status === 200 || response.ok || data?.success) {
         setConfirmationStatus('sent');
         setSuccess('✓ Verification request forwarded to Store Keeper - they will verify and respond');
@@ -1002,13 +992,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
       const apiUrl = getApiUrl();
       const endpoint = `${apiUrl}/api/approvals/${approvalId}/request-wing-stock-confirmation`;
       
-        item_id: itemId,
-        item_name: getItemName(item),
-        requested_quantity: getItemQuantity(item),
-        approval_id: approvalId,
-        request_type: 'wing_stock_confirmation'
-      });
-
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1022,7 +1005,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         })
       });
       
-      
       let data;
       const responseText = await response.text();
       try {
@@ -1035,7 +1017,6 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
         return;
       }
       
-
       // Consider it successful if response.ok OR data.success OR status 200
       if (response.status === 200 || response.ok || data?.success) {
         setConfirmationStatus('sent');
@@ -1059,11 +1040,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   const handleConfirmWing = () => {
     // This will be called by the wing stock supervisor from their dashboard
     setConfirmationStatus('confirmed');
-  };
+    };
 
   const handleRejectWing = () => {
     setConfirmationStatus('rejected');
-  };
+    };
 
   if (!request) {
     return (

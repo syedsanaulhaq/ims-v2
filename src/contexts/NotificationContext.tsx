@@ -134,9 +134,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       if (response.ok) {
         const data = await response.json();
-        
         if (data.success && data.notifications) {
-          
           const apiNotifications = data.notifications.map((n: any) => {
             // Normalize type to valid values
             let type: 'info' | 'success' | 'warning' | 'error' = 'info';
@@ -162,14 +160,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           setNotifications(apiNotifications);
           return;
         } else {
-          console.warn('⚠️ API response missing success or notifications:', data);
-        }
+          }
       } else {
         console.error('❌ API response not OK:', response.status, response.statusText);
       }
       
       // Fallback to localStorage if API fails
-      console.warn('⚠️ Failed to load from API, using localStorage fallback');
       const storageKey = `notifications_${effectiveUserId}`;
       const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
       setNotifications(stored.map((n: any) => ({
@@ -209,7 +205,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     const effectiveUserId = user?.Id || (user as any)?.user_id;
     if (effectiveUserId) {
       // No sample notifications - only load real data from database
-    }
+      }
   }, [user]);
 
   // Remove the demo notification simulator - only use real-time updates from database
@@ -218,7 +214,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     
     // Real-time notifications would come from WebSocket or periodic API calls
     // For now, just rely on the loadNotifications function called every 30 seconds above
-  }, [user?.Id]);
+    }, [user?.Id]);
 
   const value: NotificationContextType = {
     notifications,

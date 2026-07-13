@@ -139,7 +139,6 @@ const ContractTenderForm: React.FC = () => {
     try {
       setSaving(true);
       
-
       // Prepare payload for backend
       const payload = {
         ...data,
@@ -151,7 +150,6 @@ const ContractTenderForm: React.FC = () => {
         advertisement_date: data.advertisement_date ? format(data.advertisement_date, 'yyyy-MM-dd') : null,
         created_by: 'system',
       };
-
 
       const url = isEditMode 
         ? `${API_BASE_URL}/api/tenders/${id}`

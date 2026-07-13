@@ -101,7 +101,6 @@ const UserRoleAssignment: React.FC = () => {
 
       const queryString = params.toString();
       const urlToFetch = `${API_BASE_URL}/api/permissions/users${queryString ? '?' + queryString : ''}`;
-
       const response = await fetch(urlToFetch, {
         credentials: 'include',
       });

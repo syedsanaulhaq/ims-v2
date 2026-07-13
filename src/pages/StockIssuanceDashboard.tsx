@@ -120,7 +120,6 @@ export function StockIssuanceDashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      
       // Try direct API call first
       const directResponse = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
         credentials: 'include',
@@ -130,14 +129,12 @@ export function StockIssuanceDashboard() {
       }
       
       const directData = await directResponse.json();
-      
       if (directData.success && directData.data && directData.summary) {
         // Filter requests to only show those created by the logged-in user
         const userRequests = (directData.data || []).filter((req: any) => {
           const isUserRequest = req.requester?.user_id === user?.user_id;
           return isUserRequest;
         });
-        
         
         setRequests(userRequests);
         
@@ -151,17 +148,12 @@ export function StockIssuanceDashboard() {
         
         setStats(userStats);
         
-          totalRequests: directData.summary.totalCount || 0,
-          pendingRequests: directData.summary.pendingCount || 0,
-          approvedRequests: directData.summary.approvedCount || 0,
-          issuedRequests: directData.summary.issuedCount || 0
-        });
-      } else {
+        } else {
         console.error('❌ Invalid API response structure:', directData);
         throw new Error('Invalid API response structure');
       }
       
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Error loading stock issuance dashboard data:', error);
       toast({
         title: 'Error',

@@ -11,13 +11,11 @@ async function runMigration() {
   });
   
   try {
-    console.log('🔄 Creating delivery_item_serial_numbers table...');
     await client.connect();
     
     const sql = fs.readFileSync('create-delivery-serial-numbers-table.sql', 'utf8');
     await client.query(sql);
     
-    console.log('✅ Successfully created delivery_item_serial_numbers table and policies');
     return true;
   } catch (error) {
     console.error('❌ Error:', error.message);

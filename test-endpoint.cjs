@@ -24,15 +24,12 @@ let pool;
 // Initialize database connection
 sql.connect(sqlConfig).then(poolConnection => {
   pool = poolConnection;
-  console.log('✅ Connected to SQL Server');
-}).catch(err => {
+  }).catch(err => {
   console.error('❌ Database connection failed:', err);
 });
 
 // Test endpoint
 app.get('/api/stock-transaction-dashboard-stats', async (req, res) => {
-  console.log('📊 Testing stock-transaction-dashboard-stats endpoint...');
-  
   try {
     res.json({
       success: true,
@@ -50,5 +47,4 @@ app.get('/api/stock-transaction-dashboard-stats', async (req, res) => {
 });
 
 app.listen(3003, () => {
-  console.log('🚀 Test server running on http://localhost:3003');
-});
+  });

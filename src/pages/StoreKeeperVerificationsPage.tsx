@@ -67,17 +67,14 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
         return;
       }
       
-      
       const response = await fetch(`http://localhost:3001/api/inventory/my-forwarded-verifications?userId=${encodeURIComponent(user.user_id)}`);
       const data = await response.json();
-      
       
       if (data.success) {
         setVerifications(data.data || []);
       } else if (Array.isArray(data)) {
         setVerifications(data);
       } else {
-        console.warn('Unexpected response format:', data);
         setVerifications([]);
       }
     } catch (error) {
@@ -163,7 +160,6 @@ export const StoreKeeperVerificationsPage: React.FC = () => {
         verifiedByUserId: user?.user_id || 'system-user',
         verifiedByName: user?.user_name || 'System'
       };
-
 
       const response = await fetch('http://localhost:3001/api/inventory/update-verification', {
         method: 'POST',

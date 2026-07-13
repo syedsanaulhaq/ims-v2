@@ -18,30 +18,18 @@ async function main() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     // Query the view that wing-dashboard uses
-    console.log("📋 Testing View_Pending_Inventory_Verifications (what wing-dashboard sees):\n");
     const viewResult = await pool
       .request()
       .query(`SELECT * FROM View_Pending_Inventory_Verifications`);
 
     if (viewResult.recordset.length === 0) {
-      console.log("❌ View returned no records");
-    } else {
+      } else {
       viewResult.recordset.forEach((row) => {
-        console.log(`✅ ID: ${row.id}`);
-        console.log(`   Item: ${row.item_nomenclature}`);
-        console.log(`   Status: ${row.verification_status}`);
-        console.log(`   Requested by: ${row.requested_by_name}`);
-        console.log(`   Wing: ${row.wing_name}`);
-        console.log("");
-      });
+        });
     }
 
-    console.log(`📊 Total records visible on wing-dashboard: ${viewResult.recordset.length}`);
-
-  } catch (error) {
+    } catch (error) {
     console.error("❌ Error:", error.message);
   } finally {
     await pool.close();

@@ -110,7 +110,6 @@ async function resolveBranchDetailsFromEmployeeView(pool, { userId, userName, cn
       branchAcron: resolvedBranchAcron ?? fallbackBranchAcron
     };
   } catch (error) {
-    console.warn('⚠️ Could not resolve branch from vw_employee_branch:', error.message);
     return { branchId: fallbackBranchId, branchName: fallbackBranchName, branchAcron: fallbackBranchAcron };
   }
 }

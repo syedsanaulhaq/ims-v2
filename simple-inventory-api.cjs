@@ -31,8 +31,7 @@ const dbConfig = {
 
 // Initialize database connection
 sql.connect(dbConfig).then(() => {
-    console.log('✅ Connected to InvMISDB');
-}).catch(err => {
+    }).catch(err => {
     console.error('❌ Database connection failed:', err);
 });
 
@@ -552,17 +551,10 @@ app.get('/api/dashboard', async (req, res) => {
 const PORT = 3001;
 
 app.listen(PORT, () => {
-    console.log(`🚀 Simple Inventory API Server running on port ${PORT}`);
-    console.log(`📊 Features:`);
-    console.log(`   ✅ Quantity-only requests and approvals`);
-    console.log(`   ✅ Financial data ONLY in tender awards`);
-    console.log(`   ✅ Direct award entry (no bidding)`);
-    console.log(`   ✅ Complete audit trail`);
-});
+    });
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
-    console.log('🛑 Shutting down server...');
     await sql.close();
     process.exit(0);
 });

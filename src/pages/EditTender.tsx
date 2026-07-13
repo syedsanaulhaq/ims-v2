@@ -214,7 +214,6 @@ const EditTender: React.FC = () => {
         }
 
         const tender = await response.json();
-
         setTenderData({
           reference_number: tender.reference_number || '',
           title: tender.title || '',
@@ -290,11 +289,7 @@ const EditTender: React.FC = () => {
                 const validVendorIds = itemVendorIds.filter(vid => bidderVendorIds.includes(vid));
                 
                 if (validVendorIds.length !== itemVendorIds.length) {
-                  console.warn(`Item ${item.nomenclature}: Removed vendors not in bidders list`, {
-                    original: itemVendorIds,
-                    valid: validVendorIds
-                  });
-                }
+                  }
                 
                 return {
                   ...item,
@@ -305,8 +300,7 @@ const EditTender: React.FC = () => {
               setTenderItems(groupTenderItems(itemsWithValidVendors, tender.tender_type));
             }
           } else {
-            console.warn('Failed to load tender vendors:', vendorsResponse.status);
-          }
+            }
         } catch (err) {
           console.error('Error loading tender vendors:', err);
         }
@@ -799,7 +793,6 @@ const EditTender: React.FC = () => {
         bidders: bidders
       };
 
-
       const response = await fetch(`http://localhost:3001/api/tenders/${id}`, {
         method: 'PUT',
         headers: {
@@ -813,7 +806,6 @@ const EditTender: React.FC = () => {
       }
 
       const result = await response.json();
-
       alert(`${tenderData.tender_type === 'spot-purchase' ? 'Petty Purchase' : tenderData.tender_type === 'annual-tender' ? 'Annual tender' : 'Contract tender'} updated successfully!`);
       
       let redirectPath = '/dashboard/contract-tender';

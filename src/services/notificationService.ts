@@ -120,7 +120,7 @@ export class SystemNotificationService {
       `${userName} has successfully logged into the system`,
       {
         label: 'View Activity',
-        onClick: () => console.log('Navigate to user activity log'),
+        onClick: () => ,
       }
     );
   }
@@ -138,7 +138,7 @@ export class SystemNotificationService {
       `${tenderTitle} has been created by ${createdBy}`,
       {
         label: 'View Tender',
-        onClick: () => console.log('Navigate to tender details'),
+        onClick: () => ,
       }
     );
   }
@@ -156,7 +156,7 @@ export class SystemNotificationService {
       `${itemName} stock is running low. Current: ${currentStock}, Minimum: ${minimumLevel}`,
       {
         label: 'Reorder',
-        onClick: () => console.log('Navigate to reorder page'),
+        onClick: () => ,
       }
     );
   }
@@ -167,7 +167,7 @@ export class SystemNotificationService {
       `An error occurred: ${error}`,
       {
         label: 'Report',
-        onClick: () => console.log('Report error to admin'),
+        onClick: () => ,
       }
     );
   }

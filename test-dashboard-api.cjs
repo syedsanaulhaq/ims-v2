@@ -17,14 +17,10 @@ const req = http.request(options, (res) => {
   });
 
   res.on('end', () => {
-    console.log('\n📊 DASHBOARD RESPONSE:');
-    console.log('='.repeat(60));
     try {
       const json = JSON.parse(data);
-      console.log(JSON.stringify(json, null, 2));
-    } catch (e) {
-      console.log(data);
-    }
+      } catch (e) {
+      }
   });
 });
 

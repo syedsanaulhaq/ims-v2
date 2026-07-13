@@ -41,10 +41,6 @@ app.post('/api/approval-workflow/approve-and-allocate', async (req, res) => {
     await transaction.begin();
 
     try {
-      console.log(`\n📋 APPROVAL WORKFLOW: Approving request ${requestId}`);
-      console.log(`   Approver: ${approverName} (${approverId})`);
-      console.log(`   Allocations: ${allocations.length}`);
-
       // Get request details
       const requestResult = await transaction.request()
         .input('requestId', sql.UniqueIdentifier, requestId)
@@ -88,8 +84,6 @@ app.post('/api/approval-workflow/approve-and-allocate', async (req, res) => {
           )
         `);
 
-      console.log(`   ✅ Created transaction: ${transactionId}`);
-
       // 2. Create allocations for each item
       for (const allocation of allocations) {
         const allocationId = require('uuid').v4();
@@ -114,8 +108,7 @@ app.post('/api/approval-workflow/approve-and-allocate', async (req, res) => {
             )
           `);
 
-        console.log(`   ✅ Created allocation: ${allocation.quantity} units`);
-      }
+        }
 
       // 3. Update request status
       await transaction.request()
@@ -131,8 +124,6 @@ app.post('/api/approval-workflow/approve-and-allocate', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = @requestId
         `);
-
-      console.log('   ✅ Updated request status to Approved');
 
       await transaction.commit();
 
@@ -194,10 +185,6 @@ app.post('/api/approval-workflow/deduct-from-inventory', async (req, res) => {
     await transaction.begin();
 
     try {
-      console.log(`\n💰 INVENTORY DEDUCTION: Processing ${quantityToDeduct} units`);
-      console.log(`   Transaction: ${transactionId}`);
-      console.log(`   Deducted by: ${deductedByName}`);
-
       // Get current inventory level
       const inventoryResult = await transaction.request()
         .input('id', sql.UniqueIdentifier, inventoryItemId)
@@ -231,8 +218,6 @@ app.post('/api/approval-workflow/deduct-from-inventory', async (req, res) => {
               updated_at = GETDATE()
           WHERE id = @id
         `);
-
-      console.log(`   ✅ Deducted ${quantityToDeduct} units. New quantity: ${newQuantity}`);
 
       // Update transaction status
       await transaction.request()
@@ -275,8 +260,6 @@ app.post('/api/approval-workflow/deduct-from-inventory', async (req, res) => {
             @description, GETDATE()
           )
         `);
-
-      console.log('   ✅ Logged inventory deduction');
 
       await transaction.commit();
 
@@ -341,11 +324,6 @@ app.post('/api/approval-workflow/assign-to-requester', async (req, res) => {
     await transaction.begin();
 
     try {
-      console.log(`\n👤 ASSIGNING TO REQUESTER: ${requesterName}`);
-      console.log(`   Transaction: ${transactionId}`);
-      console.log(`   Quantity: ${allocatedQuantity}`);
-      console.log(`   Assigned by: ${assignedByName}`);
-
       // Get transaction details
       const txResult = await transaction.request()
         .input('id', sql.UniqueIdentifier, transactionId)
@@ -382,8 +360,6 @@ app.post('/api/approval-workflow/assign-to-requester', async (req, res) => {
           )
         `);
 
-      console.log(`   ✅ Created allocation: ${allocationId}`);
-
       // Update transaction with assignment info
       await transaction.request()
         .input('id', sql.UniqueIdentifier, transactionId)
@@ -418,8 +394,6 @@ app.post('/api/approval-workflow/assign-to-requester', async (req, res) => {
             @description, GETDATE()
           )
         `);
-
-      console.log('   ✅ Logged allocation assignment');
 
       await transaction.commit();
 
@@ -563,4 +537,3 @@ app.get('/api/approval-workflow/inventory-log/:itemId', async (req, res) => {
   }
 });
 
-console.log('✅ Approval-to-Issuance workflow endpoints registered');

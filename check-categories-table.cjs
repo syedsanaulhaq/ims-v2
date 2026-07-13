@@ -19,9 +19,6 @@ const config = {
       ORDER BY ORDINAL_POSITION
     `);
     
-    console.log('✅ Categories table columns:');
-    console.log(result.recordset);
-    
     await pool.close();
   } catch(e) {
     console.error('❌ Error:', e.message);

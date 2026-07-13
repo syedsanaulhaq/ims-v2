@@ -11,17 +11,9 @@ const passwords = [
   'Passw0rd@1'
 ];
 
-console.log('Testing Multiple Password Variations');
-console.log('=====================================');
-console.log('Hash:', hash);
-console.log('');
-
 for (const pwd of passwords) {
-  console.log(`\n--- Testing: "${pwd}" ---`);
   const result = verifyPassword(pwd, hash);
-  console.log(`Result: ${result ? '✅ MATCH!' : '❌ No match'}`);
   if (result) {
-    console.log('\n🎉 FOUND THE CORRECT PASSWORD!');
     break;
   }
 }

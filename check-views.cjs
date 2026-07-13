@@ -20,10 +20,8 @@ async function checkViews() {
       WHERE name LIKE '%supervisor%' OR name LIKE '%pending%' OR name LIKE '%approval%'
     `;
 
-    console.log('Available views related to approvals:');
     result.recordset.forEach(view => {
-      console.log('- ' + view.name);
-    });
+      });
 
   } catch (error) {
     console.error('Error:', error.message);

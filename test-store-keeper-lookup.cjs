@@ -18,11 +18,7 @@ async function testStoreKeeperLookup() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected to InventoryManagementDB\n");
-
     // Test 1: Find store keepers for wing 19
-    console.log("📌 Test 1: Find store keepers for wing 19\n");
-    
     const wingId = 19;
     const result1 = await pool.request()
       .input('wingId', sql.Int, wingId)
@@ -39,17 +35,10 @@ async function testStoreKeeperLookup() {
 
     if (result1.recordset.length > 0) {
       const sk = result1.recordset[0];
-      console.log(`✅ Found store keeper for wing ${wingId}:`);
-      console.log(`   Name: ${sk.UserName}`);
-      console.log(`   ID: ${sk.Id}`);
-      console.log(`   Wing: ${sk.intWingID}\n`);
-    } else {
-      console.log(`❌ No store keepers found for wing ${wingId}\n`);
-    }
+      } else {
+      }
 
     // Test 2: List all store keepers
-    console.log("📌 Test 2: List all store keepers\n");
-    
     const result2 = await pool.request().query(`
       SELECT DISTINCT u.Id, u.UserName, u.intWingID, ir.role_name
       FROM AspNetUsers u
@@ -60,17 +49,10 @@ async function testStoreKeeperLookup() {
       ORDER BY u.intWingID, u.UserName
     `);
 
-    console.log(`Found ${result2.recordset.length} store keepers:\n`);
     result2.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. ${row.UserName}`);
-      console.log(`   Wing: ${row.intWingID}`);
-      console.log(`   Role: ${row.role_name}`);
-      console.log(`   ID: ${row.Id}\n`);
-    });
+      });
 
     // Test 3: Check verification requests
-    console.log("📌 Test 3: Check verification requests\n");
-    
     const result3 = await pool.request().query(`
       SELECT TOP 5
         id,
@@ -84,13 +66,8 @@ async function testStoreKeeperLookup() {
       ORDER BY created_at DESC
     `);
 
-    console.log(`Found ${result3.recordset.length} verification requests:\n`);
     result3.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. ${row.item_nomenclature}`);
-      console.log(`   Wing: ${row.wing_id}`);
-      console.log(`   Forwarded to: ${row.forwarded_to_name || 'NOT SET'}`);
-      console.log(`   Forwarded at: ${row.forwarded_at || 'NOT SET'}\n`);
-    });
+      });
 
   } catch (error) {
     console.error("❌ Error:", error.message);

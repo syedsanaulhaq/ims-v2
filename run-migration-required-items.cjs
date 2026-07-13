@@ -16,8 +16,7 @@ async function runMigration() {
     for (const batch of batches) {
       await pool.request().query(batch);
     }
-    console.log('✅ Migration completed: required_items table ready');
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Migration failed:', err.message);
   } finally {
     try { await closePool(); } catch {}

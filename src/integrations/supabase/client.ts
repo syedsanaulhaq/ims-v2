@@ -1,6 +1,4 @@
 // Mock Supabase client - prevents import errors when removing Supabase
-console.warn('⚠️ Supabase has been disabled. Using SQL Server backend instead.');
-
 export const supabase = {
   from: () => ({
     select: () => ({ error: new Error('Supabase disabled - use SQL Server backend') }),

@@ -186,10 +186,6 @@ app.post('/api/hierarchical-inventory/deduct-hierarchical', async (req, res) => 
 
     try {
       const sourceType = wingId ? 'WING' : 'ADMIN';
-      console.log(`\n💰 HIERARCHICAL DEDUCTION: ${quantityToDeduct} units from ${sourceType} inventory`);
-      console.log(`   Request: ${requestId}`);
-      console.log(`   Wing ID: ${wingId || 'N/A (Admin)'}`);
-
       // Get location based on wing
       let locationResult;
       if (wingId) {
@@ -215,8 +211,6 @@ app.post('/api/hierarchical-inventory/deduct-hierarchical', async (req, res) => 
       const location = locationResult.recordset[0];
       const locationId = location.id;
       const locationName = location.location_name;
-
-      console.log(`   ✅ Target location: ${locationName}`);
 
       // Get current stock
       const stockResult = await transaction.request()
@@ -282,8 +276,6 @@ app.post('/api/hierarchical-inventory/deduct-hierarchical', async (req, res) => 
           WHERE item_master_id = @itemMasterId AND location_id = @locationId
         `);
 
-      console.log(`   ✅ Deducted ${quantityToDeduct} units. New quantity: ${newQuantity}`);
-
       // Log the transfer
       await transaction.request()
         .input('itemMasterId', sql.UniqueIdentifier, itemMasterId)
@@ -313,8 +305,6 @@ app.post('/api/hierarchical-inventory/deduct-hierarchical', async (req, res) => 
             GETDATE()
           )
         `);
-
-      console.log('   ✅ Logged stock transfer');
 
       // Update request source tracking
       await transaction.request()
@@ -400,11 +390,6 @@ app.post('/api/hierarchical-inventory/forward-request', async (req, res) => {
     await transaction.begin();
 
     try {
-      console.log(`\n📤 FORWARDING REQUEST TO ADMIN`);
-      console.log(`   Request: ${requestId}`);
-      console.log(`   From Wing: ${wingId}`);
-      console.log(`   Reason: ${reason}`);
-
       // Get admin location
       const adminLocationResult = await transaction.request().query(`
         SELECT id FROM inventory_locations
@@ -456,8 +441,7 @@ app.post('/api/hierarchical-inventory/forward-request', async (req, res) => {
             WHERE request_id = @requestId
           `);
 
-        console.log('   ✅ Updated request source for forwarding');
-      } else {
+        } else {
         // Create new
         const sourceId = require('uuid').v4();
         await transaction.request()
@@ -486,8 +470,7 @@ app.post('/api/hierarchical-inventory/forward-request', async (req, res) => {
             )
           `);
 
-        console.log('   ✅ Created request source for forwarding');
-      }
+        }
 
       await transaction.commit();
 
@@ -588,4 +571,3 @@ app.get('/api/hierarchical-inventory/transfer-log/:itemId', async (req, res) => 
   }
 });
 
-console.log('✅ Hierarchical inventory management endpoints registered');

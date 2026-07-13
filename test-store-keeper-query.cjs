@@ -18,12 +18,8 @@ async function testStoreKeeperQuery() {
   
   try {
     await pool.connect();
-    console.log("✅ Connected\n");
-
     // Store keeper ID
     const storeKeeperId = 'a84bbf7a-dfb7-45ca-b603-e2313c57033b';
-    
-    console.log(`🔍 Testing query for store keeper: ${storeKeeperId}\n`);
     
     // This is exactly what the backend endpoint does
     const result = await pool.request()
@@ -52,21 +48,11 @@ async function testStoreKeeperQuery() {
         ORDER BY ivr.forwarded_at DESC
       `);
 
-    console.log(`✅ Found ${result.recordset.length} forwarded verifications for store keeper\n`);
-    
     result.recordset.forEach((row, i) => {
-      console.log(`${i + 1}. Item: ${row.item_nomenclature}`);
-      console.log(`   ID: ${row.id}`);
-      console.log(`   Status: ${row.verification_status}`);
-      console.log(`   Requested by: ${row.requested_by_name}`);
-      console.log(`   Requested quantity: ${row.requested_quantity}`);
-      console.log(`   Forwarded at: ${row.forwarded_at}`);
-      console.log(`   Notes: ${row.forward_notes || 'N/A'}\n`);
-    });
+      });
 
     if (result.recordset.length === 0) {
-      console.log('⚠️  No verifications forwarded to this store keeper found!');
-    }
+      }
 
   } catch (error) {
     console.error("❌ Error:", error.message);

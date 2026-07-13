@@ -148,7 +148,7 @@ export class DeliveryLocalService {
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Error deleting delivery:', error);
       throw error;
     }

@@ -69,7 +69,7 @@ export default function StockAvailabilityChecker({
       );
       const data = await response.json();
       setSearchResults(data.items || []);
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Error searching items:', error);
       setSearchResults([]);
     } finally {
@@ -115,7 +115,7 @@ export default function StockAvailabilityChecker({
         });
       }
 
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Error checking availability:', error);
     }
   };
@@ -132,7 +132,7 @@ export default function StockAvailabilityChecker({
       });
       const data = await response.json();
       setBatchCheckResult(data);
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Error checking batch availability:', error);
     }
   };

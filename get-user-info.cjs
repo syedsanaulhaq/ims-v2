@@ -13,9 +13,6 @@ async function main() {
       FROM AspNetUsers
       WHERE Id = @userId
     `);
-  console.log('User:');
-  console.log(JSON.stringify(result.recordset, null, 2));
-  
   process.exit(0);
 }
 

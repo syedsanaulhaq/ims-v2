@@ -5,9 +5,6 @@
 // CREATE TENDER
 app.post('/api/tenders', async (req, res) => {
   try {
-    console.log('🚀 Creating new tender...');
-    console.log('📋 Request body:', JSON.stringify(req.body, null, 2));
-    
     const {
       // Basic fields
       reference_number,
@@ -80,31 +77,15 @@ app.post('/api/tenders', async (req, res) => {
     const processedDecIds = Array.isArray(decIds) ? decIds.join(',') : 
                            (decIds || dec_ids || '');
 
-    console.log('🔍 Processed organizational IDs:', {
-      office_ids: processedOfficeIds,
-      wing_ids: processedWingIds,
-      dec_ids: processedDecIds
-    });
-
     // Process date fields - convert to Date objects or null
     const processDate = (dateStr) => {
       if (!dateStr) return null;
       try {
         return new Date(dateStr);
       } catch (e) {
-        console.warn('Invalid date format:', dateStr);
         return null;
       }
     };
-
-    console.log('🔍 Date fields being processed:', {
-      publish_date,
-      publication_date,
-      submission_date,
-      submission_deadline,
-      opening_date,
-      advertisement_date
-    });
 
     // Start database transaction
     const transaction = pool.transaction();
@@ -198,7 +179,6 @@ app.post('/api/tenders', async (req, res) => {
       // Commit transaction
       await transaction.commit();
 
-      console.log('✅ Tender created successfully:', tenderId);
       res.json({ 
         success: true, 
         id: tenderId,
@@ -223,9 +203,6 @@ app.post('/api/tenders', async (req, res) => {
 app.put('/api/tenders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('🔄 Updating tender:', id);
-    console.log('📋 Request body:', JSON.stringify(req.body, null, 2));
-    
     const {
       // Basic fields
       reference_number,
@@ -293,31 +270,15 @@ app.put('/api/tenders/:id', async (req, res) => {
     const processedDecIds = Array.isArray(decIds) ? decIds.join(',') : 
                            (decIds || dec_ids || '');
 
-    console.log('🔍 UPDATE - Processed organizational IDs:', {
-      office_ids: processedOfficeIds,
-      wing_ids: processedWingIds,
-      dec_ids: processedDecIds
-    });
-
     // Process date fields - convert to Date objects or null
     const processDate = (dateStr) => {
       if (!dateStr) return null;
       try {
         return new Date(dateStr);
       } catch (e) {
-        console.warn('Invalid date format:', dateStr);
         return null;
       }
     };
-
-    console.log('🔍 UPDATE - Date fields being processed:', {
-      publish_date,
-      publication_date,
-      submission_date,
-      submission_deadline,
-      opening_date,
-      advertisement_date
-    });
 
     // Update tender
     const result = await pool.request()
@@ -399,7 +360,6 @@ app.put('/api/tenders/:id', async (req, res) => {
       return res.status(404).json({ error: 'Tender not found' });
     }
 
-    console.log('✅ Tender updated successfully:', id);
     res.json({ 
       success: true, 
       id: id,
@@ -419,8 +379,6 @@ app.put('/api/tenders/:id', async (req, res) => {
 app.delete('/api/tenders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('🗑️ Deleting tender:', id);
-
     // Start transaction to delete tender and related items
     const transaction = pool.transaction();
     await transaction.begin();
@@ -443,7 +401,6 @@ app.delete('/api/tenders/:id', async (req, res) => {
 
       await transaction.commit();
 
-      console.log('✅ Tender deleted successfully:', id);
       res.json({ 
         success: true, 
         message: 'Tender deleted successfully'

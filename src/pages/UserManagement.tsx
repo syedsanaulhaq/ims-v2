@@ -140,7 +140,6 @@ const UserManagement: React.FC = () => {
   const handleCreateUser = async () => {
     try {
       // In real app, call API to create user
-      
       // Reset form and close dialog
       setFormData({
         UserName: '',
@@ -168,7 +167,6 @@ const UserManagement: React.FC = () => {
       if (!selectedUser) return;
       
       // In real app, call API to update user
-      
       setIsEditDialogOpen(false);
       setSelectedUser(null);
       
@@ -183,7 +181,6 @@ const UserManagement: React.FC = () => {
   const handleToggleUserStatus = async (user: User) => {
     try {
       // In real app, call API to toggle user status
-      
       // Update local state
       setUsers(users.map(u => 
         u.Id === user.Id ? { ...u, IsActive: !u.IsActive } : u

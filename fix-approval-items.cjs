@@ -16,9 +16,6 @@ async function fixApprovalItems() {
     await pool.connect();
     const requestId = 'FB1A19AD-FB56-4304-A98F-8484089C4899';
 
-    console.log('\n🔧 FIXING APPROVAL ITEMS');
-    console.log('='.repeat(60));
-
     // Get the approval ID
     const approvalResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -27,14 +24,12 @@ async function fixApprovalItems() {
       `);
 
     if (approvalResult.recordset.length === 0) {
-      console.log('❌ Approval not found');
       return;
     }
 
     const approvalId = approvalResult.recordset[0].id;
 
     // Check current approval items
-    console.log('\n📋 Current Approval Items:');
     const checkResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)
       .query(`
@@ -44,11 +39,9 @@ async function fixApprovalItems() {
       `);
 
     checkResult.recordset.forEach((item, i) => {
-      console.log(`   ${i + 1}. ${item.nomenclature} - decision_type: ${item.decision_type || 'NULL'}`);
-    });
+      });
 
     // Update all approval_items to have NULL decision_type
-    console.log('\n🔄 Setting decision_type to NULL for all items...');
     const updateResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)
       .query(`
@@ -58,10 +51,7 @@ async function fixApprovalItems() {
         SELECT @@ROWCOUNT as rows_updated;
       `);
 
-    console.log('   ✅ Rows updated: ' + updateResult.recordset[0].rows_updated);
-
     // Verify
-    console.log('\n✅ After Update:');
     const verifyResult = await pool.request()
       .input('approvalId', sql.UniqueIdentifier, approvalId)
       .query(`
@@ -71,12 +61,9 @@ async function fixApprovalItems() {
       `);
 
     verifyResult.recordset.forEach((item, i) => {
-      console.log(`   ${i + 1}. ${item.nomenclature} - decision_type: ${item.decision_type || 'NULL (PENDING)'}`);
-    });
+      });
 
-    console.log('\n' + '='.repeat(60));
-
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
   } finally {
     await pool.close();

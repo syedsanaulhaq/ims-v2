@@ -200,7 +200,6 @@ const TenderManagement: React.FC = () => {
   const handleCreateTender = async () => {
     try {
       // In real app, call API to create tender
-      
       // Generate tender number
       const tenderNumber = `TND-${new Date().getFullYear()}-${String(tenders.length + 1).padStart(3, '0')}`;
       
@@ -237,7 +236,6 @@ const TenderManagement: React.FC = () => {
   const handleStatusChange = async (tender: Tender, newStatus: string) => {
     try {
       // In real app, call API to update tender status
-      
       // Update local state
       setTenders(tenders.map(t => 
         t.id === tender.id ? { ...t, status: newStatus as any } : t

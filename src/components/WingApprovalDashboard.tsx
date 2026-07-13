@@ -46,7 +46,6 @@ export const WingApprovalDashboard: React.FC = () => {
               const data = await approvalForwardingService.getMyApprovalsByStatus(userId, status);
               return { status, data: Array.isArray(data) ? data : [] };
             } catch (error) {
-              console.warn(`Failed to load assigned approvals for status '${status}'`, error);
               return { status, data: [] as RequestApproval[] };
             }
           })
@@ -105,9 +104,7 @@ export const WingApprovalDashboard: React.FC = () => {
 
       // For wing dashboard, we need to get approvals for all users in the wing
       const wingId = user?.wing_id;
-
       if (!wingId) {
-        console.warn('⚠️ No wing ID found for user, falling back to assigned approvals');
         await loadAssignedApprovalsFallback();
         return;
       }
@@ -131,7 +128,6 @@ export const WingApprovalDashboard: React.FC = () => {
           lanesMap[requestId] = summary;
         }
       }
-
 
       const hasWingData =
         approvalsData.length > 0 ||

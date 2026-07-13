@@ -34,18 +34,12 @@ const config = {
       .input('userId', sql.NVarChar(450), userId)
       .query(approvalsQuery);
 
-    console.log('Approvals for user as current_approver:');
-    console.log(result.recordset);
-    console.log(`\nTotal: ${result.recordset.length}`);
-
     // Count by request_type
     const byType = {};
     result.recordset.forEach(r => {
       const type = r.request_type || 'NULL';
       byType[type] = (byType[type] || 0) + 1;
     });
-    console.log('\nBy Request Type:', byType);
-
     pool.close();
   } catch (error) {
     console.error('Error:', error.message);

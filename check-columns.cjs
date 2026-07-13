@@ -23,10 +23,8 @@ const config = {
         ORDER BY TABLE_NAME
       `);
     
-    console.log('\n📋 Relevant tables:');
     tables.recordset.forEach(t => {
-      console.log(`  ✓ ${t.TABLE_NAME}`);
-    });
+      });
     
     // Check if approval_items exists
     const approvalCheck = await pool.request()
@@ -43,11 +41,9 @@ const config = {
           FROM INFORMATION_SCHEMA.COLUMNS
           WHERE TABLE_NAME = 'approval_items'
         `);
-      console.log('\n📋 approval_items columns:');
-      columns.recordset.forEach(c => console.log(`  • ${c.COLUMN_NAME}`));
+      columns.recordset.forEach(c => );
     } else {
-      console.log('\n❌ approval_items table does NOT exist');
-    }
+      }
     
   } catch (err) {
     console.error('Error:', err.message);

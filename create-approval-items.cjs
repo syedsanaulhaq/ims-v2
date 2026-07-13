@@ -17,9 +17,6 @@ async function createApprovalItems() {
     const requestId = 'FB1A19AD-FB56-4304-A98F-8484089C4899';
     const approvalId = '2107FA18-C511-483D-A1D8-7F7B030C7AC3';
 
-    console.log('\n📝 CREATING APPROVAL ITEMS FOR REQUEST');
-    console.log('='.repeat(60));
-
     // Get all stock issuance items for this request
     const stockItemsResult = await pool.request()
       .input('requestId', sql.UniqueIdentifier, requestId)
@@ -29,10 +26,7 @@ async function createApprovalItems() {
         WHERE request_id = @requestId
       `);
 
-    console.log('\n📦 Found ' + stockItemsResult.recordset.length + ' stock issuance items');
-
     if (stockItemsResult.recordset.length === 0) {
-      console.log('❌ No items found for this request');
       return;
     }
 
@@ -52,16 +46,9 @@ async function createApprovalItems() {
         `);
       
       createdCount++;
-      console.log('   ✓ ' + item.nomenclature);
-    }
+      }
 
-    console.log('\n✅ Created ' + createdCount + ' approval items!');
-    console.log('   Request ID: ' + requestId);
-    console.log('   Approval ID: ' + approvalId);
-
-    console.log('\n' + '='.repeat(60));
-
-  } catch (err) {
+    } catch (err) {
     console.error('❌ Error:', err.message);
   } finally {
     await pool.close();

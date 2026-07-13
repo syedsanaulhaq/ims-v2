@@ -34,11 +34,6 @@ export const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-  baseUrl: API_BASE_URL,
-  environment: window.location.port === '8081' ? 'STAGING' : 'DEVELOPMENT',
-  port: window.location.port
-});
-
 // Enhanced error handling
 class ApiError extends Error {
   constructor(

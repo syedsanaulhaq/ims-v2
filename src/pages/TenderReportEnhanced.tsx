@@ -128,7 +128,6 @@ const TenderReportEnhanced: React.FC = () => {
       const wings = wingsRes.ok ? await wingsRes.json() : [];
       const decs = decsRes.ok ? await decsRes.json() : [];
 
-
       // Parse the IDs from the tender
       if (tender?.office_ids && typeof tender.office_ids === 'string') {
         const officeIds = tender.office_ids.split(',').map(id => id.trim());

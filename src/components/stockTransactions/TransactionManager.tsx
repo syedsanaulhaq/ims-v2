@@ -196,12 +196,7 @@ const TransactionManager: React.FC = () => {
       if (response.success && response.data) {
         setSelectedTenderWithItems(response.data);
         setSelectedTenderId(tenderId);
-          tenderId,
-          tenderNumber: response.data.tenderNumber,
-          itemsCount: response.data.items?.length || 0,
-          items: response.data.items?.slice(0, 3) || []
-        });
-      } else {
+        } else {
         throw new Error('Failed to load tender details');
       }
     } catch (error) {
@@ -246,42 +241,20 @@ const TransactionManager: React.FC = () => {
     
     setLoading(true);
     try {
-      
       // Always ensure all tender items have stock transactions
       if (!selectedTender.items || selectedTender.items.length === 0) {
-        console.warn('⚠️ No tender items available');
         setStockTransactionItems([]);
         setIsStockTransactionInitialized(false);
         return;
       }
       
-        tenderId: selectedTender.id,
-        tenderItemsCount: selectedTender.items.length,
-        tenderItems: selectedTender.items.map(item => ({
-          itemMasterId: item.itemMasterId,
-          nomenclature: item.nomenclature,
-          quantity: item.quantity
-        }))
-      });
-      
       // Initialize/ensure stock transactions for all tender items
       const initResults = await stockTransactionsCleanLocalService.initializeFromTender(selectedTender.id, selectedTender.items);
-        expectedItems: selectedTender.items.length,
-        processedResults: initResults.length
-      });
-      
       // Load all stock transactions
       let stockTransactions = await stockTransactionsCleanLocalService.getByTenderId(selectedTender.id);
       
-        existingTransactions: stockTransactions.length,
-        tenderItemsCount: selectedTender.items?.length || 0,
-        stockTransactionIds: stockTransactions.map(st => st.item_master_id),
-        tenderItemIds: selectedTender.items?.map(ti => ti.itemMasterId) || []
-      });
-      
       // Always ensure we have complete stock transactions for all tender items
       if (!selectedTender.items || selectedTender.items.length === 0) {
-        console.warn('⚠️ No tender items available for initialization');
         toast({
           title: "No Items Found",
           description: "This tender has no items to process.",
@@ -296,46 +269,20 @@ const TransactionManager: React.FC = () => {
       );
       
       if (missingItems.length > 0 || stockTransactions.length !== selectedTender.items.length) {
-          missingItems: missingItems.map(item => ({
-            itemMasterId: item.itemMasterId,
-            nomenclature: item.nomenclature
-          })),
-          needsFullInitialization: stockTransactions.length !== selectedTender.items.length
-        });
-        
         // Initialize or complete the stock transactions
         const initResults = await stockTransactionsCleanLocalService.initializeFromTender(
           selectedTender.id, 
           selectedTender.items
         );
         
-          initialCount: stockTransactions.length,
-          expectedCount: selectedTender.items.length,
-          initResults: initResults.length
-        });
-        
         // Re-load after initialization to get complete data
         stockTransactions = await stockTransactionsCleanLocalService.getByTenderId(selectedTender.id);
         
-          finalCount: stockTransactions.length,
-          items: stockTransactions.map(st => ({
-            itemMasterId: st.item_master_id,
-            nomenclature: st.nomenclature
-          }))
-        });
-      }
+        }
       
       // Convert the data to match the interface with proper quantity mapping
       const convertedItems = stockTransactions.map(item => {
         const matchingTenderItem = selectedTender.items.find(tItem => tItem.itemMasterId === item.item_master_id);
-        
-          stockTransactionId: item.id,
-          itemMasterId: item.item_master_id,
-          foundMatchingTenderItem: !!matchingTenderItem,
-          tenderQuantity: matchingTenderItem?.quantity,
-          stockTransactionQuantity: item.total_quantity_received,
-          nomenclature: matchingTenderItem?.nomenclature || item.nomenclature
-        });
         
         return {
           id: item.id,
@@ -351,15 +298,6 @@ const TransactionManager: React.FC = () => {
           nomenclature: matchingTenderItem?.nomenclature || item.nomenclature || 'Unknown Item',
           specifications: matchingTenderItem?.specifications || item.specifications || ''
         };
-      });
-      
-        totalItems: convertedItems.length,
-        itemsWithQuantity: convertedItems.filter(item => item.quantity > 0).length,
-        items: convertedItems.map(item => ({
-          itemMasterId: item.item_master_id,
-          nomenclature: item.nomenclature,
-          quantity: item.quantity
-        }))
       });
       
       setStockTransactionItems(convertedItems);
@@ -392,13 +330,6 @@ const TransactionManager: React.FC = () => {
 
   // Get current items (hybrid approach)
   const currentItems = React.useMemo(() => {
-      isStockTransactionInitialized,
-      stockTransactionItemsLength: stockTransactionItems.length,
-      selectedTender: selectedTender?.tenderNumber,
-      selectedTenderItems: selectedTender?.items?.length || 0,
-      selectedTenderItemsDetail: selectedTender?.items?.slice(0, 2) || []
-    });
-    
     if (isStockTransactionInitialized && stockTransactionItems.length > 0) {
       // Use stock transaction items (with database persistence)
       const items = stockTransactionItems
@@ -416,11 +347,6 @@ const TransactionManager: React.FC = () => {
     } else {
       // Fallback to tender items (original approach)
       const items = selectedTender?.items || [];
-        selectedTenderId: selectedTender?.id,
-        tenderNumber: selectedTender?.tenderNumber,
-        itemsLength: items.length,
-        items: items
-      });
       return items;
     }
   }, [isStockTransactionInitialized, stockTransactionItems, selectedTender?.items]);
@@ -446,12 +372,6 @@ const TransactionManager: React.FC = () => {
   // Apply local deletions to current items and sort by priority
   const filteredItems = React.useMemo(() => {
     const items = currentItems.filter(item => !deletedItems.has(item.itemMasterId));
-      currentItemsLength: currentItems.length,
-      deletedItemsSize: deletedItems.size,
-      finalItemsLength: items.length,
-      finalItems: items
-    });
-    
     // Sort items by priority: pending status + empty price first
     return items.sort((a, b) => {
       const aDelivered = deliveryQuantities[a.itemMasterId] || 0;

@@ -40,8 +40,7 @@ let pool;
 async function initializeDatabase() {
     try {
         pool = await sql.connect(dbConfig);
-        console.log('✅ Connected to InvMISDB - Inventory Management Information System');
-    } catch (err) {
+        } catch (err) {
         console.error('❌ Database connection failed:', err);
     }
 }
@@ -822,54 +821,6 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`
-🚀 InvMISDB API Server Running!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📊 Database: InvMISDB (Inventory Management Information System)
-👥 Users: AspNetUsers integration (425 ERP users)
-🌐 Server: http://localhost:${PORT}
-📋 API Endpoints:
-
-   👥 Users & Auth:
-   • GET  /api/users                    - Get all users
-   • GET  /api/users/:id               - Get user by ID
-
-   🏢 Organization:  
-   • GET  /api/offices                 - Get all offices
-   • GET  /api/wings                   - Get all wings
-   • GET  /api/departments             - Get all departments
-
-   📦 Items & Categories:
-   • GET  /api/categories              - Get all categories
-   • GET  /api/subcategories/:id       - Get subcategories
-   • GET  /api/items                   - Get all items
-
-   📋 Procurement Workflow:
-   • GET  /api/procurement-requests    - Get all requests
-   • POST /api/procurement-requests    - Create new request
-
-   ✅ Approval System:
-   • GET  /api/approval-workflow/:id   - Get approval workflow
-   • POST /api/approval-workflow/process - Process approval
-
-   💰 Tender Awards:
-   • GET  /api/tender-awards           - Get all awards
-   • POST /api/tender-awards           - Create award
-
-   📊 Stock Management:
-   • GET  /api/current-stock           - Get current stock
-   • PUT  /api/current-stock/:id       - Update stock
-
-   🚚 Deliveries:
-   • GET  /api/deliveries              - Get all deliveries
-
-   📈 Dashboard:
-   • GET  /api/dashboard/summary       - Get dashboard data
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Ready for frontend integration!
-    `);
-});
+    });
 
 module.exports = app;

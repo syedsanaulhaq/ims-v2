@@ -16,7 +16,6 @@ async function checkSchema() {
   try {
     await sql.connect(config);
 
-    console.log('Checking stock_issuance_items schema:');
     const result = await sql.query(`
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
       FROM INFORMATION_SCHEMA.COLUMNS
@@ -25,8 +24,7 @@ async function checkSchema() {
     `);
 
     result.recordset.forEach(col => {
-      console.log(`${col.COLUMN_NAME}: ${col.DATA_TYPE} (${col.IS_NULLABLE ? 'NULL' : 'NOT NULL'}) ${col.COLUMN_DEFAULT ? 'DEFAULT: ' + col.COLUMN_DEFAULT : ''}`);
-    });
+      });
 
   } catch (error) {
     console.error('Error:', error);

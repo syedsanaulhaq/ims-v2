@@ -235,14 +235,13 @@ class ApprovalForwardingService {
       
       if (userId) {
         url += `?userId=${encodeURIComponent(userId)}`;
-      } else {
+        } else {
         // Get current user from session as fallback
         const currentUser = sessionService.getCurrentUser();
         if (currentUser?.user_id) {
           url += `?userId=${encodeURIComponent(currentUser.user_id)}`;
-        } else {
-          console.warn('⚠️ No user ID provided, using backend auto-detection');
-        }
+          } else {
+          }
       }
       
       const response = await fetch(url, {
@@ -287,19 +286,18 @@ class ApprovalForwardingService {
       
       if (userId) {
         params.append('userId', userId);
-      } else {
+        } else {
         // Get current user from session as fallback
         const currentUser = sessionService.getCurrentUser();
         if (currentUser?.user_id) {
           params.append('userId', currentUser.user_id);
-        } else {
-          console.warn('⚠️ No user ID provided, using backend auto-detection');
-        }
+          } else {
+          }
       }
       
       if (status) {
         params.append('status', status);
-      }
+        }
       
       const queryString = params.toString();
       if (queryString) {

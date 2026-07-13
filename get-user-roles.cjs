@@ -14,9 +14,6 @@ async function main() {
       JOIN ims_roles r ON r.id = ur.role_id
       WHERE ur.user_id = @userId AND ur.is_active = 1
     `);
-  console.log('Roles for Haseeb Faryad:');
-  console.log(result.recordset.map(r => r.role_name));
-  
   process.exit(0);
 }
 

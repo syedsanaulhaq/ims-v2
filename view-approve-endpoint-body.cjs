@@ -5,7 +5,5 @@ const filePath = path.join(__dirname, 'server', 'routes', 'approvals.cjs');
 const fileContent = fs.readFileSync(filePath, 'utf8');
 
 const lines = fileContent.split('\n');
-console.log('Lines 1630 to 1700 of approvals.cjs:');
 for (let i = 1629; i < Math.min(lines.length, 1700); i++) {
-  console.log(`${i+1}: ${lines[i]}`);
-}
+  }

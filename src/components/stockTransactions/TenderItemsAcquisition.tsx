@@ -629,8 +629,6 @@ const TenderItemsAcquisition: React.FC<TenderItemsAcquisitionProps> = ({ tender,
 
         // This would typically require a specific tender item update endpoint
         // For now, we'll just update the local state and show a warning
-        console.warn('Tender item exclusion would require a specific API endpoint for tender items');
-        
         toast({
           title: "Item Excluded",
           description: `"${item.nomenclature}" has been excluded from acquisition locally. Note: Database update requires tender item management endpoint.`,
@@ -690,8 +688,6 @@ const TenderItemsAcquisition: React.FC<TenderItemsAcquisitionProps> = ({ tender,
       try {
         // This would typically require a specific tender item update endpoint
         // For now, we'll just update the local state and show a message
-        console.warn('Tender item restoration would require a specific API endpoint for tender items');
-        
         toast({
           title: "Item Restored",
           description: `"${item.nomenclature}" has been restored to the acquisition locally. Note: Database update requires tender item management endpoint.`,

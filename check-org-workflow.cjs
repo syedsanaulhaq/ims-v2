@@ -35,15 +35,9 @@ const config = {
 
     const result = await pool.request().query(orgQuery);
 
-    console.log('Organizational Requests in Database:');
-    console.log(JSON.stringify(result.recordset, null, 2));
-    console.log(`\nTotal: ${result.recordset.length}`);
-
     // Now check the workflow hierarchy
     if (result.recordset.length > 0) {
       const workflowId = result.recordset[0].workflow_id;
-      console.log(`\n\n=== Checking Workflow: ${workflowId} ===`);
-      
       const workflowQuery = `
         SELECT 
           id,
@@ -57,9 +51,6 @@ const config = {
         .input('workflowId', sql.UniqueIdentifier, workflowId)
         .query(workflowQuery);
       
-      console.log('Workflow Details:');
-      console.log(JSON.stringify(workflowResult.recordset, null, 2));
-
       // Check workflow steps/approvers
       const stepsQuery = `
         SELECT 
@@ -80,9 +71,7 @@ const config = {
         .input('workflowId', sql.UniqueIdentifier, workflowId)
         .query(stepsQuery);
       
-      console.log('\nWorkflow Approvers/Steps:');
-      console.log(JSON.stringify(stepsResult.recordset, null, 2));
-    }
+      }
 
     pool.close();
   } catch (error) {

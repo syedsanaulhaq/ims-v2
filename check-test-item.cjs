@@ -21,10 +21,7 @@ async function checkTestItem() {
       WHERE request_id = 'b4221f2f-76a9-4770-a477-e86c840baf0d'
     `);
 
-    console.log('Items found:', result.recordset.length);
-    console.log('Data:', JSON.stringify(result.recordset, null, 2));
-
-  } catch (error) {
+    } catch (error) {
     console.error('Error:', error);
   } finally {
     await sql.close();
