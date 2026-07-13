@@ -1393,6 +1393,7 @@ const EditTender: React.FC = () => {
                             <>
                               <TableHead>Category</TableHead>
                               <TableHead>Name of the Article</TableHead>
+                              <TableHead>Quantity</TableHead>
                               <TableHead>Vendor</TableHead>
                               <TableHead>Unit Price</TableHead>
                               <TableHead>Total</TableHead>
@@ -1448,6 +1449,29 @@ const EditTender: React.FC = () => {
                                   <p className="font-medium">{item.nomenclature}</p>
                                 </TableCell>
                                 <TableCell>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    className="h-8 w-24 text-xs"
+                                    value={item.quantity || ''}
+                                    onChange={(e) => {
+                                      const qty = parseInt(e.target.value) || 0;
+                                      setTenderItems(prev => {
+                                        const next = [...prev];
+                                        const idx = next.findIndex(i => i.id === item.id);
+                                        if (idx >= 0) {
+                                          next[idx] = {
+                                            ...next[idx],
+                                            quantity: qty,
+                                            total_amount: qty * (next[idx].estimated_unit_price || 0)
+                                          };
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell>
                                   {item.vendor_ids ? (
                                     <div className="flex flex-wrap gap-1">
                                       {(() => {
@@ -1477,8 +1501,29 @@ const EditTender: React.FC = () => {
                                     <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">No vendors</span>
                                   )}
                                 </TableCell>
-                                <TableCell className="font-medium">
-                                  {formatCurrency(item.estimated_unit_price || 0)}
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="h-8 w-28 text-xs"
+                                    value={item.estimated_unit_price || ''}
+                                    onChange={(e) => {
+                                      const price = parseFloat(e.target.value) || 0;
+                                      setTenderItems(prev => {
+                                        const next = [...prev];
+                                        const idx = next.findIndex(i => i.id === item.id);
+                                        if (idx >= 0) {
+                                          next[idx] = {
+                                            ...next[idx],
+                                            estimated_unit_price: price,
+                                            total_amount: price * next[idx].quantity
+                                          };
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  />
                                 </TableCell>
                                 <TableCell className="font-medium">
                                   {formatCurrency(item.total_amount ?? ((item.quantity || 1) * (item.estimated_unit_price || 0)))}
@@ -1502,8 +1547,53 @@ const EditTender: React.FC = () => {
                                     <p className="text-xs text-gray-500">ID: {item.item_master_id}</p>
                                   </div>
                                 </TableCell>
-                                <TableCell>{item.quantity}</TableCell>
-                                <TableCell>{formatCurrency(item.estimated_unit_price || 0)}</TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    className="h-8 w-24 text-xs"
+                                    value={item.quantity || ''}
+                                    onChange={(e) => {
+                                      const qty = parseInt(e.target.value) || 0;
+                                      setTenderItems(prev => {
+                                        const next = [...prev];
+                                        const idx = next.findIndex(i => i.id === item.id);
+                                        if (idx >= 0) {
+                                          next[idx] = {
+                                            ...next[idx],
+                                            quantity: qty,
+                                            total_amount: qty * (next[idx].estimated_unit_price || 0)
+                                          };
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="h-8 w-28 text-xs"
+                                    value={item.estimated_unit_price || ''}
+                                    onChange={(e) => {
+                                      const price = parseFloat(e.target.value) || 0;
+                                      setTenderItems(prev => {
+                                        const next = [...prev];
+                                        const idx = next.findIndex(i => i.id === item.id);
+                                        if (idx >= 0) {
+                                          next[idx] = {
+                                            ...next[idx],
+                                            estimated_unit_price: price,
+                                            total_amount: price * next[idx].quantity
+                                          };
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
                                 <TableCell className="font-medium">
                                   {formatCurrency(item.total_amount || 0)}
                                 </TableCell>
