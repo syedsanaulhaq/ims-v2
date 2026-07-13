@@ -368,10 +368,27 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     const isProcurementManager = req.session.user?.ims_permissions?.some(
       p => p.permission_key === 'procurement.manage'
     );
+    const roleNames = (req.session.user?.ims_roles || []).map(r => String(r.role_name || '').toUpperCase());
+    const isApprover = roleNames.some(role =>
+      role === 'DG ADMIN' ||
+      role === 'AD ADMIN-I' ||
+      role === 'AD ADMIN-II' ||
+      role === 'DD ADMIN' ||
+      role === 'BRANCH SUPERVISOR' ||
+      role === 'BRANCH_SUPERVISOR' ||
+      role === 'STOREKEEPER' ||
+      role === 'WING_STORE_KEEPER' ||
+      role === 'BRANCH_STORE_KEEPER' ||
+      role === 'CUSTOM_WING_STORE_KEEPER' ||
+      role === 'CUSTOM_BRANCH_STORE_KEEPER' ||
+      role === 'ADMINISTRATOR' ||
+      role === 'IMS_ADMIN'
+    );
+    const canViewAll = isProcurementManager || isApprover;
 
     // Build base WHERE clause for required_items
     let baseWhere = `ri.is_deleted = 0 AND ri.source_request_id IS NOT NULL`;
-    if (!isProcurementManager) {
+    if (!canViewAll) {
       baseWhere += ` AND (ri.created_by = @userId OR sir.requester_user_id = @userId)`;
     }
     if (status && status !== 'all') {
@@ -385,7 +402,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     const applyInputs = (request) => {
       request.input('limit', sql.Int, parseInt(limit));
       request.input('offset', sql.Int, parseInt(offset));
-      if (!isProcurementManager) {
+      if (!canViewAll) {
         request.input('userId', sql.NVarChar(450), userId);
       }
       if (status && status !== 'all') {
@@ -454,7 +471,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         INNER JOIN required_items ri ON dr.source_request_id = ri.source_request_id
         INNER JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
         WHERE ri.is_deleted = 0
-          ${!isProcurementManager ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
+          ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
         GROUP BY dr.source_request_id
@@ -482,7 +499,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       LEFT JOIN offices o ON sir.requester_office_id = o.id
       LEFT JOIN required_items ri ON rr.source_request_id = ri.source_request_id
         AND ri.is_deleted = 0
-        ${!isProcurementManager ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
+        ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
         AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
         AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
       WHERE rr.rn > @offset AND rr.rn <= (@offset + @limit)
@@ -524,7 +541,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         LEFT JOIN item_masters im ON ri.item_master_id = im.id
         WHERE ri.is_deleted = 0
           AND ri.source_request_id IN (${inClause})
-          ${!isProcurementManager ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
+          ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
         ORDER BY ri.created_at DESC
