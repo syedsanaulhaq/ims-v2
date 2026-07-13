@@ -299,69 +299,6 @@ router.post('/link-tender', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
-// POST /api/required-items/attach-tender
-// Attach required items to a tender without recreating tender item rows.
-// Body: { item_ids: string[], tender_id: string, tender_type: string, tender_reference?: string }
-// ============================================================================
-router.post('/attach-tender', requireAuth, async (req, res) => {
-  try {
-    const { item_ids, tender_id, tender_type, tender_reference } = req.body;
-
-    if (!item_ids?.length || !tender_id || !tender_type) {
-      return res.status(400).json({ error: 'item_ids, tender_id, and tender_type are required' });
-    }
-
-    const pool = getPool();
-    const tenderCheck = await pool.request()
-      .input('tenderId', sql.UniqueIdentifier, tender_id)
-      .query(`SELECT id, title, reference_number FROM tenders WHERE id = @tenderId AND is_deleted = 0`);
-
-    if (tenderCheck.recordset.length === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-
-    const tender = tenderCheck.recordset[0];
-    const tenderRef = tender_reference || tender.reference_number || tender.title;
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-
-    try {
-      for (const itemId of item_ids) {
-        await transaction.request()
-          .input('id', sql.UniqueIdentifier, itemId)
-          .input('tenderId', sql.UniqueIdentifier, tender_id)
-          .input('tenderType', sql.NVarChar, tender_type)
-          .input('tenderRef', sql.NVarChar, tenderRef)
-          .query(`
-            UPDATE required_items
-            SET status = 'In Tender',
-                tender_id = @tenderId,
-                tender_type = @tenderType,
-                tender_reference = @tenderRef,
-                updated_at = GETDATE()
-            WHERE id = @id AND is_deleted = 0
-          `);
-      }
-
-      await transaction.commit();
-
-      res.json({
-        success: true,
-        message: `${item_ids.length} required item(s) attached to tender "${tenderRef}"`,
-        tender_id,
-        attached_count: item_ids.length
-      });
-    } catch (error) {
-      try { await transaction.rollback(); } catch (_) {}
-      throw error;
-    }
-  } catch (error) {
-    console.error('❌ Error attaching required items to tender:', error);
-    res.status(500).json({ error: 'Failed to attach items to tender', details: error.message });
-  }
-});
-
-// ============================================================================
 // PUT /api/required-items/:id/cancel - Cancel a required item
 // ============================================================================
 router.put('/:id/cancel', requireAuth, async (req, res) => {
@@ -409,6 +346,190 @@ router.put('/:id/mark-procured', requireAuth, async (req, res) => {
     res.json({ success: true, message: 'Item marked as procured' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to mark as procured', details: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/required-items/forwarded - List stock issuance requests that have
+// been forwarded to procurement (grouped by source request)
+// Query: status, wing_id, limit, offset
+// ============================================================================
+router.get('/forwarded', requireAuth, async (req, res) => {
+  try {
+    const pool = getPool();
+    const { status = 'all', wing_id, limit = 50, offset = 0 } = req.query;
+
+    // Base filters
+    let baseWhere = `ri.is_deleted = 0 AND ri.source_request_id IS NOT NULL`;
+    if (status && status !== 'all') {
+      baseWhere += ` AND ri.status = @status`;
+    }
+    if (wing_id) {
+      baseWhere += ` AND ri.requested_by_wing_id = @wing_id`;
+    }
+
+    // Count distinct source requests
+    const countReq = pool.request()
+      .input('limit', sql.Int, parseInt(limit))
+      .input('offset', sql.Int, parseInt(offset));
+    if (status && status !== 'all') countReq.input('status', sql.NVarChar, status);
+    if (wing_id) countReq.input('wing_id', sql.Int, parseInt(wing_id));
+
+    const countResult = await countReq.query(`
+      SELECT COUNT(DISTINCT ri.source_request_id) AS total
+      FROM required_items ri
+      WHERE ${baseWhere}
+    `);
+
+    // Status stats for forwarded procurement items
+    const statsReq = pool.request();
+    if (status && status !== 'all') statsReq.input('status', sql.NVarChar, status);
+    if (wing_id) statsReq.input('wing_id', sql.Int, parseInt(wing_id));
+
+    const statsResult = await statsReq.query(`
+      SELECT
+        ri.status,
+        COUNT(DISTINCT ri.source_request_id) AS request_count,
+        COUNT(ri.id) AS item_count,
+        SUM(ri.quantity_needed) AS total_qty
+      FROM required_items ri
+      WHERE ${baseWhere}
+      GROUP BY ri.status
+    `);
+
+    const stats = {
+      total_requests: countResult.recordset[0]?.total || 0,
+      total_items: 0,
+      Pending: 0,
+      'In Tender': 0,
+      Procured: 0,
+      Cancelled: 0,
+      Planned: 0
+    };
+
+    statsResult.recordset.forEach(row => {
+      stats.total_items += Number(row.item_count || 0);
+      if (row.status in stats) {
+        stats[row.status] = Number(row.request_count || 0);
+      }
+    });
+
+    // Paginated request headers
+    const headerReq = pool.request()
+      .input('limit', sql.Int, parseInt(limit))
+      .input('offset', sql.Int, parseInt(offset));
+    if (status && status !== 'all') headerReq.input('status', sql.NVarChar, status);
+    if (wing_id) headerReq.input('wing_id', sql.Int, parseInt(wing_id));
+
+    const headerResult = await headerReq.query(`
+      WITH DistinctRequests AS (
+        SELECT DISTINCT ri.source_request_id
+        FROM required_items ri
+        WHERE ${baseWhere}
+      ),
+      RankedRequests AS (
+        SELECT
+          dr.source_request_id,
+          MIN(ri.created_at) AS forwarded_at,
+          ROW_NUMBER() OVER (ORDER BY MIN(ri.created_at) DESC) AS rn
+        FROM DistinctRequests dr
+        INNER JOIN required_items ri ON dr.source_request_id = ri.source_request_id
+        WHERE ri.is_deleted = 0
+          AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
+          AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
+        GROUP BY dr.source_request_id
+      )
+      SELECT
+        sir.id AS source_request_id,
+        sir.request_number AS source_request_number,
+        sir.request_type,
+        sir.urgency_level,
+        sir.purpose,
+        sir.submitted_at,
+        u.FullName AS requester_name,
+        w.wing_name,
+        b.branch_name,
+        o.office_name,
+        ra.current_status AS approval_status,
+        rr.forwarded_at,
+        COUNT(ri.id) AS item_count
+      FROM RankedRequests rr
+      LEFT JOIN stock_issuance_requests sir ON rr.source_request_id = sir.id
+      LEFT JOIN request_approvals ra ON sir.id = ra.request_id
+      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+      LEFT JOIN wings w ON sir.requester_wing_id = w.id
+      LEFT JOIN branches b ON sir.requester_branch_id = b.id
+      LEFT JOIN offices o ON sir.requester_office_id = o.id
+      LEFT JOIN required_items ri ON rr.source_request_id = ri.source_request_id
+        AND ri.is_deleted = 0
+        AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
+        AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
+      WHERE rr.rn > @offset AND rr.rn <= (@offset + @limit)
+      GROUP BY
+        sir.id, sir.request_number, sir.request_type, sir.urgency_level, sir.purpose,
+        sir.submitted_at, u.FullName, w.wing_name, b.branch_name, o.office_name,
+        ra.current_status, rr.forwarded_at
+      ORDER BY rr.forwarded_at DESC
+    `);
+
+    const requests = headerResult.recordset;
+
+    if (requests.length > 0) {
+      const sourceIds = requests.map(r => r.source_request_id);
+
+      // Build parameterized IN clause
+      const params = sourceIds.map((id, index) => ({ name: `id${index}`, value: id }));
+      const inClause = params.map(p => `@${p.name}`).join(',');
+
+      const itemReq = pool.request();
+      params.forEach(p => itemReq.input(p.name, sql.UniqueIdentifier, p.value));
+      if (status && status !== 'all') itemReq.input('status', sql.NVarChar, status);
+      if (wing_id) itemReq.input('wing_id', sql.Int, parseInt(wing_id));
+
+      const itemResult = await itemReq.query(`
+        SELECT
+          ri.id,
+          ri.nomenclature,
+          ri.quantity_needed,
+          ri.unit,
+          ri.status,
+          ri.source_request_id,
+          ri.tender_id,
+          ri.tender_type,
+          ri.tender_reference,
+          ri.notes,
+          ri.created_at,
+          im.item_code
+        FROM required_items ri
+        LEFT JOIN item_masters im ON ri.item_master_id = im.id
+        WHERE ri.is_deleted = 0
+          AND ri.source_request_id IN (${inClause})
+          AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
+          AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
+        ORDER BY ri.created_at DESC
+      `);
+
+      const itemsByRequest = new Map();
+      itemResult.recordset.forEach(item => {
+        const list = itemsByRequest.get(item.source_request_id) || [];
+        list.push(item);
+        itemsByRequest.set(item.source_request_id, list);
+      });
+
+      requests.forEach(req => {
+        req.items = itemsByRequest.get(req.source_request_id) || [];
+      });
+    }
+
+    res.json({
+      success: true,
+      data: requests,
+      total: stats.total_requests,
+      stats
+    });
+  } catch (error) {
+    console.error('❌ Error fetching forwarded procurement requests:', error);
+    res.status(500).json({ error: 'Failed to fetch forwarded procurement requests', details: error.message });
   }
 });
 

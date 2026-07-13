@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/sonner";import InitialSetupPageFresh fr
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
@@ -106,6 +106,7 @@ import ProcurementDetails from "./pages/ProcurementDetails";
 import NewProcurementRequest from "./pages/NewProcurementRequest";
 import MyProcurementRequests from "./pages/MyProcurementRequests";
 import AdminProcurementReview from "./pages/AdminProcurementReview";
+import ForwardedProcurementRequests from "./pages/ForwardedProcurementRequests";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
 import DigitalSystemLanding from "./pages/DigitalSystemLanding";
@@ -176,7 +177,9 @@ function App() {
                 {/* Protected routes */}
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <Navigate to="/personal-dashboard" replace />
+                    <Layout>
+                      <SmartDashboard />
+                    </Layout>
                   </ProtectedRoute>
                 } />
                 
@@ -274,6 +277,7 @@ function App() {
                   <Route path="new-request" element={<NewProcurementRequest />} />
                   <Route path="my-requests" element={<MyProcurementRequests />} />
                   <Route path="admin-review" element={<AdminProcurementReview />} />
+                  <Route path="forwarded-to-procurement" element={<ForwardedProcurementRequests />} />
                 </Route>
                 
                 <Route path="/dashboard" element={
