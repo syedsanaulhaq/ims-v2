@@ -35,7 +35,6 @@ class StockReturnService {
       }
 
       const result = await response.json();
-      console.log(`✅ Created stock return with ${stockReturn.return_items.length} items`);
       return result;
     } catch (error) {
       console.error('❌ Error creating stock return:', error);
@@ -52,7 +51,6 @@ class StockReturnService {
       }
 
       const returns = await response.json();
-      console.log(`✅ Retrieved ${returns.length} stock returns from SQL Server`);
       return returns;
     } catch (error) {
       console.error('❌ Error fetching stock returns:', error);
@@ -69,7 +67,6 @@ class StockReturnService {
       }
 
       const stockReturn = await response.json();
-      console.log(`✅ Retrieved stock return ${id} from SQL Server`);
       return stockReturn;
     } catch (error) {
       console.error('❌ Error fetching stock return:', error);

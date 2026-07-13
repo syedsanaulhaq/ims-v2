@@ -52,42 +52,36 @@ export const categoriesApi = {
   // Create category - Use InvMIS API (placeholder - will need backend implementation)
   createCategory: async (category: Omit<Category, 'id' | 'createdDate' | 'status'>): Promise<ApiResponse<Category>> => {
     // TODO: Implement in InvMIS API backend
-    console.log('Create category - needs backend implementation:', category);
     return { data: {} as Category, success: false, message: 'Not yet implemented' };
   },
 
   // Update category - Use InvMIS API (placeholder - will need backend implementation)
   updateCategory: async (category: Category): Promise<ApiResponse<Category>> => {
     // TODO: Implement in InvMIS API backend
-    console.log('Update category - needs backend implementation:', category);
     return { data: category, success: false, message: 'Not yet implemented' };
   },
 
   // Create subcategory - Use InvMIS API (placeholder - will need backend implementation)
   createSubCategory: async (subCategory: Omit<SubCategory, 'id' | 'createdDate' | 'status'>): Promise<ApiResponse<SubCategory>> => {
     // TODO: Implement in InvMIS API backend
-    console.log('Create subcategory - needs backend implementation:', subCategory);
     return { data: {} as SubCategory, success: false, message: 'Not yet implemented' };
   },
 
   // Update subcategory - Use InvMIS API (placeholder - will need backend implementation)
   updateSubCategory: async (subCategory: SubCategory): Promise<ApiResponse<SubCategory>> => {
     // TODO: Implement in InvMIS API backend
-    console.log('Update subcategory - needs backend implementation:', subCategory);
     return { data: subCategory, success: false, message: 'Not yet implemented' };
   },
 
   // Delete category - Use InvMIS API (placeholder - will need backend implementation)
   deleteCategory: async (categoryId: string): Promise<ApiResponse<null>> => {
     // TODO: Implement in InvMIS API backend
-    console.log('Delete category - needs backend implementation:', categoryId);
     return { data: null, success: false, message: 'Not yet implemented' };
   },
 
   // Delete subcategory - Use InvMIS API (placeholder - will need backend implementation)
   deleteSubCategory: async (subCategoryId: string): Promise<ApiResponse<null>> => {
     // TODO: Implement in InvMIS API backend
-    console.log('Delete subcategory - needs backend implementation:', subCategoryId);
     return { data: null, success: false, message: 'Not yet implemented' };
   },
 };

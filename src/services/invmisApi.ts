@@ -34,7 +34,6 @@ export const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-console.log('🚀 InvMIS API Configuration:', {
   baseUrl: API_BASE_URL,
   environment: window.location.port === '8081' ? 'STAGING' : 'DEVELOPMENT',
   port: window.location.port

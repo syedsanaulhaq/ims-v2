@@ -34,7 +34,6 @@ export class InventoryService {
    */
   static async getInventoryData(): Promise<{ data: InventoryItem[]; stats: InventoryStats }> {
     try {
-      console.log('🔄 Loading inventory data from View_Current_Inv_Stock...');
       const response = await fetch(`${this.baseUrl}/inventory/current-inventory-stock`);
       
       if (!response.ok) {
@@ -42,7 +41,6 @@ export class InventoryService {
       }
 
       const rawData = await response.json();
-      console.log('✅ Loaded current inventory data:', rawData.length, 'records');
       
       // Transform the View_Current_Inv_Stock data to InventoryItem format
       const transformedData: InventoryItem[] = rawData.map((item: any) => ({
@@ -78,7 +76,6 @@ export class InventoryService {
         overstockItems
       };
 
-      console.log('📊 Inventory stats calculated:', stats);
 
       return {
         data: transformedData,

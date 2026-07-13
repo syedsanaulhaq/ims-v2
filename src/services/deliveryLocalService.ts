@@ -41,7 +41,6 @@ export class DeliveryLocalService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const deliveries = await response.json();
-      console.log('✅ Retrieved deliveries from SQL Server:', deliveries.length);
       return deliveries;
     } catch (error) {
       console.error('❌ Error fetching deliveries:', error);
@@ -56,7 +55,6 @@ export class DeliveryLocalService {
     try {
       const allDeliveries = await this.getAll();
       const tenderDeliveries = allDeliveries.filter(d => d.tender_id === tenderId);
-      console.log(`✅ Retrieved ${tenderDeliveries.length} deliveries for tender ${tenderId}`);
       return tenderDeliveries;
     } catch (error) {
       console.error('❌ Error fetching tender deliveries:', error);
@@ -77,7 +75,6 @@ export class DeliveryLocalService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const delivery = await response.json();
-      console.log('✅ Retrieved delivery:', delivery.delivery_number);
       return delivery;
     } catch (error) {
       console.error('❌ Error fetching delivery:', error);
@@ -104,7 +101,6 @@ export class DeliveryLocalService {
       }
 
       const result = await response.json();
-      console.log('✅ Created delivery:', result.delivery_number);
       return result;
     } catch (error) {
       console.error('❌ Error creating delivery:', error);
@@ -131,7 +127,6 @@ export class DeliveryLocalService {
       }
 
       const result = await response.json();
-      console.log('✅ Updated delivery:', result.delivery_number);
       return result;
     } catch (error) {
       console.error('❌ Error updating delivery:', error);
@@ -153,7 +148,6 @@ export class DeliveryLocalService {
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      console.log('✅ Deleted delivery:', id);
     } catch (error) {
       console.error('❌ Error deleting delivery:', error);
       throw error;
@@ -179,7 +173,6 @@ export class DeliveryLocalService {
       }
 
       const result = await response.json();
-      console.log('✅ Finalized acquisition:', result.delivery_number);
       return result;
     } catch (error) {
       console.error('❌ Error finalizing acquisition:', error);

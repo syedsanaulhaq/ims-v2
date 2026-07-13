@@ -214,13 +214,6 @@ export const tendersLocalService = {
         })) : []
       };
 
-      console.log('🔍 DEBUG TENDERS LOCAL SERVICE:');
-      console.log('  - Input tender data:', tender);
-      console.log('  - vendor_id from input:', tender.vendor_id);
-      console.log('  - vendor object from input:', tender.vendor);
-      console.log('  - Final payload vendor_id:', payload.vendor_id);
-      console.log('  - Final payload vendor:', payload.vendor);
-      console.log('  - Full payload:', payload);
 
       const response = await fetch(`${API_BASE_URL}/api/tenders`, {
         method: 'POST',

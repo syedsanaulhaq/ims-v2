@@ -126,7 +126,6 @@ export const inventoryApi = {
   createInventoryItem: async (item: CreateInventoryItemRequest): Promise<ApiResponse<InventoryItem>> => {
     try {
       // TODO: Implement create current stock endpoint in InvMIS API
-      console.log('Create inventory item - needs backend implementation:', item);
       return { 
         data: {} as InventoryItem, 
         success: false, 
@@ -165,7 +164,6 @@ export const inventoryApi = {
   deleteInventoryItem: async (id: string): Promise<ApiResponse<null>> => {
     try {
       // TODO: Implement delete stock endpoint in InvMIS API
-      console.log('Delete inventory item - needs backend implementation:', id);
       return { data: null, success: false, message: 'Delete not yet implemented' };
     } catch (error: any) {
       console.error('Error deleting inventory item:', error);
@@ -252,7 +250,6 @@ export const inventoryApi = {
   getStockTransactions: async (): Promise<ApiResponse<StockTransaction[]>> => {
     try {
       // TODO: Implement get stock transactions in InvMIS API
-      console.log('Get stock transactions - needs backend implementation');
       return { data: [], success: false, message: 'Stock transactions not yet implemented' };
     } catch (error: any) {
       console.error('Error fetching stock transactions:', error);
@@ -263,7 +260,6 @@ export const inventoryApi = {
   createStockTransaction: async (transaction: CreateStockTransactionRequest): Promise<ApiResponse<StockTransaction>> => {
     try {
       // TODO: Implement create stock transaction in InvMIS API
-      console.log('Create stock transaction - needs backend implementation:', transaction);
       return { 
         data: {} as StockTransaction, 
         success: false, 
@@ -282,7 +278,6 @@ export const inventoryApi = {
   getVendors: async (): Promise<ApiResponse<Vendor[]>> => {
     try {
       // TODO: InvMIS uses vendor info in TenderAwards, not separate vendor management
-      console.log('Get vendors - InvMIS uses procurement workflow instead');
       return { data: [], success: false, message: 'Vendor management uses procurement workflow' };
     } catch (error: any) {
       console.error('Error fetching vendors:', error);

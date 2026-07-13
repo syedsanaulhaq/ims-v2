@@ -37,7 +37,6 @@ class SqlServerService {
 
     try {
       this.pool = await sql.connect(this.config);
-      console.log('✅ Connected to SQL Server successfully');
       return this.pool;
     } catch (error) {
       console.error('❌ SQL Server connection failed:', error);
@@ -49,7 +48,6 @@ class SqlServerService {
     if (this.pool) {
       await this.pool.close();
       this.pool = null;
-      console.log('✅ Disconnected from SQL Server');
     }
   }
 

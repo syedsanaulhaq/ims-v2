@@ -65,10 +65,6 @@ class StockIssuanceService {
       }
 
       const result = await response.json();
-      console.log(`✅ Stock issuance request submitted: ${result.data?.request_number || 'Unknown'}`);
-      console.log('🔍 Full API response:', result);
-      console.log('🔍 Response data:', result.data);
-      console.log('🔍 Response data id:', result.data?.id);
       return result.data || result;
     } catch (error) {
       console.error('❌ Error submitting stock issuance request:', error);
@@ -95,7 +91,6 @@ class StockIssuanceService {
       }
 
       const result = await response.json();
-      console.log(`✅ Stock issuance items submitted: ${result.items_count} items`);
       return result;
     } catch (error) {
       console.error('❌ Error submitting stock issuance items:', error);
@@ -124,10 +119,8 @@ class StockIssuanceService {
       if (pagination?.limit) queryParams.append('limit', pagination.limit.toString());
       
       const url = `${this.baseUrl}/requests${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-      console.log('🔗 Fetching stock issuance requests from:', url);
       
       const response = await fetch(url, { credentials: 'include' });
-      console.log('📡 Response status:', response.status, response.statusText);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -136,8 +129,6 @@ class StockIssuanceService {
       }
 
       const result = await response.json();
-      console.log('📦 Full API Response:', result);
-      console.log(`✅ Retrieved ${result.data?.length || 0} stock issuance requests from SQL Server`);
       
       // Extract data from the new API response structure with summary
       const summary = result.summary || {};
@@ -164,7 +155,6 @@ class StockIssuanceService {
       }
 
       const result = await response.json();
-      console.log(`✅ Retrieved ${result.data?.length || 0} issued items from SQL Server`);
       return result.data || [];
     } catch (error) {
       console.error('❌ Error fetching issued items:', error);
@@ -207,7 +197,6 @@ class StockIssuanceService {
       }
 
       const result = await response.json();
-      console.log(`✅ Retrieved ${result.data?.length || 0} approved requests from SQL Server`);
       return result.data || [];
     } catch (error) {
       console.error('❌ Error fetching approved requests:', error);

@@ -70,7 +70,6 @@ export const itemMasterApi = {
   createItemMaster: async (itemData: CreateItemMasterRequest): Promise<ItemMaster> => {
     try {
       // TODO: Implement create endpoint in InvMIS API backend
-      console.log('Create item master - needs backend implementation:', itemData);
       throw new Error('Create item master not yet implemented in InvMIS API');
     } catch (error) {
       console.error('Error creating item master:', error);
@@ -82,7 +81,6 @@ export const itemMasterApi = {
   updateItemMaster: async (itemData: UpdateItemMasterRequest): Promise<ItemMaster> => {
     try {
       // TODO: Implement update endpoint in InvMIS API backend
-      console.log('Update item master - needs backend implementation:', itemData);
       throw new Error('Update item master not yet implemented in InvMIS API');
     } catch (error) {
       console.error('Error updating item master:', error);
@@ -94,7 +92,6 @@ export const itemMasterApi = {
   deleteItemMaster: async (id: string): Promise<void> => {
     try {
       // TODO: Implement delete endpoint in InvMIS API backend
-      console.log('Delete item master - needs backend implementation:', id);
       throw new Error('Delete item master not yet implemented in InvMIS API');
     } catch (error) {
       console.error('Error deleting item master:', error);

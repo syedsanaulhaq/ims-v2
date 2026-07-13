@@ -145,7 +145,6 @@ export const inventoryApi = {
   createInventoryItem: async (item: CreateInventoryItemRequest): Promise<ApiResponse<InventoryItem>> => {
     try {
       // TODO: Implement create stock endpoint in InvMIS API backend
-      console.log('Create inventory item - needs backend implementation:', item);
       return { 
         data: undefined as any, 
         success: false, 
@@ -189,7 +188,6 @@ export const inventoryApi = {
   deleteInventoryItem: async (id: string): Promise<ApiResponse<void>> => {
     try {
       // TODO: Implement delete stock endpoint in InvMIS API backend
-      console.log('Delete inventory item - needs backend implementation:', id);
       return { 
         data: undefined, 
         success: false, 
@@ -252,7 +250,6 @@ export const inventoryApi = {
   createStockTransaction: async (transaction: CreateStockTransactionRequest): Promise<ApiResponse<StockTransaction>> => {
     try {
       // TODO: Implement create stock transaction endpoint in InvMIS API backend
-      console.log('Create stock transaction - needs backend implementation:', transaction);
       return { 
         data: undefined as any, 
         success: false, 
@@ -330,7 +327,6 @@ export const inventoryApi = {
   updateStockTransaction: async (id: string, transaction: any): Promise<ApiResponse<StockTransaction>> => {
     try {
       // TODO: Implement update stock transaction endpoint
-      console.log('Update stock transaction - needs backend implementation:', { id, transaction });
       return { 
         data: undefined as any, 
         success: false, 
@@ -344,7 +340,6 @@ export const inventoryApi = {
   updateStockTransactionStatus: async (id: string, status: StockTransactionStatus): Promise<ApiResponse<StockTransaction>> => {
     try {
       // TODO: Implement update transaction status endpoint
-      console.log('Update transaction status - needs backend implementation:', { id, status });
       return { 
         data: undefined as any, 
         success: false, 

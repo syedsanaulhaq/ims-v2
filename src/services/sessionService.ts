@@ -43,7 +43,6 @@ class SessionService {
   // Initialize session on app start
   async initializeSession(): Promise<User | null> {
     try {
-      console.log('🔄 Initializing session from:', `${API_BASE_URL}/api/session`);
       const response = await fetch(`${API_BASE_URL}/api/session`, {
         method: 'GET',
         headers: {
@@ -115,7 +114,6 @@ class SessionService {
 
   // Force refresh session from server
   async refreshSession(): Promise<User | null> {
-    console.log('🔄 Force refreshing session...');
     this.clearSession();
     return this.initializeSession();
   }

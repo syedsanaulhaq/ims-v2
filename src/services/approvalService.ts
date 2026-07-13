@@ -165,7 +165,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      console.log(`✅ Retrieved ${result.data?.length || 0} pending approval requests from SQL Server`);
       
       // Transform the data to match the expected interface
       const transformedRequests = (result.data || []).map((request: any) => {
@@ -247,7 +246,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      console.log(`✅ Retrieved ${result.data?.length || 0} under review requests from SQL Server`);
       
       // Use same transformation logic as pending requests
       return this.transformRequestsData(result.data || []);
@@ -272,7 +270,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      console.log(`✅ Request approved: ${approvalAction.request_id}`);
       return {
         success: true,
         message: result.message || 'Request approved successfully'
@@ -298,7 +295,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      console.log(`✅ Request rejected: ${approvalAction.request_id}`);
       return {
         success: true,
         message: result.message || 'Request rejected successfully'
@@ -390,7 +386,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      console.log(`✅ Retrieved inventory matches for request ${requestId}:`, result.summary);
       
       return result;
     } catch (error) {
@@ -417,7 +412,6 @@ class ApprovalService {
       }
 
       const result = await response.json();
-      console.log(`✅ Request approved with allocations: ${requestId}`, result.summary);
       
       return result;
     } catch (error) {

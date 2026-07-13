@@ -49,7 +49,6 @@ class OfficeApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('📊 Fetched offices from tblOffices:', data.length, 'records');
       return data;
     } catch (error) {
       console.error('❌ Error fetching offices from backend:', error);
@@ -65,7 +64,6 @@ class OfficeApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('📊 Fetched wings from WingsInformation:', data.length, 'records');
       return data;
     } catch (error) {
       console.error('❌ Error fetching wings from backend:', error);
@@ -81,7 +79,6 @@ class OfficeApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('📊 Fetched DECs from DEC_MST:', data.length, 'records');
       return data;
     } catch (error) {
       console.error('❌ Error fetching DECs from backend:', error);

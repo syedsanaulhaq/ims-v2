@@ -235,13 +235,11 @@ class ApprovalForwardingService {
       
       if (userId) {
         url += `?userId=${encodeURIComponent(userId)}`;
-        console.log('📋 Using provided user ID for pending approvals:', userId);
       } else {
         // Get current user from session as fallback
         const currentUser = sessionService.getCurrentUser();
         if (currentUser?.user_id) {
           url += `?userId=${encodeURIComponent(currentUser.user_id)}`;
-          console.log('📋 Using session user ID for pending approvals:', currentUser.user_id);
         } else {
           console.warn('⚠️ No user ID provided, using backend auto-detection');
         }
@@ -289,13 +287,11 @@ class ApprovalForwardingService {
       
       if (userId) {
         params.append('userId', userId);
-        console.log('📋 Using provided user ID for approvals:', userId);
       } else {
         // Get current user from session as fallback
         const currentUser = sessionService.getCurrentUser();
         if (currentUser?.user_id) {
           params.append('userId', currentUser.user_id);
-          console.log('📋 Using session user ID for approvals:', currentUser.user_id);
         } else {
           console.warn('⚠️ No user ID provided, using backend auto-detection');
         }
@@ -303,7 +299,6 @@ class ApprovalForwardingService {
       
       if (status) {
         params.append('status', status);
-        console.log('🔍 Filtering by status:', status);
       }
       
       const queryString = params.toString();
@@ -438,7 +433,6 @@ class ApprovalForwardingService {
       const currentUser = sessionService.getCurrentUser();
       const userId = currentUser?.user_id;
       
-      console.log('🔄 Frontend: Forwarding request using original endpoint with userId:', userId);
       const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/forward`, {
         method: 'POST',
         headers: {
@@ -473,7 +467,6 @@ class ApprovalForwardingService {
   
   async approveRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      console.log('✅ Frontend: Approving request using original endpoint');
       const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
         method: 'POST',
         headers: {
@@ -505,7 +498,6 @@ class ApprovalForwardingService {
   
   async rejectRequest(approvalId: string, action: ApprovalAction): Promise<RequestApproval> {
     try {
-      console.log('❌ Frontend: Rejecting request using simple endpoint');
       const response = await fetch(`${API_BASE_URL}/approvals/simple-reject`, {
         method: 'POST',
         headers: {

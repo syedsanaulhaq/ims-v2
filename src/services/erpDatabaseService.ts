@@ -212,7 +212,6 @@ class ERPDatabaseService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const offices = await response.json();
-      console.log(`✅ Loaded ${offices.length} active offices from API`);
       return offices;
     } catch (error) {
       console.error('❌ Error fetching active offices from API:', error);
@@ -241,7 +240,6 @@ class ERPDatabaseService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const wings = await response.json();
-      console.log(`✅ Loaded ${wings.length} active wings from API`);
       return wings;
     } catch (error) {
       console.error('❌ Error fetching active wings from API:', error);
@@ -285,7 +283,6 @@ class ERPDatabaseService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const decs = await response.json();
-      console.log(`✅ Loaded ${decs.length} active DECs from API`);
       return decs;
     } catch (error) {
       console.error('❌ Error fetching active DECs from SQL Server:', error);
@@ -328,7 +325,6 @@ class ERPDatabaseService {
       // Handle the API response format {success: true, data: [...]}
       const users = result.success ? result.data : result;
       
-      console.log(`✅ Loaded ${users?.length || 0} active users from AspNetUsers API`);
       return users || [];
     } catch (error) {
       console.error('❌ Error fetching active users from AspNetUsers API:', error);
@@ -401,7 +397,6 @@ class ERPDatabaseService {
       // Handle the API response format {success: true, data: [...]}
       const users = result.success ? result.data : result;
       
-      console.log(`✅ Loaded ${users?.length || 0} filtered users from API (Office: ${officeId}, Wing: ${wingId}, Branch: ${branchId || 'ALL'})`);
       return users || [];
     } catch (error) {
       console.error('❌ Error fetching filtered users from API:', error);
