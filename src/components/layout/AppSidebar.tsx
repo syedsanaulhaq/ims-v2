@@ -328,7 +328,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Annual Tenders", icon: FileText, path: "/dashboard/contract-tender?type=annual-tender", permission: 'procurement.manage' },
       { title: "Petty Purchase", icon: ShoppingCart, path: "/dashboard/spot-purchases", permission: 'procurement.manage' },
       { title: "Required Items", icon: ClipboardList, path: "/dashboard/required-items", permission: 'procurement.manage' },
-      { title: "Forwarded to Procurement", icon: ShoppingCart, path: "/procurement/forwarded-to-procurement", permission: 'procurement.manage' },
       { title: "Review Requests", icon: CheckCircle, path: "/procurement/admin-review", permission: 'procurement.approve' },
     ]
   };
@@ -362,6 +361,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Approval Menu",
     icon: CheckCircle,
     items: [
+      { title: "Forwarded to Procurement", icon: ShoppingCart, path: "/procurement/forwarded-to-procurement", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };

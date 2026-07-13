@@ -353,14 +353,25 @@ router.put('/:id/mark-procured', requireAuth, async (req, res) => {
 // GET /api/required-items/forwarded - List stock issuance requests that have
 // been forwarded to procurement (grouped by source request)
 // Query: status, wing_id, limit, offset
+//
+// Visibility:
+//   - procurement managers see all forwarded requests
+//   - other users see only requests they personally forwarded
 // ============================================================================
 router.get('/forwarded', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
     const { status = 'all', wing_id, limit = 50, offset = 0 } = req.query;
+    const userId = req.session.userId;
+    const isProcurementManager = req.session.user?.ims_permissions?.some(
+      p => p.permission_key === 'procurement.manage'
+    );
 
-    // Base filters
+    // Build base WHERE clause for required_items
     let baseWhere = `ri.is_deleted = 0 AND ri.source_request_id IS NOT NULL`;
+    if (!isProcurementManager) {
+      baseWhere += ` AND ri.created_by = @userId`;
+    }
     if (status && status !== 'all') {
       baseWhere += ` AND ri.status = @status`;
     }
@@ -368,25 +379,31 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       baseWhere += ` AND ri.requested_by_wing_id = @wing_id`;
     }
 
-    // Count distinct source requests
-    const countReq = pool.request()
-      .input('limit', sql.Int, parseInt(limit))
-      .input('offset', sql.Int, parseInt(offset));
-    if (status && status !== 'all') countReq.input('status', sql.NVarChar, status);
-    if (wing_id) countReq.input('wing_id', sql.Int, parseInt(wing_id));
+    // Helper to apply common inputs to a request
+    const applyInputs = (request) => {
+      request.input('limit', sql.Int, parseInt(limit));
+      request.input('offset', sql.Int, parseInt(offset));
+      if (!isProcurementManager) {
+        request.input('userId', sql.NVarChar(450), userId);
+      }
+      if (status && status !== 'all') {
+        request.input('status', sql.NVarChar, status);
+      }
+      if (wing_id) {
+        request.input('wing_id', sql.Int, parseInt(wing_id));
+      }
+      return request;
+    };
 
-    const countResult = await countReq.query(`
+    // Count distinct source requests
+    const countResult = await applyInputs(pool.request()).query(`
       SELECT COUNT(DISTINCT ri.source_request_id) AS total
       FROM required_items ri
       WHERE ${baseWhere}
     `);
 
     // Status stats for forwarded procurement items
-    const statsReq = pool.request();
-    if (status && status !== 'all') statsReq.input('status', sql.NVarChar, status);
-    if (wing_id) statsReq.input('wing_id', sql.Int, parseInt(wing_id));
-
-    const statsResult = await statsReq.query(`
+    const statsResult = await applyInputs(pool.request()).query(`
       SELECT
         ri.status,
         COUNT(DISTINCT ri.source_request_id) AS request_count,
@@ -415,11 +432,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     });
 
     // Paginated request headers
-    const headerReq = pool.request()
-      .input('limit', sql.Int, parseInt(limit))
-      .input('offset', sql.Int, parseInt(offset));
-    if (status && status !== 'all') headerReq.input('status', sql.NVarChar, status);
-    if (wing_id) headerReq.input('wing_id', sql.Int, parseInt(wing_id));
+    const headerReq = applyInputs(pool.request());
 
     const headerResult = await headerReq.query(`
       WITH DistinctRequests AS (
@@ -435,6 +448,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         FROM DistinctRequests dr
         INNER JOIN required_items ri ON dr.source_request_id = ri.source_request_id
         WHERE ri.is_deleted = 0
+          ${!isProcurementManager ? `AND ri.created_by = @userId` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
         GROUP BY dr.source_request_id
@@ -462,6 +476,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       LEFT JOIN offices o ON sir.requester_office_id = o.id
       LEFT JOIN required_items ri ON rr.source_request_id = ri.source_request_id
         AND ri.is_deleted = 0
+        ${!isProcurementManager ? `AND ri.created_by = @userId` : ''}
         AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
         AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
       WHERE rr.rn > @offset AND rr.rn <= (@offset + @limit)
@@ -481,10 +496,8 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       const params = sourceIds.map((id, index) => ({ name: `id${index}`, value: id }));
       const inClause = params.map(p => `@${p.name}`).join(',');
 
-      const itemReq = pool.request();
+      const itemReq = applyInputs(pool.request());
       params.forEach(p => itemReq.input(p.name, sql.UniqueIdentifier, p.value));
-      if (status && status !== 'all') itemReq.input('status', sql.NVarChar, status);
-      if (wing_id) itemReq.input('wing_id', sql.Int, parseInt(wing_id));
 
       const itemResult = await itemReq.query(`
         SELECT
@@ -504,6 +517,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         LEFT JOIN item_masters im ON ri.item_master_id = im.id
         WHERE ri.is_deleted = 0
           AND ri.source_request_id IN (${inClause})
+          ${!isProcurementManager ? `AND ri.created_by = @userId` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
         ORDER BY ri.created_at DESC

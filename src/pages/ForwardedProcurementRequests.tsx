@@ -222,7 +222,7 @@ const ForwardedProcurementRequests: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Forwarded to Procurement</h1>
             <p className="text-gray-600 mt-1">
-              Track all stock issuance requests forwarded to procurement due to shortages
+              Track the status of requests you forwarded to procurement
             </p>
           </div>
           <div className="flex gap-2">
