@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { MultiSelect } from '@/components/ui/multi-select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, Save, FileText, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, FileText, Upload, PackagePlus, Search } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -34,6 +34,33 @@ interface TenderItem {
   vendor_ids?: string[];
   category_name?: string;
   category_description?: string;
+  unit?: string;
+  source_required_item_id?: string;
+  source_required_item_ids?: string[];
+  source_request_id?: string;
+  source_request_number?: string;
+  requested_by_wing_name?: string;
+  urgency_level?: string;
+}
+
+interface RequiredItemOption {
+  id: string;
+  item_master_id: string | null;
+  nomenclature: string;
+  quantity_needed: number;
+  unit: string | null;
+  urgency_level: string;
+  source_request_number: string | null;
+  requested_by_wing_name: string | null;
+  category_name: string | null;
+  request_type: 'Individual' | 'Organizational' | string | null;
+  requester_name: string | null;
+  employee_view_requester_name: string | null;
+  employee_view_branch_name: string | null;
+  requester_wing_name: string | null;
+  requester_office_name: string | null;
+  requester_branch_name: string | null;
+  source_request_id?: string;
 }
 
 interface ItemMaster {
@@ -158,6 +185,10 @@ const EditTender: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [bidders, setBidders] = useState<any[]>([]);
   const [showCsvModal, setShowCsvModal] = useState<boolean>(false);
+  const [showRequiredItemsModal, setShowRequiredItemsModal] = useState<boolean>(false);
+  const [requiredItemOptions, setRequiredItemOptions] = useState<RequiredItemOption[]>([]);
+  const [selectedRequiredItemIds, setSelectedRequiredItemIds] = useState<Set<string>>(new Set());
+  const [requiredItemsSearch, setRequiredItemsSearch] = useState<string>('');
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [newItem, setNewItem] = useState<TenderItem>({
     item_master_id: '',
@@ -532,6 +563,129 @@ const EditTender: React.FC = () => {
     alert(`Successfully imported ${newItems.length} items from CSV`);
   };
 
+  const fetchPendingRequiredItems = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/required-items?status=Pending&limit=500');
+      if (!res.ok) throw new Error('Failed to fetch required items');
+      const data = await res.json();
+      setRequiredItemOptions(data.data || []);
+    } catch (err) {
+      console.error('Error fetching required items for tender picker:', err);
+    }
+  };
+
+  const handleOpenRequiredItemsModal = () => {
+    setShowRequiredItemsModal(true);
+    fetchPendingRequiredItems();
+  };
+
+  const handleToggleRequiredItem = (id: string, checked: boolean) => {
+    setSelectedRequiredItemIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSelectAllRequiredItems = (checked: boolean) => {
+    if (checked) {
+      setSelectedRequiredItemIds(new Set(filteredRequiredItems.map(i => i.id)));
+    } else {
+      setSelectedRequiredItemIds(new Set());
+    }
+  };
+
+  const handleAddSelectedRequiredItems = () => {
+    const selected = requiredItemOptions.filter(i => selectedRequiredItemIds.has(i.id));
+    if (selected.length === 0) {
+      alert('Please select at least one item.');
+      return;
+    }
+
+    const grouped = new Map<string, { item: RequiredItemOption; sourceIds: string[]; totalQty: number; sourceRequests: string[] }>();
+
+    for (const item of selected) {
+      const key = item.item_master_id || item.nomenclature;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.sourceIds.push(item.id);
+        existing.totalQty += item.quantity_needed;
+        if (item.source_request_number && !existing.sourceRequests.includes(item.source_request_number)) {
+          existing.sourceRequests.push(item.source_request_number);
+        }
+      } else {
+        grouped.set(key, {
+          item,
+          sourceIds: [item.id],
+          totalQty: item.quantity_needed,
+          sourceRequests: item.source_request_number ? [item.source_request_number] : []
+        });
+      }
+    }
+
+    const newTenderItems: TenderItem[] = Array.from(grouped.values()).map(({ item, sourceIds, totalQty, sourceRequests }) => ({
+      id: `req-${item.item_master_id || item.id}`,
+      item_master_id: item.item_master_id || '',
+      nomenclature: item.nomenclature,
+      quantity: totalQty,
+      unit: item.unit || '',
+      estimated_unit_price: 0,
+      total_amount: 0,
+      specifications: '',
+      remarks: `Imported from required items pipeline | Requests: ${sourceRequests.join(', ') || 'N/A'}`,
+      source_required_item_ids: sourceIds,
+      source_request_number: sourceRequests.join(', '),
+      requested_by_wing_name: item.requested_by_wing_name || '',
+      urgency_level: item.urgency_level,
+      vendor_id: '',
+      vendor_ids: []
+    }));
+
+    setTenderItems(prev => {
+      const merged = [...prev];
+      for (const newItem of newTenderItems) {
+        const existingIndex = merged.findIndex(existing =>
+          (existing.item_master_id && existing.item_master_id === newItem.item_master_id) ||
+          (!existing.item_master_id && existing.nomenclature === newItem.nomenclature)
+        );
+        if (existingIndex >= 0) {
+          const existing = merged[existingIndex];
+          merged[existingIndex] = {
+            ...existing,
+            quantity: existing.quantity + newItem.quantity,
+            source_required_item_ids: Array.from(new Set([
+              ...(existing.source_required_item_ids || []),
+              ...(newItem.source_required_item_ids || [])
+            ])),
+            source_request_number: [
+              ...(existing.source_request_number ? existing.source_request_number.split(', ') : []),
+              ...(newItem.source_request_number ? newItem.source_request_number.split(', ') : [])
+            ].filter((v, i, a) => a.indexOf(v) === i).join(', ')
+          };
+        } else {
+          merged.push(newItem);
+        }
+      }
+      return groupTenderItems(merged, tenderData.tender_type);
+    });
+
+    setSelectedRequiredItemIds(new Set());
+    setShowRequiredItemsModal(false);
+  };
+
+  const filteredRequiredItems = requiredItemOptions.filter(item => {
+    const term = requiredItemsSearch.toLowerCase();
+    return (
+      item.nomenclature.toLowerCase().includes(term) ||
+      (item.source_request_number && item.source_request_number.toLowerCase().includes(term)) ||
+      (item.employee_view_requester_name && item.employee_view_requester_name.toLowerCase().includes(term)) ||
+      (item.employee_view_branch_name && item.employee_view_branch_name.toLowerCase().includes(term)) ||
+      (item.requester_wing_name && item.requester_wing_name.toLowerCase().includes(term)) ||
+      (item.requester_office_name && item.requester_office_name.toLowerCase().includes(term))
+    );
+  });
+
   // Calculate total tender value
   const totalTenderValue = tenderItems.reduce((sum, item) => {
     if (tenderData.tender_type === 'annual-tender') {
@@ -633,7 +787,13 @@ const EditTender: React.FC = () => {
           total_amount: item.total_amount || 0,
           specifications: item.specifications || '',
           remarks: item.remarks || '',
-          ...(tenderData.tender_type === 'annual-tender' 
+          source_required_item_id: item.source_required_item_id || null,
+          source_required_item_ids: item.source_required_item_ids || [],
+          source_request_id: item.source_request_id || null,
+          source_request_number: item.source_request_number || null,
+          requested_by_wing_name: item.requested_by_wing_name || null,
+          urgency_level: item.urgency_level || null,
+          ...(tenderData.tender_type === 'annual-tender'
             ? { vendor_ids: item.vendor_ids || [] }
             : { vendor_id: item.vendor_id || null }
           )
@@ -1384,6 +1544,28 @@ const EditTender: React.FC = () => {
                 </Button>
               </div>
 
+              {/* Pick from Required Items Pipeline */}
+              <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">Add from Required Items Pipeline</p>
+                    <p className="text-xs text-emerald-700">
+                      Pick items that are out-of-stock and pending procurement
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                    onClick={handleOpenRequiredItemsModal}
+                  >
+                    <PackagePlus className="h-4 w-4 mr-1" />
+                    Pick Items
+                  </Button>
+                </div>
+              </div>
+
               {/* Items Table */}
               {tenderItems.length > 0 && (
                 <div>
@@ -1776,6 +1958,126 @@ const EditTender: React.FC = () => {
         onItemsImported={handleCsvItemsImport}
         bidders={bidders}
       />
+
+      {/* Required Items Picker Modal */}
+      {showRequiredItemsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Pick Required Items</h3>
+                <p className="text-sm text-muted-foreground">Select pending out-of-stock items to add to this tender</p>
+              </div>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setShowRequiredItemsModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 border-b">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search items, requests, or wings..."
+                  className="pl-8"
+                  value={requiredItemsSearch}
+                  onChange={(e) => setRequiredItemsSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="overflow-auto flex-1 p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300"
+                        checked={filteredRequiredItems.length > 0 && selectedRequiredItemIds.size === filteredRequiredItems.length}
+                        onChange={(e) => handleSelectAllRequiredItems(e.target.checked)}
+                      />
+                    </TableHead>
+                    <TableHead>Nomenclature</TableHead>
+                    <TableHead>Qty Needed</TableHead>
+                    <TableHead>Urgency</TableHead>
+                    <TableHead>Source Request</TableHead>
+                    <TableHead>Requested By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRequiredItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        No pending required items found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredRequiredItems.map(item => (
+                      <TableRow key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900">
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300"
+                            checked={selectedRequiredItemIds.has(item.id)}
+                            onChange={(e) => handleToggleRequiredItem(item.id, e.target.checked)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{item.nomenclature}</div>
+                          {item.category_name && <div className="text-xs text-muted-foreground">{item.category_name}</div>}
+                        </TableCell>
+                        <TableCell>{item.quantity_needed} {item.unit || 'units'}</TableCell>
+                        <TableCell>{item.urgency_level}</TableCell>
+                        <TableCell>
+                          {item.source_request_number ? (
+                            <a
+                              href={`/dashboard/request-details/${item.source_request_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 hover:underline"
+                            >
+                              {item.source_request_number}
+                            </a>
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {item.source_request_number ? (
+                            <a
+                              href={`/dashboard/request-details/${item.source_request_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              View Request
+                            </a>
+                          ) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="p-4 border-t flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">{selectedRequiredItemIds.size} item(s) selected</p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowRequiredItemsModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={handleAddSelectedRequiredItems} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Add Selected to Tender
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
