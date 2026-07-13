@@ -386,6 +386,16 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     );
     const canViewAll = isProcurementManager || isApprover;
 
+    console.log('🔍 /api/required-items/forwarded - session debug:', {
+      userId,
+      roleNames,
+      isProcurementManager,
+      isApprover,
+      canViewAll,
+      ims_roles_count: req.session.user?.ims_roles?.length || 0,
+      ims_permissions_count: req.session.user?.ims_permissions?.length || 0
+    });
+
     // Build base WHERE clause for required_items
     let baseWhere = `ri.is_deleted = 0 AND ri.source_request_id IS NOT NULL`;
     if (!canViewAll) {
@@ -402,14 +412,10 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     const applyInputs = (request) => {
       request.input('limit', sql.Int, parseInt(limit));
       request.input('offset', sql.Int, parseInt(offset));
+      request.input('status', sql.NVarChar, status || 'all');
+      request.input('wing_id', sql.Int, wing_id ? parseInt(wing_id) : null);
       if (!canViewAll) {
         request.input('userId', sql.NVarChar(450), userId);
-      }
-      if (status && status !== 'all') {
-        request.input('status', sql.NVarChar, status);
-      }
-      if (wing_id) {
-        request.input('wing_id', sql.Int, parseInt(wing_id));
       }
       return request;
     };
