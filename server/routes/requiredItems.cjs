@@ -399,6 +399,8 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     if (hasWingFilter) {
       baseWhere += ` AND ri.requested_by_wing_id = @wing_id`;
     }
+    // Only include requests that were actually forwarded to procurement
+    baseWhere += ` AND ra.current_status = 'forwarded_to_procurement'`;
 
     // Helper to apply common inputs to a request
     const applyInputs = (request) => {
@@ -417,6 +419,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       SELECT COUNT(DISTINCT ri.source_request_id) AS total
       FROM required_items ri
       LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
+      LEFT JOIN request_approvals ra ON sir.id = ra.request_id
       WHERE ${baseWhere}
     `);
 
@@ -429,6 +432,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         SUM(ri.quantity_needed) AS total_qty
       FROM required_items ri
       LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
+      LEFT JOIN request_approvals ra ON sir.id = ra.request_id
       WHERE ${baseWhere}
       GROUP BY ri.status
     `);
@@ -458,6 +462,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         SELECT DISTINCT ri.source_request_id
         FROM required_items ri
         LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
+        LEFT JOIN request_approvals ra ON sir.id = ra.request_id
         WHERE ${baseWhere}
       ),
       RankedRequests AS (
@@ -468,11 +473,12 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         FROM DistinctRequests dr
         INNER JOIN required_items ri ON dr.source_request_id = ri.source_request_id
         INNER JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
+        INNER JOIN request_approvals ra ON sir.id = ra.request_id
         WHERE ri.is_deleted = 0
           ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
-          AND (@status IS NULL OR @status = 'all' OR sir.id IS NOT NULL)
+          AND ra.current_status = 'forwarded_to_procurement'
         GROUP BY dr.source_request_id
       )
       SELECT
