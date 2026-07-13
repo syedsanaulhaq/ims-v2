@@ -386,15 +386,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     );
     const canViewAll = isProcurementManager || isApprover;
 
-    console.log('🔍 /api/required-items/forwarded - session debug:', {
-      userId,
-      roleNames,
-      isProcurementManager,
-      isApprover,
-      canViewAll,
-      ims_roles_count: req.session.user?.ims_roles?.length || 0,
-      ims_permissions_count: req.session.user?.ims_permissions?.length || 0
-    });
+    const hasWingFilter = wing_id && !isNaN(parseInt(wing_id));
 
     // Build base WHERE clause for required_items
     let baseWhere = `ri.is_deleted = 0 AND ri.source_request_id IS NOT NULL`;
@@ -404,7 +396,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
     if (status && status !== 'all') {
       baseWhere += ` AND ri.status = @status`;
     }
-    if (wing_id) {
+    if (hasWingFilter) {
       baseWhere += ` AND ri.requested_by_wing_id = @wing_id`;
     }
 
@@ -413,7 +405,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       request.input('limit', sql.Int, parseInt(limit));
       request.input('offset', sql.Int, parseInt(offset));
       request.input('status', sql.NVarChar, status || 'all');
-      request.input('wing_id', sql.Int, wing_id ? parseInt(wing_id) : null);
+      request.input('wing_id', sql.Int, wing_id && !isNaN(parseInt(wing_id)) ? parseInt(wing_id) : null);
       if (!canViewAll) {
         request.input('userId', sql.NVarChar(450), userId);
       }
@@ -480,6 +472,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
           ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
+          AND (@status IS NULL OR @status = 'all' OR sir.id IS NOT NULL)
         GROUP BY dr.source_request_id
       )
       SELECT
@@ -490,9 +483,8 @@ router.get('/forwarded', requireAuth, async (req, res) => {
         sir.purpose,
         sir.submitted_at,
         u.FullName AS requester_name,
-        w.wing_name,
-        b.branch_name,
-        o.office_name,
+        w.Name AS wing_name,
+        o.strOfficeName AS office_name,
         ra.current_status AS approval_status,
         rr.forwarded_at,
         COUNT(ri.id) AS item_count
@@ -500,9 +492,8 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       LEFT JOIN stock_issuance_requests sir ON rr.source_request_id = sir.id
       LEFT JOIN request_approvals ra ON sir.id = ra.request_id
       LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      LEFT JOIN wings w ON sir.requester_wing_id = w.id
-      LEFT JOIN branches b ON sir.requester_branch_id = b.id
-      LEFT JOIN offices o ON sir.requester_office_id = o.id
+      LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
+      LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
       LEFT JOIN required_items ri ON rr.source_request_id = ri.source_request_id
         AND ri.is_deleted = 0
         ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
@@ -511,7 +502,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
       WHERE rr.rn > @offset AND rr.rn <= (@offset + @limit)
       GROUP BY
         sir.id, sir.request_number, sir.request_type, sir.urgency_level, sir.purpose,
-        sir.submitted_at, u.FullName, w.wing_name, b.branch_name, o.office_name,
+        sir.submitted_at, u.FullName, w.Name, o.strOfficeName,
         ra.current_status, rr.forwarded_at
       ORDER BY rr.forwarded_at DESC
     `);
@@ -550,6 +541,7 @@ router.get('/forwarded', requireAuth, async (req, res) => {
           ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
           AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
           AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
+          AND (@status IS NULL OR @status = 'all' OR sir.id IS NOT NULL)
         ORDER BY ri.created_at DESC
       `);
 
