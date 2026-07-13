@@ -361,6 +361,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Approval Menu",
     icon: CheckCircle,
     items: [
+      { title: "Personal Requests", icon: User, path: "/dashboard/approval-dashboard-request-based-admin?scope=personal", permission: 'approval.approve' },
+      { title: "Branch Requests", icon: Building2, path: "/dashboard/approval-dashboard-request-based-admin?scope=branch", permission: 'approval.approve' },
+      { title: "Wing Requests", icon: Users, path: "/dashboard/approval-dashboard-request-based-admin?scope=wing", permission: 'approval.approve' },
       { title: "Forwarded to Procurement", icon: ShoppingCart, path: "/procurement/forwarded-to-procurement", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
@@ -372,6 +375,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Shield,
     items: [
       { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard", permission: 'admin.super' },
+      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'admin.super' },
       { title: "Roles & Permissions", icon: Shield, path: "/settings/roles", permission: 'roles.manage' },
       { title: "User Management", icon: Users, path: "/settings/users", permission: 'users.assign_roles' },
       { title: "System Settings", icon: Settings, path: "/dashboard/inventory-settings", permission: 'admin.super' },
