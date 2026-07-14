@@ -20,6 +20,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { inventoryLocalService } from '@/services/inventoryLocalService';
+import { categoriesLocalService } from '@/services/categoriesLocalService';
 import erpDatabaseService from '@/services/erpDatabaseService';
 import stockIssuanceService from '@/services/stockIssuanceService';
 import { approvalForwardingService } from '@/services/approvalForwardingService';
@@ -33,6 +34,8 @@ interface InventoryItem {
   id: string;
   intOfficeID: string;
   nomenclature: string;
+  category_id?: string;
+  category_name?: string;
   current_stock: number;
   minimum_stock_level: number;
   weighted_avg_price: number;
@@ -54,11 +57,13 @@ interface IssuanceItem {
 
 const StockIssuance: React.FC = () => {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [categories, setCategories] = useState<{ id: string; category_name: string }[]>([]);
   const [offices, setOffices] = useState<ERPOffice[]>([]);
   const [wings, setWings] = useState<ERPWing[]>([]);
   const [decs, setDecs] = useState<ERPDEC[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [issuanceItems, setIssuanceItems] = useState<IssuanceItem[]>([]);
   const [lastIssuedByItemId, setLastIssuedByItemId] = useState<Record<string, { qty: number; date: string | null }>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -134,6 +139,21 @@ const StockIssuance: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await categoriesLocalService.getCategories();
+        if (response.success && response.data) {
+          setCategories(response.data);
+        }
+      } catch (err) {
+        console.warn('Failed to load categories:', err);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
     const loadLastIssuedSummary = async () => {
       try {
         const filters: { user_id?: string; wing_id?: string } = {};
@@ -196,6 +216,8 @@ const StockIssuance: React.FC = () => {
             id: `inventory-${item.id}`,
             intOfficeID: item.id,
             nomenclature: item.nomenclature || item.item_masters?.nomenclature || 'Unknown Item',
+            category_id: item.category_id,
+            category_name: item.category_name || item.category_description || '',
             current_stock: item.current_quantity || item.intCurrentStock || 0,
             minimum_stock_level: item.intMinimumLevel || 0,
             weighted_avg_price: item.fltUnitPrice || 0,
@@ -249,9 +271,11 @@ const StockIssuance: React.FC = () => {
     setSelectedUserId('');
   };
 
-  const filteredInventory = inventoryItems.filter(item =>
-    item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInventory = inventoryItems.filter(item => {
+    const matchesSearch = item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || item.category_id === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const addIssuanceItem = (item: InventoryItem) => {
     const existing = issuanceItems.find(i => i.inventory_id === item.id);
@@ -748,8 +772,8 @@ const StockIssuance: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Search */}
-              <div className="mb-4">
+              {/* Search and Category Filter */}
+              <div className="mb-4 space-y-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
@@ -758,6 +782,22 @@ const StockIssuance: React.FC = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
                   />
+                </div>
+                <div>
+                  <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Group</Label>
+                  <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value)}>
+                    <SelectTrigger id="categoryFilter" className="mt-1">
+                      <SelectValue placeholder="All Groups" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Groups</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.category_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
