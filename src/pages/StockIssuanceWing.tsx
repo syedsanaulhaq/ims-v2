@@ -270,11 +270,11 @@ const StockIssuanceWing: React.FC = () => {
   const fetchInitialData = async () => {
     try {
       // Fetch inventory items using the local service
-      const inventory = await inventoryLocalService.getAll();
+      // Use the full requestable catalog so all active items can be requested.
+      const inventory = await inventoryLocalService.getRequestableItems();
       if (inventory && inventory.length > 0) {
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
-          .filter(item => (item.current_quantity || item.intCurrentStock || 0) > 0) // Only items with stock
           .map((item) => ({
             id: `inventory-${item.id}`,
             item_master_id: String(item.item_master_id || item.id || ''),
