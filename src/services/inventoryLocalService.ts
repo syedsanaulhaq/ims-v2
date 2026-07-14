@@ -83,6 +83,26 @@ export const inventoryLocalService = {
     }
   },
 
+  // Always fetch the full requestable item catalog (all active item_masters).
+  // Use this for request forms so users can request any active item, not only
+  // items that currently happen to have a current_inventory_stock row.
+  async getRequestableItems(): Promise<InventoryItem[]> {
+    try {
+      const response = await fetch(`${getBaseUrl()}/requestable-items`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch requestable items: ${response.statusText}`);
+      }
+      const data = await response.json();
+      return data.inventory || data.data || [];
+    } catch (error) {
+      console.error('Error fetching requestable items:', error);
+      throw error;
+    }
+  },
+
   async getById(id: string): Promise<InventoryItem> {
     const response = await fetch(`${getBaseUrl()}/current-stock/${id}`, {
       credentials: 'include'

@@ -212,7 +212,7 @@ const StockIssuancePersonal: React.FC = () => {
   const fetchInitialData = async () => {
     try {
       // Fetch inventory items using the local service
-      const inventory = await inventoryLocalService.getAll();
+      const inventory = await inventoryLocalService.getRequestableItems();
       if (inventory && inventory.length > 0) {
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
