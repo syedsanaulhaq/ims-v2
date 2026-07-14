@@ -21,6 +21,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { inventoryLocalService } from '@/services/inventoryLocalService';
+import { categoriesLocalService } from '@/services/categoriesLocalService';
 import erpDatabaseService from '@/services/erpDatabaseService';
 import stockIssuanceService from '@/services/stockIssuanceService';
 import { approvalForwardingService } from '@/services/approvalForwardingService';
@@ -37,6 +38,8 @@ interface InventoryItem {
   intOfficeID: string;
   nomenclature: string;
   description?: string;
+  category_id?: string;
+  category_name?: string;
   current_stock: number;
   minimum_stock_level: number;
   weighted_avg_price: number;
@@ -68,7 +71,9 @@ const StockIssuancePersonal: React.FC = () => {
   const { user } = useSession();
   const navigate = useNavigate();  const { id } = useParams<{ id: string }>();  
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [categories, setCategories] = useState<{ id: string; category_name: string }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [issuanceItems, setIssuanceItems] = useState<IssuanceItem[]>([]);
   const [lastIssuedByItemId, setLastIssuedByItemId] = useState<Record<string, { qty: number; date: string | null }>>({});
     const [personalInventoryByItemId, setPersonalInventoryByItemId] = useState<Record<string, number>>({});
@@ -223,6 +228,8 @@ const StockIssuancePersonal: React.FC = () => {
               intOfficeID: item.id,
               nomenclature: item.nomenclature || item.item_name || 'Unknown Item',
               description: item.category_description || item.description || '',
+              category_id: item.category_id,
+              category_name: item.category_name || item.category_description || '',
               current_stock: item.current_quantity || 0,
               minimum_stock_level: item.minimum_stock_level || 0,
               weighted_avg_price: 0,
@@ -309,9 +316,11 @@ const StockIssuancePersonal: React.FC = () => {
     }
   };
 
-  const filteredInventory = inventoryItems.filter(item =>
-    item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInventory = inventoryItems.filter(item => {
+    const matchesSearch = item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || item.category_id === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const addIssuanceItem = (item: InventoryItem) => {
     const existing = issuanceItems.find(i => i.inventory_id === item.id);
@@ -664,8 +673,8 @@ const StockIssuancePersonal: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Search */}
-              <div className="mb-4">
+              {/* Search and Category Filter */}
+              <div className="mb-4 space-y-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
@@ -674,6 +683,22 @@ const StockIssuancePersonal: React.FC = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
                   />
+                </div>
+                <div>
+                  <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Group</Label>
+                  <Select value={selectedCategory} onValueChange={(value: string) => setSelectedCategory(value)}>
+                    <SelectTrigger id="categoryFilter" className="mt-1">
+                      <SelectValue placeholder="All Groups" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Groups</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.category_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {/* Always visible Add Custom Item button */}
                 {!showCustomItemForm && (
