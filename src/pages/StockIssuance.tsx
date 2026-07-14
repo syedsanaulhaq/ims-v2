@@ -311,8 +311,8 @@ const StockIssuance: React.FC = () => {
           if (item.item_type === 'custom') {
             return { ...item, requested_quantity: Math.max(1, quantity) };
           }
-          // For inventory items, respect available stock
-          return { ...item, requested_quantity: Math.max(0, Math.min(quantity, item.available_stock)) };
+          // Allow requesting any positive quantity regardless of current stock
+          return { ...item, requested_quantity: Math.max(1, quantity) };
         }
         return item;
       })
