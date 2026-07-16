@@ -43,6 +43,9 @@ const RoleManagement: React.FC = () => {
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [formData, setFormData] = useState({ displayName: '', description: '' });
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Fetch roles and permissions on mount
   useEffect(() => {
@@ -175,6 +178,43 @@ const RoleManagement: React.FC = () => {
     setSelectedPermissions([]);
   };
 
+  const handleOpenDeleteModal = (role: Role) => {
+    setRoleToDelete(role);
+    setShowDeleteModal(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setRoleToDelete(null);
+    setDeleteLoading(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!roleToDelete) return;
+
+    try {
+      setDeleteLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/permissions/roles/${roleToDelete.role_id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete role');
+      }
+
+      alert('Role deleted successfully. Assigned users were transferred to GENERAL_USER.');
+      handleCloseDeleteModal();
+      fetchRoles();
+    } catch (error) {
+      console.error('Error deleting role:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Failed to delete role'}`);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const filteredRoles = roles.filter(role =>
     role.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     role.role_name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -268,6 +308,15 @@ const RoleManagement: React.FC = () => {
                           <Edit2 className="w-4 h-4" />
                           Edit
                         </button>
+                        {!role.is_system_role && role.role_name !== 'GENERAL_USER' && (
+                          <button
+                            onClick={() => handleOpenDeleteModal(role)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 ml-2 text-red-600 hover:bg-red-50 rounded transition-colors text-sm font-medium"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -376,6 +425,56 @@ const RoleManagement: React.FC = () => {
               >
                 <Save className="w-4 h-4" />
                 Save Role
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && roleToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+                Delete Role
+              </h2>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                Are you sure you want to delete <strong>{roleToDelete.display_name}</strong>?
+              </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+                <p className="font-semibold mb-1">This action will:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Permanently remove the role</li>
+                  <li>
+                    Transfer {roleToDelete.user_count ?? 0} assigned user{roleToDelete.user_count === 1 ? '' : 's'} to <strong>GENERAL_USER</strong>
+                  </li>
+                  <li>Remove all associated permissions</li>
+                </ul>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={handleCloseDeleteModal}
+                disabled={deleteLoading}
+                className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleteLoading}
+                className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors disabled:opacity-50"
+              >
+                {deleteLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                {deleteLoading ? 'Deleting...' : 'Delete Role'}
               </button>
             </div>
           </div>

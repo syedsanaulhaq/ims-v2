@@ -398,6 +398,100 @@ router.put('/roles/:roleId/permissions', requireAuth, requirePermission('roles.m
 });
 
 // ============================================================================
+// DELETE /api/permissions/roles/:roleId - Delete a custom role
+// Users assigned to the deleted role are transferred to GENERAL_USER.
+// System roles and the GENERAL_USER role itself cannot be deleted.
+// ============================================================================
+router.delete('/roles/:roleId', requireAuth, requirePermission('roles.manage'), async (req, res) => {
+  try {
+    const { roleId } = req.params;
+    const pool = getPool();
+
+    // Fetch role to delete
+    const roleResult = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query('SELECT id, role_name, is_system_role FROM ims_roles WHERE id = @roleId');
+
+    if (roleResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+
+    const role = roleResult.recordset[0];
+
+    // Prevent deletion of GENERAL_USER
+    if (role.role_name === 'GENERAL_USER') {
+      return res.status(403).json({ error: 'The GENERAL_USER role cannot be deleted' });
+    }
+
+    // Prevent deletion of system roles
+    if (role.is_system_role === 1 || role.is_system_role === true) {
+      return res.status(403).json({ error: 'System roles cannot be deleted' });
+    }
+
+    // Find GENERAL_USER role to transfer users into
+    const generalUserResult = await pool.request()
+      .query("SELECT id FROM ims_roles WHERE role_name = 'GENERAL_USER' AND is_active = 1");
+
+    if (generalUserResult.recordset.length === 0) {
+      return res.status(500).json({ error: 'GENERAL_USER role not found. Cannot proceed with deletion.' });
+    }
+
+    const generalUserRoleId = generalUserResult.recordset[0].id;
+
+    // Start transaction
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Move active users to GENERAL_USER, avoiding duplicate scope assignments
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .input('generalUserRoleId', sql.UniqueIdentifier, generalUserRoleId)
+        .query(`
+          UPDATE ur
+          SET role_id = @generalUserRoleId
+          FROM ims_user_roles ur
+          WHERE ur.role_id = @roleId
+            AND ur.is_active = 1
+            AND NOT EXISTS (
+              SELECT 1 FROM ims_user_roles existing
+              WHERE existing.user_id = ur.user_id
+                AND existing.role_id = @generalUserRoleId
+                AND existing.scope_type = ur.scope_type
+                AND ISNULL(existing.scope_office_id, 0) = ISNULL(ur.scope_office_id, 0)
+                AND ISNULL(existing.scope_wing_id, 0) = ISNULL(ur.scope_wing_id, 0)
+                AND ISNULL(existing.scope_branch_id, 0) = ISNULL(ur.scope_branch_id, 0)
+            )
+        `);
+
+      // Remove any remaining user-role links tied to the deleted role
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query('DELETE FROM ims_user_roles WHERE role_id = @roleId');
+
+      // Remove role permissions
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query('DELETE FROM ims_role_permissions WHERE role_id = @roleId');
+
+      // Delete the role
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query('DELETE FROM ims_roles WHERE id = @roleId');
+
+      await transaction.commit();
+      res.json({ success: true, message: 'Role deleted successfully. Assigned users were transferred to GENERAL_USER.' });
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error deleting role:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to delete role' });
+  }
+});
+
+// ============================================================================
 // GET /api/permissions/all - Get all available permissions
 // ============================================================================
 router.get('/all', requireAuth, async (req, res) => {
@@ -459,10 +553,8 @@ router.get('/users', requireAuth, async (req, res) => {
     }
 
     if (wing_id) {
-      query += ` AND u.intWingID = @wingId AND u.intWingID > 0`;
+      query += ` AND u.intWingID = @wingId`;
       request = request.input('wingId', sql.Int, parseInt(wing_id));
-    } else {
-      query += ` AND (u.intWingID > 0 OR u.intWingID IS NULL)`;
     }
 
     if (role_name) {
