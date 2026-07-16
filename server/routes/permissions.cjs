@@ -459,10 +459,8 @@ router.get('/users', requireAuth, async (req, res) => {
     }
 
     if (wing_id) {
-      query += ` AND u.intWingID = @wingId AND u.intWingID > 0`;
+      query += ` AND u.intWingID = @wingId`;
       request = request.input('wingId', sql.Int, parseInt(wing_id));
-    } else {
-      query += ` AND (u.intWingID > 0 OR u.intWingID IS NULL)`;
     }
 
     if (role_name) {
