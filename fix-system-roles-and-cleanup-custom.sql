@@ -327,20 +327,90 @@ GO
 -- =====================================================
 -- 5. CLEANUP ANY OTHER UNWANTED CUSTOM ROLES
 -- =====================================================
--- Uncomment and edit the block below if you have additional custom roles to remove.
--- Make sure to migrate users first if the role has assignments.
-/*
-DECLARE @UnwantedRoleId UNIQUEIDENTIFIER;
-SELECT @UnwantedRoleId = id FROM ims_roles WHERE role_name = 'ROLE_NAME_HERE' AND is_system_role = 0;
+-- Edit the @RolesToDelete list below with the exact role_name values you want removed.
+-- Users assigned to a deleted role are moved to GENERAL_USER if not already assigned.
+-- System roles and GENERAL_USER cannot be deleted.
+PRINT '';
+PRINT 'Step 5: Cleaning up additional unwanted custom roles...';
 
-IF @UnwantedRoleId IS NOT NULL
+DECLARE @RolesToDelete TABLE (role_name NVARCHAR(100) NOT NULL PRIMARY KEY);
+
+-- ===== ADD CUSTOM ROLE NAMES TO DELETE BELOW =====
+-- INSERT INTO @RolesToDelete (role_name) VALUES ('Custom Role Name 1');
+-- INSERT INTO @RolesToDelete (role_name) VALUES ('Custom Role Name 2');
+-- ==================================================
+
+DECLARE @GeneralUserRoleId UNIQUEIDENTIFIER;
+SELECT @GeneralUserRoleId = id FROM ims_roles WHERE role_name = 'GENERAL_USER' AND is_active = 1;
+
+IF @GeneralUserRoleId IS NULL
 BEGIN
-    DELETE FROM ims_user_roles WHERE role_id = @UnwantedRoleId;
-    DELETE FROM ims_role_permissions WHERE role_id = @UnwantedRoleId;
-    DELETE FROM ims_roles WHERE id = @UnwantedRoleId;
-    PRINT 'Removed custom role: ROLE_NAME_HERE';
+    RAISERROR('GENERAL_USER role not found. Cannot proceed with custom role cleanup.', 16, 1);
 END
-*/
+ELSE
+BEGIN
+    DECLARE @deleteRoleName NVARCHAR(100);
+    DECLARE @deleteRoleId UNIQUEIDENTIFIER;
+
+    DECLARE delete_role_cursor CURSOR FOR
+    SELECT rt.role_name
+    FROM @RolesToDelete rt;
+
+    OPEN delete_role_cursor;
+    FETCH NEXT FROM delete_role_cursor INTO @deleteRoleName;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        SET @deleteRoleId = NULL;
+        SELECT @deleteRoleId = id FROM ims_roles WHERE role_name = @deleteRoleName;
+
+        IF @deleteRoleId IS NULL
+        BEGIN
+            PRINT '  ⚠️ Role not found: ' + @deleteRoleName;
+        END
+        ELSE IF @deleteRoleName = 'GENERAL_USER'
+        BEGIN
+            PRINT '  ❌ Cannot delete GENERAL_USER role: ' + @deleteRoleName;
+        END
+        ELSE IF EXISTS (SELECT 1 FROM ims_roles WHERE id = @deleteRoleId AND is_system_role = 1)
+        BEGIN
+            PRINT '  ❌ Cannot delete system role: ' + @deleteRoleName;
+        END
+        ELSE
+        BEGIN
+            -- Move users to GENERAL_USER (avoid duplicate scope assignments)
+            UPDATE ur
+            SET role_id = @GeneralUserRoleId
+            FROM ims_user_roles ur
+            WHERE ur.role_id = @deleteRoleId
+              AND NOT EXISTS (
+                  SELECT 1 FROM ims_user_roles existing
+                  WHERE existing.user_id = ur.user_id
+                    AND existing.role_id = @GeneralUserRoleId
+                    AND existing.scope_type = ur.scope_type
+                    AND ISNULL(existing.scope_office_id, 0) = ISNULL(ur.scope_office_id, 0)
+                    AND ISNULL(existing.scope_wing_id, 0) = ISNULL(ur.scope_wing_id, 0)
+                    AND ISNULL(existing.scope_branch_id, 0) = ISNULL(ur.scope_branch_id, 0)
+              );
+
+            PRINT '  ' + CAST(@@ROWCOUNT AS NVARCHAR) + ' user(s) moved from ' + @deleteRoleName + ' to GENERAL_USER';
+
+            -- Delete remaining duplicate assignments tied to this role
+            DELETE FROM ims_user_roles WHERE role_id = @deleteRoleId;
+            DELETE FROM ims_role_permissions WHERE role_id = @deleteRoleId;
+            DELETE FROM ims_roles WHERE id = @deleteRoleId;
+
+            PRINT '  ✅ Deleted custom role: ' + @deleteRoleName;
+        END
+
+        FETCH NEXT FROM delete_role_cursor INTO @deleteRoleName;
+    END
+
+    CLOSE delete_role_cursor;
+    DEALLOCATE delete_role_cursor;
+END
+
+PRINT '✅ Custom role cleanup complete';
 GO
 
 -- =====================================================
