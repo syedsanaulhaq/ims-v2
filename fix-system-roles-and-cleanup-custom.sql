@@ -43,65 +43,154 @@ PRINT '✅ Required permissions ensured';
 GO
 
 -- =====================================================
--- 2. CONVERT EXISTING WORKFLOW ROLES TO SYSTEM ROLES
+-- 2. ENSURE ONE SYSTEM ROLE PER WORKFLOW ROLE NAME
 -- =====================================================
+-- If a custom role exists with the same name as a system role,
+-- migrate its users/permissions to the system role and delete the custom one.
+-- If only a custom role exists, convert it to a system role.
+-- If no role exists, insert a new system role.
 PRINT '';
-PRINT 'Step 2: Converting existing workflow roles to system roles...';
+PRINT 'Step 2: Merging duplicate/custom workflow roles into single system roles...';
 
-UPDATE ims_roles
-SET is_system_role = 1,
-    description = CASE
-        WHEN role_name = 'AD Admin-I' THEN 'Workflow approval role - AD Admin-I'
-        WHEN role_name = 'AD Admin-II' THEN 'Workflow approval role - AD Admin-II'
-        WHEN role_name = 'DD Admin' THEN 'Workflow approval role - DD Admin'
-        WHEN role_name = 'DG Admin' THEN 'Workflow approval role - DG Admin'
-        WHEN role_name = 'Storekeeper' THEN 'Workflow approval role - Storekeeper'
-        WHEN role_name = 'Transport Supervisor' THEN 'Workflow approval role - Transport Supervisor'
-        WHEN role_name = 'WING_STORE_KEEPER' THEN 'Wing Store Keeper - manage wing store operations'
-        ELSE description
-    END
-WHERE role_name IN (
-    'AD Admin-I',
-    'AD Admin-II',
-    'DD Admin',
-    'DG Admin',
-    'Storekeeper',
-    'Transport Supervisor',
-    'WING_STORE_KEEPER'
-);
+DECLARE @roleName NVARCHAR(100);
+DECLARE @systemRoleId UNIQUEIDENTIFIER;
+DECLARE @customRoleId UNIQUEIDENTIFIER;
 
-PRINT CAST(@@ROWCOUNT AS NVARCHAR) + ' existing roles converted to system roles';
-GO
-
--- =====================================================
--- 3. INSERT MISSING SYSTEM ROLES
--- =====================================================
-PRINT '';
-PRINT 'Step 3: Inserting missing system roles...';
-
-INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role, is_active)
-SELECT NEWID(), role_name, display_name, description, 1, 1
+DECLARE role_cursor CURSOR FOR
+SELECT role_name
 FROM (VALUES
-    ('AD Admin-I',          'AD Admin-I',          'Workflow approval role - AD Admin-I'),
-    ('AD Admin-II',         'AD Admin-II',         'Workflow approval role - AD Admin-II'),
-    ('DD Admin',            'DD Admin',            'Workflow approval role - DD Admin'),
-    ('DG Admin',            'DG Admin',            'Workflow approval role - DG Admin'),
-    ('Storekeeper',         'Storekeeper',         'Workflow approval role - Storekeeper'),
-    ('Transport Supervisor','Transport Supervisor','Workflow approval role - Transport Supervisor'),
-    ('WING_STORE_KEEPER',   'Wing Store Keeper',   'Wing Store Keeper - manage wing store operations')
-) AS v(role_name, display_name, description)
-WHERE NOT EXISTS (
-    SELECT 1 FROM ims_roles r WHERE r.role_name = v.role_name
-);
+    ('AD Admin-I'),
+    ('AD Admin-II'),
+    ('DD Admin'),
+    ('DG Admin'),
+    ('Storekeeper'),
+    ('Transport Supervisor'),
+    ('WING_STORE_KEEPER')
+) AS v(role_name);
 
-PRINT CAST(@@ROWCOUNT AS NVARCHAR) + ' missing system roles inserted';
+OPEN role_cursor;
+FETCH NEXT FROM role_cursor INTO @roleName;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    PRINT '';
+    PRINT 'Processing role: ' + @roleName;
+
+    -- Pick the existing system role (oldest if multiple)
+    SELECT TOP 1 @systemRoleId = id
+    FROM ims_roles
+    WHERE role_name = @roleName AND is_system_role = 1 AND is_active = 1
+    ORDER BY created_at ASC, id ASC;
+
+    -- Pick the first custom duplicate (oldest if multiple)
+    SELECT TOP 1 @customRoleId = id
+    FROM ims_roles
+    WHERE role_name = @roleName AND is_system_role = 0 AND is_active = 1
+    ORDER BY created_at ASC, id ASC;
+
+    IF @systemRoleId IS NULL AND @customRoleId IS NULL
+    BEGIN
+        -- Insert new system role
+        SET @systemRoleId = NEWID();
+        INSERT INTO ims_roles (id, role_name, display_name, description, is_system_role, is_active)
+        VALUES (
+            @systemRoleId,
+            @roleName,
+            CASE
+                WHEN @roleName = 'WING_STORE_KEEPER' THEN 'Wing Store Keeper'
+                ELSE @roleName
+            END,
+            CASE
+                WHEN @roleName = 'WING_STORE_KEEPER' THEN 'Wing Store Keeper - manage wing store operations'
+                ELSE 'Workflow approval role - ' + @roleName
+            END,
+            1,
+            1
+        );
+        PRINT '  ✅ Inserted new system role: ' + @roleName;
+    END
+    ELSE IF @systemRoleId IS NOT NULL AND @customRoleId IS NULL
+    BEGIN
+        PRINT '  ✅ System role already exists: ' + @roleName;
+    END
+    ELSE IF @systemRoleId IS NULL AND @customRoleId IS NOT NULL
+    BEGIN
+        -- Convert the custom role to system
+        SET @systemRoleId = @customRoleId;
+        UPDATE ims_roles
+        SET is_system_role = 1,
+            description = CASE
+                WHEN role_name = 'WING_STORE_KEEPER' THEN 'Wing Store Keeper - manage wing store operations'
+                ELSE 'Workflow approval role - ' + role_name
+            END
+        WHERE id = @systemRoleId;
+        PRINT '  ✅ Converted custom role to system: ' + @roleName;
+    END
+    ELSE
+    BEGIN
+        -- Both system and custom exist: migrate users and permissions, then delete custom
+        PRINT '  ⚠️ Found custom duplicate for ' + @roleName + ', merging into system role...';
+
+        UPDATE ur
+        SET role_id = @systemRoleId
+        FROM ims_user_roles ur
+        WHERE ur.role_id = @customRoleId
+          AND NOT EXISTS (
+              SELECT 1 FROM ims_user_roles existing
+              WHERE existing.user_id = ur.user_id
+                AND existing.role_id = @systemRoleId
+                AND existing.scope_type = ur.scope_type
+                AND ISNULL(existing.scope_office_id, 0) = ISNULL(ur.scope_office_id, 0)
+                AND ISNULL(existing.scope_wing_id, 0) = ISNULL(ur.scope_wing_id, 0)
+                AND ISNULL(existing.scope_branch_id, 0) = ISNULL(ur.scope_branch_id, 0)
+          );
+
+        PRINT '    ' + CAST(@@ROWCOUNT AS NVARCHAR) + ' user assignments migrated';
+
+        -- Move permissions that the system role does not already have
+        INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)
+        SELECT @systemRoleId, rp.permission_id, 'SYSTEM_RESEED'
+        FROM ims_role_permissions rp
+        WHERE rp.role_id = @customRoleId
+          AND NOT EXISTS (
+              SELECT 1 FROM ims_role_permissions existing
+              WHERE existing.role_id = @systemRoleId AND existing.permission_id = rp.permission_id
+          );
+
+        PRINT '    ' + CAST(@@ROWCOUNT AS NVARCHAR) + ' permissions migrated';
+
+        -- Delete remaining user/permission links and the custom role
+        DELETE FROM ims_user_roles WHERE role_id = @customRoleId;
+        DELETE FROM ims_role_permissions WHERE role_id = @customRoleId;
+        DELETE FROM ims_roles WHERE id = @customRoleId;
+
+        PRINT '    ✅ Removed custom duplicate: ' + @roleName;
+    END
+
+    -- Also delete any additional duplicates beyond the first custom one processed
+    DELETE FROM ims_user_roles WHERE role_id IN (
+        SELECT id FROM ims_roles WHERE role_name = @roleName AND id <> @systemRoleId
+    );
+    DELETE FROM ims_role_permissions WHERE role_id IN (
+        SELECT id FROM ims_roles WHERE role_name = @roleName AND id <> @systemRoleId
+    );
+    DELETE FROM ims_roles WHERE role_name = @roleName AND id <> @systemRoleId;
+
+    FETCH NEXT FROM role_cursor INTO @roleName;
+END
+
+CLOSE role_cursor;
+DEALLOCATE role_cursor;
+
+PRINT '';
+PRINT '✅ Duplicate/custom workflow role merge complete';
 GO
 
 -- =====================================================
--- 4. MERGE CUSTOM_WING_STORE_KEEPER INTO WING_STORE_KEEPER
+-- 3. MERGE CUSTOM_WING_STORE_KEEPER INTO WING_STORE_KEEPER
 -- =====================================================
 PRINT '';
-PRINT 'Step 4: Merging CUSTOM_WING_STORE_KEEPER into WING_STORE_KEEPER...';
+PRINT 'Step 3: Merging CUSTOM_WING_STORE_KEEPER into WING_STORE_KEEPER...';
 
 DECLARE @SystemWingStoreKeeperId UNIQUEIDENTIFIER;
 DECLARE @CustomWingStoreKeeperId UNIQUEIDENTIFIER;
@@ -123,7 +212,6 @@ END
 
 IF @CustomWingStoreKeeperId IS NOT NULL
 BEGIN
-    -- Move users from custom to system role (avoid duplicate scope assignments)
     UPDATE ur
     SET role_id = @SystemWingStoreKeeperId
     FROM ims_user_roles ur
@@ -140,13 +228,20 @@ BEGIN
 
     PRINT CAST(@@ROWCOUNT AS NVARCHAR) + ' user assignments migrated from CUSTOM_WING_STORE_KEEPER to WING_STORE_KEEPER';
 
-    -- Delete any remaining duplicate custom assignments
     DELETE FROM ims_user_roles WHERE role_id = @CustomWingStoreKeeperId;
 
-    -- Delete custom role permissions (cascade will handle FK)
-    DELETE FROM ims_role_permissions WHERE role_id = @CustomWingStoreKeeperId;
+    INSERT INTO ims_role_permissions (role_id, permission_id, granted_by)
+    SELECT @SystemWingStoreKeeperId, rp.permission_id, 'SYSTEM_RESEED'
+    FROM ims_role_permissions rp
+    WHERE rp.role_id = @CustomWingStoreKeeperId
+      AND NOT EXISTS (
+          SELECT 1 FROM ims_role_permissions existing
+          WHERE existing.role_id = @SystemWingStoreKeeperId AND existing.permission_id = rp.permission_id
+      );
 
-    -- Delete the custom role
+    PRINT CAST(@@ROWCOUNT AS NVARCHAR) + ' permissions migrated from CUSTOM_WING_STORE_KEEPER to WING_STORE_KEEPER';
+
+    DELETE FROM ims_role_permissions WHERE role_id = @CustomWingStoreKeeperId;
     DELETE FROM ims_roles WHERE id = @CustomWingStoreKeeperId;
 
     PRINT '✅ CUSTOM_WING_STORE_KEEPER role removed';
@@ -158,10 +253,10 @@ END
 GO
 
 -- =====================================================
--- 5. ASSIGN PERMISSIONS TO WORKFLOW ROLES
+-- 4. ASSIGN PERMISSIONS TO WORKFLOW ROLES
 -- =====================================================
 PRINT '';
-PRINT 'Step 5: Assigning permissions to workflow roles...';
+PRINT 'Step 4: Assigning permissions to workflow roles...';
 
 -- Helper: clear previous workflow role permissions to avoid stale grants
 DELETE FROM ims_role_permissions
@@ -230,7 +325,7 @@ PRINT '✅ Permissions assigned to workflow roles';
 GO
 
 -- =====================================================
--- 6. CLEANUP ANY OTHER UNWANTED CUSTOM ROLES
+-- 5. CLEANUP ANY OTHER UNWANTED CUSTOM ROLES
 -- =====================================================
 -- Uncomment and edit the block below if you have additional custom roles to remove.
 -- Make sure to migrate users first if the role has assignments.
@@ -249,7 +344,7 @@ END
 GO
 
 -- =====================================================
--- 7. VERIFICATION
+-- 6. VERIFICATION
 -- =====================================================
 PRINT '';
 PRINT '==================================================';
