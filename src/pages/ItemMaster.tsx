@@ -382,6 +382,61 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
     window.URL.revokeObjectURL(url);
   };
 
+  const exportToCSV = () => {
+    if (filteredItems.length === 0) {
+      alert('No items to export');
+      return;
+    }
+
+    const headers = [
+      'Item Code',
+      'Nomenclature',
+      'Manufacturer',
+      'Category',
+      'Sub-Category',
+      'Unit',
+      'Specifications',
+      'Description',
+      'Status',
+      'Minimum Stock Level',
+      'Maximum Stock Level',
+      'Reorder Level',
+      'Created At',
+      'Updated At'
+    ];
+
+    const rows = filteredItems.map(item => [
+      item.item_code,
+      item.nomenclature,
+      item.manufacturer || '',
+      item.category_name,
+      item.sub_category_name,
+      item.unit,
+      item.specifications || '',
+      item.description || '',
+      item.status,
+      item.minimum_stock_level?.toString() || '',
+      item.maximum_stock_level?.toString() || '',
+      item.reorder_level?.toString() || '',
+      item.created_at,
+      item.updated_at
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `item_masters_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   const closeUploadModal = () => {
     setShowUploadModal(false);
     setUploadFile(null);
@@ -533,6 +588,16 @@ ABC-002,Another Item,Brand X,Box,Technical specs here,Item description,Category2
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={exportToCSV}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center gap-2 transition-colors"
+              title="Export to Excel/CSV"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export Excel
+            </button>
             <PermissionGate permission="inventory.create">
               <button
                 onClick={() => setShowUploadModal(true)}
