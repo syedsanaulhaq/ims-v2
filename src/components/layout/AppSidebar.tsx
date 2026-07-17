@@ -187,7 +187,27 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   
   // Debug: Log user permissions
   useEffect(() => {
-    }, [user, hasStoreKeeperRole, hasBranchSupervisorRole, hasBranchStorekeeperRole]);
+    console.log('👤 AppSidebar - User data received:', {
+      user_id: user?.user_id,
+      user_name: user?.user_name,
+      ims_permissions: user?.ims_permissions?.length || 0,
+      ims_roles: user?.ims_roles?.length || 0,
+      is_super_admin: user?.is_super_admin,
+      permissionKeys: user?.ims_permissions?.map(p => p.permission_key) || [],
+      roleNames: user?.ims_roles?.map(r => r.role_name) || [],
+      wing_id: user?.wing_id,
+    });
+    
+    console.log('🔐 Permission Checks in AppSidebar:', {
+      canRequestIssuance: !!user?.ims_permissions?.some(p => p.permission_key === 'issuance.request'),
+      canApprove: !!user?.ims_permissions?.some(p => p.permission_key === 'approval.approve'),
+      isWingSupervisor: !!user?.ims_permissions?.some(p => p.permission_key === 'wing.supervisor'),
+      hasBranchSupervisorRole,
+      hasBranchStorekeeperRole,
+      hasStoreKeeperRole: hasStoreKeeperRole,
+      isSuperAdmin: user?.is_super_admin
+    });
+  }, [user, hasStoreKeeperRole, hasBranchSupervisorRole, hasBranchStorekeeperRole]);
 
   const handleLogout = async () => {
     try {
@@ -341,10 +361,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     label: "Approval Menu",
     icon: CheckCircle,
     items: [
-      { title: "Personal Requests", icon: User, path: "/dashboard/approval-dashboard-request-based-admin?scope=personal", permission: 'approval.approve' },
-      { title: "Branch Requests", icon: Building2, path: "/dashboard/approval-dashboard-request-based-admin?scope=branch", permission: 'approval.approve' },
-      { title: "Wing Requests", icon: Users, path: "/dashboard/approval-dashboard-request-based-admin?scope=wing", permission: 'approval.approve' },
-      { title: "Forwarded to Procurement", icon: ShoppingCart, path: "/procurement/forwarded-to-procurement", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
@@ -355,7 +371,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Shield,
     items: [
       { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard", permission: 'admin.super' },
-      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'admin.super' },
       { title: "Roles & Permissions", icon: Shield, path: "/settings/roles", permission: 'roles.manage' },
       { title: "User Management", icon: Users, path: "/settings/users", permission: 'users.assign_roles' },
       { title: "System Settings", icon: Settings, path: "/dashboard/inventory-settings", permission: 'admin.super' },

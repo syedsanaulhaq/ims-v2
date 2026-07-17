@@ -7,7 +7,6 @@ import { ArrowLeft, Clock, CheckCircle, XCircle, RefreshCw, User, Calendar, Pack
 import { format, isValid } from 'date-fns';
 import { sessionService } from '@/services/sessionService';
 import { getApiBaseUrl } from '@/services/invmisApi';
-import { getRequestTypeLabel } from '@/utils/requestTypeLabel';
 
 // Helper function to safely format dates
 const formatDate = (dateString: string | null | undefined, formatStr = 'MMM dd, yyyy', defaultText = 'N/A'): string => {
@@ -100,24 +99,6 @@ interface RequestDetails {
   approval_items: ApprovalItem[];
   approval_history: ApprovalHistoryItem[];
 }
-
-const normalizeRequestedQuantity = (item: any): number => {
-  const candidates = [
-    item?.requested_quantity,
-    item?.quantity,
-    item?.required_quantity,
-    item?.requestedQty
-  ];
-
-  for (const candidate of candidates) {
-    const numericValue = Number(candidate);
-    if (Number.isFinite(numericValue) && numericValue > 0) {
-      return numericValue;
-    }
-  }
-
-  return 1;
-};
 
 const RequestDetailsPage: React.FC = () => {
   const { requestId } = useParams<{ requestId: string }>();
@@ -243,7 +224,7 @@ const RequestDetailsPage: React.FC = () => {
                 id: item.id,
                 item_master_id: item.item_master_id,
                 item_name: item.nomenclature || item.custom_item_name || 'Unknown Item',
-                requested_quantity: normalizeRequestedQuantity(item),
+                requested_quantity: item.requested_quantity || 1,
                 approved_quantity: item.approved_quantity,
                 unit: item.unit || 'units',
                 specifications: '',
@@ -282,7 +263,7 @@ const RequestDetailsPage: React.FC = () => {
                     id: item.id,
                     item_master_id: item.item_master_id,
                     item_name: item.nomenclature || item.custom_item_name || item.item_name || 'Unknown Item',
-                    requested_quantity: normalizeRequestedQuantity(item),
+                    requested_quantity: item.requested_quantity || 1,
                     approved_quantity: item.approved_quantity,
                     unit: item.unit || 'units',
                     specifications: '',
@@ -292,7 +273,8 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              }
+              console.warn('Failed to fetch request group details:', err);
+            }
 
             try {
               const filters: { user_id?: string; wing_id?: string | number } = {};
@@ -315,7 +297,8 @@ const RequestDetailsPage: React.FC = () => {
                 });
               }
             } catch (err) {
-              }
+              console.warn('Failed to fetch last issued summary for request details:', err);
+            }
 
             // Try to load detailed request info (including approval history and supervisor) from stock-issuance/:id
             try {
@@ -345,7 +328,8 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              }
+              console.warn('Failed to fetch /api/stock-issuance/:id:', err);
+            }
             
             // If no approval history yet, try the request-details endpoint
             if (!mappedRequest.approval_history || mappedRequest.approval_history.length === 0) {
@@ -383,6 +367,7 @@ const RequestDetailsPage: React.FC = () => {
                   await loadApprovalHistory(foundRequest.id, mappedRequest);
                 }
               } catch (err) {
+                console.warn('Failed to fetch /api/request-details, falling back to approvals history', err);
                 await loadApprovalHistory(foundRequest.id, mappedRequest);
               }
             }
@@ -400,7 +385,8 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              }
+              console.log('Could not fetch approval items for request:', foundRequest.id);
+            }
 
             try {
               const lanesResp = await fetch(`${getApiBaseUrl()}/approvals/request/${foundRequest.id}/lanes`, {
@@ -414,7 +400,8 @@ const RequestDetailsPage: React.FC = () => {
                 }
               }
             } catch (err) {
-              }
+              console.warn('Could not fetch lane summary for request:', foundRequest.id, err);
+            }
             
             // Normalize approval history entries - preserve all fields
             mappedRequest.approval_history = (mappedRequest.approval_history || []).map((ah: any) => {
@@ -484,6 +471,7 @@ const RequestDetailsPage: React.FC = () => {
             }
           }
         } catch (err) {
+          console.warn('Failed to fetch approval history via /api/request-details:', err);
           // fallthrough to try legacy endpoint as a last resort
         }
       }
@@ -517,7 +505,8 @@ const RequestDetailsPage: React.FC = () => {
           }
         }
       } catch (error) {
-        }
+        console.log('Could not load approval history from legacy API, using minimal data', error);
+      }
 
       // If no real data available, just show the basic submission info
       const approvalHistory: ApprovalHistoryItem[] = [];
@@ -740,7 +729,9 @@ const RequestDetailsPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Request Type</label>
-                  <p className="text-gray-900 mt-1">{getRequestTypeLabel(request.request_type)}</p>
+                  <p className="text-gray-900 mt-1 capitalize">
+                    {request.request_type.replace('_', ' ')}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Requester</label>
@@ -787,11 +778,11 @@ const RequestDetailsPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="w-full border rounded-lg overflow-hidden">
-                <table className="w-full table-fixed text-sm">
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full min-w-[820px] text-sm">
                   <thead className="bg-gray-100 text-gray-700">
                     <tr>
-                      <th className="text-left px-3 py-2 w-[36%]">Item</th>
+                      <th className="text-left px-3 py-2">Item</th>
                       <th className="text-left px-3 py-2 w-40">Last Issued Qty</th>
                       <th className="text-left px-3 py-2 w-36">Last Issue Date</th>
                       <th className="text-left px-3 py-2 w-40">Fresh Requirement</th>
@@ -803,10 +794,10 @@ const RequestDetailsPage: React.FC = () => {
                       const approvalItem = request.approval_items.find(ai => ai.nomenclature === item.item_name);
                       return (
                         <tr key={index} className="border-t align-middle">
-                          <td className="px-3 py-2 align-top">
-                            <div className="font-medium text-gray-900 break-words">{item.item_name}</div>
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-gray-900">{item.item_name}</div>
                             {item.specifications && (
-                              <div className="text-xs text-gray-500 mt-1 break-words">{item.specifications}</div>
+                              <div className="text-xs text-gray-500 mt-1">{item.specifications}</div>
                             )}
                           </td>
                           <td className="px-3 py-2">{item.last_issued_quantity ?? 0}</td>
