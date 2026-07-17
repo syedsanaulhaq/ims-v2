@@ -34,13 +34,6 @@ interface ItemMaster {
   vUnitOfMeasure: string;
 }
 
-interface ScopedInventoryRow {
-  item_master_id?: number | string | null;
-  nomenclature?: string;
-  issued_quantity?: number;
-  current_return_status?: string;
-}
-
 const NewProcurementRequest: React.FC = () => {
     // Custom item state
     const [customItemName, setCustomItemName] = useState('');
@@ -51,7 +44,8 @@ const NewProcurementRequest: React.FC = () => {
   // Debug: log user object
   useEffect(() => {
     // eslint-disable-next-line no-console
-    }, [user]);
+    console.log('Session user:', user);
+  }, [user]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -69,107 +63,25 @@ const NewProcurementRequest: React.FC = () => {
   const [itemsLibrary, setItemsLibrary] = useState<ItemMaster[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showItemPicker, setShowItemPicker] = useState(false);
-  const [wingInventoryByItemId, setWingInventoryByItemId] = useState<Record<string, number>>({});
-  const [wingInventoryByName, setWingInventoryByName] = useState<Record<string, number>>({});
-
-  const resolvedWingId = (user as any)?.WingID || (user as any)?.wing_id || (user as any)?.intWingID || (user as any)?.WingId || null;
-  const resolvedWingName = (user as any)?.WingName || (user as any)?.wing_name || (user as any)?.wingName || '';
 
 
   useEffect(() => {
     fetchItemsLibrary();
     fetchWingsAndSetWingName();
-    fetchWingInventoryTotals();
-  }, [user]);
-
-  const getInventoryQtyBadgeClass = (qty: number) => {
-    if (qty <= 0) return 'text-red-700 bg-red-50 border border-red-200';
-    if (qty <= 5) return 'text-amber-700 bg-amber-50 border border-amber-200';
-    return 'text-green-700 bg-green-50 border border-green-200';
-  };
-
-  const getWingInventoryQty = (item: { id?: number | string; item_master_id?: number | string; item_nomenclature?: string; vItemNomenclature?: string; }) => {
-    const idCandidates = [item.item_master_id, item.id]
-      .filter((id) => id !== undefined && id !== null && String(id) !== '')
-      .map((id) => String(id));
-
-    for (const key of idCandidates) {
-      const value = wingInventoryByItemId[key];
-      if (value !== undefined) return value;
-    }
-
-    const nameKey = String(item.item_nomenclature || item.vItemNomenclature || '').trim().toLowerCase();
-    if (!nameKey) return 0;
-    return Number(wingInventoryByName[nameKey] || 0);
-  };
-
-  const fetchWingInventoryTotals = async () => {
-    try {
-      const wingId = resolvedWingId;
-      if (!wingId) {
-        setWingInventoryByItemId({});
-        setWingInventoryByName({});
-        return;
-      }
-
-      const response = await fetch(`${getApiBaseUrl()}/api/wing-inventory/${wingId}`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        setWingInventoryByItemId({});
-        setWingInventoryByName({});
-        return;
-      }
-
-      const data = await response.json();
-      const rows: ScopedInventoryRow[] = Array.isArray(data?.items) ? data.items : [];
-      const byItemId: Record<string, number> = {};
-      const byName: Record<string, number> = {};
-
-      rows
-        .filter((row) => String(row.current_return_status || '').toLowerCase() !== 'returned')
-        .forEach((row) => {
-          const qty = Number(row.issued_quantity || 0);
-          if (!qty) return;
-
-          if (row.item_master_id !== undefined && row.item_master_id !== null && String(row.item_master_id) !== '') {
-            const key = String(row.item_master_id);
-            byItemId[key] = Number(byItemId[key] || 0) + qty;
-          }
-
-          const nameKey = String(row.nomenclature || '').trim().toLowerCase();
-          if (nameKey) {
-            byName[nameKey] = Number(byName[nameKey] || 0) + qty;
-          }
-        });
-
-      setWingInventoryByItemId(byItemId);
-      setWingInventoryByName(byName);
-    } catch (err) {
-      console.error('Error loading wing inventory totals:', err);
-      setWingInventoryByItemId({});
-      setWingInventoryByName({});
-    }
-  };
+  }, []);
 
   const fetchWingsAndSetWingName = async () => {
     try {
-      if (resolvedWingName) {
-        setWingName(String(resolvedWingName));
-      }
-
       const wingsData = await erpDatabaseService.getActiveWings();
       setWings(wingsData);
       // Debug: log wings data
       // eslint-disable-next-line no-console
+      console.log('Wings data:', wingsData);
       // Try multiple possible user wing fields
-      const wingId = resolvedWingId;
+      const wingId = user?.intWingID || user?.wing_id || user?.WingID;
       if (wingId) {
-        if (!resolvedWingName) {
-          const foundWing = wingsData.find((w: any) => Number(w.Id || w.id) === Number(wingId));
-          setWingName(foundWing ? foundWing.Name || foundWing.name : 'Unknown Wing');
-        }
+        const foundWing = wingsData.find((w: any) => w.Id === wingId || w.id === wingId);
+        setWingName(foundWing ? foundWing.Name || foundWing.name : 'Unknown Wing');
       } else {
         setWingName('Unknown Wing');
         setWingsError('No wing ID found in user session.');
@@ -200,6 +112,7 @@ const NewProcurementRequest: React.FC = () => {
           vUnitOfMeasure: item.unit
         }));
         // eslint-disable-next-line no-console
+        console.log('Items library:', mappedItems);
         setItemsLibrary(mappedItems);
         if (!mappedItems || mappedItems.length === 0) {
           setItemsError('No items found in the items library.');
@@ -275,10 +188,10 @@ const NewProcurementRequest: React.FC = () => {
       }
 
       // Get wing ID from user
-      const wingId = resolvedWingId;
+      const wingId = user?.intWingID || user?.wing_id || user?.WingID;
 
       // Generate request number from the current wing name, e.g. Project Management Unit -> PMU-1234567890
-      const requestNumber = generateScopedRequestNumber(wingName || resolvedWingName, 'WING');
+      const requestNumber = generateScopedRequestNumber(wingName || (user as any)?.wing_name, 'WING');
 
       // Create the stock issuance request first
       const requestPayload = {
@@ -314,6 +227,8 @@ const NewProcurementRequest: React.FC = () => {
         throw new Error('No request ID returned from server');
       }
 
+      console.log('✅ Request created with ID:', requestId);
+
       // Now add items to the request - send all items in one request
       if (selectedItems.length > 0) {
         const itemsPayload = {
@@ -337,8 +252,10 @@ const NewProcurementRequest: React.FC = () => {
 
         if (!itemResponse.ok) {
           const errorData = await itemResponse.json();
-          } else {
-          }
+          console.warn('⚠️ Failed to add items:', errorData);
+        } else {
+          console.log('✅ Items added successfully');
+        }
       }
 
       setSuccess('Wing request submitted successfully!');
@@ -430,10 +347,6 @@ const NewProcurementRequest: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-700">Wing:</span>
                       <span className="text-gray-900">{wingName || 'Not available'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-700">Wing ID:</span>
-                      <span className="text-gray-900">{resolvedWingId || 'Not available'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-700">Requested By:</span>
@@ -530,9 +443,6 @@ const NewProcurementRequest: React.FC = () => {
                             <div className="font-medium text-sm">{item.vItemNomenclature}</div>
                             <div className="text-xs text-gray-600 line-clamp-2">
                               Unit: {item.vUnitOfMeasure || 'N/A'}
-                            </div>
-                            <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getWingInventoryQty(item))}`}>
-                              Wing Inventory Qty: {getWingInventoryQty(item)}
                             </div>
                           </div>
                           <Button
@@ -663,11 +573,6 @@ const NewProcurementRequest: React.FC = () => {
                               <div className="text-xs text-gray-500">
                                 {item.item_master_id.toString().startsWith('custom_') ? 'Custom item' : 'Standard item'}
                               </div>
-                              {!item.item_master_id.toString().startsWith('custom_') && (
-                                <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getWingInventoryQty(item))}`}>
-                                  Wing Inventory Qty: {getWingInventoryQty(item)}
-                                </div>
-                              )}
                             </td>
                             <td className="px-3 py-2">{item.unit_of_measurement || '-'}</td>
                             <td className="px-3 py-2">
