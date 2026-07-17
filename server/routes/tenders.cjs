@@ -140,6 +140,10 @@ router.post('/', upload.fields([
         let itemVendorId = null;
         if (tender_type === 'annual-tender') {
           itemVendorId = item.vendor_id || null;
+          // Annual tender is a rate contract: items carry only price, not quantity.
+          // Force these values into the insert because the NOT NULL column requires a quantity.
+          item.quantity = 1;
+          item.total_amount = item.estimated_unit_price || 0;
         } else if (['contract', 'spot-purchase'].includes(tender_type)) {
           itemVendorId = awardedVendorId || item.vendor_id;
         }
@@ -157,6 +161,11 @@ router.post('/', upload.fields([
         ];
 
         for (const field of itemFields) {
+          // For annual tenders, always include quantity and total_amount even if
+          // the frontend omitted them, because tender_items.quantity is NOT NULL.
+          if (tender_type === 'annual-tender' && (field === 'quantity' || field === 'total_amount')) {
+            item[field] = field === 'quantity' ? 1 : (item.estimated_unit_price || 0);
+          }
           if (item[field] !== undefined) {
             itemInsertQuery += `, ${field}`;
             itemValuesQuery += `, @${field}`;
@@ -625,6 +634,9 @@ router.put('/:id', async (req, res) => {
           if (tender_type === 'annual-tender') {
             const vendorFromList = Array.isArray(item.vendor_ids) ? item.vendor_ids[0] : null;
             itemVendorId = item.vendor_id || vendorFromList || null;
+            // Annual tender is a rate contract: items carry only price, not quantity.
+            item.quantity = 1;
+            item.total_amount = item.estimated_unit_price || 0;
           } else if (['contract', 'spot-purchase'].includes(tender_type)) {
             itemVendorId = awardedVendorId || item.vendor_id || null;
           }
