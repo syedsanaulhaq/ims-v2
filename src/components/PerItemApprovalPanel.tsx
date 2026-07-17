@@ -653,7 +653,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // Also include forwarded states because these are still pending decisions for current approver stage.
     if (activeFilter === 'pending') {
       return request.items.filter((item: any) => 
-        ['', 'PENDING', 'FORWARD_TO_ADMIN', 'FORWARD_TO_SUPERVISOR'].includes(
+        ['', 'PENDING', 'FORWARD_TO_ADMIN', 'FORWARD_TO_SUPERVISOR', 'FORWARD_TO_PROCUREMENT'].includes(
           normalizeDecisionType(item.decision_type)
         )
       );

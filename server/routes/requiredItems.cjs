@@ -18,58 +18,6 @@ const requireAuth = (req, res, next) => {
 };
 
 // ============================================================================
-// Procurement type recommendation helper
-// ============================================================================
-const ANNUAL_KEYWORDS = ['stationery', 'office supplies', 'consumable', 'toner', 'cartridge', 'paper', 'print', 'cleaning', 'safety equipment', 'uniform'];
-const SPOT_KEYWORDS = ['repair', 'spare part', 'maintenance', 'service', 'minor'];
-
-function recommendProcurementType(item) {
-  // Explicit override if already set and valid
-  const existing = item.recommended_procurement_type;
-  if (existing && ['annual-tender', 'contract', 'spot-purchase'].includes(existing)) {
-    return existing;
-  }
-
-  const category = (item.category_name || '').toLowerCase();
-  const nomenclature = (item.nomenclature || '').toLowerCase();
-  const estimatedValue = Number(item.estimated_value || 0);
-  const quantity = Number(item.quantity_needed || 1);
-
-  // Rule 1: Urgent, low-quantity, low-value → Spot Purchase
-  if (item.urgency_level === 'Urgent' && (estimatedValue > 0 && estimatedValue <= 100000) && quantity <= 5) {
-    return 'spot-purchase';
-  }
-  if (item.urgency_level === 'Urgent' && SPOT_KEYWORDS.some(k => nomenclature.includes(k) || category.includes(k))) {
-    return 'spot-purchase';
-  }
-
-  // Rule 2: Recurring / bulk consumable categories → Annual Tender
-  if (ANNUAL_KEYWORDS.some(k => category.includes(k) || nomenclature.includes(k))) {
-    return 'annual-tender';
-  }
-  if (quantity >= 50 && estimatedValue >= 500000) {
-    return 'annual-tender';
-  }
-
-  // Rule 3: High-value one-time → Contract
-  if (estimatedValue > 500000) {
-    return 'contract';
-  }
-
-  // Default: contract for most stock requests
-  return 'contract';
-}
-
-function tenderTypeMatchesRecommendation(tenderType, recommendation) {
-  const map = {
-    'annual-tender': 'annual-tender',
-    'contract': 'contract',
-    'spot-purchase': 'spot-purchase'
-  };
-  return map[tenderType] === recommendation;
-}
-
-// ============================================================================
 // GET /api/required-items - List required items with filters
 // ============================================================================
 router.get('/', requireAuth, async (req, res) => {
@@ -109,35 +57,17 @@ router.get('/', requireAuth, async (req, res) => {
         ri.tender_id,
         ri.tender_type,
         ri.tender_reference,
-        ri.recommended_procurement_type,
-        ri.estimated_value,
-        ri.category_id,
         ri.notes,
         ri.created_at,
         ri.item_master_id,
         im.item_code,
+        im.category_id,
         c.category_name,
-        u.FullName AS created_by_name,
-        sir.requester_user_id,
-        sir.requester_wing_id,
-        sir.requester_office_id,
-        sir.requester_branch_id,
-        sir.request_type,
-        reqUser.FullName AS requester_name,
-        eb_req.Name AS employee_view_requester_name,
-        eb_branch.BranchName AS employee_view_branch_name,
-        w.Name AS requester_wing_name,
-        o.strOfficeName AS requester_office_name
+        u.FullName AS created_by_name
       FROM required_items ri
       LEFT JOIN item_masters im ON ri.item_master_id = im.id
       LEFT JOIN categories c ON im.category_id = c.id
       LEFT JOIN AspNetUsers u ON ri.created_by = u.Id
-      LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
-      LEFT JOIN AspNetUsers reqUser ON sir.requester_user_id = reqUser.Id
-      LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
-      LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
-      LEFT JOIN vw_employee_branch eb_req ON CONVERT(NVARCHAR(450), eb_req.Id) = CONVERT(NVARCHAR(450), sir.requester_user_id)
-      LEFT JOIN vw_employee_branch eb_branch ON CONVERT(NVARCHAR(100), eb_branch.BranchID) = CONVERT(NVARCHAR(100), sir.requester_branch_id)
       ${whereClause}
       ORDER BY
         CASE ri.urgency_level
@@ -205,13 +135,7 @@ router.get('/summary', requireAuth, async (req, res) => {
         SUM(ri.quantity_needed) DESC
     `);
 
-    // Compute recommended procurement type for each row
-    const data = result.recordset.map(row => ({
-      ...row,
-      recommended_procurement_type: recommendProcurementType(row)
-    }));
-
-    res.json({ success: true, data });
+    res.json({ success: true, data: result.recordset });
   } catch (error) {
     console.error('❌ Error fetching required items summary:', error);
     res.status(500).json({ error: 'Failed to fetch summary', details: error.message });
@@ -269,24 +193,6 @@ router.post('/link-tender', requireAuth, async (req, res) => {
 
     const tender = tenderCheck.recordset[0];
     const tenderRef = tender_reference || tender.reference_number || tender.title;
-
-    // Validate that tender type matches each item's recommendation
-    // We warn instead of blocking to allow intentional overrides.
-    const mismatches = [];
-    const poolReq = pool.request();
-    for (const itemId of item_ids) {
-      const itemCheck = await poolReq
-        .input('checkId', sql.UniqueIdentifier, itemId)
-        .query(`SELECT id, nomenclature, recommended_procurement_type, estimated_value, quantity_needed, urgency_level
-                FROM required_items WHERE id = @checkId AND is_deleted = 0`);
-      const itemRow = itemCheck.recordset[0];
-      if (!itemRow) continue;
-      const recommendation = recommendProcurementType(itemRow);
-      if (!tenderTypeMatchesRecommendation(tender_type, recommendation)) {
-        mismatches.push({ item: itemRow.nomenclature, recommendation, tender_type });
-      }
-    }
-
     await transaction.begin();
 
     const demandItems = [];
@@ -383,75 +289,12 @@ router.post('/link-tender', requireAuth, async (req, res) => {
       message: `${item_ids.length} item(s) linked to tender "${tenderRef}"`,
       tender_id,
       linked_count: demandItems.length,
-      tender_item_count: groupedDemand.size,
-      procurement_mismatch_warning: mismatches.length > 0 ? mismatches : undefined
+      tender_item_count: groupedDemand.size
     });
   } catch (error) {
     try { await transaction.rollback(); } catch (_) {}
     console.error('❌ Error linking items to tender:', error);
     res.status(500).json({ error: 'Failed to link items to tender', details: error.message });
-  }
-});
-
-// ============================================================================
-// POST /api/required-items/attach-tender
-// Called after a brand-new tender is created: links required items to that tender.
-// Body: { item_ids: string[], tender_id: string, tender_type: string, tender_reference?: string }
-// ============================================================================
-router.post('/attach-tender', requireAuth, async (req, res) => {
-  const pool = getPool();
-  const transaction = new sql.Transaction(pool);
-
-  try {
-    const { item_ids, tender_id, tender_type, tender_reference } = req.body;
-
-    if (!item_ids?.length || !tender_id || !tender_type) {
-      return res.status(400).json({ error: 'item_ids, tender_id, and tender_type are required' });
-    }
-
-    const tenderCheck = await pool.request()
-      .input('tenderId', sql.UniqueIdentifier, tender_id)
-      .query(`SELECT id, title, reference_number FROM tenders WHERE id = @tenderId AND is_deleted = 0`);
-
-    if (tenderCheck.recordset.length === 0) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-
-    const tender = tenderCheck.recordset[0];
-    const tenderRef = tender_reference || tender.reference_number || tender.title;
-
-    await transaction.begin();
-
-    for (const itemId of item_ids) {
-      const itemResult = await transaction.request()
-        .input('id', sql.UniqueIdentifier, itemId)
-        .query(`SELECT id, item_master_id, nomenclature, quantity_needed, unit, notes
-                FROM required_items
-                WHERE id = @id AND is_deleted = 0 AND status = 'Pending'`);
-
-      const requiredItem = itemResult.recordset[0];
-      if (!requiredItem) continue;
-
-      await transaction.request()
-        .input('id', sql.UniqueIdentifier, itemId)
-        .input('tenderId', sql.UniqueIdentifier, tender_id)
-        .input('tenderType', sql.NVarChar, tender_type)
-        .input('tenderRef', sql.NVarChar, tenderRef)
-        .query(`UPDATE required_items
-                SET status = 'In Tender',
-                    tender_id = @tenderId,
-                    tender_type = @tenderType,
-                    tender_reference = @tenderRef,
-                    updated_at = GETDATE()
-                WHERE id = @id AND is_deleted = 0`);
-    }
-
-    await transaction.commit();
-    res.json({ success: true, message: `${item_ids.length} item(s) attached to new tender "${tenderRef}"`, tender_id });
-  } catch (error) {
-    try { await transaction.rollback(); } catch (_) {}
-    console.error('❌ Error attaching required items to tender:', error);
-    res.status(500).json({ error: 'Failed to attach items to tender', details: error.message });
   }
 });
 
@@ -503,232 +346,6 @@ router.put('/:id/mark-procured', requireAuth, async (req, res) => {
     res.json({ success: true, message: 'Item marked as procured' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to mark as procured', details: error.message });
-  }
-});
-
-// ============================================================================
-// GET /api/required-items/forwarded - List stock issuance requests that have
-// been forwarded to procurement (grouped by source request)
-// Query: status, wing_id, limit, offset
-//
-// Visibility:
-//   - procurement managers see all forwarded requests
-//   - other users see only requests they are allowed to track:
-//       * requests they personally forwarded, OR
-//       * requests where they are the original requester
-// ============================================================================
-router.get('/forwarded', requireAuth, async (req, res) => {
-  try {
-    const pool = getPool();
-    const { status = 'all', wing_id, limit = 50, offset = 0 } = req.query;
-    const userId = req.session.userId;
-    const isProcurementManager = req.session.user?.ims_permissions?.some(
-      p => p.permission_key === 'procurement.manage'
-    );
-    const roleNames = (req.session.user?.ims_roles || []).map(r => String(r.role_name || '').toUpperCase());
-    const isApprover = roleNames.some(role =>
-      role === 'DG ADMIN' ||
-      role === 'AD ADMIN-I' ||
-      role === 'AD ADMIN-II' ||
-      role === 'DD ADMIN' ||
-      role === 'BRANCH SUPERVISOR' ||
-      role === 'BRANCH_SUPERVISOR' ||
-      role === 'STOREKEEPER' ||
-      role === 'WING_STORE_KEEPER' ||
-      role === 'BRANCH_STORE_KEEPER' ||
-      role === 'CUSTOM_WING_STORE_KEEPER' ||
-      role === 'CUSTOM_BRANCH_STORE_KEEPER' ||
-      role === 'ADMINISTRATOR' ||
-      role === 'IMS_ADMIN'
-    );
-    const canViewAll = isProcurementManager || isApprover;
-
-    const hasWingFilter = wing_id && !isNaN(parseInt(wing_id));
-
-    // Build base WHERE clause for required_items
-    let baseWhere = `ri.is_deleted = 0 AND ri.source_request_id IS NOT NULL`;
-    if (!canViewAll) {
-      baseWhere += ` AND (ri.created_by = @userId OR sir.requester_user_id = @userId)`;
-    }
-    if (status && status !== 'all') {
-      baseWhere += ` AND ri.status = @status`;
-    }
-    if (hasWingFilter) {
-      baseWhere += ` AND ri.requested_by_wing_id = @wing_id`;
-    }
-    // Only include requests that were actually forwarded to procurement
-    baseWhere += ` AND ra.current_status = 'forwarded_to_procurement'`;
-
-    // Helper to apply common inputs to a request
-    const applyInputs = (request) => {
-      request.input('limit', sql.Int, parseInt(limit));
-      request.input('offset', sql.Int, parseInt(offset));
-      request.input('status', sql.NVarChar, status || 'all');
-      request.input('wing_id', sql.Int, wing_id && !isNaN(parseInt(wing_id)) ? parseInt(wing_id) : null);
-      if (!canViewAll) {
-        request.input('userId', sql.NVarChar(450), userId);
-      }
-      return request;
-    };
-
-    // Count distinct source requests
-    const countResult = await applyInputs(pool.request()).query(`
-      SELECT COUNT(DISTINCT ri.source_request_id) AS total
-      FROM required_items ri
-      LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
-      LEFT JOIN request_approvals ra ON sir.id = ra.request_id
-      WHERE ${baseWhere}
-    `);
-
-    // Status stats for forwarded procurement items
-    const statsResult = await applyInputs(pool.request()).query(`
-      SELECT
-        ri.status,
-        COUNT(DISTINCT ri.source_request_id) AS request_count,
-        COUNT(ri.id) AS item_count,
-        SUM(ri.quantity_needed) AS total_qty
-      FROM required_items ri
-      LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
-      LEFT JOIN request_approvals ra ON sir.id = ra.request_id
-      WHERE ${baseWhere}
-      GROUP BY ri.status
-    `);
-
-    const stats = {
-      total_requests: countResult.recordset[0]?.total || 0,
-      total_items: 0,
-      Pending: 0,
-      'In Tender': 0,
-      Procured: 0,
-      Cancelled: 0,
-      Planned: 0
-    };
-
-    statsResult.recordset.forEach(row => {
-      stats.total_items += Number(row.item_count || 0);
-      if (row.status in stats) {
-        stats[row.status] = Number(row.request_count || 0);
-      }
-    });
-
-    // Paginated request headers
-    const headerReq = applyInputs(pool.request());
-
-    const headerResult = await headerReq.query(`
-      WITH DistinctRequests AS (
-        SELECT DISTINCT ri.source_request_id
-        FROM required_items ri
-        LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
-        LEFT JOIN request_approvals ra ON sir.id = ra.request_id
-        WHERE ${baseWhere}
-      ),
-      RankedRequests AS (
-        SELECT
-          dr.source_request_id,
-          MIN(ri.created_at) AS forwarded_at,
-          ROW_NUMBER() OVER (ORDER BY MIN(ri.created_at) DESC) AS rn
-        FROM DistinctRequests dr
-        INNER JOIN required_items ri ON dr.source_request_id = ri.source_request_id
-        INNER JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
-        INNER JOIN request_approvals ra ON sir.id = ra.request_id
-        WHERE ri.is_deleted = 0
-          ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
-          AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
-          AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
-          AND ra.current_status = 'forwarded_to_procurement'
-        GROUP BY dr.source_request_id
-      )
-      SELECT
-        sir.id AS source_request_id,
-        sir.request_number AS source_request_number,
-        sir.request_type,
-        sir.urgency_level,
-        sir.purpose,
-        sir.submitted_at,
-        u.FullName AS requester_name,
-        w.Name AS wing_name,
-        o.strOfficeName AS office_name,
-        ra.current_status AS approval_status,
-        rr.forwarded_at,
-        COUNT(ri.id) AS item_count
-      FROM RankedRequests rr
-      LEFT JOIN stock_issuance_requests sir ON rr.source_request_id = sir.id
-      LEFT JOIN request_approvals ra ON sir.id = ra.request_id
-      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
-      LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
-      LEFT JOIN required_items ri ON rr.source_request_id = ri.source_request_id
-        AND ri.is_deleted = 0
-        ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
-        AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
-        AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
-      WHERE rr.rn > @offset AND rr.rn <= (@offset + @limit)
-      GROUP BY
-        sir.id, sir.request_number, sir.request_type, sir.urgency_level, sir.purpose,
-        sir.submitted_at, u.FullName, w.Name, o.strOfficeName,
-        ra.current_status, rr.forwarded_at
-      ORDER BY rr.forwarded_at DESC
-    `);
-
-    const requests = headerResult.recordset;
-
-    if (requests.length > 0) {
-      const sourceIds = requests.map(r => r.source_request_id);
-
-      // Build parameterized IN clause
-      const params = sourceIds.map((id, index) => ({ name: `id${index}`, value: id }));
-      const inClause = params.map(p => `@${p.name}`).join(',');
-
-      const itemReq = applyInputs(pool.request());
-      params.forEach(p => itemReq.input(p.name, sql.UniqueIdentifier, p.value));
-
-      const itemResult = await itemReq.query(`
-        SELECT
-          ri.id,
-          ri.nomenclature,
-          ri.quantity_needed,
-          ri.unit,
-          ri.status,
-          ri.source_request_id,
-          ri.tender_id,
-          ri.tender_type,
-          ri.tender_reference,
-          ri.notes,
-          ri.created_at,
-          im.item_code
-        FROM required_items ri
-        LEFT JOIN stock_issuance_requests sir ON ri.source_request_id = sir.id
-        LEFT JOIN item_masters im ON ri.item_master_id = im.id
-        WHERE ri.is_deleted = 0
-          AND ri.source_request_id IN (${inClause})
-          ${!canViewAll ? `AND (ri.created_by = @userId OR sir.requester_user_id = @userId)` : ''}
-          AND (@status IS NULL OR @status = 'all' OR ri.status = @status)
-          AND (@wing_id IS NULL OR ri.requested_by_wing_id = @wing_id)
-          AND (@status IS NULL OR @status = 'all' OR sir.id IS NOT NULL)
-        ORDER BY ri.created_at DESC
-      `);
-
-      const itemsByRequest = new Map();
-      itemResult.recordset.forEach(item => {
-        const list = itemsByRequest.get(item.source_request_id) || [];
-        list.push(item);
-        itemsByRequest.set(item.source_request_id, list);
-      });
-
-      requests.forEach(req => {
-        req.items = itemsByRequest.get(req.source_request_id) || [];
-      });
-    }
-
-    res.json({
-      success: true,
-      data: requests,
-      total: stats.total_requests,
-      stats
-    });
-  } catch (error) {
-    console.error('❌ Error fetching forwarded procurement requests:', error);
-    res.status(500).json({ error: 'Failed to fetch forwarded procurement requests', details: error.message });
   }
 });
 

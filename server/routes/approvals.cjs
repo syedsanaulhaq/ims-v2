@@ -111,7 +111,7 @@ const deriveParentLaneStatus = (lanes = []) => {
   return 'pending';
 };
 
-const createBranchDemandForForwardedShortages = async (transaction, approvalId, userId) => {
+const createBranchDemandForForwardedShortages = async (transaction, approvalId, userId, pool) => {
   const shortageResult = await transaction.request()
     .input('approvalId', sql.UniqueIdentifier, approvalId)
     .query(`
@@ -135,7 +135,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
         u.FullName AS requester_name,
         w.Name AS wing_name,
         o.strOfficeName AS office_name,
-        b.branch_name AS branch_name
+        CAST(sir.requester_branch_id AS NVARCHAR(200)) AS branch_name
       FROM request_approvals ra
       INNER JOIN stock_issuance_requests sir ON sir.id = ra.request_id
       INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
@@ -143,7 +143,6 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
       LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
       LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
       LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
-      LEFT JOIN branches b ON sir.requester_branch_id = b.id
       WHERE ra.id = @approvalId
         AND sir.request_type = 'branch'
         AND ai.decision_type = 'FORWARD_TO_ADMIN'
@@ -221,7 +220,7 @@ const createBranchDemandForForwardedShortages = async (transaction, approvalId, 
   return shortageResult.recordset?.length || 0;
 };
 
-const createProcurementRequestFromApproval = async (transaction, approvalId, userId) => {
+const createProcurementRequestFromApproval = async (transaction, approvalId, userId, pool) => {
   const procurementResult = await transaction.request()
     .input('approvalId', sql.UniqueIdentifier, approvalId)
     .query(`
@@ -241,7 +240,7 @@ const createProcurementRequestFromApproval = async (transaction, approvalId, use
         u.FullName AS requester_name,
         w.Name AS wing_name,
         o.strOfficeName AS office_name,
-        b.branch_name AS branch_name
+        CAST(sir.requester_branch_id AS NVARCHAR(200)) AS branch_name
       FROM request_approvals ra
       INNER JOIN stock_issuance_requests sir ON sir.id = ra.request_id
       INNER JOIN approval_items ai ON ai.request_approval_id = ra.id
@@ -249,7 +248,6 @@ const createProcurementRequestFromApproval = async (transaction, approvalId, use
       LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
       LEFT JOIN WingsInformation w ON CONVERT(NVARCHAR(100), sir.requester_wing_id) = CONVERT(NVARCHAR(100), w.Id)
       LEFT JOIN tblOffices o ON CONVERT(NVARCHAR(100), sir.requester_office_id) = CONVERT(NVARCHAR(100), o.intOfficeID)
-      LEFT JOIN branches b ON sir.requester_branch_id = b.id
       WHERE ra.id = @approvalId
         AND ai.decision_type = 'FORWARD_TO_PROCUREMENT'
         AND ISNULL(ai.requested_quantity, 0) > 0
@@ -2206,11 +2204,11 @@ router.post('/:approvalId/approve', async (req, res) => {
       }
 
       if (hasForwardToAdmin) {
-        await createBranchDemandForForwardedShortages(transaction, approvalId, userId);
+        await createBranchDemandForForwardedShortages(transaction, approvalId, userId, pool);
       }
 
       if (hasForwardToProcurement) {
-        await createProcurementRequestFromApproval(transaction, approvalId, userId);
+        await createProcurementRequestFromApproval(transaction, approvalId, userId, pool);
       }
 
       // Add history entry

@@ -4,6 +4,8 @@
 // This file orchestrates the Express app and all middleware/routes
 // All business logic is split into separate modules for maintainability
 
+console.log('🚀 server/index.cjs starting...');
+
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
@@ -124,15 +126,24 @@ async function startServer() {
   try {
     // Initialize database connection
     await initializePool();
-    
+
     // Start listening
     app.listen(config.PORT, () => {
-      });
+      console.log(`✅ Server listening on port ${config.PORT}`);
+    });
   } catch (err) {
     console.error('❌ Failed to start server:', err);
     process.exit(1);
   }
 }
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
 
 // Start the server
 startServer();

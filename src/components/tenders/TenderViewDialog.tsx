@@ -83,9 +83,13 @@ const TenderViewDialog: React.FC<TenderViewDialogProps> = ({ tender, open, onClo
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">#</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Nomenclature</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Quantity</th>
+                    {tender.type !== 'annual-tender' && (
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Quantity</th>
+                    )}
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Unit Price</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Total</th>
+                    {tender.type !== 'annual-tender' && (
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Total</th>
+                    )}
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Remarks</th>
                   </tr>
                 </thead>
@@ -95,14 +99,18 @@ const TenderViewDialog: React.FC<TenderViewDialogProps> = ({ tender, open, onClo
                       <tr key={item.id} className="border-b last:border-b-0">
                         <td className="px-3 py-2 text-xs">{idx + 1}</td>
                         <td className="px-3 py-2 text-sm">{item.nomenclature}</td>
-                        <td className="px-3 py-2 text-sm">{item.quantity}</td>
+                        {tender.type !== 'annual-tender' && (
+                          <td className="px-3 py-2 text-sm">{item.quantity}</td>
+                        )}
                         <td className="px-3 py-2 text-sm">Rs. {item.estimatedUnitPrice?.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-sm">Rs. {(item.quantity * item.estimatedUnitPrice)?.toLocaleString()}</td>
+                        {tender.type !== 'annual-tender' && (
+                          <td className="px-3 py-2 text-sm">Rs. {(item.quantity * item.estimatedUnitPrice)?.toLocaleString()}</td>
+                        )}
                         <td className="px-3 py-2 text-xs">{item.remarks || '-'}</td>
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={6} className="text-center text-xs py-4">No items</td></tr>
+                    <tr><td colSpan={tender.type === 'annual-tender' ? 4 : 6} className="text-center text-xs py-4">No items</td></tr>
                   )}
                 </tbody>
               </table>
