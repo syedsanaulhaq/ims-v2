@@ -1080,27 +1080,34 @@ router.get('/request/:requestId', async (req, res) => {
         }
 
         if (tableFlags.has_stock_admin) {
-          // Admin/main inventory should match the inventory dashboard, which sums
-          // stock_acquisitions.quantity_available. Fall back to stock_admin only
-          // for legacy data with no acquisition rows.
-          const adminStock = await pool.request()
+          // Admin/main inventory uses current_inventory_stock as the primary
+          // system-wide stock balance (same source the inventory dashboard uses).
+          // Fall back to stock_acquisitions and then stock_admin for legacy data.
+          const cisStock = await pool.request()
             .input('itemId', sql.UniqueIdentifier, item.item_master_id)
-            .query(`
-              SELECT ISNULL(SUM(quantity_available), 0) AS available_quantity
-              FROM stock_acquisitions
-              WHERE item_master_id = @itemId
-                AND (is_deleted = 0 OR is_deleted IS NULL)
-            `);
-          let acqAvailable = Number(adminStock.recordset[0]?.available_quantity || 0);
+            .query(`SELECT TOP 1 current_quantity FROM current_inventory_stock WHERE item_master_id = @itemId`);
+          let mainAvailable = Number(cisStock.recordset[0]?.current_quantity || 0);
 
-          if (acqAvailable === 0) {
+          if (mainAvailable === 0) {
+            const acqStock = await pool.request()
+              .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+              .query(`
+                SELECT ISNULL(SUM(quantity_available), 0) AS available_quantity
+                FROM stock_acquisitions
+                WHERE item_master_id = @itemId
+                  AND (is_deleted = 0 OR is_deleted IS NULL)
+              `);
+            mainAvailable = Number(acqStock.recordset[0]?.available_quantity || 0);
+          }
+
+          if (mainAvailable === 0) {
             const legacyStock = await pool.request()
               .input('itemId', sql.UniqueIdentifier, item.item_master_id)
               .query(`SELECT TOP 1 available_quantity FROM stock_admin WHERE item_master_id = @itemId`);
-            acqAvailable = Number(legacyStock.recordset[0]?.available_quantity || 0);
+            mainAvailable = Number(legacyStock.recordset[0]?.available_quantity || 0);
           }
 
-          adminAvailable = acqAvailable;
+          adminAvailable = mainAvailable;
         }
 
         // Fallback for environments without stock_wing/stock_admin tables.
