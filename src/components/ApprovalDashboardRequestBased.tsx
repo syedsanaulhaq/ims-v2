@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,9 @@ interface ApprovalDashboardRequestBasedProps {
 const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps> = ({ viewMode = 'supervisor' }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const scopeFilter = searchParams.get('scope') || '';
+  const normalizedScopeFilter = scopeFilter.toLowerCase();
   const [requests, setRequests] = useState<RequestSummary[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     pending_count: 0,
@@ -499,9 +502,22 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return Math.ceil(getFilteredRequests().length / itemsPerPage);
   };
 
+  // Apply optional ?scope= query filter (personal, branch, wing) used by sidebar links.
+  const getScopeFilteredRequests = () => {
+    const filtered = getFilteredRequests();
+    if (!normalizedScopeFilter) return filtered;
+    return filtered.filter(r => {
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      if (normalizedScopeFilter === 'personal') return scopeType === 'individual';
+      if (normalizedScopeFilter === 'wing') return scopeType === 'organizational';
+      if (normalizedScopeFilter === 'branch') return scopeType === 'branch';
+      return true;
+    });
+  };
+
   // Group requests by type (personal vs wing-wise)
   const getPersonalRequests = () => {
-    const filtered = getFilteredRequests();
+    const filtered = getScopeFilteredRequests();
     const personal = filtered.filter(r => {
       const scopeType = (r.approval?.scope_type || '').toLowerCase();
       return scopeType === 'individual';
@@ -510,12 +526,20 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   };
 
   const getWingRequests = () => {
-    const filtered = getFilteredRequests();
+    const filtered = getScopeFilteredRequests();
     const wing = filtered.filter(r => {
       const scopeType = (r.approval?.scope_type || '').toLowerCase();
       return scopeType === 'organizational';
     });
     return wing;
+  };
+
+  const getBranchRequests = () => {
+    const filtered = getScopeFilteredRequests();
+    return filtered.filter(r => {
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      return scopeType === 'branch';
+    });
   };
 
   // Get paginated results for personal requests
@@ -556,6 +580,25 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
   const getWingTotalPages = () => {
     return Math.ceil(getWingRequests().length / itemsPerPage);
+  };
+
+  const getBranchTotalPages = () => {
+    return Math.ceil(getBranchRequests().length / itemsPerPage);
+  };
+
+  const getBranchPaginated = () => {
+    const filtered = getBranchRequests();
+    const sorted = [...filtered].sort((a, b) => {
+      let compareValue = 0;
+      if (sortBy === 'date') {
+        compareValue = new Date(a.submitted_date).getTime() - new Date(b.submitted_date).getTime();
+      } else if (sortBy === 'requester') {
+        compareValue = (a.submitted_by_name || '').localeCompare(b.submitted_by_name || '');
+      }
+      return sortOrder === 'asc' ? compareValue : -compareValue;
+    });
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sorted.slice(startIndex, startIndex + itemsPerPage);
   };
 
   const handleConfigureWorkflows = () => {
@@ -720,11 +763,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </div>
 
       {/* Personal Requests Table */}
+      {normalizedScopeFilter !== 'branch' && normalizedScopeFilter !== 'wing' && (
       <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Subordinate Requests</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">{viewMode === 'admin' ? 'Personal Requests' : 'Subordinate Requests'}</Badge>
               <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
               <div className="flex items-center gap-2">
@@ -938,8 +982,217 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         </CardFooter>
       </Card>
 
+      {/* Branch Requests Table */}
+      {viewMode === 'admin' && normalizedScopeFilter !== 'personal' && normalizedScopeFilter !== 'wing' && (
+      <Card className="border border-gray-200 mb-8">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="text-4xl font-bold flex items-center gap-3">
+                <Badge className="bg-orange-100 text-orange-800 text-lg font-semibold px-4 py-2">Branch Request</Badge>
+                <span className="text-gray-600 text-2xl">({getBranchRequests().length})</span>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [by, order] = e.target.value.split('-');
+                    setSortBy(by as 'date' | 'requester');
+                    setSortOrder(order as 'asc' | 'desc');
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="date-desc">Newest First</option>
+                  <option value="date-asc">Oldest First</option>
+                  <option value="requester-asc">Requester A-Z</option>
+                  <option value="requester-desc">Requester Z-A</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2"
+                  onClick={() => {/* Already filtering in real-time */}}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-2 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {getBranchRequests().length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No branch request'}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {getBranchPaginated().map((request) => (
+                  <Card key={request.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {(request.approval as any)?.request_number || request.request_id}
+                            </h3>
+                            <Badge className="text-xs">
+                              {request.request_type.replace('_', ' ').toUpperCase()}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${getStatusColor(request.request_status)}`}
+                            >
+                              {getStatusLabel(request.request_status)}
+                            </Badge>
+                            {request.lane_count > 0 && (
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${getLaneBadgeClass(request.lane_parent_status)}`}
+                                title={request.lane_tooltip}
+                              >
+                                Lanes {request.completed_lane_count}/{request.lane_count}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="text-sm text-gray-600 space-y-1 mb-3">
+                            <div>Submitted by: <span className="font-medium text-gray-900">{request.submitted_by_name}</span></div>
+                            <div>
+                              Submitted: {(() => {
+                                const date = new Date(request.submitted_date);
+                                return date.toLocaleString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                });
+                              })()}
+                            </div>
+                            <div>{renderTransferBadge(request)}</div>
+                            {request.current_approver_name && (
+                              <div>Current Approver: <span className="font-medium text-gray-900">{request.current_approver_name}</span></div>
+                            )}
+                          </div>
+
+                          {/* Summary Stats */}
+                          <div className="flex gap-4 text-xs text-gray-500 mt-3">
+                            <div>Total: <span className="font-bold text-gray-900">{request.total_items}</span></div>
+                            {request.approved_items > 0 && (
+                              <div>✓ <span className="font-bold text-green-600">{request.approved_items}</span></div>
+                            )}
+                            {request.rejected_items > 0 && (
+                              <div>✗ <span className="font-bold text-red-600">{request.rejected_items}</span></div>
+                            )}
+                            {request.returned_items > 0 && (
+                              <div>↩ <span className="font-bold text-orange-600">{request.returned_items}</span></div>
+                            )}
+                            {request.pending_items > 0 && (
+                              <div>⏳ <span className="font-bold">{request.pending_items}</span></div>
+                            )}
+                            {request.lane_count > 0 && (
+                              <div>Lanes <span className="font-bold text-sky-700">{request.completed_lane_count}/{request.lane_count}</span></div>
+                            )}
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedRequest(expandedRequest === request.id ? null : request.id)}
+                          className="ml-4 flex items-center gap-1"
+                        >
+                          {expandedRequest === request.id ? (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              Hide
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-4 w-4" />
+                              View Items
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Expanded Items View */}
+                      {expandedRequest === request.id && (
+                        <div className="mt-4 bg-gray-50 border-t border-gray-200 p-4 rounded-lg">
+                          <PerItemApprovalPanel
+                            approvalId={request.id}
+                            onActionComplete={handleActionComplete}
+                            activeFilter={activeFilter === 'pending' ? 'pending' : 'all' as any}
+                            viewMode={viewMode}
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="border-t border-gray-200 bg-gray-50 py-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              {getBranchRequests().length > 0 ? (
+                <>
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, getBranchRequests().length)} of {getBranchRequests().length} requests
+                </>
+              ) : (
+                'No requests to display'
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                ← Previous
+              </Button>
+              <div className="px-3 py-1 bg-white border border-gray-300 rounded-lg">
+                <span className="text-sm font-medium">
+                  Page {currentPage} of {getBranchTotalPages()}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(getBranchTotalPages(), prev + 1))}
+                disabled={currentPage === getBranchTotalPages()}
+              >
+                Next →
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
+
       {/* Wing Requests Table */}
-      {viewMode === 'admin' && (
+      {viewMode === 'admin' && normalizedScopeFilter !== 'personal' && normalizedScopeFilter !== 'branch' && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
