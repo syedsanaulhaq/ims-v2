@@ -40,12 +40,14 @@ const hasWingOrBranchScopedRole = (session) => {
   ]);
 };
 
+const ADMIN_CHAIN_ROLE_NAMES = ['DD Admin', 'AD Admin-I', 'AD Admin-II', 'DG Admin', 'Storekeeper'];
+
 const canAccessGlobalInventory = (session) => {
   if (isSuperAdminSession(session)) return true;
   if (hasWingOrBranchScopedRole(session)) return false;
 
   const roles = session?.user?.ims_roles || [];
-  return hasScopedRole(roles, ['IMS_ADMIN', 'STOREKEEPER']);
+  return hasScopedRole(roles, ['IMS_ADMIN', 'STOREKEEPER']) || hasScopedRole(roles, ADMIN_CHAIN_ROLE_NAMES);
 };
 
 const requireGlobalInventoryAccess = (req, res, next) => {
@@ -809,7 +811,7 @@ router.post('/request-verification', async (req, res) => {
       verificationId: verificationId
     });
   } catch (error) {
-    console.error('❌ Error requesting verification:', error);
+    console.error('âŒ Error requesting verification:', error);
     res.status(500).json({ 
       error: 'Failed to request verification', 
       details: error.message 
@@ -869,7 +871,7 @@ router.get('/my-forwarded-verifications', async (req, res) => {
       data: result.recordset
     });
   } catch (error) {
-    console.error('❌ Error fetching forwarded verifications:', error);
+    console.error('âŒ Error fetching forwarded verifications:', error);
     res.status(500).json({ error: 'Failed to fetch forwarded verifications', details: error.message });
   }
 });
@@ -1008,7 +1010,7 @@ router.post('/check-availability', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error checking availability:', error);
+    console.error('âŒ Error checking availability:', error);
     res.status(500).json({ error: 'Failed to check availability', details: error.message });
   }
 });
@@ -1093,7 +1095,7 @@ router.post('/update-verification', async (req, res) => {
       verificationId: verificationId
     });
   } catch (error) {
-    console.error('❌ Error updating verification:', error);
+    console.error('âŒ Error updating verification:', error);
     res.status(500).json({ error: 'Failed to update verification', details: error.message });
   }
 });

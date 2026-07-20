@@ -452,9 +452,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show inventory menu for super admins and inventory managers.
-    // Store-keeper exclusion should not hide inventory menu from super admins.
-    if (canAccessCentralInventoryMenu && (!canAccessStoreKeeperMenu || isSuperAdmin) && (!hasScopedOperationalRole || isSuperAdmin)) {
+    // Show inventory menu for super admins, inventory managers, and admin chain roles.
+    // Store-keeper / scoped operational exclusion should not hide inventory menu from super admins or admin chain roles.
+    if (canAccessCentralInventoryMenu && (!canAccessStoreKeeperMenu || isSuperAdmin || hasAdminApprovalRole) && (!hasScopedOperationalRole || isSuperAdmin || hasAdminApprovalRole)) {
       const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleInventoryItems.length > 0) {
         groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });
