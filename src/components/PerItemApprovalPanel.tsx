@@ -205,6 +205,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const getTotalAvailableStock = (item: RequestItem) => {
+    // Admin workflow always operates against central/main inventory.
+    if (isAdminWorkflowContext) {
+      const admin = Number((item as any)?.admin_stock_available ?? 0);
+      return Number.isFinite(admin) ? admin : 0;
+    }
     const wing = Number(item?.wing_stock_available ?? item?.current_stock ?? 0);
     const admin = Number((item as any)?.admin_stock_available ?? 0);
     const total = (Number.isFinite(wing) ? wing : 0) + (Number.isFinite(admin) ? admin : 0);
@@ -867,18 +872,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       const itemMasterId = item.item_master_id || item.id;
       const requestedQty = getItemQuantity(item);
+      // Admin workflow context (admin dashboard / forwarded-to-admin) always uses central/main inventory.
+      // Non-admin contexts continue to use wing/branch/personal scoped inventory as before.
       const normalizedRequestType = String(request?.request_type || '').trim().toLowerCase();
-      const isBranchOrPersonalRequest = normalizedRequestType === 'branch' || normalizedRequestType === 'individual' || normalizedRequestType === 'personal';
       const shouldUseAdminInventory = isAdminWorkflowContext;
-      const inventoryScope = shouldUseAdminInventory ? 'admin' : (isBranchOrPersonalRequest ? 'branch' : 'wing');
+      const inventoryScope = shouldUseAdminInventory ? 'admin' : (normalizedRequestType === 'branch' || normalizedRequestType === 'individual' || normalizedRequestType === 'personal' ? 'branch' : 'wing');
       const wingId = Number(request?.requester_wing_id || currentUser?.wing_id || 0) || null;
       const branchId = Number(request?.requester_branch_id || currentUser?.intBranchID || currentUser?.branch_id || 0) || null;
 
-      setStockScopeLabel(
-        shouldUseAdminInventory
-          ? 'Main Inventory'
-          : (isBranchOrPersonalRequest ? 'Branch' : 'Wing')
-      );
+      setStockScopeLabel(shouldUseAdminInventory ? 'Main Inventory' : (inventoryScope === 'branch' ? 'Branch' : 'Wing'));
 
       const response = await fetch(`${getApiUrl()}/api/inventory/check-availability`, {
         method: 'POST',
