@@ -1080,10 +1080,27 @@ router.get('/request/:requestId', async (req, res) => {
         }
 
         if (tableFlags.has_stock_admin) {
+          // Admin/main inventory should match the inventory dashboard, which sums
+          // stock_acquisitions.quantity_available. Fall back to stock_admin only
+          // for legacy data with no acquisition rows.
           const adminStock = await pool.request()
             .input('itemId', sql.UniqueIdentifier, item.item_master_id)
-            .query(`SELECT TOP 1 available_quantity FROM stock_admin WHERE item_master_id = @itemId`);
-          adminAvailable = Number(adminStock.recordset[0]?.available_quantity || 0);
+            .query(`
+              SELECT ISNULL(SUM(quantity_available), 0) AS available_quantity
+              FROM stock_acquisitions
+              WHERE item_master_id = @itemId
+                AND (is_deleted = 0 OR is_deleted IS NULL)
+            `);
+          let acqAvailable = Number(adminStock.recordset[0]?.available_quantity || 0);
+
+          if (acqAvailable === 0) {
+            const legacyStock = await pool.request()
+              .input('itemId', sql.UniqueIdentifier, item.item_master_id)
+              .query(`SELECT TOP 1 available_quantity FROM stock_admin WHERE item_master_id = @itemId`);
+            acqAvailable = Number(legacyStock.recordset[0]?.available_quantity || 0);
+          }
+
+          adminAvailable = acqAvailable;
         }
 
         // Fallback for environments without stock_wing/stock_admin tables.
