@@ -17,6 +17,7 @@ interface POItem {
 }
 
 interface DeliveryItem {
+  receipt_line_id: string;
   po_item_id: string;
   item_id: string;
   item_name: string;
@@ -37,6 +38,18 @@ interface PurchaseOrder {
   tender_id: string;
   tender_type: string;
 }
+
+const createReceiptLine = (item: POItem): DeliveryItem => ({
+  receipt_line_id: `${item.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  po_item_id: item.id,
+  item_id: item.item_id,
+  item_name: item.item_name,
+  quantity: 0,
+  quality_status: 'good',
+  remarks: '',
+  serial_numbers: [],
+  serial_numbers_input: ''
+});
 
 const ReceiveDelivery: React.FC = () => {
   const { poId } = useParams<{ poId: string }>();
@@ -81,16 +94,7 @@ const ReceiveDelivery: React.FC = () => {
       // Initialize delivery items (only pending items)
       const pendingItems = items
         .filter((item: POItem) => item.pending_quantity > 0)
-        .map((item: POItem) => ({
-          po_item_id: item.id,
-          item_id: item.item_id,
-          item_name: item.item_name,
-          quantity: 0,
-          quality_status: 'good' as const,
-          remarks: '',
-          serial_numbers: [],
-          serial_numbers_input: ''
-        }));
+        .map((item: POItem) => createReceiptLine(item));
       
       setDeliveryItems(pendingItems);
     } catch (err: any) {
@@ -105,6 +109,40 @@ const ReceiveDelivery: React.FC = () => {
     const updated = [...deliveryItems];
     updated[index] = { ...updated[index], [field]: value };
     setDeliveryItems(updated);
+  };
+
+  const getEnteredQuantityForPOItem = (poItemId: string, excludeIndex?: number) => {
+    return deliveryItems.reduce((sum, item, index) => {
+      if (item.po_item_id !== poItemId || index === excludeIndex) return sum;
+      return sum + (item.quantity || 0);
+    }, 0);
+  };
+
+  const addReceiptSplit = (poItem: POItem) => {
+    setDeliveryItems(prev => [...prev, createReceiptLine(poItem)]);
+  };
+
+  const removeReceiptSplit = (index: number) => {
+    const poItemId = deliveryItems[index]?.po_item_id;
+    const splitCount = deliveryItems.filter(item => item.po_item_id === poItemId).length;
+
+    if (splitCount <= 1) {
+      setDeliveryItems(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          quantity: 0,
+          quality_status: 'good',
+          remarks: '',
+          serial_numbers_input: '',
+          serial_numbers: []
+        };
+        return updated;
+      });
+      return;
+    }
+
+    setDeliveryItems(prev => prev.filter((_, currentIndex) => currentIndex !== index));
   };
 
   const handleSerialNumberInput = (index: number, input: string) => {
@@ -165,10 +203,13 @@ const ReceiveDelivery: React.FC = () => {
       }
 
       // Validate quantities don't exceed pending
-      for (const deliveryItem of itemsToDeliver) {
-        const poItem = poItems.find(pi => pi.id === deliveryItem.po_item_id);
-        if (poItem && deliveryItem.quantity > poItem.pending_quantity) {
-          setError(`Quantity for ${deliveryItem.item_name} exceeds pending quantity (${poItem.pending_quantity})`);
+      for (const poItem of poItems) {
+        const totalForItem = itemsToDeliver
+          .filter(item => item.po_item_id === poItem.id)
+          .reduce((sum, item) => sum + item.quantity, 0);
+
+        if (totalForItem > poItem.pending_quantity) {
+          setError(`Total received quantity for ${poItem.item_name} exceeds pending quantity (${poItem.pending_quantity})`);
           return;
         }
       }
@@ -193,6 +234,7 @@ const ReceiveDelivery: React.FC = () => {
       const itemsData = itemsToDeliver.map(item => ({
         po_item_id: item.po_item_id,
         item_master_id: item.item_id,
+        item_name: item.item_name,
         quantity_delivered: item.quantity,
         quality_status: item.quality_status,
         remarks: item.remarks,
@@ -204,7 +246,18 @@ const ReceiveDelivery: React.FC = () => {
         method: 'POST',
         body: formData // Don't set Content-Type, let browser set it with boundary
       });
-      if (!createResponse.ok) throw new Error('Failed to create delivery');
+      if (!createResponse.ok) {
+        let createError = 'Failed to create delivery';
+
+        try {
+          const errorData = await createResponse.json();
+          createError = errorData.details || errorData.error || createError;
+        } catch {
+          // Keep the default message when the response is not JSON.
+        }
+
+        throw new Error(createError);
+      }
       const createData = await createResponse.json();
 
       const deliveryId = createData.id;
@@ -474,15 +527,21 @@ const ReceiveDelivery: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   SNo
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {deliveryItems.map((deliveryItem, index) => {
                 const poItem = poItems.find(pi => pi.id === deliveryItem.po_item_id);
                 if (!poItem) return null;
+                const enteredByOtherSplits = getEnteredQuantityForPOItem(poItem.id, index);
+                const maxForThisSplit = Math.max(poItem.pending_quantity - enteredByOtherSplits, 0);
+                const splitCount = deliveryItems.filter(item => item.po_item_id === poItem.id).length;
 
                 return (
-                  <tr key={deliveryItem.po_item_id}>
+                  <tr key={deliveryItem.receipt_line_id}>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">
                         {deliveryItem.item_name}
@@ -508,12 +567,20 @@ const ReceiveDelivery: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        max={poItem.pending_quantity}
+                        max={maxForThisSplit}
                         value={deliveryItem.quantity}
-                        onChange={(e) => updateDeliveryItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                        onChange={(e) => {
+                          const nextQuantity = parseInt(e.target.value) || 0;
+                          updateDeliveryItem(index, 'quantity', Math.min(nextQuantity, maxForThisSplit));
+                        }}
                         className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         placeholder="0"
                       />
+                      {splitCount > 1 && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Max: {maxForThisSplit}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
@@ -575,6 +642,27 @@ const ReceiveDelivery: React.FC = () => {
                               </span>
                             )}
                           </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => addReceiptSplit(poItem)}
+                          disabled={getEnteredQuantityForPOItem(poItem.id) >= poItem.pending_quantity}
+                          className="px-3 py-2 text-sm rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 disabled:text-gray-400 disabled:border-gray-200 disabled:hover:bg-white"
+                        >
+                          Add Split
+                        </button>
+                        {splitCount > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeReceiptSplit(index)}
+                            className="px-3 py-2 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                          >
+                            Remove
+                          </button>
                         )}
                       </div>
                     </td>

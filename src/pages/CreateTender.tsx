@@ -71,6 +71,12 @@ interface ItemMaster {
   sub_category_name?: string;
 }
 
+interface Category {
+  id: string;
+  category_name: string;
+  description?: string;
+}
+
 interface Office {
   intOfficeID: number;
   strOfficeName: string;
@@ -126,6 +132,7 @@ const CreateTender: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [itemMasters, setItemMasters] = useState<ItemMaster[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [wings, setWings] = useState<Wing[]>([]);
   const [decs, setDecs] = useState<Dec[]>([]);
@@ -215,6 +222,13 @@ const CreateTender: React.FC = () => {
           const itemMastersData = await itemMastersResponse.json();
           // Handle the {success: true, items: [...]} format
           setItemMasters(itemMastersData.items || []);
+        }
+
+        // Fetch Categories/Groups separately so groups with no currently linked item masters still appear
+        const categoriesResponse = await fetch('http://localhost:3001/api/categories');
+        if (categoriesResponse.ok) {
+          const categoriesData = await categoriesResponse.json();
+          setCategories(Array.isArray(categoriesData) ? categoriesData : []);
         }
 
         // Fetch Offices
@@ -888,6 +902,14 @@ const CreateTender: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const categoryOptions = categories
+    .filter(category => category.category_name)
+    .sort((a, b) => (a.description || '').localeCompare(b.description || ''))
+    .map(category => ({
+      value: category.category_name,
+      label: category.description ? `${category.description} - ${category.category_name}` : category.category_name
+    }));
 
   return (
     <div className="min-h-screen bg-gray-50/50">
@@ -1678,17 +1700,7 @@ const CreateTender: React.FC = () => {
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
                         <div className="flex gap-2">
                           <SearchableSelect
-                            options={Array.from(new Map(itemMasters
-                              .filter(item => item.category_name)
-                              .map(item => [item.category_name, {
-                                category_name: item.category_name,
-                                category_description: item.category_description
-                              }])).values())
-                              .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
-                              .map(cat => ({
-                                value: cat.category_name,
-                                label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
-                              }))}
+                            options={categoryOptions}
                             value={selectedCategory}
                             onValueChange={(value) => {
                               setSelectedCategory(value);
@@ -1804,17 +1816,7 @@ const CreateTender: React.FC = () => {
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
                         <div className="flex gap-2">
                           <SearchableSelect
-                            options={Array.from(new Map(itemMasters
-                              .filter(item => item.category_name)
-                              .map(item => [item.category_name, {
-                                category_name: item.category_name,
-                                category_description: item.category_description
-                              }])).values())
-                              .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
-                              .map(cat => ({
-                                value: cat.category_name,
-                                label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
-                              }))}
+                            options={categoryOptions}
                             value={selectedCategory}
                             onValueChange={(value) => {
                               setSelectedCategory(value);

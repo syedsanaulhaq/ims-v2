@@ -737,17 +737,18 @@ router.post('/for-po/:poId', handleDeliveryUpload, async (req, res) => {
           .input('delivery_id', sql.UniqueIdentifier, deliveryId)
           .input('po_item_id', sql.UniqueIdentifier, item.po_item_id)
           .input('item_master_id', sql.UniqueIdentifier, item.item_master_id)
+          .input('item_name', sql.NVarChar, item.item_name || null)
           .input('delivery_qty', sql.Decimal(18, 2), item.quantity_delivered)
           .input('quality_status', sql.VarChar, item.quality_status || 'good')
           .input('remarks', sql.NVarChar, item.remarks || null)
           .query(`
             INSERT INTO delivery_items (
               id, delivery_id, po_item_id, item_master_id, 
-              delivery_qty, quality_status, remarks, created_at
+              item_name, delivery_qty, quality_status, remarks, created_at
             )
             VALUES (
               @id, @delivery_id, @po_item_id, @item_master_id,
-              @delivery_qty, @quality_status, @remarks, GETDATE()
+              @item_name, @delivery_qty, @quality_status, @remarks, GETDATE()
             )
           `);
 
