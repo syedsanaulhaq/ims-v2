@@ -19,9 +19,21 @@ async function resolveBranchScope(session, pool) {
     return { branchId: null, branchName: 'All Branches', isAdmin: true };
   }
 
-  const userId = session.userId;
-  const sessionBranch = session?.user?.intBranchID || null;
+  // Always prefer the branchId from the session variable (set by frontend/auth)
+  // Fallback to AspNetUsers.intBranchID only if session branchId is not available
+  const sessionBranch =
+    session?.user?.branchId ??
+    session?.user?.branch_id ??
+    session?.user?.intBranchID ??
+    null;
 
+  if (sessionBranch) {
+    const branchId = Number(sessionBranch) || null;
+    return { branchId, branchName: branchId ? `Branch ${branchId}` : 'Your Branch', isAdmin: false };
+  }
+
+  // Fallback to database profile
+  const userId = session.userId;
   const userRes = await pool.request()
     .input('userId', sql.NVarChar(450), userId)
     .query(`
@@ -30,7 +42,7 @@ async function resolveBranchScope(session, pool) {
       WHERE u.Id = @userId
     `);
 
-  const branchId = userRes.recordset[0]?.intBranchID || sessionBranch || null;
+  const branchId = userRes.recordset[0]?.intBranchID || null;
   const branchName = branchId ? `Branch ${branchId}` : 'Your Branch';
   return { branchId, branchName, isAdmin: false };
 }
