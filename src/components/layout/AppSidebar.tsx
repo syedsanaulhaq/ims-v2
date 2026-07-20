@@ -247,6 +247,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Users,
     items: [
       { title: "Supervisor Dashboard", icon: CheckCircle, path: "/dashboard/supervisor-approval-dashboard", permission: 'approval.approve' },
+      ...(hasAdminApprovalRole ? [
+        { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' }
+      ] : []),
       { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
     ]
   };
