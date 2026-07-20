@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ interface ApprovalDashboardRequestBasedProps {
 const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps> = ({ viewMode = 'supervisor' }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [requests, setRequests] = useState<RequestSummary[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     pending_count: 0,
@@ -63,6 +64,15 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
+  const selectedScope = new URLSearchParams(location.search).get('scope') || 'all';
+
+  const statusPriority: Record<string, number> = {
+    pending: 1,
+    approved: 2,
+    rejected: 3,
+    returned: 3,
+    forwarded: 4
+  };
 
   const isAdminWorkflowRequest = (request: RequestSummary) => {
     const explicitFlag = (request.approval as any)?.is_admin_workflow;
@@ -103,7 +113,9 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   useEffect(() => {
     let filteredRequests = allScopedRequests;
 
-    if (activeFilter !== 'pending') {
+    if (activeFilter === 'pending') {
+      filteredRequests = filteredRequests.filter(r => r.request_status === 'pending');
+    } else {
       filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
     }
 
@@ -127,7 +139,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       // Get all approvals for this user from all statuses
       const allStatuses = ['pending', 'approved', 'rejected', 'forwarded', 'returned'] as const;
       const allApprovals: RequestApproval[] = [];
-      // Track which backend status each approval came from
+      // Track which backend status each approval came from using precedence
+      // so forwarded/rejected/returned is not downgraded to pending.
       const approvalSourceStatus = new Map<string, string>();
 
       const statusResults = await Promise.all(
@@ -148,7 +161,11 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
       for (const { status, approvals } of statusResults) {
         for (const a of approvals) {
-          if (!approvalSourceStatus.has(a.request_id)) {
+          const existingStatus = approvalSourceStatus.get(a.request_id);
+          const existingPriority = existingStatus ? (statusPriority[existingStatus] || 0) : 0;
+          const newPriority = statusPriority[status] || 0;
+
+          if (!existingStatus || newPriority >= existingPriority) {
             approvalSourceStatus.set(a.request_id, status);
           }
         }
@@ -320,9 +337,21 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       }
 
       // Split flows by page mode to keep supervisor and admin experiences isolated.
-      const scopedRequests = Array.from(requestMap.values()).filter((request) =>
-        viewMode === 'admin' ? isAdminWorkflowRequest(request) : !isAdminWorkflowRequest(request)
-      );
+      const scopedRequests = Array.from(requestMap.values()).filter((request) => {
+        const adminWorkflow = isAdminWorkflowRequest(request);
+
+        if (viewMode === 'admin') {
+          return adminWorkflow;
+        }
+
+        // Keep supervisor ownership of "To Admin" history cards while still
+        // hiding admin-workflow inbox items from the supervisor page.
+        if (request.request_status === 'forward_admin') {
+          return true;
+        }
+
+        return !adminWorkflow;
+      });
 
       const scopedStatusCounts = {
         pending_count: scopedRequests.filter(r => r.request_status === 'pending').length,
@@ -335,6 +364,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
       const pendingFilteredScopedRequests = scopedRequests.filter((r) => {
         if (r.request_status !== 'pending') return true;
+
+        const approvalData = r.approval as any;
+        if (approvalData?.has_forwarded_to_admin_history) {
+          return false;
+        }
+
+        const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
+        if (approvalStatus.includes('forwarded to admin') || approvalStatus.includes('forwarded')) {
+          return false;
+        }
 
         if (!lanePendingAvailable) return true;
         if (pendingRequestIdSet.size === 0) return true;
@@ -354,7 +393,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const getRequestStatusFromApproval = (approval: RequestApproval, sourceStatus: string): RequestSummary['request_status'] => {
     // sourceStatus = which backend query returned this ('pending', 'approved', 'forwarded', 'rejected', 'returned')
     // For 'pending' source: these are things assigned to me that I need to act on -> show as pending
-    if (sourceStatus === 'pending') return 'pending';
+    if (sourceStatus === 'pending') {
+      const approvalData = approval as any;
+      const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
+
+      if (approvalData?.has_forwarded_to_admin_history || approvalStatus.includes('forwarded to admin') || approvalStatus.includes('forwarded')) {
+        return 'forward_admin';
+      }
+
+      return 'pending';
+    }
     
     // For 'approved' source: things I was involved in that are now approved
     if (sourceStatus === 'approved') return 'approve_wing';
@@ -409,7 +457,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       case 'completed':
         return '✓ Completed';
       default:
-        return 'Pending';
+        return 'New Request';
     }
   };
 
@@ -518,6 +566,15 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return wing;
   };
 
+  const getBranchRequests = () => {
+    const filtered = getFilteredRequests();
+    return filtered.filter(r => {
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'branch' || requestType === 'branch';
+    });
+  };
+
   // Get paginated results for personal requests
   const getPersonalPaginated = () => {
     const filtered = getPersonalRequests();
@@ -558,6 +615,29 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return Math.ceil(getWingRequests().length / itemsPerPage);
   };
 
+  const getBranchPaginated = () => {
+    const filtered = getBranchRequests();
+    const sorted = [...filtered].sort((a, b) => {
+      let compareValue = 0;
+      if (sortBy === 'date') {
+        compareValue = new Date(a.submitted_date).getTime() - new Date(b.submitted_date).getTime();
+      } else if (sortBy === 'requester') {
+        compareValue = (a.submitted_by_name || '').localeCompare(b.submitted_by_name || '');
+      }
+      return sortOrder === 'asc' ? compareValue : -compareValue;
+    });
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sorted.slice(startIndex, startIndex + itemsPerPage);
+  };
+
+  const getBranchTotalPages = () => {
+    return Math.ceil(getBranchRequests().length / itemsPerPage);
+  };
+
+  const shouldShowScope = (scope: 'personal' | 'branch' | 'wing') => {
+    return selectedScope === 'all' || selectedScope === scope;
+  };
+
   const handleConfigureWorkflows = () => {
     navigate('/dashboard/workflow-admin');
   };
@@ -592,7 +672,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
             <CheckCircle className="h-3 w-3 mr-1" />
-            {dashboardStats.pending_count} Pending
+            {dashboardStats.pending_count} New Requests
           </Badge>
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
             <Clock className="h-3 w-3 mr-1" />
@@ -620,7 +700,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-yellow-700 font-semibold text-sm">Pending</CardTitle>
+              <CardTitle className="text-yellow-700 font-semibold text-sm">New Request</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pending_count}</div>
@@ -720,6 +800,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </div>
 
       {/* Personal Requests Table */}
+      {shouldShowScope('personal') && (
       <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
@@ -937,9 +1018,188 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           </div>
         </CardFooter>
       </Card>
+      )}
+
+      {/* Branch Requests Table */}
+      {viewMode === 'admin' && shouldShowScope('branch') && (
+      <Card className="border border-gray-200">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="text-4xl font-bold flex items-center gap-3">
+                <Badge className="bg-green-100 text-green-800 text-lg font-semibold px-4 py-2">Branch Requests</Badge>
+                <span className="text-gray-600 text-2xl">({getBranchRequests().length})</span>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [by, order] = e.target.value.split('-');
+                    setSortBy(by as 'date' | 'requester');
+                    setSortOrder(order as 'asc' | 'desc');
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="date-desc">Newest First</option>
+                  <option value="date-asc">Oldest First</option>
+                  <option value="requester-asc">Requester A-Z</option>
+                  <option value="requester-desc">Requester Z-A</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2"
+                  onClick={() => {/* Already filtering in real-time */}}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-2 bg-gray-200 hover:bg-gray-300 rounded text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {getBranchRequests().length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No branch requests'}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {getBranchPaginated().map((request) => (
+                  <Card key={request.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {(request.approval as any)?.request_number || request.request_id}
+                            </h3>
+                            <Badge className="text-xs">
+                              {request.request_type.replace('_', ' ').toUpperCase()}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${getStatusColor(request.request_status)}`}
+                            >
+                              {getStatusLabel(request.request_status)}
+                            </Badge>
+                            {request.lane_count > 0 && (
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${getLaneBadgeClass(request.lane_parent_status)}`}
+                                title={request.lane_tooltip}
+                              >
+                                Lanes {request.completed_lane_count}/{request.lane_count}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="text-sm text-gray-600 space-y-1 mb-3">
+                            <div>Submitted by: <span className="font-medium text-gray-900">{request.submitted_by_name}</span></div>
+                            <div>
+                              Submitted: {new Date(request.submitted_date).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </div>
+                            <div>{renderTransferBadge(request)}</div>
+                            {request.current_approver_name && (
+                              <div>Current Approver: <span className="font-medium text-gray-900">{request.current_approver_name}</span></div>
+                            )}
+                          </div>
+
+                          <div className="flex gap-4 text-xs text-gray-500 mt-3">
+                            <div>Total: <span className="font-bold text-gray-900">{request.total_items}</span></div>
+                            {request.approved_items > 0 && <div>✓ <span className="font-bold text-green-600">{request.approved_items}</span></div>}
+                            {request.rejected_items > 0 && <div>✗ <span className="font-bold text-red-600">{request.rejected_items}</span></div>}
+                            {request.returned_items > 0 && <div>↩ <span className="font-bold text-orange-600">{request.returned_items}</span></div>}
+                            {request.pending_items > 0 && <div>⏳ <span className="font-bold">{request.pending_items}</span></div>}
+                            {request.lane_count > 0 && <div>Lanes <span className="font-bold text-sky-700">{request.completed_lane_count}/{request.lane_count}</span></div>}
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedRequest(expandedRequest === request.id ? null : request.id)}
+                          className="ml-4 flex items-center gap-1"
+                        >
+                          {expandedRequest === request.id ? (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              Hide
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-4 w-4" />
+                              View Items
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {expandedRequest === request.id && (
+                        <div className="mt-4 bg-gray-50 border-t border-gray-200 p-4 rounded-lg">
+                          <PerItemApprovalPanel
+                            approvalId={request.id}
+                            onActionComplete={handleActionComplete}
+                            activeFilter={activeFilter === 'pending' ? 'pending' : 'all' as any}
+                            viewMode={viewMode}
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="border-t border-gray-200 bg-gray-50 py-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              {getBranchRequests().length > 0 ? (
+                <>
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, getBranchRequests().length)} of {getBranchRequests().length} requests
+                </>
+              ) : (
+                'No requests to display'
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1}>← Previous</Button>
+              <div className="px-3 py-1 bg-white border border-gray-300 rounded-lg">
+                <span className="text-sm font-medium">Page {currentPage} of {getBranchTotalPages()}</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.min(getBranchTotalPages(), prev + 1))} disabled={currentPage === getBranchTotalPages()}>Next →</Button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
 
       {/* Wing Requests Table */}
-      {viewMode === 'admin' && (
+      {viewMode === 'admin' && shouldShowScope('wing') && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
