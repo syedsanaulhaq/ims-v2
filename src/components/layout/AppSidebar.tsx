@@ -247,10 +247,17 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Users,
     items: [
       { title: "Supervisor Dashboard", icon: CheckCircle, path: "/dashboard/supervisor-approval-dashboard", permission: 'approval.approve' },
-      ...(hasAdminApprovalRole ? [
-        { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' }
-      ] : []),
       { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
+    ]
+  };
+
+  // ADMIN APPROVAL MENU - For admin chain roles (DD/AD/Storekeeper)
+  const adminApprovalMenuGroup: MenuGroup = {
+    label: "Admin",
+    icon: Shield,
+    items: [
+      { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
+      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
 
@@ -488,6 +495,14 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleApprovalItems.length > 0) {
         groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
+      }
+    }
+
+    // Show admin approval menu for admin chain roles (DD/AD/Storekeeper)
+    if (hasAdminApprovalRole) {
+      const visibleAdminApprovalItems = adminApprovalMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleAdminApprovalItems.length > 0) {
+        groups.push({ ...adminApprovalMenuGroup, items: visibleAdminApprovalItems });
       }
     }
 
