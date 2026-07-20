@@ -251,6 +251,19 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ]
   };
 
+  // ADMIN APPROVAL MENU - For admin chain roles (DD/AD/Storekeeper)
+  const adminApprovalMenuGroup: MenuGroup = {
+    label: "Admin",
+    icon: Shield,
+    items: [
+      { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
+      { title: "Personal Requests", icon: User, path: "/dashboard/approval-dashboard-request-based-admin?scope=personal", permission: 'approval.approve' },
+      { title: "Branch Requests", icon: Building2, path: "/dashboard/approval-dashboard-request-based-admin?scope=branch", permission: 'approval.approve' },
+      { title: "Wing Requests", icon: Users, path: "/dashboard/approval-dashboard-request-based-admin?scope=wing", permission: 'approval.approve' },
+      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
+    ]
+  };
+
   // WING MENU - For wing supervisors
   const wingMenuGroup: MenuGroup = {
     label: "Wing Menu",
@@ -356,15 +369,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ]
   };
 
-  // ADMIN APPROVAL MENU - For admin chain approvers
-  const adminWingMenuGroup: MenuGroup = {
-    label: "Admin",
-    icon: Shield,
+  // APPROVAL MENU - For approvers
+  const approvalMenuGroup: MenuGroup = {
+    label: "Approval Menu",
+    icon: CheckCircle,
     items: [
-      { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
-      { title: "Personal Requests", icon: User, path: "/dashboard/approval-dashboard-request-based-admin?scope=personal", permission: 'approval.approve' },
-      { title: "Branch Requests", icon: Building2, path: "/dashboard/approval-dashboard-request-based-admin?scope=branch", permission: 'approval.approve' },
-      { title: "Wing Requests", icon: Users, path: "/dashboard/approval-dashboard-request-based-admin?scope=wing", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
@@ -375,7 +384,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Shield,
     items: [
       { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard", permission: 'admin.super' },
-      { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'admin.super' },
       { title: "Roles & Permissions", icon: Shield, path: "/settings/roles", permission: 'roles.manage' },
       { title: "User Management", icon: Users, path: "/settings/users", permission: 'users.assign_roles' },
       { title: "System Settings", icon: Settings, path: "/dashboard/inventory-settings", permission: 'admin.super' },
@@ -485,11 +493,19 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show admin wing menu for admin-capable approvers.
-    if (canApprove || hasApproverRole || hasAdminApprovalRole || canManageRoles) {
-      const visibleAdminWingItems = adminWingMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleAdminWingItems.length > 0) {
-        groups.push({ ...adminWingMenuGroup, items: visibleAdminWingItems });
+    // Show approval menu if user has APPROVAL permissions (approvers only)
+    if (canApprove || hasApproverRole) {
+      const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleApprovalItems.length > 0) {
+        groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
+      }
+    }
+
+    // Show admin approval menu for admin chain roles (DD/AD/Storekeeper)
+    if (hasAdminApprovalRole) {
+      const visibleAdminApprovalItems = adminApprovalMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleAdminApprovalItems.length > 0) {
+        groups.push({ ...adminApprovalMenuGroup, items: visibleAdminApprovalItems });
       }
     }
 
