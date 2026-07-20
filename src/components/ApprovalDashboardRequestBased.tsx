@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,9 +44,7 @@ interface ApprovalDashboardRequestBasedProps {
 const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps> = ({ viewMode = 'supervisor' }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const scopeFilter = searchParams.get('scope') || '';
-  const normalizedScopeFilter = scopeFilter.toLowerCase();
+  const location = useLocation();
   const [requests, setRequests] = useState<RequestSummary[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     pending_count: 0,
@@ -66,6 +64,15 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
+  const selectedScope = new URLSearchParams(location.search).get('scope') || 'all';
+
+  const statusPriority: Record<string, number> = {
+    pending: 1,
+    approved: 2,
+    rejected: 3,
+    returned: 3,
+    forwarded: 4
+  };
 
   const isAdminWorkflowRequest = (request: RequestSummary) => {
     const explicitFlag = (request.approval as any)?.is_admin_workflow;
@@ -106,7 +113,9 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   useEffect(() => {
     let filteredRequests = allScopedRequests;
 
-    if (activeFilter !== 'pending') {
+    if (activeFilter === 'pending') {
+      filteredRequests = filteredRequests.filter(r => r.request_status === 'pending');
+    } else {
       filteredRequests = filteredRequests.filter(r => r.request_status === activeFilter);
     }
 
@@ -130,7 +139,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       // Get all approvals for this user from all statuses
       const allStatuses = ['pending', 'approved', 'rejected', 'forwarded', 'returned'] as const;
       const allApprovals: RequestApproval[] = [];
-      // Track which backend status each approval came from
+      // Track which backend status each approval came from using precedence
+      // so forwarded/rejected/returned is not downgraded to pending.
       const approvalSourceStatus = new Map<string, string>();
 
       const statusResults = await Promise.all(
@@ -151,7 +161,11 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
       for (const { status, approvals } of statusResults) {
         for (const a of approvals) {
-          if (!approvalSourceStatus.has(a.request_id)) {
+          const existingStatus = approvalSourceStatus.get(a.request_id);
+          const existingPriority = existingStatus ? (statusPriority[existingStatus] || 0) : 0;
+          const newPriority = statusPriority[status] || 0;
+
+          if (!existingStatus || newPriority >= existingPriority) {
             approvalSourceStatus.set(a.request_id, status);
           }
         }
@@ -323,9 +337,21 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       }
 
       // Split flows by page mode to keep supervisor and admin experiences isolated.
-      const scopedRequests = Array.from(requestMap.values()).filter((request) =>
-        viewMode === 'admin' ? isAdminWorkflowRequest(request) : !isAdminWorkflowRequest(request)
-      );
+      const scopedRequests = Array.from(requestMap.values()).filter((request) => {
+        const adminWorkflow = isAdminWorkflowRequest(request);
+
+        if (viewMode === 'admin') {
+          return adminWorkflow;
+        }
+
+        // Keep supervisor ownership of "To Admin" history cards while still
+        // hiding admin-workflow inbox items from the supervisor page.
+        if (request.request_status === 'forward_admin') {
+          return true;
+        }
+
+        return !adminWorkflow;
+      });
 
       const scopedStatusCounts = {
         pending_count: scopedRequests.filter(r => r.request_status === 'pending').length,
@@ -338,6 +364,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
       const pendingFilteredScopedRequests = scopedRequests.filter((r) => {
         if (r.request_status !== 'pending') return true;
+
+        const approvalData = r.approval as any;
+        if (approvalData?.has_forwarded_to_admin_history) {
+          return false;
+        }
+
+        const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
+        if (approvalStatus.includes('forwarded to admin') || approvalStatus.includes('forwarded')) {
+          return false;
+        }
 
         if (!lanePendingAvailable) return true;
         if (pendingRequestIdSet.size === 0) return true;
@@ -357,7 +393,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const getRequestStatusFromApproval = (approval: RequestApproval, sourceStatus: string): RequestSummary['request_status'] => {
     // sourceStatus = which backend query returned this ('pending', 'approved', 'forwarded', 'rejected', 'returned')
     // For 'pending' source: these are things assigned to me that I need to act on -> show as pending
-    if (sourceStatus === 'pending') return 'pending';
+    if (sourceStatus === 'pending') {
+      const approvalData = approval as any;
+      const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
+
+      if (approvalData?.has_forwarded_to_admin_history || approvalStatus.includes('forwarded to admin') || approvalStatus.includes('forwarded')) {
+        return 'forward_admin';
+      }
+
+      return 'pending';
+    }
     
     // For 'approved' source: things I was involved in that are now approved
     if (sourceStatus === 'approved') return 'approve_wing';
@@ -412,7 +457,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       case 'completed':
         return '✓ Completed';
       default:
-        return 'Pending';
+        return 'New Request';
     }
   };
 
@@ -502,22 +547,9 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return Math.ceil(getFilteredRequests().length / itemsPerPage);
   };
 
-  // Apply optional ?scope= query filter (personal, branch, wing) used by sidebar links.
-  const getScopeFilteredRequests = () => {
-    const filtered = getFilteredRequests();
-    if (!normalizedScopeFilter) return filtered;
-    return filtered.filter(r => {
-      const scopeType = (r.approval?.scope_type || '').toLowerCase();
-      if (normalizedScopeFilter === 'personal') return scopeType === 'individual';
-      if (normalizedScopeFilter === 'wing') return scopeType === 'organizational';
-      if (normalizedScopeFilter === 'branch') return scopeType === 'branch';
-      return true;
-    });
-  };
-
   // Group requests by type (personal vs wing-wise)
   const getPersonalRequests = () => {
-    const filtered = getScopeFilteredRequests();
+    const filtered = getFilteredRequests();
     const personal = filtered.filter(r => {
       const scopeType = (r.approval?.scope_type || '').toLowerCase();
       return scopeType === 'individual';
@@ -526,7 +558,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   };
 
   const getWingRequests = () => {
-    const filtered = getScopeFilteredRequests();
+    const filtered = getFilteredRequests();
     const wing = filtered.filter(r => {
       const scopeType = (r.approval?.scope_type || '').toLowerCase();
       return scopeType === 'organizational';
@@ -535,10 +567,11 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   };
 
   const getBranchRequests = () => {
-    const filtered = getScopeFilteredRequests();
+    const filtered = getFilteredRequests();
     return filtered.filter(r => {
       const scopeType = (r.approval?.scope_type || '').toLowerCase();
-      return scopeType === 'branch';
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'branch' || requestType === 'branch';
     });
   };
 
@@ -582,10 +615,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return Math.ceil(getWingRequests().length / itemsPerPage);
   };
 
-  const getBranchTotalPages = () => {
-    return Math.ceil(getBranchRequests().length / itemsPerPage);
-  };
-
   const getBranchPaginated = () => {
     const filtered = getBranchRequests();
     const sorted = [...filtered].sort((a, b) => {
@@ -599,6 +628,14 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     });
     const startIndex = (currentPage - 1) * itemsPerPage;
     return sorted.slice(startIndex, startIndex + itemsPerPage);
+  };
+
+  const getBranchTotalPages = () => {
+    return Math.ceil(getBranchRequests().length / itemsPerPage);
+  };
+
+  const shouldShowScope = (scope: 'personal' | 'branch' | 'wing') => {
+    return selectedScope === 'all' || selectedScope === scope;
   };
 
   const handleConfigureWorkflows = () => {
@@ -635,7 +672,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
             <CheckCircle className="h-3 w-3 mr-1" />
-            {dashboardStats.pending_count} Pending
+            {dashboardStats.pending_count} New Requests
           </Badge>
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
             <Clock className="h-3 w-3 mr-1" />
@@ -663,7 +700,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         >
           <Card className="h-full bg-transparent border-none shadow-none">
             <CardHeader className="pb-2">
-              <CardTitle className="text-yellow-700 font-semibold text-sm">Pending</CardTitle>
+              <CardTitle className="text-yellow-700 font-semibold text-sm">New Request</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">{dashboardStats.pending_count}</div>
@@ -763,12 +800,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       </div>
 
       {/* Personal Requests Table */}
-      {normalizedScopeFilter !== 'branch' && normalizedScopeFilter !== 'wing' && (
+      {shouldShowScope('personal') && (
       <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">{viewMode === 'admin' ? 'Personal Requests' : 'Subordinate Requests'}</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Subordinate Requests</Badge>
               <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
               <div className="flex items-center gap-2">
@@ -981,14 +1018,15 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           </div>
         </CardFooter>
       </Card>
+      )}
 
       {/* Branch Requests Table */}
-      {viewMode === 'admin' && normalizedScopeFilter !== 'personal' && normalizedScopeFilter !== 'wing' && (
-      <Card className="border border-gray-200 mb-8">
+      {viewMode === 'admin' && shouldShowScope('branch') && (
+      <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-4xl font-bold flex items-center gap-3">
-                <Badge className="bg-orange-100 text-orange-800 text-lg font-semibold px-4 py-2">Branch Request</Badge>
+                <Badge className="bg-green-100 text-green-800 text-lg font-semibold px-4 py-2">Branch Requests</Badge>
                 <span className="text-gray-600 text-2xl">({getBranchRequests().length})</span>
               </CardTitle>
               <div className="flex items-center gap-2">
@@ -1042,7 +1080,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getBranchRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No branch request'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No branch requests'}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1078,17 +1116,14 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                           <div className="text-sm text-gray-600 space-y-1 mb-3">
                             <div>Submitted by: <span className="font-medium text-gray-900">{request.submitted_by_name}</span></div>
                             <div>
-                              Submitted: {(() => {
-                                const date = new Date(request.submitted_date);
-                                return date.toLocaleString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true
-                                });
-                              })()}
+                              Submitted: {new Date(request.submitted_date).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
                             </div>
                             <div>{renderTransferBadge(request)}</div>
                             {request.current_approver_name && (
@@ -1096,24 +1131,13 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                             )}
                           </div>
 
-                          {/* Summary Stats */}
                           <div className="flex gap-4 text-xs text-gray-500 mt-3">
                             <div>Total: <span className="font-bold text-gray-900">{request.total_items}</span></div>
-                            {request.approved_items > 0 && (
-                              <div>✓ <span className="font-bold text-green-600">{request.approved_items}</span></div>
-                            )}
-                            {request.rejected_items > 0 && (
-                              <div>✗ <span className="font-bold text-red-600">{request.rejected_items}</span></div>
-                            )}
-                            {request.returned_items > 0 && (
-                              <div>↩ <span className="font-bold text-orange-600">{request.returned_items}</span></div>
-                            )}
-                            {request.pending_items > 0 && (
-                              <div>⏳ <span className="font-bold">{request.pending_items}</span></div>
-                            )}
-                            {request.lane_count > 0 && (
-                              <div>Lanes <span className="font-bold text-sky-700">{request.completed_lane_count}/{request.lane_count}</span></div>
-                            )}
+                            {request.approved_items > 0 && <div>✓ <span className="font-bold text-green-600">{request.approved_items}</span></div>}
+                            {request.rejected_items > 0 && <div>✗ <span className="font-bold text-red-600">{request.rejected_items}</span></div>}
+                            {request.returned_items > 0 && <div>↩ <span className="font-bold text-orange-600">{request.returned_items}</span></div>}
+                            {request.pending_items > 0 && <div>⏳ <span className="font-bold">{request.pending_items}</span></div>}
+                            {request.lane_count > 0 && <div>Lanes <span className="font-bold text-sky-700">{request.completed_lane_count}/{request.lane_count}</span></div>}
                           </div>
                         </div>
 
@@ -1137,7 +1161,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                         </Button>
                       </div>
 
-                      {/* Expanded Items View */}
                       {expandedRequest === request.id && (
                         <div className="mt-4 bg-gray-50 border-t border-gray-200 p-4 rounded-lg">
                           <PerItemApprovalPanel
@@ -1165,34 +1188,18 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
-                ← Previous
-              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1}>← Previous</Button>
               <div className="px-3 py-1 bg-white border border-gray-300 rounded-lg">
-                <span className="text-sm font-medium">
-                  Page {currentPage} of {getBranchTotalPages()}
-                </span>
+                <span className="text-sm font-medium">Page {currentPage} of {getBranchTotalPages()}</span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(getBranchTotalPages(), prev + 1))}
-                disabled={currentPage === getBranchTotalPages()}
-              >
-                Next →
-              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.min(getBranchTotalPages(), prev + 1))} disabled={currentPage === getBranchTotalPages()}>Next →</Button>
             </div>
           </CardFooter>
         </Card>
       )}
 
       {/* Wing Requests Table */}
-      {viewMode === 'admin' && normalizedScopeFilter !== 'personal' && normalizedScopeFilter !== 'branch' && (
+      {viewMode === 'admin' && shouldShowScope('wing') && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
