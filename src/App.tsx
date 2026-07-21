@@ -106,7 +106,6 @@ import ProcurementDetails from "./pages/ProcurementDetails";
 import NewProcurementRequest from "./pages/NewProcurementRequest";
 import MyProcurementRequests from "./pages/MyProcurementRequests";
 import AdminProcurementReview from "./pages/AdminProcurementReview";
-import ForwardedProcurementRequests from "./pages/ForwardedProcurementRequests";
 import NotificationsPage from "./pages/NotificationsPage";
 import InitialSetupPage from "./pages/InitialSetupPage";
 import DigitalSystemLanding from "./pages/DigitalSystemLanding";
@@ -277,7 +276,6 @@ function App() {
                   <Route path="new-request" element={<NewProcurementRequest />} />
                   <Route path="my-requests" element={<MyProcurementRequests />} />
                   <Route path="admin-review" element={<AdminProcurementReview />} />
-                  <Route path="forwarded-to-procurement" element={<ForwardedProcurementRequests />} />
                 </Route>
                 
                 <Route path="/dashboard" element={

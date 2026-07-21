@@ -60,13 +60,6 @@ interface IssuanceItem {
   custom_item_name?: string;
 }
 
-interface ScopedInventoryRow {
-  item_master_id?: number | string | null;
-  nomenclature?: string;
-  issued_quantity?: number;
-  current_return_status?: string;
-}
-
 const StockIssuancePersonal: React.FC = () => {
   const { user } = useSession();
   const navigate = useNavigate();  const { id } = useParams<{ id: string }>();  
@@ -76,8 +69,6 @@ const StockIssuancePersonal: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [issuanceItems, setIssuanceItems] = useState<IssuanceItem[]>([]);
   const [lastIssuedByItemId, setLastIssuedByItemId] = useState<Record<string, { qty: number; date: string | null }>>({});
-    const [personalInventoryByItemId, setPersonalInventoryByItemId] = useState<Record<string, number>>({});
-    const [personalInventoryByName, setPersonalInventoryByName] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -109,21 +100,31 @@ const StockIssuancePersonal: React.FC = () => {
     return dt.toLocaleDateString('en-GB');
   };
 
-  const getInventoryQtyBadgeClass = (qty: number) => {
-    if (qty <= 0) return 'text-red-700 bg-red-50 border border-red-200';
-    if (qty <= 5) return 'text-amber-700 bg-amber-50 border border-amber-200';
-    return 'text-green-700 bg-green-50 border border-green-200';
-  };
-
   useEffect(() => {
     // Check if we're in edit mode
     if (id) {
       setIsEditMode(true);
+      console.log('✏️ Edit mode detected for request ID:', id);
       loadExistingRequest(id);
     } else {
       fetchInitialData();
     }
   }, [id]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await categoriesLocalService.getCategories();
+        if (response.success && response.data) {
+          setCategories(response.data);
+        }
+      } catch (err) {
+        console.warn('Failed to load categories:', err);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   useEffect(() => {
     const loadLastIssuedSummary = async () => {
@@ -141,64 +142,11 @@ const StockIssuancePersonal: React.FC = () => {
         });
         setLastIssuedByItemId(map);
       } catch (err) {
-        }
+        console.warn('Failed to load last issued summary:', err);
+      }
     };
 
     loadLastIssuedSummary();
-  }, [selectedUserId]);
-
-  useEffect(() => {
-    const loadPersonalInventoryTotals = async () => {
-      if (!selectedUserId) {
-        setPersonalInventoryByItemId({});
-        setPersonalInventoryByName({});
-        return;
-      }
-
-      try {
-        const apiBase = getApiBaseUrl();
-        const response = await fetch(`${apiBase}/inventory/personal-inventory/${selectedUserId}`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          setPersonalInventoryByItemId({});
-          setPersonalInventoryByName({});
-          return;
-        }
-
-        const data = await response.json();
-        const rows: ScopedInventoryRow[] = Array.isArray(data?.items) ? data.items : [];
-        const byItemId: Record<string, number> = {};
-        const byName: Record<string, number> = {};
-
-        rows
-          .filter((row) => String(row.current_return_status || '').toLowerCase() !== 'returned')
-          .forEach((row) => {
-            const qty = Number(row.issued_quantity || 0);
-            if (!qty) return;
-
-            if (row.item_master_id !== undefined && row.item_master_id !== null && String(row.item_master_id) !== '') {
-              const key = String(row.item_master_id);
-              byItemId[key] = Number(byItemId[key] || 0) + qty;
-            }
-
-            const nameKey = String(row.nomenclature || '').trim().toLowerCase();
-            if (nameKey) {
-              byName[nameKey] = Number(byName[nameKey] || 0) + qty;
-            }
-          });
-
-        setPersonalInventoryByItemId(byItemId);
-        setPersonalInventoryByName(byName);
-      } catch (err) {
-        console.error('Error loading personal inventory totals:', err);
-        setPersonalInventoryByItemId({});
-        setPersonalInventoryByName({});
-      }
-    };
-
-    loadPersonalInventoryTotals();
   }, [selectedUserId]);
 
   useEffect(() => {
@@ -216,9 +164,19 @@ const StockIssuancePersonal: React.FC = () => {
 
   const fetchInitialData = async () => {
     try {
+      console.log('🔄 Loading stock issuance form data (Personal Request)...');
+      
       // Fetch inventory items using the local service
+      // Use the requestable-items catalog so all active items (regardless of
+      // current stock record) are available for personal requests.
+      console.log('📦 Fetching requestable inventory items...');
+      console.log('📦 Using endpoint: /api/inventory/requestable-items');
       const inventory = await inventoryLocalService.getRequestableItems();
+      console.log('📦 Inventory response:', inventory);
+
       if (inventory && inventory.length > 0) {
+        console.log('📦 First item structure:', JSON.stringify(inventory[0], null, 2));
+        console.log('📦 API returned item_master_id:', inventory[0].item_master_id);
         // Transform data to match the expected structure for StockIssuance
         const transformedItems = inventory
           .map((item) => {
@@ -238,35 +196,27 @@ const StockIssuancePersonal: React.FC = () => {
           });
 
         setInventoryItems(transformedItems);
-        } else {
+        console.log('✅ Inventory items loaded:', transformedItems.length);
+      } else {
         setInventoryItems([]);
-        }
+        console.log('⚠️ No inventory items found');
+      }
 
-      } catch (error: any) {
+      console.log('✅ Personal stock issuance form data loaded successfully');
+      console.log('👤 Using session data:', { 
+        user: user?.user_name, 
+        office: selectedOfficeId, 
+        wing: selectedWingId 
+      });
+    } catch (error: any) {
       console.error('❌ Error loading stock issuance form data:', error);
       setError('Failed to load data: ' + error.message);
     }
   };
 
-  const getPersonalInventoryQty = (item: { item_master_id?: string | number; id?: string | number; inventory_id?: string | number; nomenclature?: string; }) => {
-    const primaryId = item.item_master_id ?? item.id ?? item.inventory_id;
-    if (primaryId !== undefined && primaryId !== null && String(primaryId) !== '') {
-      const byId = personalInventoryByItemId[String(primaryId)];
-      if (byId !== undefined) return byId;
-    }
-
-    const byInventoryId = item.inventory_id !== undefined && item.inventory_id !== null
-      ? personalInventoryByItemId[String(item.inventory_id)]
-      : undefined;
-    if (byInventoryId !== undefined) return byInventoryId;
-
-    const nameKey = String(item.nomenclature || '').trim().toLowerCase();
-    if (!nameKey) return 0;
-    return Number(personalInventoryByName[nameKey] || 0);
-  };
-
   const loadExistingRequest = async (requestId: string) => {
     try {
+      console.log('📝 Loading existing request for editing:', requestId);
       setIsLoading(true);
       
       // Fetch the existing request data
@@ -283,6 +233,8 @@ const StockIssuancePersonal: React.FC = () => {
         const data = await response.json();
         if (data.success && data.data) {
           const request = data.data;
+          console.log('📝 Existing request loaded:', request);
+          
           // Populate form with existing data
           setPurpose(request.purpose || '');
           setUrgencyLevel(request.urgency_level || 'Normal');
@@ -382,8 +334,8 @@ const StockIssuancePersonal: React.FC = () => {
           if (item.item_type === 'custom') {
             return { ...item, requested_quantity: Math.max(1, quantity) };
           }
-          // For inventory items, respect available stock
-          return { ...item, requested_quantity: Math.max(0, Math.min(quantity, item.available_stock)) };
+          // Allow requesting any positive quantity regardless of current stock
+          return { ...item, requested_quantity: Math.max(1, quantity) };
         }
         return item;
       })
@@ -416,9 +368,16 @@ const StockIssuancePersonal: React.FC = () => {
   };
 
   const submitIssuanceRequest = async () => {
+    console.log('🚀 Starting submitIssuanceRequest...');
+    console.log('📋 Current issuanceItems:', issuanceItems);
+    console.log('📋 Current issuanceItems length:', issuanceItems.length);
+
     if (!validateForm()) {
+      console.log('❌ Form validation failed');
       return;
     }
+    console.log('✅ Form validation passed');
+
     setIsLoading(true);
     setError('');
     setSuccess('');
@@ -426,6 +385,8 @@ const StockIssuancePersonal: React.FC = () => {
     try {
       if (isEditMode && id) {
         // Update existing request
+        console.log('📝 Updating existing request:', id);
+        
         const apiBase = getApiBaseUrl();
         const updateData = {
           purpose,
@@ -468,7 +429,10 @@ const StockIssuancePersonal: React.FC = () => {
         }
       } else {
         // Create new request (existing logic)
+        console.log('📝 Creating new request...');
         const requestNumber = stockIssuanceService.generateRequestNumber();
+        console.log('🔢 Generated request number:', requestNumber);
+        
         // Create issuance request using SQL Server API
         const requestData = {
           request_number: requestNumber,
@@ -484,8 +448,15 @@ const StockIssuancePersonal: React.FC = () => {
           is_returnable: isReturnable,
           request_status: 'Submitted'
         };
+        console.log('📋 Request data:', requestData);
+
         const requestResult = await stockIssuanceService.submitRequest(requestData);
-        // Add issuance items
+        console.log('✅ Request submitted successfully:', requestResult);
+        console.log('🔍 Request result id:', requestResult.id);
+        console.log('🔍 Request result type:', typeof requestResult.id);
+
+      // Add issuance items
+      console.log('📦 Processing issuance items...');
       const requestItems = issuanceItems.map(item => {
         const itemData = {
           item_master_id: item.item_type === 'inventory' ? item.item_master_id : undefined,
@@ -495,11 +466,19 @@ const StockIssuancePersonal: React.FC = () => {
           item_type: item.item_type,
           custom_item_name: item.item_type === 'custom' ? item.custom_item_name : undefined
         };
+        console.log('📦 Submitting item:', itemData);
         return itemData;
       });
+      console.log('📦 All request items:', requestItems);
+
+      console.log('📦 Calling submitItems with requestId:', requestResult.id, 'and items:', requestItems);
       await stockIssuanceService.submitItems(requestResult.id, requestItems);
+      console.log('✅ Items submitted successfully');
+
       // Submit for approval workflow
       try {
+        console.log('🔄 Submitting for approval workflow...');
+        
         // Get stock issuance workflow
         const workflows = await approvalForwardingService.getWorkflows();
         const stockWorkflow = workflows.find(w => w.request_type === 'stock_issuance');
@@ -510,14 +489,18 @@ const StockIssuancePersonal: React.FC = () => {
             'stock_issuance', 
             stockWorkflow.id
           );
-          } else {
-          }
+          console.log('✅ Successfully submitted for approval');
+        } else {
+          console.warn('⚠️ No stock issuance workflow found - request submitted without approval process');
+        }
       } catch (approvalError: any) {
         console.error('❌ Error submitting for approval:', approvalError);
         // Don't fail the entire submission if approval fails
       }
 
         const successMessage = `Stock issuance request ${requestNumber} submitted successfully and sent for approval for ${user?.user_name}!`;
+        console.log('🎉 Success message:', successMessage);
+        
         setSuccess(successMessage);
         
         // Reset form
@@ -686,7 +669,7 @@ const StockIssuancePersonal: React.FC = () => {
                 </div>
                 <div>
                   <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Group</Label>
-                  <Select value={selectedCategory} onValueChange={(value: string) => setSelectedCategory(value)}>
+                  <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value)}>
                     <SelectTrigger id="categoryFilter" className="mt-1">
                       <SelectValue placeholder="All Groups" />
                     </SelectTrigger>
@@ -720,9 +703,6 @@ const StockIssuancePersonal: React.FC = () => {
                     <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">{item.nomenclature}</div>
-                        <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-xs font-medium ${getInventoryQtyBadgeClass(getPersonalInventoryQty(item))}`}>
-                          Personal Inventory Qty: {getPersonalInventoryQty(item)}
-                        </div>
                         {item.description && (
                           <div className="text-xs text-gray-600 line-clamp-2">
                             {item.description}
@@ -848,10 +828,11 @@ const StockIssuancePersonal: React.FC = () => {
                   <table className="w-full table-fixed text-xs">
                     <thead className="bg-gray-100 text-gray-700">
                       <tr>
-                        <th className="text-left px-2 py-2 w-[36%]">Item</th>
+                        <th className="text-left px-2 py-2 w-[34%]">Item</th>
                         <th className="text-left px-2 py-2 w-[16%]">Last Qty</th>
                         <th className="text-left px-2 py-2 w-[16%]">Last Date</th>
-                        <th className="text-left px-2 py-2 w-[32%]">Fresh Req</th>
+                        <th className="text-left px-2 py-2 w-[24%]">Fresh Req</th>
+                        <th className="text-left px-2 py-2 w-[10%]">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -862,11 +843,6 @@ const StockIssuancePersonal: React.FC = () => {
                             <div className="text-[11px] text-gray-500 leading-tight">
                               {item.item_type === 'custom' ? 'Custom item' : `Available: ${item.available_stock}`}
                             </div>
-                            {item.item_type !== 'custom' && (
-                              <div className={`inline-flex items-center px-2 py-0.5 rounded mt-1 text-[11px] font-medium ${getInventoryQtyBadgeClass(getPersonalInventoryQty(item))}`}>
-                                Personal Inventory Qty: {getPersonalInventoryQty(item)}
-                              </div>
-                            )}
                           </td>
                           <td className="px-2 py-2 align-top">{item.item_type === 'custom' ? '-' : (item.last_issued_quantity ?? 0)}</td>
                           <td className="px-2 py-2 align-top">{item.item_type === 'custom' ? '-' : formatDate(item.last_issue_date)}</td>
@@ -889,31 +865,22 @@ const StockIssuancePersonal: React.FC = () => {
                               >
                                 <Plus className="w-3 h-3" />
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => removeIssuanceItem(item.inventory_id)}
-                                className="h-7 px-2 text-[11px]"
-                              >
-                                Remove
-                              </Button>
                             </div>
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => removeIssuanceItem(item.inventory_id)}
+                              className="h-7 px-2 text-[11px]"
+                            >
+                              Remove
+                            </Button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <div className="border-t bg-gray-50 px-3 py-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full text-red-700 border-red-200 hover:bg-red-50"
-                      onClick={() => setIssuanceItems([])}
-                      disabled={issuanceItems.length === 0}
-                    >
-                      Clear Selected Items
-                    </Button>
-                  </div>
                 </div>
               </div>
 

@@ -625,9 +625,13 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
                         <TableHeader>
                           <TableRow>
                             <TableHead>Item</TableHead>
-                            <TableHead>Quantity</TableHead>
+                            {selectedTender.tender_type !== 'annual-tender' && (
+                              <TableHead>Quantity</TableHead>
+                            )}
                             <TableHead>Unit Price</TableHead>
-                            <TableHead>Total Amount</TableHead>
+                            {selectedTender.tender_type !== 'annual-tender' && (
+                              <TableHead>Total Amount</TableHead>
+                            )}
                             <TableHead>Specifications</TableHead>
                             <TableHead>Remarks</TableHead>
                           </TableRow>
@@ -641,15 +645,19 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
                                   <p className="text-xs text-gray-500">ID: {item.item_master_id}</p>
                                 </div>
                               </TableCell>
-                              <TableCell className="font-medium">
-                                {item.quantity?.toLocaleString() || 'N/A'}
-                              </TableCell>
+                              {selectedTender.tender_type !== 'annual-tender' && (
+                                <TableCell className="font-medium">
+                                  {item.quantity?.toLocaleString() || 'N/A'}
+                                </TableCell>
+                              )}
                               <TableCell>
                                 {formatCurrency(item.estimated_unit_price)}
                               </TableCell>
-                              <TableCell className="font-medium">
-                                {formatCurrency(item.total_amount)}
-                              </TableCell>
+                              {selectedTender.tender_type !== 'annual-tender' && (
+                                <TableCell className="font-medium">
+                                  {formatCurrency(item.total_amount)}
+                                </TableCell>
+                              )}
                               <TableCell>
                                 <div className="max-w-xs">
                                   {item.specifications ? (
@@ -686,12 +694,14 @@ const TenderDashboard: React.FC<TenderDashboardProps> = ({
                               {selectedTender.items.length}
                             </p>
                           </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Total Quantity</p>
-                            <p className="text-lg font-bold">
-                              {selectedTender.items.reduce((sum, item) => sum + (item.quantity || 0), 0).toLocaleString()}
-                            </p>
-                          </div>
+                          {selectedTender.tender_type !== 'annual-tender' && (
+                            <div>
+                              <p className="text-sm text-gray-600">Total Quantity</p>
+                              <p className="text-lg font-bold">
+                                {selectedTender.items.reduce((sum, item) => sum + (item.quantity || 0), 0).toLocaleString()}
+                              </p>
+                            </div>
+                          )}
                           <div>
                             <p className="text-sm text-gray-600">Total Estimated Value</p>
                             <p className="text-lg font-bold">

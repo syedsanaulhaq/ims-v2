@@ -71,6 +71,12 @@ interface ItemMaster {
   sub_category_name?: string;
 }
 
+interface Category {
+  id: string;
+  category_name: string;
+  description?: string;
+}
+
 interface Office {
   intOfficeID: number;
   strOfficeName: string;
@@ -126,6 +132,7 @@ const CreateTender: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [itemMasters, setItemMasters] = useState<ItemMaster[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [wings, setWings] = useState<Wing[]>([]);
   const [decs, setDecs] = useState<Dec[]>([]);
@@ -196,6 +203,15 @@ const CreateTender: React.FC = () => {
     vendor_id: ''
   });
 
+  // For annual tenders, auto-select the vendor when only one bidder is checked.
+  useEffect(() => {
+    if (tenderType !== 'annual-tender') return;
+    const checkedBidders = bidders.filter(b => b.is_successful);
+    if (checkedBidders.length === 1 && !newItem.vendor_id) {
+      setNewItem(prev => ({ ...prev, vendor_id: checkedBidders[0].vendor_id }));
+    }
+  }, [bidders, tenderType, newItem.vendor_id]);
+
   // Fetch initial data (item masters, offices, and vendors)
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -206,6 +222,13 @@ const CreateTender: React.FC = () => {
           const itemMastersData = await itemMastersResponse.json();
           // Handle the {success: true, items: [...]} format
           setItemMasters(itemMastersData.items || []);
+        }
+
+        // Fetch Categories/Groups separately so groups with no currently linked item masters still appear
+        const categoriesResponse = await fetch('http://localhost:3001/api/categories');
+        if (categoriesResponse.ok) {
+          const categoriesData = await categoriesResponse.json();
+          setCategories(Array.isArray(categoriesData) ? categoriesData : []);
         }
 
         // Fetch Offices
@@ -341,22 +364,27 @@ const CreateTender: React.FC = () => {
       }
     }
 
-    const newTenderItems: TenderItem[] = Array.from(grouped.values()).map(({ item, sourceIds, totalQty, sourceRequests }) => ({
-      id: `req-${item.item_master_id || item.id}`,
-      item_master_id: item.item_master_id || '',
-      nomenclature: item.nomenclature,
-      quantity: totalQty,
-      unit: item.unit || '',
-      estimated_unit_price: 0,
-      total_amount: 0,
-      specifications: '',
-      remarks: `Imported from required items pipeline | Requests: ${sourceRequests.join(', ') || 'N/A'}`,
-      source_required_item_ids: sourceIds,
-      source_request_number: sourceRequests.join(', '),
-      requested_by_wing_name: item.requested_by_wing_name || '',
-      urgency_level: item.urgency_level,
-      vendor_id: ''
-    }));
+    const newTenderItems: TenderItem[] = Array.from(grouped.values()).map(({ item, sourceIds, totalQty, sourceRequests }) => {
+      // Annual tender is a rate contract: items carry only price, no quantity.
+      const isAnnual = tenderType === 'annual-tender';
+      const qty = isAnnual ? 1 : totalQty;
+      return {
+        id: `req-${item.item_master_id || item.id}`,
+        item_master_id: item.item_master_id || '',
+        nomenclature: item.nomenclature,
+        quantity: qty,
+        unit: item.unit || '',
+        estimated_unit_price: 0,
+        total_amount: 0,
+        specifications: '',
+        remarks: `Imported from required items pipeline | Requests: ${sourceRequests.join(', ') || 'N/A'}`,
+        source_required_item_ids: sourceIds,
+        source_request_number: sourceRequests.join(', '),
+        requested_by_wing_name: item.requested_by_wing_name || '',
+        urgency_level: item.urgency_level,
+        vendor_id: ''
+      };
+    });
 
     setTenderItems(prev => {
       // Merge with existing items by same item_master_id/nomenclature
@@ -370,7 +398,7 @@ const CreateTender: React.FC = () => {
           const existing = merged[existingIndex];
           merged[existingIndex] = {
             ...existing,
-            quantity: existing.quantity + newItem.quantity,
+            quantity: tenderType === 'annual-tender' ? 1 : existing.quantity + newItem.quantity,
             source_required_item_ids: Array.from(new Set([
               ...(existing.source_required_item_ids || []),
               ...(newItem.source_required_item_ids || [])
@@ -528,8 +556,14 @@ const CreateTender: React.FC = () => {
 
   // Handle adding new item to tender
   const handleAddItem = () => {
-    if (!newItem.item_master_id || !newItem.nomenclature || newItem.quantity <= 0) {
+    if (!newItem.item_master_id || !newItem.nomenclature) {
       alert('Please fill in all required item fields');
+      return;
+    }
+
+    // For non-annual tenders, quantity is required and must be > 0.
+    if (tenderType !== 'annual-tender' && (newItem.quantity === undefined || newItem.quantity <= 0)) {
+      alert('Please enter a valid quantity');
       return;
     }
 
@@ -868,6 +902,14 @@ const CreateTender: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const categoryOptions = categories
+    .filter(category => category.category_name)
+    .sort((a, b) => (a.description || '').localeCompare(b.description || ''))
+    .map(category => ({
+      value: category.category_name,
+      label: category.description ? `${category.description} - ${category.category_name}` : category.category_name
+    }));
 
   return (
     <div className="min-h-screen bg-gray-50/50">
@@ -1621,7 +1663,7 @@ const CreateTender: React.FC = () => {
                   <>
                     {/* First Row - Vendor, Category, Name of Article */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-                      {/* Vendor Select */}
+                      {/* Vendor Select - only the bidders checked in Participating Bidders */}
                       <div>
                         <label className="text-xs font-medium mb-1 block">Vendor *</label>
                         <Select 
@@ -1632,19 +1674,22 @@ const CreateTender: React.FC = () => {
                               vendor_id: selectedVendorId
                             }));
                           }}
+                          disabled={bidders.filter(b => b.is_successful).length === 0}
                         >
                           <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Select vendor..." />
+                            <SelectValue placeholder={bidders.filter(b => b.is_successful).length === 0 ? "Select a bidder first..." : "Select vendor..."} />
                           </SelectTrigger>
                           <SelectContent>
-                            {bidders.length > 0 ? (
-                              bidders.map(vendor => (
-                                <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
-                                  {vendor.vendor_name}
-                                </SelectItem>
-                              ))
+                            {bidders.filter(b => b.is_successful).length > 0 ? (
+                              bidders
+                                .filter(b => b.is_successful)
+                                .map(vendor => (
+                                  <SelectItem key={vendor.vendor_id} value={vendor.vendor_id}>
+                                    {vendor.vendor_name}
+                                  </SelectItem>
+                                ))
                             ) : (
-                              <div className="p-2 text-xs text-gray-500">No vendors available</div>
+                              <div className="p-2 text-xs text-gray-500">No bidder selected</div>
                             )}
                           </SelectContent>
                         </Select>
@@ -1655,17 +1700,7 @@ const CreateTender: React.FC = () => {
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
                         <div className="flex gap-2">
                           <SearchableSelect
-                            options={Array.from(new Map(itemMasters
-                              .filter(item => item.category_name)
-                              .map(item => [item.category_name, {
-                                category_name: item.category_name,
-                                category_description: item.category_description
-                              }])).values())
-                              .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
-                              .map(cat => ({
-                                value: cat.category_name,
-                                label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
-                              }))}
+                            options={categoryOptions}
                             value={selectedCategory}
                             onValueChange={(value) => {
                               setSelectedCategory(value);
@@ -1781,17 +1816,7 @@ const CreateTender: React.FC = () => {
                         <label className="text-xs font-medium mb-1 block">Category/Group *</label>
                         <div className="flex gap-2">
                           <SearchableSelect
-                            options={Array.from(new Map(itemMasters
-                              .filter(item => item.category_name)
-                              .map(item => [item.category_name, {
-                                category_name: item.category_name,
-                                category_description: item.category_description
-                              }])).values())
-                              .sort((a, b) => (a.category_description || '').localeCompare(b.category_description || ''))
-                              .map(cat => ({
-                                value: cat.category_name,
-                                label: cat.category_description ? `${cat.category_description} - ${cat.category_name}` : cat.category_name
-                              }))}
+                            options={categoryOptions}
                             value={selectedCategory}
                             onValueChange={(value) => {
                               setSelectedCategory(value);
@@ -1849,21 +1874,23 @@ const CreateTender: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Quantity */}
-                      <div>
-                        <label className="text-xs font-medium mb-1 block">Qty *</label>
-                        <Input
-                          className="h-9"
-                          type="number"
-                          min="1"
-                          value={newItem.quantity || ''}
-                          onChange={(e) => setNewItem(prev => ({
-                            ...prev,
-                            quantity: parseInt(e.target.value) || 0
-                          }))}
-                          placeholder="Enter quantity"
-                        />
-                      </div>
+                      {/* Quantity - hidden for annual tenders (price-only rate contract) */}
+                      {tenderType !== 'annual-tender' && (
+                        <div>
+                          <label className="text-xs font-medium mb-1 block">Qty *</label>
+                          <Input
+                            className="h-9"
+                            type="number"
+                            min="1"
+                            value={newItem.quantity || ''}
+                            onChange={(e) => setNewItem(prev => ({
+                              ...prev,
+                              quantity: parseInt(e.target.value) || 0
+                            }))}
+                            placeholder="Enter quantity"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Second Row - Unit Price, Specifications, Remarks */}
@@ -1979,7 +2006,6 @@ const CreateTender: React.FC = () => {
                             <>
                               <TableHead>Category</TableHead>
                               <TableHead>Name of the Article</TableHead>
-                              <TableHead>Quantity</TableHead>
                               <TableHead>Vendor</TableHead>
                               <TableHead>Unit Price</TableHead>
                               <TableHead>Actions</TableHead>
@@ -2034,29 +2060,6 @@ const CreateTender: React.FC = () => {
                                   <p className="font-medium">{item.nomenclature}</p>
                                 </TableCell>
                                 <TableCell>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    className="h-8 w-24 text-xs"
-                                    value={item.quantity || ''}
-                                    onChange={(e) => {
-                                      const qty = parseInt(e.target.value) || 0;
-                                      setTenderItems(prev => {
-                                        const next = [...prev];
-                                        const idx = next.findIndex(i => i.id === item.id);
-                                        if (idx >= 0) {
-                                          next[idx] = {
-                                            ...next[idx],
-                                            quantity: qty,
-                                            total_amount: qty * (next[idx].estimated_unit_price || 0)
-                                          };
-                                        }
-                                        return next;
-                                      });
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell>
                                   {item.vendor_id ? (
                                     <div>
                                       {(() => {
@@ -2088,7 +2091,8 @@ const CreateTender: React.FC = () => {
                                           next[idx] = {
                                             ...next[idx],
                                             estimated_unit_price: price,
-                                            total_amount: price * next[idx].quantity
+                                            // Annual tender is price-only; total equals unit price.
+                                            total_amount: price
                                           };
                                         }
                                         return next;

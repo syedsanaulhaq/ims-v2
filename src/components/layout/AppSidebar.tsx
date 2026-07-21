@@ -187,7 +187,27 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
   
   // Debug: Log user permissions
   useEffect(() => {
-    }, [user, hasStoreKeeperRole, hasBranchSupervisorRole, hasBranchStorekeeperRole]);
+    console.log('👤 AppSidebar - User data received:', {
+      user_id: user?.user_id,
+      user_name: user?.user_name,
+      ims_permissions: user?.ims_permissions?.length || 0,
+      ims_roles: user?.ims_roles?.length || 0,
+      is_super_admin: user?.is_super_admin,
+      permissionKeys: user?.ims_permissions?.map(p => p.permission_key) || [],
+      roleNames: user?.ims_roles?.map(r => r.role_name) || [],
+      wing_id: user?.wing_id,
+    });
+    
+    console.log('🔐 Permission Checks in AppSidebar:', {
+      canRequestIssuance: !!user?.ims_permissions?.some(p => p.permission_key === 'issuance.request'),
+      canApprove: !!user?.ims_permissions?.some(p => p.permission_key === 'approval.approve'),
+      isWingSupervisor: !!user?.ims_permissions?.some(p => p.permission_key === 'wing.supervisor'),
+      hasBranchSupervisorRole,
+      hasBranchStorekeeperRole,
+      hasStoreKeeperRole: hasStoreKeeperRole,
+      isSuperAdmin: user?.is_super_admin
+    });
+  }, [user, hasStoreKeeperRole, hasBranchSupervisorRole, hasBranchStorekeeperRole]);
 
   const handleLogout = async () => {
     try {
@@ -336,15 +356,15 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     ]
   };
 
-  // APPROVAL MENU - For approvers
-  const approvalMenuGroup: MenuGroup = {
-    label: "Approval Menu",
-    icon: CheckCircle,
+  // ADMIN APPROVAL MENU - For admin chain approvers
+  const adminWingMenuGroup: MenuGroup = {
+    label: "Admin",
+    icon: Shield,
     items: [
+      { title: "Admin Dashboard", icon: BarChart3, path: "/dashboard/approval-dashboard-request-based-admin", permission: 'approval.approve' },
       { title: "Personal Requests", icon: User, path: "/dashboard/approval-dashboard-request-based-admin?scope=personal", permission: 'approval.approve' },
       { title: "Branch Requests", icon: Building2, path: "/dashboard/approval-dashboard-request-based-admin?scope=branch", permission: 'approval.approve' },
       { title: "Wing Requests", icon: Users, path: "/dashboard/approval-dashboard-request-based-admin?scope=wing", permission: 'approval.approve' },
-      { title: "Forwarded to Procurement", icon: ShoppingCart, path: "/procurement/forwarded-to-procurement", permission: 'approval.approve' },
       { title: "Workflow Config", icon: Settings, path: "/dashboard/workflow-admin", permission: 'roles.manage' },
     ]
   };
@@ -432,9 +452,9 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show inventory menu for super admins and inventory managers.
-    // Store-keeper exclusion should not hide inventory menu from super admins.
-    if (canAccessCentralInventoryMenu && (!canAccessStoreKeeperMenu || isSuperAdmin) && (!hasScopedOperationalRole || isSuperAdmin)) {
+    // Show inventory menu for super admins, inventory managers, and admin chain roles.
+    // Store-keeper / scoped operational exclusion should not hide inventory menu from super admins or admin chain roles.
+    if (canAccessCentralInventoryMenu && (!canAccessStoreKeeperMenu || isSuperAdmin || hasAdminApprovalRole) && (!hasScopedOperationalRole || isSuperAdmin || hasAdminApprovalRole)) {
       const visibleInventoryItems = inventoryMenuGroup.items.filter(item => checkPermission(item.permission));
       if (visibleInventoryItems.length > 0) {
         groups.push({ ...inventoryMenuGroup, items: visibleInventoryItems });
@@ -465,11 +485,11 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       }
     }
 
-    // Show approval menu if user has APPROVAL permissions (approvers only)
-    if (canApprove || hasApproverRole) {
-      const visibleApprovalItems = approvalMenuGroup.items.filter(item => checkPermission(item.permission));
-      if (visibleApprovalItems.length > 0) {
-        groups.push({ ...approvalMenuGroup, items: visibleApprovalItems });
+    // Show admin wing menu for admin-capable approvers.
+    if (canApprove || hasApproverRole || hasAdminApprovalRole || canManageRoles) {
+      const visibleAdminWingItems = adminWingMenuGroup.items.filter(item => checkPermission(item.permission));
+      if (visibleAdminWingItems.length > 0) {
+        groups.push({ ...adminWingMenuGroup, items: visibleAdminWingItems });
       }
     }
 

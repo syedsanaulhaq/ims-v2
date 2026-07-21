@@ -24,6 +24,7 @@ class StockReturnService {
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -31,7 +32,8 @@ class StockReturnService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
@@ -44,14 +46,17 @@ class StockReturnService {
 
   async getReturns(): Promise<any[]> {
     try {
-      const response = await fetch(this.baseUrl);
-      
+      const response = await fetch(this.baseUrl, {
+        credentials: 'include',
+      });
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
-      const returns = await response.json();
-      return returns;
+      const result = await response.json();
+      return result.data || [];
     } catch (error) {
       console.error('❌ Error fetching stock returns:', error);
       throw error;
@@ -60,14 +65,17 @@ class StockReturnService {
 
   async getReturnById(id: string): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/${id}`);
-      
+      const response = await fetch(`${this.baseUrl}/${id}`, {
+        credentials: 'include',
+      });
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
-      const stockReturn = await response.json();
-      return stockReturn;
+      const result = await response.json();
+      return result.data || result;
     } catch (error) {
       console.error('❌ Error fetching stock return:', error);
       throw error;

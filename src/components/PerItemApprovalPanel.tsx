@@ -205,6 +205,11 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
   };
 
   const getTotalAvailableStock = (item: RequestItem) => {
+    // Admin workflow always operates against central/main inventory.
+    if (isAdminWorkflowContext) {
+      const admin = Number((item as any)?.admin_stock_available ?? 0);
+      return Number.isFinite(admin) ? admin : 0;
+    }
     const wing = Number(item?.wing_stock_available ?? item?.current_stock ?? 0);
     const admin = Number((item as any)?.admin_stock_available ?? 0);
     const total = (Number.isFinite(wing) ? wing : 0) + (Number.isFinite(admin) ? admin : 0);
@@ -322,6 +327,34 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           if (requestDetailsResp.ok) {
             const requestDetailsData = await requestDetailsResp.json();
             const groupedItems = Array.isArray(requestDetailsData?.items) ? requestDetailsData.items : [];
+
+            // Enrich approval items with stock availability from the request details endpoint
+            // so the Out-of-Stock badge uses the same main inventory source as Check Stock.
+            if (groupedItems.length > 0 && Array.isArray(data.items)) {
+              const stockByItemMasterId = new Map<string, any>();
+              groupedItems.forEach((it: any) => {
+                const imId = String(it.item_master_id || '');
+                if (imId) {
+                  stockByItemMasterId.set(imId, it);
+                }
+              });
+
+              data.items = data.items.map((it: any) => {
+                const imId = String(it.item_master_id || '');
+                const stockItem = imId ? stockByItemMasterId.get(imId) : null;
+                if (stockItem) {
+                  return {
+                    ...it,
+                    admin_stock_available: stockItem.admin_stock_available,
+                    wing_stock_available: stockItem.wing_stock_available,
+                    can_fulfill_from_admin: stockItem.can_fulfill_from_admin,
+                    can_fulfill_from_wing: stockItem.can_fulfill_from_wing
+                  };
+                }
+                return it;
+              });
+            }
+
             const groupMap: Record<string, number> = {};
             groupedItems.forEach((it: any) => {
               const key = String(it.id || '');
@@ -653,7 +686,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     // Also include forwarded states because these are still pending decisions for current approver stage.
     if (activeFilter === 'pending') {
       return request.items.filter((item: any) => 
-        ['', 'PENDING', 'FORWARD_TO_ADMIN', 'FORWARD_TO_SUPERVISOR'].includes(
+        ['', 'PENDING', 'FORWARD_TO_ADMIN', 'FORWARD_TO_SUPERVISOR', 'FORWARD_TO_PROCUREMENT'].includes(
           normalizeDecisionType(item.decision_type)
         )
       );
@@ -867,18 +900,15 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
     try {
       const itemMasterId = item.item_master_id || item.id;
       const requestedQty = getItemQuantity(item);
+      // Admin workflow context (admin dashboard / forwarded-to-admin) always uses central/main inventory.
+      // Non-admin contexts continue to use wing/branch/personal scoped inventory as before.
       const normalizedRequestType = String(request?.request_type || '').trim().toLowerCase();
-      const isBranchOrPersonalRequest = normalizedRequestType === 'branch' || normalizedRequestType === 'individual' || normalizedRequestType === 'personal';
       const shouldUseAdminInventory = isAdminWorkflowContext;
-      const inventoryScope = shouldUseAdminInventory ? 'admin' : (isBranchOrPersonalRequest ? 'branch' : 'wing');
+      const inventoryScope = shouldUseAdminInventory ? 'admin' : (normalizedRequestType === 'branch' || normalizedRequestType === 'individual' || normalizedRequestType === 'personal' ? 'branch' : 'wing');
       const wingId = Number(request?.requester_wing_id || currentUser?.wing_id || 0) || null;
       const branchId = Number(request?.requester_branch_id || currentUser?.intBranchID || currentUser?.branch_id || 0) || null;
 
-      setStockScopeLabel(
-        shouldUseAdminInventory
-          ? 'Main Inventory'
-          : (isBranchOrPersonalRequest ? 'Branch' : 'Wing')
-      );
+      setStockScopeLabel(shouldUseAdminInventory ? 'Main Inventory' : (inventoryScope === 'branch' ? 'Branch' : 'Wing'));
 
       const response = await fetch(`${getApiUrl()}/api/inventory/check-availability`, {
         method: 'POST',

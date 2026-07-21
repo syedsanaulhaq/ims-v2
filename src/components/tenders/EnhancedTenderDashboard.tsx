@@ -549,18 +549,26 @@ const EnhancedTenderDashboard: React.FC = () => {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Item</TableHead>
-                          <TableHead>Quantity</TableHead>
+                          {(selectedTender.tender_type || selectedTender.type) !== 'annual-tender' && (
+                            <TableHead>Quantity</TableHead>
+                          )}
                           <TableHead>Unit Price</TableHead>
-                          <TableHead>Total</TableHead>
+                          {(selectedTender.tender_type || selectedTender.type) !== 'annual-tender' && (
+                            <TableHead>Total</TableHead>
+                          )}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {selectedTender.items.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell>{item.nomenclature}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
+                            {(selectedTender.tender_type || selectedTender.type) !== 'annual-tender' && (
+                              <TableCell>{item.quantity}</TableCell>
+                            )}
                             <TableCell>{formatCurrency(item.estimated_unit_price)}</TableCell>
-                            <TableCell>{formatCurrency(item.total_amount)}</TableCell>
+                            {(selectedTender.tender_type || selectedTender.type) !== 'annual-tender' && (
+                              <TableCell>{formatCurrency(item.total_amount)}</TableCell>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>

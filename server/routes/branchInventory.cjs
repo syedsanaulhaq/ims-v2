@@ -19,54 +19,21 @@ async function resolveBranchScope(session, pool) {
     return { branchId: null, branchName: 'All Branches', isAdmin: true };
   }
 
+  // Always prefer the branchId from the session variable (set by frontend/auth)
+  // Fallback to AspNetUsers.intBranchID only if session branchId is not available
+  const sessionBranch =
+    session?.user?.branchId ??
+    session?.user?.branch_id ??
+    session?.user?.intBranchID ??
+    null;
+
+  if (sessionBranch) {
+    const branchId = Number(sessionBranch) || null;
+    return { branchId, branchName: branchId ? `Branch ${branchId}` : 'Your Branch', isAdmin: false };
+  }
+
+  // Fallback to database profile
   const userId = session.userId;
-  const sessionBranch = session?.user?.intBranchID || null;
-  const sessionBranchName = session?.user?.BranchName || null;
-
-  let cnic = session?.user?.CNIC || session?.user?.cnic || null;
-  if (!cnic && userId) {
-    const userCnicRes = await pool.request()
-      .input('userId', sql.NVarChar(450), userId)
-      .query('SELECT TOP 1 CNIC FROM AspNetUsers WHERE Id = @userId');
-    cnic = userCnicRes.recordset[0]?.CNIC || null;
-  }
-
-  if (cnic) {
-    const normalizedCnic = String(cnic).replace(/-/g, '').trim();
-
-    const exactBranchRes = await pool.request()
-      .input('cnic', sql.NVarChar(30), String(cnic).trim())
-      .query(`
-        SELECT TOP 1 BranchID, BranchName
-        FROM vw_employee_branch
-        WHERE CNIC = @cnic
-      `);
-
-    if (exactBranchRes.recordset[0]?.BranchID) {
-      return {
-        branchId: Number(exactBranchRes.recordset[0].BranchID),
-        branchName: exactBranchRes.recordset[0].BranchName || sessionBranchName || `Branch ${exactBranchRes.recordset[0].BranchID}`,
-        isAdmin: false
-      };
-    }
-
-    const normalizedBranchRes = await pool.request()
-      .input('normalizedCnic', sql.NVarChar(30), normalizedCnic)
-      .query(`
-        SELECT TOP 1 BranchID, BranchName
-        FROM vw_employee_branch
-        WHERE REPLACE(CNIC, '-', '') = @normalizedCnic
-      `);
-
-    if (normalizedBranchRes.recordset[0]?.BranchID) {
-      return {
-        branchId: Number(normalizedBranchRes.recordset[0].BranchID),
-        branchName: normalizedBranchRes.recordset[0].BranchName || sessionBranchName || `Branch ${normalizedBranchRes.recordset[0].BranchID}`,
-        isAdmin: false
-      };
-    }
-  }
-
   const userRes = await pool.request()
     .input('userId', sql.NVarChar(450), userId)
     .query(`
@@ -75,8 +42,8 @@ async function resolveBranchScope(session, pool) {
       WHERE u.Id = @userId
     `);
 
-  const branchId = userRes.recordset[0]?.intBranchID || sessionBranch || null;
-  const branchName = sessionBranchName || (branchId ? `Branch ${branchId}` : 'Your Branch');
+  const branchId = userRes.recordset[0]?.intBranchID || null;
+  const branchName = branchId ? `Branch ${branchId}` : 'Your Branch';
   return { branchId, branchName, isAdmin: false };
 }
 
@@ -104,7 +71,6 @@ router.get('/requests', requireAuth, async (req, res) => {
     const reqResult = await reqRequest.query(`
       SELECT
         sir.id,
-        sir.id AS request_id,
         sir.request_number,
         sir.request_type,
         COALESCE(sir.purpose, 'Stock Issuance Request') AS title,
@@ -112,19 +78,12 @@ router.get('/requests', requireAuth, async (req, res) => {
         sir.created_at AS requested_date,
         sir.submitted_at AS submitted_date,
         u.FullName AS requester_name,
-        CAST(COALESCE(sir.requester_branch_id, eb.BranchID, u.intBranchID) AS NVARCHAR(50)) AS requester_branch,
-        CAST(COALESCE(eb.BranchID, sir.requester_branch_id, u.intBranchID) AS NVARCHAR(50)) AS requester_branch_id,
-        COALESCE(eb.BranchName, CONCAT('Branch ', CAST(COALESCE(sir.requester_branch_id, u.intBranchID) AS NVARCHAR(50)))) AS requester_branch_name,
+        CAST(COALESCE(sir.requester_branch_id, u.intBranchID) AS NVARCHAR(50)) AS requester_branch,
         COALESCE(sir.request_status, 'pending') AS current_status,
         COALESCE(sir.approval_status, sir.request_status, 'pending') AS final_status,
         COALESCE(sir.urgency_level, 'Medium') AS priority
       FROM stock_issuance_requests sir
       INNER JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      OUTER APPLY (
-        SELECT TOP 1 vb.BranchID, vb.BranchName
-        FROM vw_employee_branch vb
-        WHERE REPLACE(vb.CNIC, '-', '') = REPLACE(u.CNIC, '-', '')
-      ) eb
       ${branchFilter}
       ORDER BY sir.submitted_at DESC
     `);
@@ -198,7 +157,6 @@ router.get('/:branchId', requireAuth, async (req, res) => {
     const result = await invRequest.query(`
       SELECT
         sii.id AS ledger_id,
-        sii.item_master_id,
         sir.request_number,
         COALESCE(im.nomenclature, sii.nomenclature, 'Unknown Item') AS nomenclature,
         c.category_name,

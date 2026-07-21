@@ -22,7 +22,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { stockIssuanceService } from '@/services/stockIssuanceService';
 import { stockReturnService } from '@/services/stockReturnService';
-import { stockTransactionsLocalService } from '@/services/stockTransactionsLocalService';
+import { useSession } from '@/contexts/SessionContext';
 
 // Database response interfaces
 interface StockIssuanceRequest {
@@ -63,6 +63,8 @@ interface ReturnItem {
 }
 
 const StockReturn: React.FC = () => {
+  const { getCurrentUserName } = useSession();
+
   const [issuedItems, setIssuedItems] = useState<IssuedItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
@@ -70,11 +72,15 @@ const StockReturn: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [selectedTab, setSelectedTab] = useState('return');
-  
+
   // Return form fields
   const [returnNotes, setReturnNotes] = useState('');
   const [returnedBy, setReturnedBy] = useState('');
   const [verifiedBy, setVerifiedBy] = useState('');
+
+  useEffect(() => {
+    setReturnedBy(getCurrentUserName() || '');
+  }, [getCurrentUserName]);
 
   useEffect(() => {
     fetchIssuedItems();

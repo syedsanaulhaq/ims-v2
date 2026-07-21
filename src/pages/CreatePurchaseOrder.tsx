@@ -467,7 +467,9 @@ export default function CreatePurchaseOrder() {
                               <td className="px-3 py-3">
                                 <div>
                                   <p className="font-medium text-slate-900">{item.nomenclature || 'Item'}</p>
-                                  <p className="text-xs text-slate-500">Tender Qty: {item.quantity}</p>
+                                  {selectedTender?.tender_type !== 'annual-tender' && (
+                                    <p className="text-xs text-slate-500">Tender Qty: {item.quantity}</p>
+                                  )}
                                 </div>
                               </td>
 

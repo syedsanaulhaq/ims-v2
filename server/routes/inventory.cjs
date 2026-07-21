@@ -40,12 +40,14 @@ const hasWingOrBranchScopedRole = (session) => {
   ]);
 };
 
+const ADMIN_CHAIN_ROLE_NAMES = ['DD Admin', 'AD Admin-I', 'AD Admin-II', 'DG Admin', 'Storekeeper'];
+
 const canAccessGlobalInventory = (session) => {
   if (isSuperAdminSession(session)) return true;
   if (hasWingOrBranchScopedRole(session)) return false;
 
   const roles = session?.user?.ims_roles || [];
-  return hasScopedRole(roles, ['IMS_ADMIN', 'STOREKEEPER']);
+  return hasScopedRole(roles, ['IMS_ADMIN', 'STOREKEEPER']) || hasScopedRole(roles, ADMIN_CHAIN_ROLE_NAMES);
 };
 
 const requireGlobalInventoryAccess = (req, res, next) => {
@@ -809,7 +811,7 @@ router.post('/request-verification', async (req, res) => {
       verificationId: verificationId
     });
   } catch (error) {
-    console.error('❌ Error requesting verification:', error);
+    console.error('âŒ Error requesting verification:', error);
     res.status(500).json({ 
       error: 'Failed to request verification', 
       details: error.message 
@@ -869,7 +871,7 @@ router.get('/my-forwarded-verifications', async (req, res) => {
       data: result.recordset
     });
   } catch (error) {
-    console.error('❌ Error fetching forwarded verifications:', error);
+    console.error('âŒ Error fetching forwarded verifications:', error);
     res.status(500).json({ error: 'Failed to fetch forwarded verifications', details: error.message });
   }
 });
@@ -908,7 +910,7 @@ router.post('/check-availability', async (req, res) => {
       .input('WingId', sql.Int, resolvedWingId)
       .input('BranchId', sql.Int, resolvedBranchId)
       .query(`
-        SELECT 
+        SELECT
           CAST(im.id AS NVARCHAR(450)) as item_master_id,
           ISNULL(im.nomenclature, 'Unknown Item') as item_name,
           ISNULL(im.unit, 'PCS') as unit,
@@ -919,35 +921,40 @@ router.post('/check-availability', async (req, res) => {
           CASE
             WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
             WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-            ELSE ISNULL(admin_stock.admin_qty, 0)
+            ELSE ISNULL(main_stock.main_qty, 0)
           END as available_quantity,
-          CASE 
+          CASE
             WHEN (
               CASE
                 WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
                 WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-                ELSE ISNULL(admin_stock.admin_qty, 0)
+                ELSE ISNULL(main_stock.main_qty, 0)
               END
             ) >= @RequestedQuantity THEN 1
             ELSE 0
           END as is_available,
-          CASE 
+          CASE
             WHEN (
               CASE
                 WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
                 WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-                ELSE ISNULL(admin_stock.admin_qty, 0)
+                ELSE ISNULL(main_stock.main_qty, 0)
               END
             ) >= @RequestedQuantity THEN 'Sufficient Stock'
             ELSE 'Insufficient Stock (' + CAST(
               CASE
                 WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
                 WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-                ELSE ISNULL(admin_stock.admin_qty, 0)
+                ELSE ISNULL(main_stock.main_qty, 0)
               END
             AS NVARCHAR(10)) + ' available)'
           END as availability_status
         FROM item_masters im
+        LEFT JOIN (
+          SELECT item_master_id, current_quantity as main_qty
+          FROM current_inventory_stock
+          WHERE item_master_id = TRY_CAST(@ItemMasterId AS UNIQUEIDENTIFIER)
+        ) main_stock ON main_stock.item_master_id = im.id
         LEFT JOIN (
           SELECT item_master_id, available_quantity as admin_qty
           FROM stock_admin
@@ -1093,7 +1100,7 @@ router.post('/update-verification', async (req, res) => {
       verificationId: verificationId
     });
   } catch (error) {
-    console.error('❌ Error updating verification:', error);
+    console.error('âŒ Error updating verification:', error);
     res.status(500).json({ error: 'Failed to update verification', details: error.message });
   }
 });

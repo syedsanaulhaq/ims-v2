@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -11,7 +11,9 @@ import {
 import PerItemApprovalPanel from './PerItemApprovalPanel';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { CheckCircle, Clock, RefreshCw, Search, ChevronDown, ChevronUp } from "lucide-react";
-import { getRequestTypeLabel } from '@/utils/requestTypeLabel';
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line
+} from 'recharts';
 
 interface RequestSummary {
   id: string;
@@ -65,8 +67,8 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
+  const [activeScopeTab, setActiveScopeTab] = useState<'individual' | 'branch' | 'wing'>('individual');
   const selectedScope = new URLSearchParams(location.search).get('scope') || 'all';
-  const normalizedUserId = String((user as any)?.user_id || (user as any)?.Id || '').toLowerCase();
 
   const statusPriority: Record<string, number> = {
     pending: 1,
@@ -110,7 +112,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
   useEffect(() => {
     loadDashboardData();
-  }, [refreshTrigger, user, selectedScope]);
+  }, [refreshTrigger, user]);
 
   useEffect(() => {
     let filteredRequests = allScopedRequests;
@@ -123,6 +125,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
     setRequests(filteredRequests);
   }, [allScopedRequests, activeFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeScopeTab, searchTerm, activeFilter]);
 
   const loadDashboardData = async () => {
     try {
@@ -155,6 +161,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
             );
             return { status, approvals };
           } catch (statusError) {
+            console.warn(`Skipping approvals status '${status}' due to fetch error:`, statusError);
             return { status, approvals: [] as RequestApproval[] };
           }
         })
@@ -203,6 +210,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           });
 
           if (!detailResponse.ok) {
+            console.warn(`Failed to fetch details for approval ${approval.id}`);
             return null;
           }
 
@@ -339,15 +347,9 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       // Split flows by page mode to keep supervisor and admin experiences isolated.
       const scopedRequests = Array.from(requestMap.values()).filter((request) => {
         const adminWorkflow = isAdminWorkflowRequest(request);
-        const requestCurrentApproverId = String((request.approval as any)?.current_approver_id || '').toLowerCase();
-        const requestCurrentStatus = String((request.approval as any)?.current_status || '').toLowerCase();
-        const assignedToCurrentAdmin =
-          normalizedUserId !== '' &&
-          requestCurrentApproverId === normalizedUserId &&
-          ['pending', 'forwarded_to_admin', 'forwarded_to_supervisor'].includes(requestCurrentStatus);
 
         if (viewMode === 'admin') {
-          return adminWorkflow || assignedToCurrentAdmin;
+          return adminWorkflow;
         }
 
         // Keep supervisor ownership of "To Admin" history cards while still
@@ -359,41 +361,16 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return !adminWorkflow;
       });
 
-      const requestsByScope = scopedRequests.filter((request) => {
-        if (selectedScope === 'all') return true;
-
-        const scopeType = String(request.approval?.scope_type || '').trim().toLowerCase();
-        const requestType = String(request.request_type || '').toLowerCase();
-
-        if (selectedScope === 'personal') {
-          return scopeType === 'individual' || requestType === 'individual' || requestType === 'personal';
-        }
-
-        if (selectedScope === 'branch') {
-          return scopeType === 'branch' || requestType === 'branch';
-        }
-
-        if (selectedScope === 'wing') {
-          return scopeType === 'organizational' || requestType === 'organizational' || requestType === 'wing';
-        }
-
-        return true;
-      });
-
       const scopedStatusCounts = {
-        pending_count: requestsByScope.filter(r => r.request_status === 'pending').length,
-        approve_wing_count: requestsByScope.filter(r => r.request_status === 'approve_wing').length,
-        reject_count: requestsByScope.filter(r => r.request_status === 'reject').length,
-        forward_admin_count: requestsByScope.filter(r => r.request_status === 'forward_admin').length,
-        forward_supervisor_count: requestsByScope.filter(r => r.request_status === 'forward_supervisor').length,
-        return_count: requestsByScope.filter(r => r.request_status === 'return').length,
+        pending_count: scopedRequests.filter(r => r.request_status === 'pending').length,
+        approve_wing_count: scopedRequests.filter(r => r.request_status === 'approve_wing').length,
+        reject_count: scopedRequests.filter(r => r.request_status === 'reject').length,
+        forward_admin_count: scopedRequests.filter(r => r.request_status === 'forward_admin').length,
+        forward_supervisor_count: scopedRequests.filter(r => r.request_status === 'forward_supervisor').length,
+        return_count: scopedRequests.filter(r => r.request_status === 'return').length,
       };
 
-      const pendingFilteredScopedRequests = requestsByScope.filter((r) => {
-        if (viewMode === 'admin') {
-          return true;
-        }
-
+      const pendingFilteredScopedRequests = scopedRequests.filter((r) => {
         if (r.request_status !== 'pending') return true;
 
         const approvalData = r.approval as any;
@@ -425,10 +402,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     // sourceStatus = which backend query returned this ('pending', 'approved', 'forwarded', 'rejected', 'returned')
     // For 'pending' source: these are things assigned to me that I need to act on -> show as pending
     if (sourceStatus === 'pending') {
-      if (viewMode === 'admin') {
-        return 'pending';
-      }
-
       const approvalData = approval as any;
       const approvalStatus = String(approvalData?.approval_status || '').toLowerCase();
 
@@ -465,7 +438,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       case 'reject':
         return 'bg-red-100 text-red-800 border-red-300';
       case 'forward_admin':
-      case 'forwarded_to_procurement':
         return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'forward_supervisor':
         return 'bg-purple-100 text-purple-800 border-purple-300';
@@ -486,8 +458,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         return '✗ Rejected';
       case 'forward_admin':
         return '⏭ Forward to Admin';
-      case 'forwarded_to_procurement':
-        return '⏭ Forward to Procurement';
       case 'forward_supervisor':
         return '↗ Forward to Supervisor';
       case 'return':
@@ -588,26 +558,26 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   // Group requests by type (personal vs wing-wise)
   const getPersonalRequests = () => {
     const filtered = getFilteredRequests();
-    return filtered.filter(r => {
-      const scopeType = String(r.approval?.scope_type || '').trim().toLowerCase();
-      const requestType = String(r.request_type || '').toLowerCase();
-      return scopeType === 'individual' || requestType === 'individual' || requestType === 'personal';
+    const personal = filtered.filter(r => {
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      return scopeType === 'individual';
     });
+    return personal;
   };
 
   const getWingRequests = () => {
     const filtered = getFilteredRequests();
-    return filtered.filter(r => {
-      const scopeType = String(r.approval?.scope_type || '').trim().toLowerCase();
-      const requestType = String(r.request_type || '').toLowerCase();
-      return scopeType === 'organizational' || requestType === 'organizational' || requestType === 'wing';
+    const wing = filtered.filter(r => {
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
+      return scopeType === 'organizational';
     });
+    return wing;
   };
 
   const getBranchRequests = () => {
     const filtered = getFilteredRequests();
     return filtered.filter(r => {
-      const scopeType = String(r.approval?.scope_type || '').trim().toLowerCase();
+      const scopeType = (r.approval?.scope_type || '').toLowerCase();
       const requestType = String(r.request_type || '').toLowerCase();
       return scopeType === 'branch' || requestType === 'branch';
     });
@@ -676,17 +646,6 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     return selectedScope === 'all' || selectedScope === scope;
   };
 
-  const getScopeTitle = () => {
-    if (selectedScope === 'personal') return 'Personal Approval Requests';
-    if (selectedScope === 'branch') return 'Branch Approval Requests';
-    if (selectedScope === 'wing') return 'Wing Approval Requests';
-    return 'Admin Workflow Approvals';
-  };
-
-  const getScopeLabel = () => {
-    return 'Personal Requests';
-  };
-
   const handleConfigureWorkflows = () => {
     navigate('/dashboard/workflow-admin');
   };
@@ -694,6 +653,102 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const handleManageApprovers = () => {
     navigate('/dashboard/workflow-admin');
   };
+
+  // Chart data for admin dashboard view
+  const SCOPE_COLORS = ['#3B82F6', '#10B981', '#8B5CF6'];
+  const STATUS_COLORS = ['#EAB308', '#22C55E', '#EF4444', '#3B82F6', '#A855F7', '#F97316'];
+  const COMPLETION_COLORS = ['#22C55E', '#EAB308', '#EF4444', '#6B7280'];
+
+  const scopeChartData = useMemo(() => {
+    const personal = requests.filter(r => {
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'individual' || scopeType === 'personal' || requestType === 'personal' || requestType === 'individual';
+    }).length;
+    const branch = requests.filter(r => {
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'branch' || requestType === 'branch';
+    }).length;
+    const wing = requests.filter(r => {
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'organizational' || scopeType === 'wing' || requestType === 'wing' || requestType === 'organizational';
+    }).length;
+    return [
+      { name: 'Personal', value: personal },
+      { name: 'Branch', value: branch },
+      { name: 'Wing', value: wing }
+    ].filter(d => d.value > 0);
+  }, [requests]);
+
+  const statusChartData = useMemo(() => {
+    const statusMap: Record<string, { label: string; color: string }> = {
+      pending: { label: 'Pending', color: '#EAB308' },
+      approve_wing: { label: 'Approved', color: '#22C55E' },
+      reject: { label: 'Rejected', color: '#EF4444' },
+      forward_admin: { label: 'To Admin', color: '#3B82F6' },
+      forward_supervisor: { label: 'To Supervisor', color: '#A855F7' },
+      return: { label: 'Returned', color: '#F97316' }
+    };
+    return Object.entries(statusMap).map(([key, meta]) => ({
+      name: meta.label,
+      value: requests.filter(r => r.request_status === key).length,
+      color: meta.color
+    }));
+  }, [requests]);
+
+  const completionChartData = useMemo(() => {
+    const completed = requests.filter(r =>
+      r.request_status === 'approve_wing' || r.request_status === 'completed'
+    ).length;
+    const pending = requests.filter(r => r.request_status === 'pending').length;
+    const rejected = requests.filter(r => r.request_status === 'reject').length;
+    const other = requests.length - completed - pending - rejected;
+    return [
+      { name: 'Completed', value: completed },
+      { name: 'Pending', value: pending },
+      { name: 'Rejected', value: rejected },
+      { name: 'Other', value: other > 0 ? other : 0 }
+    ].filter(d => d.value > 0);
+  }, [requests]);
+
+  const timelineChartData = useMemo(() => {
+    const grouped: Record<string, { date: string; personal: number; branch: number; wing: number }> = {};
+    requests.forEach(r => {
+      const date = new Date(r.submitted_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (!grouped[date]) {
+        grouped[date] = { date, personal: 0, branch: 0, wing: 0 };
+      }
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      if (scopeType === 'individual' || scopeType === 'personal' || requestType === 'personal' || requestType === 'individual') {
+        grouped[date].personal++;
+      } else if (scopeType === 'branch' || requestType === 'branch') {
+        grouped[date].branch++;
+      } else if (scopeType === 'organizational' || scopeType === 'wing' || requestType === 'wing' || requestType === 'organizational') {
+        grouped[date].wing++;
+      } else {
+        grouped[date].personal++;
+      }
+    });
+    return Object.values(grouped).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(-7);
+  }, [requests]);
+
+  const metricCards = useMemo(() => {
+    const total = requests.length;
+    const completed = requests.filter(r => r.request_status === 'approve_wing' || r.request_status === 'completed').length;
+    const pending = requests.filter(r => r.request_status === 'pending').length;
+    const rejected = requests.filter(r => r.request_status === 'reject').length;
+    const totalItems = requests.reduce((sum, r) => sum + (r.total_items || 0), 0);
+    return [
+      { label: 'Total Requests', value: total, color: 'text-blue-600', bg: 'bg-blue-50' },
+      { label: 'Completed', value: completed, color: 'text-green-600', bg: 'bg-green-50' },
+      { label: 'Pending', value: pending, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+      { label: 'Rejected', value: rejected, color: 'text-red-600', bg: 'bg-red-50' },
+      { label: 'Total Items', value: totalItems, color: 'text-purple-600', bg: 'bg-purple-50' }
+    ];
+  }, [requests]);
 
   if (loading) {
     return (
@@ -711,7 +766,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       {/* Page Header */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900">
-          {viewMode === 'admin' ? getScopeTitle() : 'Supervisor Dashboard'}
+          {viewMode === 'admin' ? 'Admin Workflow Approvals' : 'Supervisor Dashboard'}
         </h1>
         <p className="text-lg text-gray-600 mt-2">
           {viewMode === 'admin'
@@ -848,13 +903,167 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         </button>
       </div>
 
+      {/* Admin Dashboard Metrics & Charts */}
+      {viewMode === 'admin' && requests.length > 0 && (
+        <div className="space-y-6 mb-6">
+          {/* Summary metric cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {metricCards.map((metric, index) => (
+              <Card key={index} className={`border border-slate-200 shadow-sm ${metric.bg}`}>
+                <CardContent className="p-4 text-center">
+                  <div className={`text-3xl font-bold ${metric.color}`}>{metric.value}</div>
+                  <div className="text-sm text-gray-600 mt-1">{metric.label}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Charts row 1: scope and completion */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Requests by Scope</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={scopeChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label
+                      >
+                        {scopeChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={SCOPE_COLORS[index % SCOPE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Completed vs Pending vs Rejected</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={completionChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label
+                      >
+                        {completionChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COMPLETION_COLORS[index % COMPLETION_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts row 2: status bar and timeline */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Requests by Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={statusChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
+                      <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        {statusChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Requests by Scope Over Time (Last 7 Days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={timelineChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="personal" name="Personal" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="branch" name="Branch" stroke="#10B981" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="wing" name="Wing" stroke="#8B5CF6" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Scope Tabs */}
+      {viewMode === 'admin' && (
+        <div className="flex items-center gap-2 border-b border-gray-200 mb-4">
+          {[
+            { key: 'individual', label: 'Individual Working', count: getPersonalRequests().length },
+            { key: 'branch', label: 'Branch', count: getBranchRequests().length },
+            { key: 'wing', label: 'Wing', count: getWingRequests().length },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveScopeTab(tab.key as any)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeScopeTab === tab.key
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+              <span className="ml-2 bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs">
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Personal Requests Table */}
-      {shouldShowScope('personal') && (
+      {(viewMode !== 'admin' ? shouldShowScope('personal') : activeScopeTab === 'individual') && (
       <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">{getScopeLabel()}</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Individual Working</Badge>
               <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
               <div className="flex items-center gap-2">
@@ -908,7 +1117,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getPersonalRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No requests found'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No individual working requests'}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -922,7 +1131,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
                             {(request.approval as any)?.request_number || request.request_id}
                           </h3>
                           <Badge className="text-xs">
-                            {getRequestTypeLabel(request.request_type, request.approval?.scope_type)}
+                            {request.request_type.replace('_', ' ').toUpperCase()}
                           </Badge>
                           <Badge
                             variant="outline"
@@ -1070,7 +1279,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       )}
 
       {/* Branch Requests Table */}
-      {viewMode === 'admin' && shouldShowScope('branch') && (
+      {viewMode === 'admin' && activeScopeTab === 'branch' && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
@@ -1248,12 +1457,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       )}
 
       {/* Wing Requests Table */}
-      {viewMode === 'admin' && shouldShowScope('wing') && (
+      {viewMode === 'admin' && activeScopeTab === 'wing' && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-4xl font-bold flex items-center gap-3">
-                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Request</Badge>
+                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Requests</Badge>
                 <span className="text-gray-600 text-2xl">({getWingRequests().length})</span>
               </CardTitle>
               <div className="flex items-center gap-2">
@@ -1307,7 +1516,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getWingRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing request'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing requests'}</p>
               </div>
             ) : (
               <div className="space-y-4">
