@@ -270,7 +270,9 @@ const StockIssuancePersonal: React.FC = () => {
 
   const filteredInventory = inventoryItems.filter(item => {
     const matchesSearch = item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category_id === selectedCategory;
+    const itemCat = String(item.category_id || '').toLowerCase().trim();
+    const selectedCat = String(selectedCategory || '').toLowerCase().trim();
+    const matchesCategory = selectedCat === 'all' || itemCat === selectedCat;
     return matchesSearch && matchesCategory;
   });
 
@@ -669,7 +671,7 @@ const StockIssuancePersonal: React.FC = () => {
                 </div>
                 <div>
                   <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Category</Label>
-                  <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value)}>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger id="categoryFilter" className="mt-1">
                       <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
