@@ -67,6 +67,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   const [sortBy, setSortBy] = useState<'date' | 'requester'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [allScopedRequests, setAllScopedRequests] = useState<RequestSummary[]>([]);
+  const [activeScopeTab, setActiveScopeTab] = useState<'individual' | 'branch' | 'wing'>('individual');
   const selectedScope = new URLSearchParams(location.search).get('scope') || 'all';
 
   const statusPriority: Record<string, number> = {
@@ -124,6 +125,10 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
 
     setRequests(filteredRequests);
   }, [allScopedRequests, activeFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeScopeTab, searchTerm, activeFilter]);
 
   const loadDashboardData = async () => {
     try {
@@ -1026,13 +1031,39 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         </div>
       )}
 
+      {/* Scope Tabs */}
+      {viewMode === 'admin' && (
+        <div className="flex items-center gap-2 border-b border-gray-200 mb-4">
+          {[
+            { key: 'individual', label: 'Individual Working', count: getPersonalRequests().length },
+            { key: 'branch', label: 'Branch', count: getBranchRequests().length },
+            { key: 'wing', label: 'Wing', count: getWingRequests().length },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveScopeTab(tab.key as any)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeScopeTab === tab.key
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+              <span className="ml-2 bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs">
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Personal Requests Table */}
-      {shouldShowScope('personal') && (
+      {(viewMode !== 'admin' ? shouldShowScope('personal') : activeScopeTab === 'individual') && (
       <Card className="border border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-4xl font-bold flex items-center gap-3">
-              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Subordinate Requests</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-lg font-semibold px-4 py-2">Individual Working</Badge>
               <span className="text-gray-600 text-2xl">({getPersonalRequests().length})</span>
             </CardTitle>
               <div className="flex items-center gap-2">
@@ -1086,7 +1117,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getPersonalRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No subordinate requests'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No individual working requests'}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1248,7 +1279,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       )}
 
       {/* Branch Requests Table */}
-      {viewMode === 'admin' && shouldShowScope('branch') && (
+      {viewMode === 'admin' && activeScopeTab === 'branch' && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
@@ -1426,12 +1457,12 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       )}
 
       {/* Wing Requests Table */}
-      {viewMode === 'admin' && shouldShowScope('wing') && (
+      {viewMode === 'admin' && activeScopeTab === 'wing' && (
       <Card className="border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-4xl font-bold flex items-center gap-3">
-                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Request</Badge>
+                <Badge className="bg-purple-100 text-purple-800 text-lg font-semibold px-4 py-2">Wing Requests</Badge>
                 <span className="text-gray-600 text-2xl">({getWingRequests().length})</span>
               </CardTitle>
               <div className="flex items-center gap-2">
@@ -1485,7 +1516,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           <CardContent>
             {getWingRequests().length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing request'}</p>
+                <p className="text-gray-500">{searchTerm ? 'No matching requests' : 'No wing requests'}</p>
               </div>
             ) : (
               <div className="space-y-4">
