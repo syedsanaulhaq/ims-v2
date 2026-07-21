@@ -910,7 +910,7 @@ router.post('/check-availability', async (req, res) => {
       .input('WingId', sql.Int, resolvedWingId)
       .input('BranchId', sql.Int, resolvedBranchId)
       .query(`
-        SELECT 
+        SELECT
           CAST(im.id AS NVARCHAR(450)) as item_master_id,
           ISNULL(im.nomenclature, 'Unknown Item') as item_name,
           ISNULL(im.unit, 'PCS') as unit,
@@ -921,35 +921,40 @@ router.post('/check-availability', async (req, res) => {
           CASE
             WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
             WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-            ELSE ISNULL(admin_stock.admin_qty, 0)
+            ELSE ISNULL(main_stock.main_qty, 0)
           END as available_quantity,
-          CASE 
+          CASE
             WHEN (
               CASE
                 WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
                 WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-                ELSE ISNULL(admin_stock.admin_qty, 0)
+                ELSE ISNULL(main_stock.main_qty, 0)
               END
             ) >= @RequestedQuantity THEN 1
             ELSE 0
           END as is_available,
-          CASE 
+          CASE
             WHEN (
               CASE
                 WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
                 WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-                ELSE ISNULL(admin_stock.admin_qty, 0)
+                ELSE ISNULL(main_stock.main_qty, 0)
               END
             ) >= @RequestedQuantity THEN 'Sufficient Stock'
             ELSE 'Insufficient Stock (' + CAST(
               CASE
                 WHEN @InventoryScope = 'wing' THEN ISNULL(wing_stock.wing_qty, 0)
                 WHEN @InventoryScope = 'branch' THEN ISNULL(branch_stock.branch_qty, 0)
-                ELSE ISNULL(admin_stock.admin_qty, 0)
+                ELSE ISNULL(main_stock.main_qty, 0)
               END
             AS NVARCHAR(10)) + ' available)'
           END as availability_status
         FROM item_masters im
+        LEFT JOIN (
+          SELECT item_master_id, current_quantity as main_qty
+          FROM current_inventory_stock
+          WHERE item_master_id = TRY_CAST(@ItemMasterId AS UNIQUEIDENTIFIER)
+        ) main_stock ON main_stock.item_master_id = im.id
         LEFT JOIN (
           SELECT item_master_id, available_quantity as admin_qty
           FROM stock_admin
@@ -1010,7 +1015,7 @@ router.post('/check-availability', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('âŒ Error checking availability:', error);
+    console.error('❌ Error checking availability:', error);
     res.status(500).json({ error: 'Failed to check availability', details: error.message });
   }
 });
