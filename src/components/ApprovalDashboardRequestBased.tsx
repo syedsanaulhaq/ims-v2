@@ -12,7 +12,7 @@ import PerItemApprovalPanel from './PerItemApprovalPanel';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { CheckCircle, Clock, RefreshCw, Search, ChevronDown, ChevronUp } from "lucide-react";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line
 } from 'recharts';
 
 interface RequestSummary {
@@ -652,6 +652,7 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
   // Chart data for admin dashboard view
   const SCOPE_COLORS = ['#3B82F6', '#10B981', '#8B5CF6'];
   const STATUS_COLORS = ['#EAB308', '#22C55E', '#EF4444', '#3B82F6', '#A855F7', '#F97316'];
+  const COMPLETION_COLORS = ['#22C55E', '#EAB308', '#EF4444', '#6B7280'];
 
   const scopeChartData = useMemo(() => {
     const personal = requests.filter(r => {
@@ -690,6 +691,58 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
       value: requests.filter(r => r.request_status === key).length,
       color: meta.color
     }));
+  }, [requests]);
+
+  const completionChartData = useMemo(() => {
+    const completed = requests.filter(r =>
+      r.request_status === 'approve_wing' || r.request_status === 'completed'
+    ).length;
+    const pending = requests.filter(r => r.request_status === 'pending').length;
+    const rejected = requests.filter(r => r.request_status === 'reject').length;
+    const other = requests.length - completed - pending - rejected;
+    return [
+      { name: 'Completed', value: completed },
+      { name: 'Pending', value: pending },
+      { name: 'Rejected', value: rejected },
+      { name: 'Other', value: other > 0 ? other : 0 }
+    ].filter(d => d.value > 0);
+  }, [requests]);
+
+  const timelineChartData = useMemo(() => {
+    const grouped: Record<string, { date: string; personal: number; branch: number; wing: number }> = {};
+    requests.forEach(r => {
+      const date = new Date(r.submitted_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (!grouped[date]) {
+        grouped[date] = { date, personal: 0, branch: 0, wing: 0 };
+      }
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      if (scopeType === 'individual' || scopeType === 'personal' || requestType === 'personal' || requestType === 'individual') {
+        grouped[date].personal++;
+      } else if (scopeType === 'branch' || requestType === 'branch') {
+        grouped[date].branch++;
+      } else if (scopeType === 'organizational' || scopeType === 'wing' || requestType === 'wing' || requestType === 'organizational') {
+        grouped[date].wing++;
+      } else {
+        grouped[date].personal++;
+      }
+    });
+    return Object.values(grouped).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(-7);
+  }, [requests]);
+
+  const metricCards = useMemo(() => {
+    const total = requests.length;
+    const completed = requests.filter(r => r.request_status === 'approve_wing' || r.request_status === 'completed').length;
+    const pending = requests.filter(r => r.request_status === 'pending').length;
+    const rejected = requests.filter(r => r.request_status === 'reject').length;
+    const totalItems = requests.reduce((sum, r) => sum + (r.total_items || 0), 0);
+    return [
+      { label: 'Total Requests', value: total, color: 'text-blue-600', bg: 'bg-blue-50' },
+      { label: 'Completed', value: completed, color: 'text-green-600', bg: 'bg-green-50' },
+      { label: 'Pending', value: pending, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+      { label: 'Rejected', value: rejected, color: 'text-red-600', bg: 'bg-red-50' },
+      { label: 'Total Items', value: totalItems, color: 'text-purple-600', bg: 'bg-purple-50' }
+    ];
   }, [requests]);
 
   if (loading) {
@@ -845,61 +898,131 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
         </button>
       </div>
 
-      {/* Admin Dashboard Charts */}
+      {/* Admin Dashboard Metrics & Charts */}
       {viewMode === 'admin' && requests.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Requests by Scope</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={scopeChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label
-                    >
-                      {scopeChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={SCOPE_COLORS[index % SCOPE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-6 mb-6">
+          {/* Summary metric cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {metricCards.map((metric, index) => (
+              <Card key={index} className={`border border-slate-200 shadow-sm ${metric.bg}`}>
+                <CardContent className="p-4 text-center">
+                  <div className={`text-3xl font-bold ${metric.color}`}>{metric.value}</div>
+                  <div className="text-sm text-gray-600 mt-1">{metric.label}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Requests by Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={statusChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
-                    <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                      {statusChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Charts row 1: scope and completion */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Requests by Scope</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={scopeChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label
+                      >
+                        {scopeChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={SCOPE_COLORS[index % SCOPE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Completed vs Pending vs Rejected</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={completionChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label
+                      >
+                        {completionChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COMPLETION_COLORS[index % COMPLETION_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts row 2: status bar and timeline */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Requests by Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={statusChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
+                      <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        {statusChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Requests by Scope Over Time (Last 7 Days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={timelineChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="personal" name="Personal" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="branch" name="Branch" stroke="#10B981" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="wing" name="Wing" stroke="#8B5CF6" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
