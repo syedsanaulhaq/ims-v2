@@ -901,7 +901,7 @@ router.get('/last-issued-summary', async (req, res) => {
 // ============================================================================
 router.get('/branch-storekeeper/requests', requireAuth, handleBranchStorekeeperRequests);
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     
