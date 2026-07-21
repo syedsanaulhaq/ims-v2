@@ -270,7 +270,7 @@ const StockIssuancePersonal: React.FC = () => {
 
   const filteredInventory = inventoryItems.filter(item => {
     const matchesSearch = item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category_id === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || item.category_name === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -676,7 +676,7 @@ const StockIssuancePersonal: React.FC = () => {
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
                       {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
+                        <SelectItem key={category.id} value={category.category_name}>
                           {category.category_name}
                         </SelectItem>
                       ))}
