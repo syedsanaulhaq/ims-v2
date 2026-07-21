@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -11,6 +11,9 @@ import {
 import PerItemApprovalPanel from './PerItemApprovalPanel';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { CheckCircle, Clock, RefreshCw, Search, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
 
 interface RequestSummary {
   id: string;
@@ -646,6 +649,49 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
     navigate('/dashboard/workflow-admin');
   };
 
+  // Chart data for admin dashboard view
+  const SCOPE_COLORS = ['#3B82F6', '#10B981', '#8B5CF6'];
+  const STATUS_COLORS = ['#EAB308', '#22C55E', '#EF4444', '#3B82F6', '#A855F7', '#F97316'];
+
+  const scopeChartData = useMemo(() => {
+    const personal = requests.filter(r => {
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'individual' || scopeType === 'personal' || requestType === 'personal' || requestType === 'individual';
+    }).length;
+    const branch = requests.filter(r => {
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'branch' || requestType === 'branch';
+    }).length;
+    const wing = requests.filter(r => {
+      const scopeType = String((r.approval as any)?.scope_type || '').toLowerCase();
+      const requestType = String(r.request_type || '').toLowerCase();
+      return scopeType === 'organizational' || scopeType === 'wing' || requestType === 'wing' || requestType === 'organizational';
+    }).length;
+    return [
+      { name: 'Personal', value: personal },
+      { name: 'Branch', value: branch },
+      { name: 'Wing', value: wing }
+    ].filter(d => d.value > 0);
+  }, [requests]);
+
+  const statusChartData = useMemo(() => {
+    const statusMap: Record<string, { label: string; color: string }> = {
+      pending: { label: 'Pending', color: '#EAB308' },
+      approve_wing: { label: 'Approved', color: '#22C55E' },
+      reject: { label: 'Rejected', color: '#EF4444' },
+      forward_admin: { label: 'To Admin', color: '#3B82F6' },
+      forward_supervisor: { label: 'To Supervisor', color: '#A855F7' },
+      return: { label: 'Returned', color: '#F97316' }
+    };
+    return Object.entries(statusMap).map(([key, meta]) => ({
+      name: meta.label,
+      value: requests.filter(r => r.request_status === key).length,
+      color: meta.color
+    }));
+  }, [requests]);
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-96">
@@ -798,6 +844,64 @@ const ApprovalDashboardRequestBased: React.FC<ApprovalDashboardRequestBasedProps
           </Card>
         </button>
       </div>
+
+      {/* Admin Dashboard Charts */}
+      {viewMode === 'admin' && requests.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card className="border border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Requests by Scope</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={scopeChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                      label
+                    >
+                      {scopeChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={SCOPE_COLORS[index % SCOPE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Requests by Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={statusChartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
+                    <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {statusChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Personal Requests Table */}
       {shouldShowScope('personal') && (
