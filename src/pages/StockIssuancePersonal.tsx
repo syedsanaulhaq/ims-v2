@@ -186,7 +186,7 @@ const StockIssuancePersonal: React.FC = () => {
               intOfficeID: item.id,
               nomenclature: item.nomenclature || item.item_name || 'Unknown Item',
               description: item.category_description || item.description || '',
-              category_id: item.category_id,
+              category_id: item.categoryId || item.category_id || item.category_id_lower,
               category_name: item.category_name || item.category_description || '',
               current_stock: item.current_quantity || 0,
               minimum_stock_level: item.minimum_stock_level || 0,
@@ -287,6 +287,7 @@ const StockIssuancePersonal: React.FC = () => {
       firstCategoryId: categories[0]?.id
     });
   }, [inventoryItems, categories, selectedCategory, filteredInventory]);
+
 
   const addIssuanceItem = (item: InventoryItem) => {
     const existing = issuanceItems.find(i => i.inventory_id === item.id);
