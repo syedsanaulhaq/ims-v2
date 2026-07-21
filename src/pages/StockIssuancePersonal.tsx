@@ -668,13 +668,13 @@ const StockIssuancePersonal: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Group</Label>
+                  <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Category</Label>
                   <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value)}>
                     <SelectTrigger id="categoryFilter" className="mt-1">
-                      <SelectValue placeholder="All Groups" />
+                      <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Groups</SelectItem>
+                      <SelectItem value="all">All Categories</SelectItem>
                       {categories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.category_name}
