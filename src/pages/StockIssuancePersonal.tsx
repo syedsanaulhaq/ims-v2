@@ -186,7 +186,7 @@ const StockIssuancePersonal: React.FC = () => {
               intOfficeID: item.id,
               nomenclature: item.nomenclature || item.item_name || 'Unknown Item',
               description: item.category_description || item.description || '',
-              category_id: item.categoryId || item.category_id || item.category_id_lower,
+              category_id: item.category_id,
               category_name: item.category_name || item.category_description || '',
               current_stock: item.current_quantity || 0,
               minimum_stock_level: item.minimum_stock_level || 0,
@@ -275,19 +275,6 @@ const StockIssuancePersonal: React.FC = () => {
     const matchesCategory = selectedCat === 'all' || itemCat === selectedCat;
     return matchesSearch && matchesCategory;
   });
-
-  // DEBUG: remove after verifying category filter works
-  useEffect(() => {
-    console.log('DEBUG category filter:', {
-      totalInventory: inventoryItems.length,
-      categoriesCount: categories.length,
-      selectedCategory,
-      filteredCount: filteredInventory.length,
-      firstItemCategory: inventoryItems[0]?.category_id,
-      firstCategoryId: categories[0]?.id
-    });
-  }, [inventoryItems, categories, selectedCategory, filteredInventory]);
-
 
   const addIssuanceItem = (item: InventoryItem) => {
     const existing = issuanceItems.find(i => i.inventory_id === item.id);
