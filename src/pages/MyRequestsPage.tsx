@@ -252,19 +252,42 @@ const MyRequestsPage: React.FC = () => {
 
   // ── Open progress modal and fetch history ────────────────────────────────
   const openProgressModal = async (requestId: string, requestNumber: string) => {
-    setProgressModal({ open: true, requestId, requestNumber });
+    const safeId = String(requestId || '').trim();
+    if (!safeId) {
+      console.error('[MyRequestsPage] openProgressModal called with empty requestId');
+      setProgressModal({ open: true, requestId: '', requestNumber });
+      setProgressError('Invalid request ID');
+      return;
+    }
+
+    setProgressModal({ open: true, requestId: safeId, requestNumber });
     setProgressHistory([]);
     setProgressError('');
     setProgressLoading(true);
+
+    const url = `${getApiBaseUrl()}/stock-issuance/${encodeURIComponent(safeId)}`;
+    console.log('[MyRequestsPage] Fetching progress from:', url);
+
     try {
-      const res = await fetch(`${getApiBaseUrl()}/stock-issuance/${requestId}`, {
+      const res = await fetch(url, {
         credentials: 'include'
       });
-      if (!res.ok) throw new Error('Failed to load request details');
+      console.log('[MyRequestsPage] Progress response status:', res.status);
+
+      if (!res.ok) {
+        let errBody = '';
+        try {
+          errBody = await res.text();
+          console.error('[MyRequestsPage] Progress error body:', errBody);
+        } catch (_) {}
+        throw new Error(`Failed to load request details (${res.status}): ${errBody || res.statusText}`);
+      }
+
       const data = await res.json();
       const history: ProgressEntry[] = data.approval_history || [];
       setProgressHistory(history);
     } catch (e: any) {
+      console.error('[MyRequestsPage] Progress fetch error:', e);
       setProgressError(e.message || 'Failed to load progress');
     } finally {
       setProgressLoading(false);

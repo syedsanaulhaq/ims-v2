@@ -270,7 +270,7 @@ const StockIssuancePersonal: React.FC = () => {
 
   const filteredInventory = inventoryItems.filter(item => {
     const matchesSearch = item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category_id === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || item.category_name === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -668,15 +668,15 @@ const StockIssuancePersonal: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Group</Label>
-                  <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value)}>
+                  <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Category</Label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger id="categoryFilter" className="mt-1">
-                      <SelectValue placeholder="All Groups" />
+                      <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Groups</SelectItem>
+                      <SelectItem value="all">All Categories</SelectItem>
                       {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
+                        <SelectItem key={category.id} value={category.category_name}>
                           {category.category_name}
                         </SelectItem>
                       ))}
@@ -739,6 +739,10 @@ const StockIssuancePersonal: React.FC = () => {
                       <Plus className="w-4 h-4 mr-2" />
                       Add "{searchTerm}" as Custom Item
                     </Button>
+                  </div>
+                ) : selectedCategory !== 'all' ? (
+                  <div className="p-4 text-center text-gray-500">
+                    <p className="text-sm">No items found in the selected category.</p>
                   </div>
                 ) : (
                   <div className="p-4 text-center text-gray-500">
