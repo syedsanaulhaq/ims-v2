@@ -327,6 +327,34 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
           if (requestDetailsResp.ok) {
             const requestDetailsData = await requestDetailsResp.json();
             const groupedItems = Array.isArray(requestDetailsData?.items) ? requestDetailsData.items : [];
+
+            // Enrich approval items with stock availability from the request details endpoint
+            // so the Out-of-Stock badge uses the same main inventory source as Check Stock.
+            if (groupedItems.length > 0 && Array.isArray(data.items)) {
+              const stockByItemMasterId = new Map<string, any>();
+              groupedItems.forEach((it: any) => {
+                const imId = String(it.item_master_id || '');
+                if (imId) {
+                  stockByItemMasterId.set(imId, it);
+                }
+              });
+
+              data.items = data.items.map((it: any) => {
+                const imId = String(it.item_master_id || '');
+                const stockItem = imId ? stockByItemMasterId.get(imId) : null;
+                if (stockItem) {
+                  return {
+                    ...it,
+                    admin_stock_available: stockItem.admin_stock_available,
+                    wing_stock_available: stockItem.wing_stock_available,
+                    can_fulfill_from_admin: stockItem.can_fulfill_from_admin,
+                    can_fulfill_from_wing: stockItem.can_fulfill_from_wing
+                  };
+                }
+                return it;
+              });
+            }
+
             const groupMap: Record<string, number> = {};
             groupedItems.forEach((it: any) => {
               const key = String(it.id || '');
