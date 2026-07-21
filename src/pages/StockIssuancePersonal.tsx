@@ -276,6 +276,18 @@ const StockIssuancePersonal: React.FC = () => {
     return matchesSearch && matchesCategory;
   });
 
+  // DEBUG: remove after verifying category filter works
+  useEffect(() => {
+    console.log('DEBUG category filter:', {
+      totalInventory: inventoryItems.length,
+      categoriesCount: categories.length,
+      selectedCategory,
+      filteredCount: filteredInventory.length,
+      firstItemCategory: inventoryItems[0]?.category_id,
+      firstCategoryId: categories[0]?.id
+    });
+  }, [inventoryItems, categories, selectedCategory, filteredInventory]);
+
   const addIssuanceItem = (item: InventoryItem) => {
     const existing = issuanceItems.find(i => i.inventory_id === item.id);
     if (existing) {
@@ -741,6 +753,10 @@ const StockIssuancePersonal: React.FC = () => {
                       <Plus className="w-4 h-4 mr-2" />
                       Add "{searchTerm}" as Custom Item
                     </Button>
+                  </div>
+                ) : selectedCategory !== 'all' ? (
+                  <div className="p-4 text-center text-gray-500">
+                    <p className="text-sm">No items found in the selected category.</p>
                   </div>
                 ) : (
                   <div className="p-4 text-center text-gray-500">
