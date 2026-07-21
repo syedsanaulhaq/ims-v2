@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Building2, CheckCircle, Minus, Package, Plus, Search, Send, Users } from 'lucide-react';
+import { categoriesLocalService } from '@/services/categoriesLocalService';
 
 interface SelectedItem {
   item_master_id: number | string;
@@ -73,6 +74,8 @@ const StockIssuanceBranch: React.FC = () => {
   const [itemsLibrary, setItemsLibrary] = useState<ItemMaster[]>([]);
   const [itemsError, setItemsError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [categories, setCategories] = useState<{ id: string; category_name: string }[]>([]);
   const [staffDemands, setStaffDemands] = useState<BranchStaffDemand[]>([]);
   const [myDemands, setMyDemands] = useState<BranchStaffDemand[]>([]);
   const [demandLoading, setDemandLoading] = useState(false);
@@ -85,12 +88,24 @@ const StockIssuanceBranch: React.FC = () => {
 
   useEffect(() => {
     fetchItemsLibrary();
+    loadCategories();
     if (isBranchSupervisor) {
       fetchBranchDemandInbox();
     } else {
       fetchMyBranchDemands();
     }
   }, [isBranchSupervisor]);
+
+  const loadCategories = async () => {
+    try {
+      const response = await categoriesLocalService.getCategories();
+      if (response.success && response.data) {
+        setCategories(response.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load categories:', err);
+    }
+  };
 
   const fetchBranchDemandInbox = async () => {
     try {
@@ -145,7 +160,7 @@ const StockIssuanceBranch: React.FC = () => {
           id: item.id,
           vItemNomenclature: item.nomenclature,
           vItemCode: item.item_code,
-          vCategoryName: '',
+          vCategoryName: item.category_name || '',
           vSubCategoryName: '',
           vUnitOfMeasure: item.unit
         }));
@@ -414,9 +429,11 @@ const StockIssuanceBranch: React.FC = () => {
     }
   };
 
-  const filteredItems = itemsLibrary.filter(item =>
-    item.vItemNomenclature.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredItems = itemsLibrary.filter(item => {
+    const matchesSearch = item.vItemNomenclature.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || item.vCategoryName === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -566,6 +583,22 @@ const StockIssuanceBranch: React.FC = () => {
                       onChange={event => setSearchTerm(event.target.value)}
                       className="pl-10"
                     />
+                  </div>
+                  <div className="mt-3">
+                    <Label htmlFor="categoryFilter" className="text-xs text-gray-600">Filter by Category</Label>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger id="categoryFilter" className="mt-1">
+                        <SelectValue placeholder="All Categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.category_name}>
+                            {category.category_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {!showCustomItemForm && (
                     <button
