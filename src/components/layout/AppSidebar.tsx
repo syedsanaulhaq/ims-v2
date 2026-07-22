@@ -234,7 +234,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Request Form", icon: ShoppingCart, path: "/dashboard/stock-issuance-personal", permission: undefined },
       ...(!canAccessBranchMenu && hasBranchAssignment ? [
         { title: "Branch Demand", icon: Building2, path: "/dashboard/stock-issuance-branch", permission: undefined },
-        { title: "Branch Demands Manager", icon: History, path: "/dashboard/branch-demands-manager", permission: undefined }
+        { title: "My Branch Demands", icon: History, path: "/dashboard/my-branch-demands", permission: undefined }
       ] : []),
       { title: "My Request", icon: ClipboardList, path: "/dashboard/my-requests", permission: undefined },
       { title: "Stock Return", icon: Undo2, path: "/dashboard/stock-return", permission: undefined },
@@ -247,7 +247,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     icon: Users,
     items: [
       { title: "Supervisor Dashboard", icon: CheckCircle, path: "/dashboard/supervisor-approval-dashboard", permission: 'approval.approve' },
-      { title: "Requisition Report", icon: FileText, path: "/dashboard/requisition-report", permission: undefined },
+      { title: "My Requisition Report", icon: FileText, path: "/dashboard/my-requisition-report", permission: undefined },
     ]
   };
 
@@ -271,7 +271,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "Branch Dashboard", icon: BarChart3, path: "/dashboard/branch-dashboard", permission: undefined },
       { title: "Branch Request History", icon: History, path: "/dashboard/branch-request-history", permission: undefined },
-      { title: "Branch Demands Manager", icon: ClipboardList, path: "/dashboard/branch-demands-manager", permission: undefined },
+      { title: "My Branch Demands", icon: ClipboardList, path: "/dashboard/my-branch-demands", permission: undefined },
       { title: "Request Items", icon: ShoppingCart, path: "/dashboard/stock-issuance-branch", permission: undefined },
       { title: "Branch Inventory", icon: Warehouse, path: "/dashboard/branch-inventory", permission: undefined },
       { title: "Branch Members", icon: Users, path: "/dashboard/branch-members", permission: undefined },

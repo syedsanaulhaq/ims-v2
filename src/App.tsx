@@ -90,6 +90,7 @@ import WingRequestHistoryPage from "./pages/WingRequestHistoryPage";
 import BranchRequestHistoryPage from "./pages/BranchRequestHistoryPage";
 import BranchStorekeeperReviewPage from "./pages/BranchStorekeeperReviewPage";
 import BranchDemandsManager from "./pages/BranchDemandsManager";
+import MyBranchDemands from "./pages/MyBranchDemands.tsx";
 import RequiredItemsPage from "./pages/RequiredItemsPage";
 import RequestsHistoryLayout from "./pages/RequestsHistory/RequestsHistoryLayout";
 import FutureRequestsPage from "./pages/RequestsHistory/FutureRequestsPage";
@@ -251,6 +252,8 @@ function App() {
                   <Route path="request-details/:requestId" element={<RequestDetailsPage />} />
                   <Route path="requisition-report" element={<RequisitionReportPage />} />
                   <Route path="requisition-report/:requestId" element={<RequisitionReportPage />} />
+                  <Route path="my-requisition-report" element={<RequisitionReportPage />} />
+                  <Route path="my-requisition-report/:requestId" element={<RequisitionReportPage />} />
                   <Route path="stock-operation-request-details/:requestId" element={<StockOperationRequestDetails />} />
                   <Route path="approval-forwarding/:id" element={<ApprovalForwardingWrapper />} />
                   <Route path="request-history" element={<RequestHistoryPage />} />
@@ -262,6 +265,7 @@ function App() {
                   <Route path="wing-request-history" element={<WingRequestHistoryPage />} />
                   <Route path="branch-request-history" element={<BranchRequestHistoryPage />} />
                   <Route path="branch-demands-manager" element={<BranchDemandsManager />} />
+                  <Route path="my-branch-demands" element={<MyBranchDemands />} />
                   <Route path="branch-storekeeper-review" element={<BranchStorekeeperReviewPage />} />
                   <Route path="workflow-admin" element={<WorkflowAdmin />} />
                   <Route path="stock-issuance-processing" element={<StockIssuanceProcessing />} />
