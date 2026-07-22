@@ -115,7 +115,7 @@ Write-Host "[OK] Old backend stopped" -ForegroundColor Green
 # Step 6: Start backend
 Write-Host ""
 Write-Host "[6/7] Starting backend server..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd C:\ims-v1; node server/index.cjs" -WindowStyle Normal
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd C:\ims-v1; $env:NODE_ENV='production'; node server/index.cjs" -WindowStyle Normal
 Start-Sleep -Seconds 3
 Write-Host "[OK] Backend started on port 3001" -ForegroundColor Green
 
