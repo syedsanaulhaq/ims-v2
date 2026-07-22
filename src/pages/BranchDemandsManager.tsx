@@ -126,6 +126,36 @@ const BranchDemandsManager: React.FC = () => {
         current.items.push(demand);
       }
 
+      const unlinkedDemandRows = myDemands
+        .filter((d) => !d.included_in_request_id)
+        .sort((a, b) => new Date(String(b.created_at || 0)).getTime() - new Date(String(a.created_at || 0)).getTime());
+
+      if (unlinkedDemandRows.length > 0) {
+        const totalQty = unlinkedDemandRows.reduce((sum, d) => sum + Number(d.requested_quantity || 0), 0);
+        const requestTitle = unlinkedDemandRows.length === 1
+          ? unlinkedDemandRows[0].item_nomenclature
+          : `${unlinkedDemandRows[0].item_nomenclature} + ${unlinkedDemandRows.length - 1} more`;
+        const latestCreatedAt = unlinkedDemandRows[0]?.created_at;
+
+        requestMap.set(`pending-${unlinkedDemandRows[0].staff_user_id || 'me'}`, {
+          id: `pending-${unlinkedDemandRows[0].staff_user_id || 'me'}`,
+          request_number: requestTitle,
+          purpose: unlinkedDemandRows[0]?.justification || requestTitle,
+          justification: unlinkedDemandRows[0]?.justification || requestTitle,
+          requester_name: unlinkedDemandRows[0]?.staff_name || 'Current User',
+          request_status: 'SUBMITTED',
+          approval_status: 'SUBMITTED',
+          urgency_level: 'Normal',
+          submitted_at: latestCreatedAt,
+          created_at: latestCreatedAt,
+          linked_demand_count: unlinkedDemandRows.length,
+          linked_demand_qty: totalQty,
+          total_requested_quantity: totalQty,
+          total_demand_lines: unlinkedDemandRows.length,
+          items: unlinkedDemandRows
+        });
+      }
+
       const myRequests = Array.from(requestMap.values())
         .filter((r) => r.total_demand_lines > 0)
         .sort((a, b) => {
@@ -134,16 +164,8 @@ const BranchDemandsManager: React.FC = () => {
           return db - da;
         });
 
-      const demandItems = myDemands.slice().sort((a, b) => {
-        const da = new Date(String(b.created_at || 0)).getTime();
-        const db = new Date(String(a.created_at || 0)).getTime();
-        return da - db;
-      });
-
       setDemands(myDemands);
       setRequests(myRequests);
-      // Keep the first linked request selected if available so the modal shows a concrete request.
-      setSelectedRequest((current) => current && myRequests.some((request) => request.id === current.id) ? current : myRequests[0] || null);
       setSuccess('Branch demands manager loaded successfully.');
       setTimeout(() => setSuccess(''), 1500);
     } catch (err) {
@@ -187,8 +209,8 @@ const BranchDemandsManager: React.FC = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Branch Demands</h1>
-            <p className="text-gray-600 mt-1">Track your submitted demand lines and the requests created from them</p>
+            <h1 className="text-3xl font-bold text-gray-900">Branch Demands Manager</h1>
+            <p className="text-gray-600 mt-1">Track submitted demand lines and resulting branch request statuses</p>
           </div>
           <Button onClick={loadData} variant="outline" disabled={loading}>
             <RefreshCcw className="w-4 h-4 mr-2" />
@@ -220,17 +242,16 @@ const BranchDemandsManager: React.FC = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><History className="w-5 h-5" />My Submitted Branch Demands</CardTitle>
+            <CardTitle className="flex items-center gap-2"><History className="w-5 h-5" />Submitted Branch Demands</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-sm text-gray-500">Loading demands...</div>
-            ) : demands.length === 0 ? (
-              <div className="text-sm text-gray-500">No branch demand lines found yet.</div>
+            ) : requests.length === 0 ? (
+              <div className="text-sm text-gray-500">No submitted branch requests found yet.</div>
             ) : (
-              <div className="space-y-6">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b-2 border-gray-300 bg-gray-50">
                       <th className="text-left p-3 font-semibold">Demand Purpose</th>
@@ -242,93 +263,37 @@ const BranchDemandsManager: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {demands.map((demand) => {
-                      const effectiveStatus = demand.included_request_status || demand.status || 'Pending';
+                    {requests.map((request) => {
+                      const effectiveStatus = request.approval_status || request.request_status || 'Pending';
                       return (
-                        <tr key={demand.id} className="border-b border-gray-200 hover:bg-gray-50">
+                        <tr key={request.id} className="border-b border-gray-200 hover:bg-gray-50">
                           <td className="p-3">
-                            <div className="font-bold text-base break-words">{demand.justification || demand.item_nomenclature || '-'}</div>
-                            {demand.included_request_number && (
-                              <div className="text-xs text-gray-500 mt-1">Request: {demand.included_request_number}</div>
-                            )}
+                            <div className="font-bold text-base break-words">{request.justification || request.purpose || '-'}</div>
                           </td>
-                          <td className="p-3">{demand.staff_name || 'You'}</td>
-                          <td className="p-3">{toDateTime(demand.created_at)}</td>
+                          <td className="p-3">{request.requester_name || '-'}</td>
+                          <td className="p-3">{toDateTime(request.submitted_at || request.created_at)}</td>
                           <td className="p-3">
-                            <div className="font-semibold">{Number(demand.requested_quantity || 0)} Qty</div>
+                            <div className="font-semibold">
+                              {request.total_requested_quantity} Qty <span className="text-xs text-gray-600">({request.total_demand_lines} lines)</span>
+                            </div>
                           </td>
                           <td className="p-3">
                             <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
                           </td>
                           <td className="p-3 text-center">
-                            {demand.included_in_request_id && selectedRequest?.id === demand.included_in_request_id ? (
-                              <span className="text-xs text-gray-500">Open below</span>
-                            ) : demand.included_in_request_id ? (
-                              <button
-                                type="button"
-                                className="px-3 py-1 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors text-sm"
-                                onClick={() => setSelectedRequest(requests.find((request) => request.id === demand.included_in_request_id) || null)}
-                              >
-                                View Request
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-500">Pending</span>
-                            )}
+                            <button
+                              type="button"
+                              className="px-3 py-1 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors text-sm"
+                              onClick={() => setSelectedRequest(request)}
+                            >
+                              Items ({request.items.length})
+                            </button>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
-                  </table>
-                </div>
-
-                {requests.length > 0 && (
-                  <div className="overflow-x-auto border rounded-lg">
-                    <table className="w-full border-collapse text-sm">
-                      <thead>
-                        <tr className="border-b-2 border-gray-300 bg-gray-50">
-                          <th className="text-left p-3 font-semibold">Linked Request</th>
-                          <th className="text-left p-3 font-semibold">Submitted By</th>
-                          <th className="text-left p-3 font-semibold">Date & Time</th>
-                          <th className="text-left p-3 font-semibold">Total Items</th>
-                          <th className="text-left p-3 font-semibold">Status</th>
-                          <th className="text-center p-3 font-semibold">Items</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {requests.map((request) => {
-                          const effectiveStatus = request.approval_status || request.request_status || 'Pending';
-                          return (
-                            <tr key={request.id} className="border-b border-gray-200 hover:bg-gray-50">
-                              <td className="p-3">
-                                <div className="font-bold text-base break-words">{request.justification || request.purpose || '-'}</div>
-                              </td>
-                              <td className="p-3">{request.requester_name || '-'}</td>
-                              <td className="p-3">{toDateTime(request.submitted_at || request.created_at)}</td>
-                              <td className="p-3">
-                                <div className="font-semibold">
-                                  {request.total_requested_quantity} Qty <span className="text-xs text-gray-600">({request.total_demand_lines} lines)</span>
-                                </div>
-                              </td>
-                              <td className="p-3">
-                                <Badge className={statusClass(effectiveStatus)}>{effectiveStatus}</Badge>
-                              </td>
-                              <td className="p-3 text-center">
-                                <button
-                                  type="button"
-                                  className="px-3 py-1 bg-blue-100 text-blue-700 rounded font-medium hover:bg-blue-200 transition-colors text-sm"
-                                  onClick={() => setSelectedRequest(request)}
-                                >
-                                  Items ({request.items.length})
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                </table>
               </div>
             )}
           </CardContent>

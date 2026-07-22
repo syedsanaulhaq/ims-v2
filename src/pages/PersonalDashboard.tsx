@@ -76,7 +76,7 @@ const PersonalDashboard = () => {
     if (raw.includes('return')) return 'returned';
     if (raw.includes('forward')) return 'forwarded';
     if (raw.includes('approv') || raw.includes('complete') || raw.includes('final')) return 'approved';
-    if (raw.includes('pending') || raw.includes('review') || raw.includes('wait') || raw.includes('submitted') || raw.includes('submit') || raw.includes('plan')) return 'pending';
+    if (raw.includes('pending') || raw.includes('review') || raw.includes('wait')) return 'pending';
     return 'other';
   };
 
@@ -180,7 +180,7 @@ const PersonalDashboard = () => {
     if (status) {
       params.set('status', status);
     }
-    navigate(params.toString() ? `/dashboard/my-requisition-report?${params.toString()}` : '/dashboard/my-requisition-report');
+    navigate(params.toString() ? `/dashboard/my-requests?${params.toString()}` : '/dashboard/my-requests');
   };
 
   useEffect(() => {
@@ -261,20 +261,6 @@ const PersonalDashboard = () => {
       acc[status] += 1;
       return acc;
     }, base);
-  }, [myRequests]);
-
-  const pendingRequestCount = useMemo(() => {
-    return myRequests.filter((request) => {
-      const status = getStatusRaw(request);
-      return (
-        status.includes('pending') ||
-        status.includes('submitted') ||
-        status.includes('forward') ||
-        status.includes('review') ||
-        status.includes('wait') ||
-        status.includes('plan')
-      );
-    }).length;
   }, [myRequests]);
 
   const requestStatusChartData = useMemo(
@@ -378,7 +364,7 @@ const PersonalDashboard = () => {
           </Card>
         </button>
 
-        <button type="button" onClick={() => navigate('/dashboard/my-requisition-report')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open total requested report">
+        <button type="button" onClick={() => navigate('/dashboard/requisition-report')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open total requested report">
           <Card className="border-l-4 border-l-indigo-500 h-full">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-2 text-slate-600">
@@ -396,7 +382,7 @@ const PersonalDashboard = () => {
               <CardDescription className="flex items-center gap-2 text-slate-600">
                 <Clock className="h-4 w-4" /> Pending Requests
               </CardDescription>
-              <CardTitle className="text-3xl text-amber-700">{pendingRequestCount}</CardTitle>
+              <CardTitle className="text-3xl text-amber-700">{requestSummary.pending}</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-slate-500">Still awaiting approval decision</CardContent>
           </Card>
@@ -414,7 +400,7 @@ const PersonalDashboard = () => {
           </Card>
         </button>
 
-        <button type="button" onClick={() => navigate('/dashboard/my-requisition-report')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open requisition quantity report">
+        <button type="button" onClick={() => navigate('/dashboard/requisition-report')} className="text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-xl" aria-label="Open requisition quantity report">
           <Card className="border-l-4 border-l-teal-500 h-full">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-2 text-slate-600">
@@ -502,7 +488,7 @@ const PersonalDashboard = () => {
                 onChange={(e) => setSearchRequestsFilter(e.target.value)}
                 className="w-full md:w-80 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
               />
-              <Button variant="outline" onClick={() => navigate('/dashboard/my-requisition-report')}>View All</Button>
+              <Button variant="outline" onClick={() => navigate('/dashboard/my-requests')}>View All</Button>
             </div>
           </div>
         </CardHeader>

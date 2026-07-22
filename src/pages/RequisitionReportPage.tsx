@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Printer, Search } from 'lucide-react';
 import { getApiBaseUrl } from '@/services/invmisApi';
-import { useSession } from '@/contexts/SessionContext';
 
 interface ReportItem {
   id: string;
@@ -82,7 +81,6 @@ const isCompletedRequest = (request: any) => {
 const RequisitionReportPage: React.FC = () => {
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
-  const { user } = useSession();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<RequisitionReport | null>(null);
@@ -135,33 +133,49 @@ const RequisitionReportPage: React.FC = () => {
           items: []
         }));
 
-        const currentUserId = String(user?.user_id || user?.userId || user?.id || '').trim();
+        let currentUserId = '';
         let currentUserDesignation = '-';
 
-        if (currentUserId) {
-          try {
-            const designationResp = await fetch(`${getApiBaseUrl()}/auth/designation/${currentUserId}`, {
-              method: 'GET',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' }
-            });
+        try {
+          const sessionResp = await fetch(`${getApiBaseUrl()}/auth/session`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          });
 
-            if (designationResp.ok) {
-              const designationData = await designationResp.json();
-              currentUserDesignation = pickDesignation(designationData?.designation);
+          if (sessionResp.ok) {
+            const sessionData = await sessionResp.json();
+            currentUserId = String(
+              sessionData?.session?.user_id ||
+              sessionData?.session?.userId ||
+              sessionData?.user?.id ||
+              ''
+            ).trim();
+
+            if (currentUserId) {
+              const designationResp = await fetch(`${getApiBaseUrl()}/auth/designation/${currentUserId}`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+              });
+
+              if (designationResp.ok) {
+                const designationData = await designationResp.json();
+                currentUserDesignation = pickDesignation(designationData?.designation);
+              }
             }
-          } catch (designationError) {
-            }
-        }
+          }
+        } catch (sessionOrDesignationError) {
+          }
 
         if (!currentUserId) {
-          throw new Error('Unable to resolve logged-in user');
+          throw new Error('Unable to resolve logged-in user session');
         }
 
         const byId: Record<string, any> = {};
 
         try {
-          const requestsResp = await fetch(`${getApiBaseUrl()}/approvals/my-requests/${currentUserId}`, {
+          const requestsResp = await fetch(`${getApiBaseUrl()}/stock-issuance/requests`, {
             method: 'GET',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' }
@@ -169,8 +183,8 @@ const RequisitionReportPage: React.FC = () => {
 
           if (requestsResp.ok) {
             const requestsData = await requestsResp.json();
-            const primaryRows = Array.isArray(requestsData?.requests)
-              ? requestsData.requests
+            const primaryRows = Array.isArray(requestsData)
+              ? requestsData
               : (Array.isArray(requestsData?.data) ? requestsData.data : []);
             primaryRows.forEach((row: any) => {
               const key = String(row?.id || '').trim();
@@ -224,10 +238,16 @@ const RequisitionReportPage: React.FC = () => {
             }
         }
 
-        const myRequests = Object.values(byId);
+        const allRequests = Object.values(byId);
+        const myRequests = allRequests.filter((r: any) => {
+          if (!currentUserId) return false;
+          const requesterId = String(r?.requester_user_id || r?.requester?.user_id || '').trim();
+          return requesterId === currentUserId;
+        });
 
         if (!requestId) {
-          const options = myRequests
+          const requestsToShow = myRequests.length > 0 ? myRequests : allRequests;
+          const options = requestsToShow
             .sort((a: any, b: any) => {
               const dateA = new Date(a.submitted_at || a.created_at || 0).getTime();
               const dateB = new Date(b.submitted_at || b.created_at || 0).getTime();
@@ -257,11 +277,11 @@ const RequisitionReportPage: React.FC = () => {
           return;
         }
 
-        const found = myRequests.find((r: any) => r.id === requestId);
+        const found = (myRequests.length > 0 ? myRequests : allRequests).find((r: any) => r.id === requestId);
 
         if (!found) {
-          console.error(`Request not found for current user: ${requestId} | currentUserId: ${currentUserId} | myRequests: ${myRequests.length}`);
-          throw new Error('Request not found for current user');
+          console.error(`Request not found: ${requestId} | currentUserId: ${currentUserId} | myRequests: ${myRequests.length} | allRequests: ${allRequests.length}`);
+          throw new Error(`Request not found (searched ${allRequests.length} available requests)`);
         }
 
         let items: ReportItem[] = (found.items || []).map((item: any) => ({
@@ -558,7 +578,7 @@ const RequisitionReportPage: React.FC = () => {
       <div className="container mx-auto p-6">
         <Card className="max-w-6xl mx-auto">
           <CardHeader className="space-y-4">
-            <CardTitle>Select My Requisition Report</CardTitle>
+            <CardTitle>Select Requisition Report</CardTitle>
             <div className="relative max-w-md">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
@@ -571,7 +591,7 @@ const RequisitionReportPage: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             {filteredRequestOptions.length === 0 ? (
-              <div className="text-center text-sm text-gray-600 py-6">No matching requisition reports found for the logged-in user.</div>
+              <div className="text-center text-sm text-gray-600 py-6">No matching requisition reports found.</div>
             ) : (
               <div className="space-y-8">
                 {renderRequestGroup('Pending Requisitions', pendingRequestOptions, 'pending')}
@@ -592,7 +612,7 @@ const RequisitionReportPage: React.FC = () => {
             <p className="text-red-600">{error || 'Unable to load report'}</p>
             <Button variant="outline" onClick={() => navigate('/dashboard/requisition-report')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to My Requisition Report
+              Back to Requisition Report
             </Button>
           </CardContent>
         </Card>
@@ -695,7 +715,7 @@ const RequisitionReportPage: React.FC = () => {
       <div className="requisition-print-actions flex items-center justify-between mb-6 print:hidden">
         <Button variant="outline" onClick={() => navigate('/dashboard/requisition-report')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to My Requisition Report
+          Back to Requisition Report
         </Button>
         <Button variant="outline" onClick={handlePrint}>
           <Printer className="h-4 w-4 mr-2" />
@@ -707,7 +727,7 @@ const RequisitionReportPage: React.FC = () => {
         <CardContent className="p-0 print:page-break-inside-avoid print:min-h-[9.6in] print:flex print:flex-col">
           <div className="border-b-2 border-black/70 px-6 py-5 text-center print:py-3 print:px-4">
             <p className="text-xs tracking-[0.18em] uppercase text-gray-700">Election Commission of Pakistan</p>
-            <h1 className="text-2xl font-semibold tracking-wide mt-1">MY REQUISITION REPORT</h1>
+            <h1 className="text-2xl font-semibold tracking-wide mt-1">REQUISITION REPORT</h1>
             <p className="text-xs mt-1 text-gray-700">Inventory Management System - Formal Slip</p>
           </div>
 
