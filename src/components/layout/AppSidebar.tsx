@@ -234,7 +234,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Request Form", icon: ShoppingCart, path: "/dashboard/stock-issuance-personal", permission: undefined },
       ...(!canAccessBranchMenu && hasBranchAssignment ? [
         { title: "Branch Demand", icon: Building2, path: "/dashboard/stock-issuance-branch", permission: undefined },
-        { title: "Branch Demands Manager", icon: History, path: "/dashboard/branch-demands-manager", permission: undefined }
+        { title: "My Branch Demand", icon: ClipboardList, path: "/dashboard/my-branch-demand", permission: undefined },
       ] : []),
       { title: "My Request", icon: ClipboardList, path: "/dashboard/my-requests", permission: undefined },
       { title: "Stock Return", icon: Undo2, path: "/dashboard/stock-return", permission: undefined },
@@ -271,7 +271,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
     items: [
       { title: "Branch Dashboard", icon: BarChart3, path: "/dashboard/branch-dashboard", permission: undefined },
       { title: "Branch Request History", icon: History, path: "/dashboard/branch-request-history", permission: undefined },
-      { title: "Branch Demands Manager", icon: ClipboardList, path: "/dashboard/branch-demands-manager", permission: undefined },
       { title: "Request Items", icon: ShoppingCart, path: "/dashboard/stock-issuance-branch", permission: undefined },
       { title: "Branch Inventory", icon: Warehouse, path: "/dashboard/branch-inventory", permission: undefined },
       { title: "Branch Members", icon: Users, path: "/dashboard/branch-members", permission: undefined },
