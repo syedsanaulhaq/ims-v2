@@ -286,7 +286,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
         { title: "Branch Request Review", icon: ClipboardList, path: "/dashboard/branch-storekeeper-review", permission: undefined },
       ] : []),
       { title: "Forwarded Verifications", icon: Eye, path: "/dashboard/store-keeper-verifications", permission: undefined },
-      { title: "Verification History", icon: History, path: "/dashboard/verification-history", permission: undefined },
       { title: "Wing Inventory", icon: Package, path: "/dashboard/wing-inventory", permission: undefined },
       { title: "Stock Issuance", icon: Send, path: "/dashboard/stock-issuance-processing", permission: undefined },
     ]
@@ -313,8 +312,6 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       { title: "Opening Balance Entry", icon: Package, path: "/dashboard/opening-balance-entry", permission: 'inventory.manage' },
       { title: "Stock Quantities", icon: BarChart3, path: "/dashboard/inventory-stock-quantities", permission: 'inventory.view' },
       { title: "Stock Alerts", icon: AlertTriangle, path: "/dashboard/inventory-alerts", permission: 'inventory.view' },
-      { title: "Pending Verifications", icon: Eye, path: "/dashboard/pending-verifications", permission: 'inventory.manage' },
-      { title: "Verification History", icon: Eye, path: "/dashboard/verification-history", permission: 'inventory.view' },
     ]
   };
 

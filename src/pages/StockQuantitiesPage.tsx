@@ -4,19 +4,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Package, 
   ArrowLeft, 
   Search,
   RefreshCw,
   AlertCircle,
-  TrendingDown,
-  TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  TrendingUp
 } from 'lucide-react';
 
 interface StockQuantity {
+  opening_balance_entry_id?: string;
   item_master_id: string;
+  group_number?: number | null;
   item_code: string;
   nomenclature: string;
   category_name: string;
@@ -32,6 +35,22 @@ interface StockQuantity {
   new_acquisition_count: number;
 }
 
+interface StockDetailSummary {
+  opening_balance_procured?: number;
+  opening_balance_issued?: number;
+  opening_balance_remaining?: number;
+  opening_balance_count?: number;
+  acquisition_procured?: number;
+  acquisition_issued?: number;
+  acquisition_remaining?: number;
+  acquisition_count?: number;
+  pending_count?: number;
+  pending_quantity?: number;
+  total_procured?: number;
+  total_issued?: number;
+  total_stock?: number;
+}
+
 const StockQuantitiesPage: React.FC = () => {
   const [quantities, setQuantities] = useState<StockQuantity[]>([]);
   const [filteredQuantities, setFilteredQuantities] = useState<StockQuantity[]>([]);
@@ -39,6 +58,10 @@ const StockQuantitiesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [detailItem, setDetailItem] = useState<StockQuantity | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailSummary, setDetailSummary] = useState<StockDetailSummary | null>(null);
+  const [detailHistory, setDetailHistory] = useState<any[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,7 +77,7 @@ const StockQuantitiesPage: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:3001/api/inventory/stock-breakdown', {
+      const response = await fetch('http://localhost:3001/api/inventory/stock-breakdown?show_zero_stock=true', {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
@@ -77,6 +100,33 @@ const StockQuantitiesPage: React.FC = () => {
       setError(error instanceof Error ? error.message : 'Failed to load stock quantities');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadItemDetails = async (item: StockQuantity) => {
+    setDetailItem(item);
+    setDetailLoading(true);
+    setDetailSummary(null);
+    setDetailHistory([]);
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/inventory/current-stock/${item.item_master_id}/history`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load item details: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setDetailSummary(data.summary || null);
+      setDetailHistory(data.history || []);
+    } catch (error) {
+      console.error('Error loading item details:', error);
+      setDetailSummary(null);
+      setDetailHistory([]);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -338,19 +388,21 @@ const StockQuantitiesPage: React.FC = () => {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items Name</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-purple-600 uppercase tracking-wider">Opening Balance</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase tracking-wider">New Acquisitions</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider font-bold">Total Stock</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Procured</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Issued</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-purple-600 uppercase tracking-wider">Opening Balance</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase tracking-wider">New Aquissition</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider font-bold">Total Stock</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Update</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredQuantities.map((item) => (
-                    <tr key={item.item_master_id} className="hover:bg-gray-50">
+                    <tr key={item.opening_balance_entry_id || item.item_master_id} className="hover:bg-gray-50">
                       <td className="px-4 py-4">
                         <div>
                           <div className="font-medium text-gray-900">{item.nomenclature}</div>
@@ -358,38 +410,37 @@ const StockQuantitiesPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-700">{item.category_name || 'N/A'}</td>
+                      <td className="px-4 py-4 text-right text-sm text-gray-700 font-medium">
+                        {formatNumber(item.total_received)}
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm text-gray-700 font-medium">
+                        {formatNumber(item.total_issued)}
+                      </td>
                       <td className="px-4 py-4 text-right">
                         <div className="text-base font-semibold text-purple-600">
                           {formatNumber(item.opening_balance_quantity)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {item.opening_balance_count} {item.opening_balance_count === 1 ? 'entry' : 'entries'}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="text-base font-semibold text-blue-600">
                           {formatNumber(item.new_acquisition_quantity)}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {item.new_acquisition_count} {item.new_acquisition_count === 1 ? 'entry' : 'entries'}
-                        </div>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className={`text-lg font-bold ${getQuantityColor(item.total_quantity)}`}>
-                          {formatNumber(item.total_quantity)} Nos.
+                          {formatNumber(item.total_quantity)}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          from {formatNumber(item.total_received)} received
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-right text-sm text-gray-600">
-                        {formatNumber(item.total_issued)}
                       </td>
                       <td className="px-4 py-4 text-center">
                         {getStatusBadge(item.total_quantity)}
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-500">
                         {formatDate(item.last_transaction_date)}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <Button variant="outline" size="icon" onClick={() => loadItemDetails(item)} aria-label="Open item details">
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -399,6 +450,103 @@ const StockQuantitiesPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!detailItem} onOpenChange={(open) => !open && setDetailItem(null)}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {detailItem ? `${detailItem.nomenclature} (${detailItem.item_code})` : 'Item Details'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailLoading ? (
+            <div className="py-8 text-center text-gray-600">Loading details...</div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-gray-600">Opening Balance</p>
+                    <p className="text-2xl font-bold text-purple-600">{formatNumber(detailSummary?.opening_balance_remaining ?? detailItem?.opening_balance_quantity ?? 0)}</p>
+                    <p className="text-xs text-gray-500">Procured: {formatNumber(detailSummary?.opening_balance_procured ?? detailItem?.total_received ?? 0)} | Issued: {formatNumber(detailSummary?.opening_balance_issued ?? 0)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-gray-600">New Acquisition</p>
+                    <p className="text-2xl font-bold text-blue-600">{formatNumber(detailSummary?.acquisition_remaining ?? detailItem?.new_acquisition_quantity ?? 0)}</p>
+                    <p className="text-xs text-gray-500">Procured: {formatNumber(detailSummary?.acquisition_procured ?? 0)} | Issued: {formatNumber(detailSummary?.acquisition_issued ?? 0)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-gray-600">Pending</p>
+                    <p className="text-2xl font-bold text-orange-600">{formatNumber(detailSummary?.pending_quantity ?? 0)}</p>
+                    <p className="text-xs text-gray-500">Requests: {formatNumber(detailSummary?.pending_count ?? 0)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-gray-600">Total Procured</p>
+                    <p className="text-xl font-bold text-green-600">{formatNumber(detailSummary?.total_procured ?? detailItem?.total_received ?? 0)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-gray-600">Total Issued</p>
+                    <p className="text-xl font-bold text-red-600">{formatNumber(detailSummary?.total_issued ?? detailItem?.total_issued ?? 0)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-gray-600">Total Stock</p>
+                    <p className="text-xl font-bold text-green-700">{formatNumber(detailSummary?.total_stock ?? detailItem?.total_quantity ?? 0)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-gray-600">Opening Entries</p>
+                    <p className="text-xl font-bold text-gray-700">{formatNumber(detailSummary?.opening_balance_count ?? 0)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Recent Movement</h3>
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="p-3 text-left">Delivery / Acquisition</th>
+                        <th className="p-3 text-left">Source</th>
+                        <th className="p-3 text-right">Qty</th>
+                        <th className="p-3 text-left">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailHistory.length === 0 ? (
+                        <tr>
+                          <td className="p-4 text-center text-gray-500" colSpan={4}>No movement history found</td>
+                        </tr>
+                      ) : detailHistory.map((row, index) => (
+                        <tr key={`${row.delivery_number || row.acquisition_number || index}`} className="border-t">
+                          <td className="p-3">{row.delivery_number || row.acquisition_number || 'N/A'}</td>
+                          <td className="p-3">{row.po_number || row.delivery_personnel || 'Opening Balance'}</td>
+                          <td className="p-3 text-right">{formatNumber(row.delivery_qty || 0)}</td>
+                          <td className="p-3">{formatDate(row.receiving_date || row.acquisition_date)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
