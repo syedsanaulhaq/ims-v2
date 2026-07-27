@@ -1336,7 +1336,7 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                   ) ? getEditableQuantity(item) : 0;
                                   handleItemDecisionChange(itemId, decisionValue, approvedQuantity);
                                 }}
-                                disabled={shouldDisableControls() || (!isAdminWorkflowContext && isOutOfStock(item))}
+                                disabled={shouldDisableControls()}
                               >
                                 <SelectTrigger className="h-8 bg-white">
                                   <SelectValue placeholder="Select..." />
@@ -1381,16 +1381,16 @@ export const PerItemApprovalPanel: React.FC<PerItemApprovalPanelProps> = ({
                                 });
                                 setItemDecisions(newDecisions);
                               }}
-                              disabled={shouldDisableControls() || (!isAdminWorkflowContext && isOutOfStock(item))}
+                              disabled={shouldDisableControls()}
                               className="h-8"
                             />
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => checkStockAvailability(item)} disabled={!isAdminWorkflowContext && isOutOfStock(item)}>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => checkStockAvailability(item)}>
                                 Check Stock
                               </Button>
-                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => forwardToStoreKeeper(item)} disabled={!isAdminWorkflowContext && isOutOfStock(item)}>
+                              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => forwardToStoreKeeper(item)}>
                                 Forward to Store Keeper
                               </Button>
                             </div>
