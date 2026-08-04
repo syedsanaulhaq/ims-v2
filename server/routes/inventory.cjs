@@ -131,6 +131,7 @@ router.get('/', requireGlobalInventoryAccess, async (req, res) => {
 // ============================================================================
 router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
   try {
+    console.log('PERSONAL_INVENTORY_V3 hit', { userId: req.params.userId, sessionUserId: req.session?.userId });
     const pool = getPool();
     const sessionUserId = req.session.userId;
     const requestedUserId = String(req.params.userId || '');
@@ -146,56 +147,134 @@ router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
 
     const effectiveUserId = isSuperAdmin ? requestedUserId : sessionUserId;
 
-    const itemsResult = await pool.request()
-      .input('userId', sql.NVarChar(450), effectiveUserId)
-      .query(`
-        SELECT
-          sii.id AS ledger_id,
-          sii.item_master_id,
-          sir.request_number,
-          COALESCE(im.nomenclature, sii.nomenclature, 'Unknown Item') AS nomenclature,
-          c.category_name,
-          COALESCE(NULLIF(sii.issued_quantity, 0), NULLIF(sii.approved_quantity, 0), sii.requested_quantity, 0) AS issued_quantity,
-          CAST(0 AS DECIMAL(18,2)) AS unit_price,
-          CAST(0 AS DECIMAL(18,2)) AS total_value,
-          COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) AS issued_at,
-          '' AS issued_by_name,
-          sir.purpose,
-          sir.request_type,
-          COALESCE(sir.is_returnable, 0) AS is_returnable,
-          sir.expected_return_date,
-          NULL AS actual_return_date,
-          CASE
-            WHEN COALESCE(sir.is_returnable, 0) = 0 THEN 'Not Returnable'
-            WHEN sir.expected_return_date IS NOT NULL AND sir.expected_return_date < GETDATE() THEN 'Overdue'
-            ELSE 'Not Returned'
-          END AS return_status,
-          CASE
-            WHEN COALESCE(sir.is_returnable, 0) = 1
-              AND sir.expected_return_date IS NOT NULL
-              AND sir.expected_return_date < GETDATE()
-            THEN 'Overdue'
-            WHEN UPPER(COALESCE(sir.approval_status, '')) = 'RETURNED'
-            THEN 'Returned'
-            ELSE 'Not Returned'
-          END AS current_return_status,
-          COALESCE(sir.approval_status, sir.request_status, 'Issued') AS status,
-          '' AS issuance_notes
-        FROM stock_issuance_items sii
-        INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
-        LEFT JOIN item_masters im ON sii.item_master_id = im.id
-        LEFT JOIN categories c ON im.category_id = c.id
-        WHERE sir.requester_user_id = @userId
-          AND (
-            UPPER(COALESCE(sir.request_status, '')) IN ('ISSUED', 'COMPLETED')
-            OR UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
-          )
-          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
-          AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
-        ORDER BY COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) DESC
-      `);
+    // Prefer issued_items_ledger / history view; avoid invalid sii.nomenclature / request_id joins.
+    let items = [];
+    try {
+      const viewResult = await pool.request()
+        .input('userId', sql.UniqueIdentifier, effectiveUserId)
+        .query(`
+          SELECT
+            CAST(ledger_id AS NVARCHAR(50)) AS ledger_id,
+            request_number,
+            nomenclature,
+            category_name,
+            issued_quantity,
+            unit_price,
+            total_value,
+            issued_at,
+            issued_by_name,
+            purpose,
+            request_type,
+            is_returnable,
+            expected_return_date,
+            actual_return_date,
+            return_status,
+            current_return_status,
+            status,
+            issuance_notes
+          FROM dbo.vw_UserIssuedItemsHistory
+          WHERE issued_to_user_id = @userId
+          ORDER BY issued_at DESC
+        `);
+      items = viewResult.recordset || [];
+    } catch (viewError) {
+      console.warn('vw_UserIssuedItemsHistory unavailable, using ledger/request fallback:', viewError.message);
+      const fallbackResult = await pool.request()
+        .input('userId', sql.NVarChar(450), effectiveUserId)
+        .query(`
+          SELECT
+            CAST(il.id AS NVARCHAR(50)) AS ledger_id,
+            il.request_number,
+            COALESCE(il.nomenclature, im.nomenclature, 'Unknown Item') AS nomenclature,
+            c.category_name,
+            COALESCE(il.issued_quantity, 0) AS issued_quantity,
+            COALESCE(il.unit_price, 0) AS unit_price,
+            COALESCE(il.total_value, 0) AS total_value,
+            il.issued_at,
+            COALESCE(il.issued_by_name, '') AS issued_by_name,
+            il.purpose,
+            il.request_type,
+            COALESCE(il.is_returnable, 0) AS is_returnable,
+            il.expected_return_date,
+            il.actual_return_date,
+            COALESCE(il.return_status, 'Not Returned') AS return_status,
+            CASE
+              WHEN COALESCE(il.is_returnable, 0) = 1
+                AND COALESCE(il.return_status, 'Not Returned') = 'Not Returned'
+                AND il.expected_return_date IS NOT NULL
+                AND il.expected_return_date < CAST(GETDATE() AS DATE)
+              THEN 'Overdue'
+              WHEN COALESCE(il.return_status, '') = 'Returned' THEN 'Returned'
+              WHEN COALESCE(il.is_returnable, 0) = 0 THEN 'Not Returnable'
+              ELSE COALESCE(il.return_status, 'Not Returned')
+            END AS current_return_status,
+            COALESCE(il.status, 'Issued') AS status,
+            COALESCE(il.issuance_notes, '') AS issuance_notes
+          FROM dbo.issued_items_ledger il
+          LEFT JOIN dbo.item_masters im ON il.item_master_id = im.id
+          LEFT JOIN dbo.categories c ON im.category_id = c.id
+          WHERE CONVERT(NVARCHAR(450), il.issued_to_user_id) = @userId
 
-    const items = itemsResult.recordset || [];
+          UNION ALL
+
+          SELECT
+            CAST(sii.id AS NVARCHAR(50)) AS ledger_id,
+            sir.request_number,
+            COALESCE(im.nomenclature, 'Unknown Item') AS nomenclature,
+            c.category_name,
+            COALESCE(NULLIF(sii.issued_quantity, 0), NULLIF(sii.approved_quantity, 0), sii.requested_quantity, 0) AS issued_quantity,
+            COALESCE(sii.unit_price, 0) AS unit_price,
+            COALESCE(sii.total_value, 0) AS total_value,
+            COALESCE(TRY_CONVERT(datetime2, sir.issued_at), sir.updated_at, sir.submitted_at, sir.created_at) AS issued_at,
+            COALESCE(sir.dispatcher_name, '') AS issued_by_name,
+            sir.purpose,
+            sir.request_type,
+            COALESCE(sir.is_returnable, 0) AS is_returnable,
+            TRY_CONVERT(date, sir.expected_return_date) AS expected_return_date,
+            CAST(NULL AS date) AS actual_return_date,
+            CASE
+              WHEN COALESCE(sir.is_returnable, 0) = 0 THEN 'Not Returnable'
+              WHEN TRY_CONVERT(date, sir.expected_return_date) IS NOT NULL
+                AND TRY_CONVERT(date, sir.expected_return_date) < CAST(GETDATE() AS DATE)
+              THEN 'Overdue'
+              ELSE 'Not Returned'
+            END AS return_status,
+            CASE
+              WHEN COALESCE(sir.is_returnable, 0) = 1
+                AND TRY_CONVERT(date, sir.expected_return_date) IS NOT NULL
+                AND TRY_CONVERT(date, sir.expected_return_date) < CAST(GETDATE() AS DATE)
+              THEN 'Overdue'
+              WHEN UPPER(COALESCE(sir.approval_status, sir.request_status, '')) = 'RETURNED'
+              THEN 'Returned'
+              ELSE 'Not Returned'
+            END AS current_return_status,
+            COALESCE(sii.status, sir.approval_status, sir.request_status, 'Issued') AS status,
+            COALESCE(sir.issuance_notes, '') AS issuance_notes
+          FROM dbo.stock_issuance_items sii
+          INNER JOIN dbo.stock_issuance_requests sir ON sii.stock_issuance_id = sir.id
+          LEFT JOIN dbo.item_masters im ON sii.item_master_id = im.id
+          LEFT JOIN dbo.categories c ON im.category_id = c.id
+          WHERE CONVERT(NVARCHAR(450), sir.requester_user_id) = @userId
+            AND (
+              UPPER(COALESCE(sir.request_status, '')) IN ('ISSUED', 'COMPLETED', 'DISPATCHED')
+              OR UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED', 'DISPATCHED')
+              OR sir.is_finalized = 1
+            )
+            AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
+            AND NOT EXISTS (
+              SELECT 1
+              FROM dbo.issued_items_ledger il2
+              WHERE il2.request_id = sir.id
+                AND (
+                  il2.item_master_id = sii.item_master_id
+                  OR (il2.item_master_id IS NULL AND sii.item_master_id IS NULL)
+                )
+            )
+          ORDER BY issued_at DESC
+        `);
+      items = fallbackResult.recordset || [];
+    }
+
     const summary = {
       total_items: items.length,
       total_value: items.reduce((sum, item) => sum + Number(item.total_value || 0), 0),
@@ -211,7 +290,6 @@ router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
   }
 });
 
-// ============================================================================
 // GET /api/inventory/requestable-items
 // Request form item catalog for authenticated users (not central dashboard data)
 // ============================================================================
