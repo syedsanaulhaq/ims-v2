@@ -788,39 +788,45 @@ router.get('/issued-items', async (req, res) => {
   try {
     const pool = getPool();
     const { user_id } = req.query;
-
+    const request = pool.request();
+    // Prefer request-linked items (current workflow). Fall back to legacy stock_issuances rows.
     let query = `
-      SELECT 
+      SELECT
         sii.id,
-        sii.request_id,
-        sir.request_number,
+        COALESCE(sii.request_id, sii.stock_issuance_id) AS stock_issuance_id,
+        COALESCE(sir.request_number, si.issuance_number) AS issuance_number,
         sii.item_master_id,
-        COALESCE(im.nomenclature, sii.nomenclature) as nomenclature,
-        im.group_number,
-        sii.requested_quantity as issued_quantity,
+        COALESCE(im.nomenclature, sii.nomenclature, sii.custom_item_name, 'Unknown Item') AS nomenclature,
+        COALESCE(sii.issued_quantity, sii.approved_quantity, sii.requested_quantity, 0) AS issued_quantity,
         sii.approved_quantity,
         im.unit,
-        sir.expected_return_date,
-        sir.is_returnable,
-        u.FullName as requester_name,
-        sir.submitted_at as created_at,
-        sir.request_type as purpose,
-        sir.approval_status
+        COALESCE(si.issue_date, TRY_CONVERT(date, sir.expected_return_date)) AS expected_return_date,
+        CAST(COALESCE(sir.is_returnable, 0) AS BIT) AS is_returnable,
+        u.FullName AS requester_name,
+        COALESCE(sir.updated_at, sir.submitted_at, sir.created_at, si.created_at, sii.created_at) AS created_at,
+        COALESCE(sir.purpose, si.purpose, si.status, '') AS purpose,
+        COALESCE(sir.approval_status, sir.request_status, si.status, sii.item_status, sii.status) AS approval_status
       FROM stock_issuance_items sii
-      INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
+      LEFT JOIN stock_issuance_requests sir
+        ON sir.id = COALESCE(sii.request_id, CASE WHEN sii.stock_issuance_id IS NOT NULL THEN sii.stock_issuance_id END)
+      LEFT JOIN stock_issuances si ON si.id = sii.stock_issuance_id
       LEFT JOIN item_masters im ON sii.item_master_id = im.id
-      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      WHERE (sir.approval_status IN ('Approved', 'Approved by Admin', 'Approved by Supervisor', 'Issued'))
+      LEFT JOIN AspNetUsers u ON u.Id = COALESCE(sir.requester_user_id, si.requested_by)
+      WHERE (
+        UPPER(COALESCE(sir.approval_status, sir.request_status, si.status, sii.item_status, sii.status, '')) IN ('APPROVED', 'ISSUED', 'COMPLETED')
+      )
+      AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
     `;
 
-    let request = pool.request();
-
     if (user_id) {
-      query += ` AND sir.requester_user_id = @userId`;
-      request = request.input('userId', sql.NVarChar(450), user_id);
+      request.input('userId', sql.NVarChar(450), user_id);
+      query += ` AND (
+        CONVERT(NVARCHAR(450), sir.requester_user_id) = @userId
+        OR CONVERT(NVARCHAR(450), si.requested_by) = @userId
+      )`;
     }
 
-    query += ` ORDER BY sir.submitted_at DESC`;
+    query += ' ORDER BY COALESCE(sir.updated_at, sir.submitted_at, sir.created_at, si.created_at, sii.created_at) DESC';
 
     const result = await request.query(query);
     
@@ -1274,8 +1280,8 @@ const createStockIssuanceRequest = async (req, res) => {
             .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name || null)
             .query(`
               INSERT INTO stock_issuance_items 
-              (id, request_id, item_master_id, nomenclature, requested_quantity, item_type, custom_item_name)
-              VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @itemType, @customName)
+              (id, request_id, item_master_id, nomenclature, requested_quantity, item_type, custom_item_name, status, item_status, is_deleted, created_at, updated_at)
+              VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @itemType, @customName, 'Pending', 'Pending', 0, GETDATE(), GETDATE())
             `);
         }
       }
@@ -1525,8 +1531,8 @@ router.post('/items', requireAuth, async (req, res) => {
           .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name || null)
           .query(`
             INSERT INTO stock_issuance_items 
-            (id, request_id, item_master_id, nomenclature, requested_quantity, unit_price, item_type, custom_item_name)
-            VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @unitPrice, @itemType, @customName)
+            (id, request_id, item_master_id, nomenclature, requested_quantity, unit_price, item_type, custom_item_name, status, item_status, is_deleted, created_at, updated_at)
+            VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @unitPrice, @itemType, @customName, 'Pending', 'Pending', 0, GETDATE(), GETDATE())
           `);
       }
 
