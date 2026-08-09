@@ -131,6 +131,7 @@ router.get('/', requireGlobalInventoryAccess, async (req, res) => {
 // ============================================================================
 router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
   try {
+    console.log('PERSONAL_INVENTORY_V3 hit', { userId: req.params.userId, sessionUserId: req.session?.userId });
     const pool = getPool();
     const sessionUserId = req.session.userId;
     const requestedUserId = String(req.params.userId || '');
@@ -146,56 +147,18 @@ router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
 
     const effectiveUserId = isSuperAdmin ? requestedUserId : sessionUserId;
 
-    const itemsResult = await pool.request()
-      .input('userId', sql.NVarChar(450), effectiveUserId)
-      .query(`
-        SELECT
-          sii.id AS ledger_id,
-          sii.item_master_id,
-          sir.request_number,
-          COALESCE(im.nomenclature, sii.nomenclature, 'Unknown Item') AS nomenclature,
-          c.category_name,
-          COALESCE(NULLIF(sii.issued_quantity, 0), NULLIF(sii.approved_quantity, 0), sii.requested_quantity, 0) AS issued_quantity,
-          CAST(0 AS DECIMAL(18,2)) AS unit_price,
-          CAST(0 AS DECIMAL(18,2)) AS total_value,
-          COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) AS issued_at,
-          '' AS issued_by_name,
-          sir.purpose,
-          sir.request_type,
-          COALESCE(sir.is_returnable, 0) AS is_returnable,
-          sir.expected_return_date,
-          NULL AS actual_return_date,
-          CASE
-            WHEN COALESCE(sir.is_returnable, 0) = 0 THEN 'Not Returnable'
-            WHEN sir.expected_return_date IS NOT NULL AND sir.expected_return_date < GETDATE() THEN 'Overdue'
-            ELSE 'Not Returned'
-          END AS return_status,
-          CASE
-            WHEN COALESCE(sir.is_returnable, 0) = 1
-              AND sir.expected_return_date IS NOT NULL
-              AND sir.expected_return_date < GETDATE()
-            THEN 'Overdue'
-            WHEN UPPER(COALESCE(sir.approval_status, '')) = 'RETURNED'
-            THEN 'Returned'
-            ELSE 'Not Returned'
-          END AS current_return_status,
-          COALESCE(sir.approval_status, sir.request_status, 'Issued') AS status,
-          '' AS issuance_notes
-        FROM stock_issuance_items sii
-        INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
-        LEFT JOIN item_masters im ON sii.item_master_id = im.id
-        LEFT JOIN categories c ON im.category_id = c.id
-        WHERE sir.requester_user_id = @userId
-          AND (
-            UPPER(COALESCE(sir.request_status, '')) IN ('ISSUED', 'COMPLETED')
-            OR UPPER(COALESCE(sir.approval_status, '')) IN ('ISSUED', 'COMPLETED')
-          )
-          AND (sir.is_deleted = 0 OR sir.is_deleted IS NULL)
-          AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
-        ORDER BY COALESCE(sir.updated_at, sir.submitted_at, sir.created_at) DESC
-      `);
+    // Call sp_GetPersonalInventory to optimize heavy joins and unions
+    let items = [];
+    try {
+      const result = await pool.request()
+        .input('UserId', sql.NVarChar(450), effectiveUserId)
+        .execute('sp_GetPersonalInventory');
+      items = result.recordset || [];
+    } catch (spError) {
+      console.error('Error executing sp_GetPersonalInventory:', spError);
+      throw spError;
+    }
 
-    const items = itemsResult.recordset || [];
     const summary = {
       total_items: items.length,
       total_value: items.reduce((sum, item) => sum + Number(item.total_value || 0), 0),
@@ -213,55 +176,25 @@ router.get('/personal-inventory/:userId', requireAuth, async (req, res) => {
 
 // ============================================================================
 // GET /api/inventory/requestable-items
-// Request form item catalog for authenticated users (not central dashboard data)
+// Request form item catalog for authenticated users (uses stored procedure sp_GetRequestableInventoryItems)
 // ============================================================================
 router.get('/requestable-items', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
     const { search, category_id } = req.query;
 
-    let query = `
-      SELECT
-        im.id AS id,
-        im.id AS item_master_id,
-        im.nomenclature,
-        im.item_code,
-        im.unit,
-        im.specifications,
-        c.category_name,
-        c.description AS category_description,
-        ISNULL(cis.current_quantity, 0) AS current_quantity,
-        cis.last_transaction_date,
-        cis.last_updated
-      FROM item_masters im
-      LEFT JOIN categories c ON c.id = im.category_id
-      LEFT JOIN current_inventory_stock cis ON cis.item_master_id = im.id
-      WHERE (im.is_deleted = 0 OR im.is_deleted IS NULL)
-        AND (im.status = 'Active' OR im.status IS NULL)
-    `;
+    const result = await pool.request()
+      .input('CategoryId', sql.UniqueIdentifier, category_id || null)
+      .input('SearchTerm', sql.NVarChar, search ? `%${search}%` : null)
+      .execute('sp_GetRequestableInventoryItems');
 
-    let request = pool.request();
-
-    if (search) {
-      query += ` AND (im.nomenclature LIKE @search OR im.item_code LIKE @search)`;
-      request = request.input('search', sql.NVarChar, `%${search}%`);
-    }
-
-    if (category_id) {
-      query += ` AND im.category_id = @categoryId`;
-      request = request.input('categoryId', sql.UniqueIdentifier, category_id);
-    }
-
-    query += ` ORDER BY im.nomenclature`;
-
-    const result = await request.query(query);
     res.json({
       success: true,
       inventory: result.recordset,
       total: result.recordset.length
     });
   } catch (error) {
-    console.error('Error fetching requestable items:', error);
+    console.error('Error fetching requestable items via SP:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch requestable items',
@@ -271,72 +204,26 @@ router.get('/requestable-items', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
-// GET /api/inventory/dashboard-stats - Get dashboard statistics
+// GET /api/inventory/dashboard-stats - Get dashboard statistics (uses stored procedure sp_GetInventoryDashboardStats)
 // ============================================================================
 router.get('/dashboard-stats', requireGlobalInventoryAccess, async (req, res) => {
   try {
     const pool = getPool();
-
-    // Get total items count
-    const itemsResult = await pool.request().query(`
-      SELECT COUNT(*) as total_items 
-      FROM item_masters 
-      WHERE is_deleted = 0 OR is_deleted IS NULL
-    `);
-
-    // Get total stock value and quantity
-    const stockResult = await pool.request().query(`
-      SELECT 
-        COUNT(DISTINCT sa.item_master_id) as items_with_stock,
-        COALESCE(SUM(sa.quantity_available), 0) as total_quantity,
-        COALESCE(SUM(sa.quantity_available * ISNULL(sa.unit_cost, 0)), 0) as total_value
-      FROM stock_acquisitions sa
-      WHERE sa.quantity_available > 0
-        AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)
-    `);
-
-    // Get low stock items count
-    const lowStockResult = await pool.request().query(`
-      SELECT COUNT(*) as low_stock_count
-      FROM item_masters im
-      WHERE im.reorder_point IS NOT NULL
-        AND im.reorder_point > 0
-        AND (im.is_deleted = 0 OR im.is_deleted IS NULL)
-        AND COALESCE(
-          (SELECT SUM(sa.quantity_available) 
-           FROM stock_acquisitions sa 
-           WHERE sa.item_master_id = im.id 
-             AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)), 0
-        ) <= im.reorder_point
-    `);
-
-    // Get pending requests count
-    const pendingResult = await pool.request().query(`
-      SELECT COUNT(*) as pending_requests
-      FROM stock_issuance_requests
-      WHERE approval_status IN ('Pending', 'pending')
-        AND (is_deleted = 0 OR is_deleted IS NULL)
-    `);
-
-    // Get categories count
-    const categoriesResult = await pool.request().query(`
-      SELECT COUNT(*) as total_categories
-      FROM categories
-      WHERE is_deleted = 0 OR is_deleted IS NULL
-    `);
+    const result = await pool.request().execute('sp_GetInventoryDashboardStats');
+    const stats = result.recordset[0] || {};
 
     res.json({
       success: true,
-      total_items: itemsResult.recordset[0].total_items,
-      items_with_stock: stockResult.recordset[0].items_with_stock,
-      total_quantity: stockResult.recordset[0].total_quantity,
-      total_value: stockResult.recordset[0].total_value,
-      low_stock_count: lowStockResult.recordset[0].low_stock_count,
-      pending_requests: pendingResult.recordset[0].pending_requests,
-      total_categories: categoriesResult.recordset[0].total_categories
+      total_items: stats.total_items || 0,
+      items_with_stock: stats.items_with_stock || 0,
+      total_quantity: stats.total_quantity || 0,
+      total_value: stats.total_value || 0,
+      low_stock_count: stats.low_stock_count || 0,
+      pending_requests: stats.pending_requests || 0,
+      total_categories: stats.total_categories || 0
     });
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
+    console.error('Error fetching dashboard stats via SP:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to fetch dashboard statistics', 
@@ -349,50 +236,21 @@ router.get('/dashboard-stats', requireGlobalInventoryAccess, async (req, res) =>
 // GET /api/inventory/dashboard - Alias for dashboard-stats
 // ============================================================================
 router.get('/dashboard', requireGlobalInventoryAccess, async (req, res) => {
-  // Redirect to dashboard-stats handler by directly calling it
   try {
     const pool = getPool();
-
-    const itemsResult = await pool.request().query(`
-      SELECT COUNT(*) as total_items 
-      FROM item_masters 
-      WHERE is_deleted = 0 OR is_deleted IS NULL
-    `);
-
-    const stockResult = await pool.request().query(`
-      SELECT 
-        COUNT(DISTINCT sa.item_master_id) as items_with_stock,
-        COALESCE(SUM(sa.quantity_available), 0) as total_quantity,
-        COALESCE(SUM(sa.quantity_available * ISNULL(sa.unit_cost, 0)), 0) as total_value
-      FROM stock_acquisitions sa
-      WHERE sa.quantity_available > 0
-        AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)
-    `);
-
-    const lowStockResult = await pool.request().query(`
-      SELECT COUNT(*) as low_stock_count
-      FROM item_masters im
-      WHERE im.reorder_point IS NOT NULL
-        AND im.reorder_point > 0
-        AND (im.is_deleted = 0 OR im.is_deleted IS NULL)
-        AND COALESCE(
-          (SELECT SUM(sa.quantity_available) 
-           FROM stock_acquisitions sa 
-           WHERE sa.item_master_id = im.id 
-             AND (sa.is_deleted = 0 OR sa.is_deleted IS NULL)), 0
-        ) <= im.reorder_point
-    `);
+    const result = await pool.request().execute('sp_GetInventoryDashboardStats');
+    const stats = result.recordset[0] || {};
 
     res.json({
       success: true,
-      total_items: itemsResult.recordset[0].total_items,
-      items_with_stock: stockResult.recordset[0].items_with_stock,
-      total_quantity: stockResult.recordset[0].total_quantity,
-      total_value: stockResult.recordset[0].total_value,
-      low_stock_count: lowStockResult.recordset[0].low_stock_count
+      total_items: stats.total_items || 0,
+      items_with_stock: stats.items_with_stock || 0,
+      total_quantity: stats.total_quantity || 0,
+      total_value: stats.total_value || 0,
+      low_stock_count: stats.low_stock_count || 0
     });
   } catch (error) {
-    console.error('Error fetching dashboard:', error);
+    console.error('Error fetching dashboard via SP:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard' });
   }
 });

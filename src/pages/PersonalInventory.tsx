@@ -75,12 +75,20 @@ export default function PersonalInventory() {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`http://localhost:3001/api/inventory/personal-inventory/${user?.user_id}`, {
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/inventory/personal-inventory/${user?.user_id}`, {
         credentials: 'include'
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch personal inventory');
+        let details = '';
+        try {
+          const errBody = await response.json();
+          details = errBody?.details || errBody?.error || '';
+        } catch {
+          // ignore parse errors
+        }
+        throw new Error(details || `Failed to fetch personal inventory (${response.status})`);
       }
 
       const data = await response.json();

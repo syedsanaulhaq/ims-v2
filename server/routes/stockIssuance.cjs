@@ -788,39 +788,45 @@ router.get('/issued-items', async (req, res) => {
   try {
     const pool = getPool();
     const { user_id } = req.query;
-
+    const request = pool.request();
+    // Prefer request-linked items (current workflow). Fall back to legacy stock_issuances rows.
     let query = `
-      SELECT 
+      SELECT
         sii.id,
-        sii.request_id,
-        sir.request_number,
+        COALESCE(sii.request_id, sii.stock_issuance_id) AS stock_issuance_id,
+        COALESCE(sir.request_number, si.issuance_number) AS issuance_number,
         sii.item_master_id,
-        COALESCE(im.nomenclature, sii.nomenclature) as nomenclature,
-        im.group_number,
-        sii.requested_quantity as issued_quantity,
+        COALESCE(im.nomenclature, sii.nomenclature, sii.custom_item_name, 'Unknown Item') AS nomenclature,
+        COALESCE(sii.issued_quantity, sii.approved_quantity, sii.requested_quantity, 0) AS issued_quantity,
         sii.approved_quantity,
         im.unit,
-        sir.expected_return_date,
-        sir.is_returnable,
-        u.FullName as requester_name,
-        sir.submitted_at as created_at,
-        sir.request_type as purpose,
-        sir.approval_status
+        COALESCE(si.issue_date, TRY_CONVERT(date, sir.expected_return_date)) AS expected_return_date,
+        CAST(COALESCE(sir.is_returnable, 0) AS BIT) AS is_returnable,
+        u.FullName AS requester_name,
+        COALESCE(sir.updated_at, sir.submitted_at, sir.created_at, si.created_at, sii.created_at) AS created_at,
+        COALESCE(sir.purpose, si.purpose, si.status, '') AS purpose,
+        COALESCE(sir.approval_status, sir.request_status, si.status, sii.item_status, sii.status) AS approval_status
       FROM stock_issuance_items sii
-      INNER JOIN stock_issuance_requests sir ON sii.request_id = sir.id
+      LEFT JOIN stock_issuance_requests sir
+        ON sir.id = COALESCE(sii.request_id, CASE WHEN sii.stock_issuance_id IS NOT NULL THEN sii.stock_issuance_id END)
+      LEFT JOIN stock_issuances si ON si.id = sii.stock_issuance_id
       LEFT JOIN item_masters im ON sii.item_master_id = im.id
-      LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
-      WHERE (sir.approval_status IN ('Approved', 'Approved by Admin', 'Approved by Supervisor', 'Issued'))
+      LEFT JOIN AspNetUsers u ON u.Id = COALESCE(sir.requester_user_id, si.requested_by)
+      WHERE (
+        UPPER(COALESCE(sir.approval_status, sir.request_status, si.status, sii.item_status, sii.status, '')) IN ('APPROVED', 'ISSUED', 'COMPLETED')
+      )
+      AND (sii.is_deleted = 0 OR sii.is_deleted IS NULL)
     `;
 
-    let request = pool.request();
-
     if (user_id) {
-      query += ` AND sir.requester_user_id = @userId`;
-      request = request.input('userId', sql.NVarChar(450), user_id);
+      request.input('userId', sql.NVarChar(450), user_id);
+      query += ` AND (
+        CONVERT(NVARCHAR(450), sir.requester_user_id) = @userId
+        OR CONVERT(NVARCHAR(450), si.requested_by) = @userId
+      )`;
     }
 
-    query += ` ORDER BY sir.submitted_at DESC`;
+    query += ' ORDER BY COALESCE(sir.updated_at, sir.submitted_at, sir.created_at, si.created_at, sii.created_at) DESC';
 
     const result = await request.query(query);
     
@@ -922,7 +928,7 @@ router.get('/:id', requireAuth, async (req, res) => {
           u.Email as requester_email,
           w.Name as wing_name
         FROM stock_issuance_requests sir
-        LEFT JOIN AspNetUsers u ON sir.requester_user_id = u.Id
+        LEFT JOIN AspNetUsers u ON CONVERT(NVARCHAR(450), sir.requester_user_id) = CONVERT(NVARCHAR(450), u.Id)
         LEFT JOIN WingsInformation w ON sir.requester_wing_id = w.Id
         WHERE sir.id = @id
       `);
@@ -1010,6 +1016,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       .input('requestId2', sql.UniqueIdentifier, id)
       .query(`
         SELECT ra.id,
+               ra.current_status,
                ra.current_approver_id,
                au.FullName AS current_approver_name,
                COALESCE(role_pick.role_name, au.Role, 'Approver') AS current_approver_role
@@ -1035,11 +1042,11 @@ router.get('/:id', requireAuth, async (req, res) => {
     const isWingRequest = normalizedRequestType === 'wing' || normalizedRequestType === 'organizational';
 
     let submissionTargetName = isPersonalRequest
-      ? (supervisor?.name || approvalHead?.current_approver_name || 'Approver')
+      ? (approvalHead?.current_approver_name || supervisor?.name || 'Approver')
       : (workflowStateHead?.current_approver_name || approvalHead?.current_approver_name || supervisor?.name || 'Approver');
 
     let submissionTargetRole = isPersonalRequest
-      ? (supervisor?.role || approvalHead?.current_approver_role || null)
+      ? (approvalHead?.current_approver_role || supervisor?.role || null)
       : (workflowStateHead?.current_approver_role || approvalHead?.current_approver_role || supervisor?.role || null);
 
     // Guard against self-assignment display for wing/organizational requests.
@@ -1166,6 +1173,25 @@ router.get('/:id', requireAuth, async (req, res) => {
           approver_role: null
         });
       }
+
+      // If the request has an approval record and is still pending review, append the current pending assignee
+      const currentStatus = (approvalHead.current_status || '').toLowerCase();
+      if (['pending', 'submitted', 'forwarded_to_admin', 'forwarded_to_supervisor'].includes(currentStatus)) {
+        const isAlreadyInHistory = approvalHistory.some(
+          (h) => h.action === 'pending' && h.actor_id === approvalHead.current_approver_id
+        );
+        if (!isAlreadyInHistory) {
+          approvalHistory.push({
+            action: 'pending',
+            actor_name: approvalHead.current_approver_name || 'Supervisor',
+            actor_id: approvalHead.current_approver_id,
+            timestamp: null,
+            comments: 'Awaiting review and approval',
+            is_current_step: true,
+            approver_role: approvalHead.current_approver_role || 'Approver'
+          });
+        }
+      }
     } else {
       // No approval record yet - show pending with supervisor
       const status = (request.request_status || '').toLowerCase();
@@ -1274,8 +1300,8 @@ const createStockIssuanceRequest = async (req, res) => {
             .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name || null)
             .query(`
               INSERT INTO stock_issuance_items 
-              (id, request_id, item_master_id, nomenclature, requested_quantity, item_type, custom_item_name)
-              VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @itemType, @customName)
+              (id, request_id, item_master_id, nomenclature, requested_quantity, item_type, custom_item_name, status, item_status, is_deleted, created_at, updated_at)
+              VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @itemType, @customName, 'Pending', 'Pending', 0, GETDATE(), GETDATE())
             `);
         }
       }
@@ -1344,19 +1370,25 @@ const createStockIssuanceRequest = async (req, res) => {
             .input('wingId', sql.Int, wingId)
             .input('requesterId', sql.NVarChar(450), userId)
             .query(`
+              DECLARE @requesterPriority INT = 9999;
+              SELECT TOP 1 @requesterPriority = COALESCE(ud.Priority, 9999)
+              FROM AspNetUsers u
+              LEFT JOIN tblUserDesignations ud ON u.intDesignationID = ud.intDesignationID
+              WHERE u.Id = @requesterId;
+
               SELECT TOP 1 u.Id as user_id, u.FullName
               FROM AspNetUsers u
               INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
               INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
+              LEFT JOIN tblUserDesignations ud ON u.intDesignationID = ud.intDesignationID
               WHERE u.intWingID = @wingId
                 AND u.Id != @requesterId
                 AND (r.Name LIKE '%Admin%' OR r.Name LIKE '%DG%' OR r.Name LIKE '%ADG%'
                      OR r.Name LIKE '%Manager%' OR r.Name LIKE '%Director%' OR r.Name LIKE '%HoD%')
+                AND COALESCE(CASE WHEN ud.Priority < 0 THEN 9999 ELSE ud.Priority END, 9999) < @requesterPriority
               ORDER BY
-                CASE WHEN r.Name LIKE '%HoD%' THEN 1
-                     WHEN r.Name LIKE '%Director%' THEN 2
-                     WHEN r.Name LIKE '%Manager%' THEN 3
-                     ELSE 4 END
+                COALESCE(CASE WHEN ud.Priority < 0 THEN 9999 ELSE ud.Priority END, 9999) DESC,
+                u.FullName ASC
             `);
 
           if (supervisorResult.recordset.length > 0) {
@@ -1369,9 +1401,17 @@ const createStockIssuanceRequest = async (req, res) => {
                 FROM AspNetUsers u
                 INNER JOIN AspNetUserRoles ur ON u.Id = ur.UserId
                 INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
+                LEFT JOIN tblUserDesignations ud ON u.intDesignationID = ud.intDesignationID
                 WHERE u.intWingID = @wingId
                   AND (r.Name LIKE '%Admin%' OR r.Name LIKE '%DG%' OR r.Name LIKE '%ADG%'
                        OR r.Name LIKE '%Manager%' OR r.Name LIKE '%Director%' OR r.Name LIKE '%HoD%')
+                ORDER BY
+                  CASE WHEN r.Name LIKE '%HoD%' THEN 1
+                       WHEN r.Name LIKE '%Director%' THEN 2
+                       WHEN r.Name LIKE '%Manager%' THEN 3
+                       ELSE 4 END,
+                  COALESCE(CASE WHEN ud.Priority < 0 THEN 9999 ELSE ud.Priority END, 9999) ASC,
+                  u.FullName ASC
               `);
             if (fallbackResult.recordset.length > 0) {
               approverId = fallbackResult.recordset[0].user_id;
@@ -1525,8 +1565,8 @@ router.post('/items', requireAuth, async (req, res) => {
           .input('customName', sql.NVarChar(sql.MAX), item.custom_item_name || null)
           .query(`
             INSERT INTO stock_issuance_items 
-            (id, request_id, item_master_id, nomenclature, requested_quantity, unit_price, item_type, custom_item_name)
-            VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @unitPrice, @itemType, @customName)
+            (id, request_id, item_master_id, nomenclature, requested_quantity, unit_price, item_type, custom_item_name, status, item_status, is_deleted, created_at, updated_at)
+            VALUES (NEWID(), @requestId, @itemId, @nomenclature, @qty, @unitPrice, @itemType, @customName, 'Pending', 'Pending', 0, GETDATE(), GETDATE())
           `);
       }
 

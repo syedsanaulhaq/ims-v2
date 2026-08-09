@@ -52,7 +52,7 @@ async function createTestUser() {
         .input('wingId', sql.Int, 19)
         .input('role', sql.NVarChar, 'Admin')
         .input('isActive', sql.Bit, 1)
-        .input('gender', sql.NVarChar, 'Male')
+        .input('gender', sql.Int, 1)
         .query(`
           INSERT INTO AspNetUsers (
             Id, FullName, CNIC, UserName, Email, Password, PasswordHash,

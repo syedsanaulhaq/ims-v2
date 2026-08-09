@@ -20,14 +20,14 @@ loadEnvFile('.env', false);
 
 // 2) Allow explicit file override when provided.
 if (process.env.ENV_FILE) {
-  loadEnvFile(process.env.ENV_FILE, true);
+  loadEnvFile(process.env.ENV_FILE, false);
 } else {
-  // 3) Load environment-specific file and override base values.
-  loadEnvFile(`.env-${runtimeEnv}`, true);
+  // 3) Load environment-specific file.
+  loadEnvFile(`.env-${runtimeEnv}`, false);
 }
 
-// 4) Load SQL Server overrides last.
-loadEnvFile('.env.sqlserver', true);
+// 4) Load SQL Server overrides last (do not override environment variables).
+loadEnvFile('.env.sqlserver', false);
 
 const config = {
   // Server
@@ -62,6 +62,7 @@ const config = {
     'http://localhost:8080',
     'http://localhost:8081',
     'http://localhost:8082',
+    'http://localhost:9080',
     'http://localhost:4173',
     'http://localhost',
     'http://127.0.0.1:3000',
@@ -69,6 +70,7 @@ const config = {
     'http://127.0.0.1:8080',
     'http://127.0.0.1:8081',
     'http://127.0.0.1:8082',
+    'http://127.0.0.1:9080',
     'http://127.0.0.1:4173',
     'http://127.0.0.1',
     'http://172.20.150.34',
